@@ -17,7 +17,12 @@ export default function Home() {
       <section className="mt-12">
         <h2 className="text-2xl font-semibold">About Me</h2>
         {/* TODO: Fill in your about me content */}
-        <p className="mt-4 text-gray-500 italic">Coming soon...</p>
+        <p className="mt-4 text-gray-500 italic">
+          I am a software engineer with a passion for building scalable and efficient applications. I'm primarily a backend engineer, and I enjoy learning new technologies and improving my skills.
+        </p>
+        <p className="mt-4 text-gray-500 italic">
+          Raised in LA (San Pedro) <br /> Computer Science degree from UC Berkeley <br /> Lived in SF &rarr; NYC.
+        </p>
       </section>
     </div>
   );
