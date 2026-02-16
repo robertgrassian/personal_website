@@ -1,20 +1,24 @@
-import Image from "next/image";
+import Link from "next/link";
 
 export default function Home() {
   return (
-    <div>
-      <h1 className="text-3xl font-bold underline">Welcome to My Page</h1>
-      <p className="mt-4 text-lg">
-        I really love my girlfriend Pao and its national GF day tomorrow!!!
+    <div className="max-w-3xl mx-auto px-6 py-16">
+      <h1 className="text-4xl font-bold">Robert Grassian</h1>
+      <p className="mt-2 text-lg text-gray-600">
+        Software Engineer
       </p>
-      <ul className="mt-4 list-disc list-inside text-lg">
-        <li>She is incredibly kind and caring</li>
-        <li>She always makes me laugh</li>
-        <li>She supports me in everything I do</li>
-        <li>She is thoughtful and understanding</li>
-        <li>She inspires me to be a better person</li>
-      </ul>
 
+      <nav className="mt-6 flex gap-4">
+        <Link href="/resume" className="text-blue-600 hover:underline">
+          Resume
+        </Link>
+      </nav>
+
+      <section className="mt-12">
+        <h2 className="text-2xl font-semibold">About Me</h2>
+        {/* TODO: Fill in your about me content */}
+        <p className="mt-4 text-gray-500 italic">Coming soon...</p>
+      </section>
     </div>
   );
 }
