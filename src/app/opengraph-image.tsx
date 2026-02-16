@@ -18,8 +18,8 @@ export default function OGImage() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          // Burnt orange to white gradient
-          background: 'linear-gradient(135deg, #cc5500 0%, #f4a460 45%, #ffffff 100%)',
+          // Cream to dark blue gradient
+          background: 'linear-gradient(135deg, #fdf6e3 0%, #c4b5a0 45%, #1e3a5f 100%)',
         }}
       >
         <div
