@@ -19,7 +19,7 @@ export default function OGImage() {
           alignItems: 'center',
           justifyContent: 'center',
           // Cream to dark blue gradient
-          background: 'linear-gradient(135deg, #fdf6e3 0%, #c4b5a0 45%, #1e3a5f 100%)',
+          background: 'linear-gradient(135deg, #8dbef6ff 0%, #002a61ff 100%)',
         }}
       >
         <div
@@ -41,19 +41,6 @@ export default function OGImage() {
             }}
           >
             RG
-          </div>
-
-          {/* Full name underneath */}
-          <div
-            style={{
-              fontSize: '36px',
-              fontWeight: 400,
-              color: '#44403c',
-              letterSpacing: '8px',
-              textTransform: 'uppercase' as const,
-            }}
-          >
-            Robert Grassian
           </div>
         </div>
       </div>
