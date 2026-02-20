@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { Company } from "@/components/resume/Company";
+import { ResumeSection } from "@/components/resume/ResumeSection";
+
 
 export default function Resume() {
   return (
@@ -9,114 +12,127 @@ export default function Resume() {
 
       <h1 className="mt-6 text-4xl font-bold">Resume</h1>
 
-      {/* --- Experience --- */}
-      <section className="mt-12">
-        <h2 className="text-2xl font-semibold border-b pb-2">Experience</h2>
+      <div className="mt-12 space-y-14">
+        {/* --- Experience --- */}
+        <ResumeSection title="Experience">
+          <div className="mt-8 space-y-10">
+            {/* Harness */}
+            <Company
+            name="Harness"
+            location="New York, NY (remote)"
+            roles={[
+              {
+                title: "Senior Software Engineer - Feature Management & Experimentation",
+                dateRange: "May 2024 - Present",
+                sections: [
+                  {
+                    label: "Projects",
+                    items: [
+                      "Lead architecture and implementation of Warehouse Native Experimentation support, enabling customers to run experiments directly against their data warehouses",
+                      "Architected and implemented the usage reporting data pipeline, including the Temporal Workflow and dedicated Tinybird (ClickHouse) MVs, to power Harness's flexible pricing model for FME",
+                      "Engineered the MCP server toolset for Harness FME, enabling AI agents to autonomously identify and clean up stale feature flags and analyze which code paths are live in production",
+                    ],
+                  },
+                  {
+                    label: "Leadership",
+                    items: [
+                      "Serves as a Tech Lead on a 15-person engineering team, owning architectural decisions and coordinating cross-functionally with product and stakeholders",
+                      "Facilitates Agentic AI trainings for the 80+ engineers in the FME module to build team knowledge of the latest innovations, increasing AI adoption rate and creation of internal marketplace for Claude Code plugins",
+                    ],
+                  },
+                ],
+              },
+            ]}
+          />
 
-        {/* Harness */}
-        <div className="mt-8">
-          <h3 className="text-xl font-bold">Harness</h3>
+          {/* Split */}
+          <Company
+            name="Split Software"
+            location="Redwood City, CA"
+            subtitle="Acquired by Harness"
+            roles={[
+              {
+                title: "Software Engineer - Measurement and Experimentation",
+                dateRange: "Jan 2023 - May 2024",
+                sections: [
+                  {
+                    items: [
+                      "Redesigned experimentation from a feature flag add-on to its own dedicated entity and services, establishing the foundation for all modern experimentation calculations",
+                      "Migrated experimentation platform from Databricks Spark to Tinybird OLAP data platform, enabling real-time data analytics on experiment results",
+                    ],
+                  },
+                ],
+              },
+              {
+                title: "Software Engineer - Office of the CTO",
+                dateRange: "Jul 2021 - Jan 2023",
+                sections: [
+                  {
+                    items: [
+                      "Created a proof of concept for ingestion of external feature flags into Split to enable experimentation, established technical validity and customer demand, and handed off to Engineering to productionize",
+                      "Developed various OpenFeature providers to allow vendor-agnostic use of Split's SDKs, including Java, Go, JavaScript, and Python providers",
+                    ],
+                  },
+                ],
+              },
+            ]}
+          />
 
-          <div className="mt-3 ml-4 border-l-2 border-gray-200 pl-4">
-            <p className="font-medium text-gray-800">Senior Software Engineer</p>
-            <p className="text-sm text-gray-500">Jun 2024 &ndash; Present</p>
+          {/* Cisco */}
+          <Company
+            name="Cisco Systems, Inc. - Webex"
+            location="San Jose, CA"
+            roles={[
+              {
+                title: "Software Engineer",
+                dateRange: "Jul 2020 - Jul 2021",
+                sections: [
+                  {
+                    items: [
+                      "Built and shipped a full-stack Notification Center microservice for Webex Control Hub, owning both backend APIs and frontend integration",
+                      "Designed and compared two approaches to detecting Webex call quality degradation: an autoencoder-based ML model and a statistical threshold detector using 95th-percentile sliding window analysis",
+                    ],
+                  },
+                ],
+              },
+            ]}
+          />
           </div>
-        </div>
+        </ResumeSection>
 
-        {/* Split */}
-        <div className="mt-10">
-          <h3 className="text-xl font-bold">Split Software</h3>
-          <p className="text-sm text-gray-500 mt-1">Acquired by Harness in 2024 &middot; Redwood City, CA</p>
-
-          <div className="mt-3 ml-4 border-l-2 border-gray-200 pl-4 space-y-6">
-            <div>
-              <p className="font-medium text-gray-800">Software Engineer &ndash; Measurement and Learning</p>
-              <p className="text-sm text-gray-500">Dec 2022 &ndash; Jun 2024</p>
-            </div>
-
-            <div>
-              <p className="font-medium text-gray-800">Software Engineer &ndash; Office of the CTO</p>
-              <p className="text-sm text-gray-500">Aug 2021 &ndash; Dec 2022</p>
-              <ul className="mt-2 list-disc list-inside text-gray-700 space-y-1 text-sm">
-                <li>Created a proof of concept for ingestion of external feature flags into Split to enable experimentation</li>
-                <li>Designed various OpenFeature providers to allow use of Split using OpenFeature&apos;s vendor agnostic SDKs. Built OpenFeature providers in Java, Go, Javascript, and Python</li>
-              </ul>
-            </div>
+        {/* --- Education --- */}
+        <ResumeSection title="Education">
+          <div className="mt-6">
+            <h3 className="text-xl font-bold">University of California, Berkeley</h3>
+            <p className="font-medium text-gray-800 mt-1">B.S. Computer Science</p>
+            <p className="text-sm text-gray-500">May 2020</p>
+            <p className="text-sm text-gray-600 mt-1">
+              Entrepreneurship and Technology Certificate from the Sutardja Center
+            </p>
           </div>
-        </div>
+        </ResumeSection>
 
-        {/* Cisco */}
-        <div className="mt-10">
-          <h3 className="text-xl font-bold">Cisco</h3>
-          <p className="text-xs text-gray-400 mt-0.5">San Jose, CA</p>
-
-          <div className="mt-3 ml-4 border-l-2 border-gray-200 pl-4">
-            <p className="font-medium text-gray-800">Software Engineer</p>
-            <p className="text-sm text-gray-500">Jul 2020 &ndash; Aug 2021</p>
-            <ul className="mt-2 list-disc list-inside text-gray-700 space-y-1 text-sm">
-              <li>Developed full stack the Notification Center microservice used by Webex Control Hub</li>
-              <li>Researched and quickly developed multiple PoCs for the use of ML in meeting quality alerting systems</li>
-              <li>Lead development of a dynamic threshold based alerting application for bad meeting quality</li>
-            </ul>
+        {/* --- Skills & Interests --- */}
+        <ResumeSection title="Skills & Interests">
+          <div className="mt-6 space-y-2 text-sm text-gray-700">
+            <p>
+              <span className="font-medium text-gray-800">Languages:</span> Java, Python, SQL
+            </p>
+            <p>
+              <span className="font-medium text-gray-800">Technologies:</span> Temporal, Apache Kafka,
+              ClickHouse, Tinybird, Spring Boot, Pandas
+            </p>
+            <p>
+              <span className="font-medium text-gray-800">Agentic development:</span> MCP server
+              tooling, Claude Code, Agent Skills
+            </p>
+            <p className="mt-4">
+              <span className="font-medium text-gray-800">Interests:</span> Bouldering, Crochet, Dog
+              Walking, Video Games
+            </p>
           </div>
-        </div>
-
-        {/* Sage Health */}
-        <div className="mt-10">
-          <h3 className="text-xl font-bold">Sage Health, Inc</h3>
-          <p className="text-xs text-gray-400 mt-0.5">San Francisco, CA</p>
-
-          <div className="mt-3 ml-4 border-l-2 border-gray-200 pl-4">
-            <p className="font-medium text-gray-800">Data Science Consultant</p>
-            <p className="text-sm text-gray-500">Nov 2018 &ndash; Aug 2019</p>
-            <ul className="mt-2 list-disc list-inside text-gray-700 space-y-1 text-sm">
-              <li>Designed memory efficient data management software to facilitate extraction of interesting and novel observations</li>
-              <li>Generated useful metrics and graphs that provide creative insight into large sets of health care data</li>
-            </ul>
-          </div>
-        </div>
-
-        {/* Vitrium */}
-        <div className="mt-10">
-          <h3 className="text-xl font-bold">Vitrium Systems Inc.</h3>
-          <p className="text-xs text-gray-400 mt-0.5">Prague, Czechia</p>
-
-          <div className="mt-3 ml-4 border-l-2 border-gray-200 pl-4">
-            <p className="font-medium text-gray-800">Software Engineer Intern</p>
-            <p className="text-sm text-gray-500">Jun 2018 &ndash; Aug 2018</p>
-            <ul className="mt-2 list-disc list-inside text-gray-700 space-y-1 text-sm">
-              <li>Created software used to target advertisements to specific advertising demographics in real time</li>
-              <li>Integrated OpenCV library with Microsoft Face API to create facial detection and recognition software</li>
-              <li>Independently developed project from conceptual phase to preparation for deployment</li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* --- Education --- */}
-      <section className="mt-14">
-        <h2 className="text-2xl font-semibold border-b pb-2">Education</h2>
-
-        <div className="mt-6">
-          <h3 className="text-xl font-bold">University of California, Berkeley</h3>
-          <p className="font-medium text-gray-800 mt-1">B.S. Computer Science</p>
-          <p className="text-sm text-gray-500">2016 &ndash; 2020</p>
-          <p className="text-sm text-gray-600 mt-1">Certificate in Entrepreneurship and Technology</p>
-        </div>
-      </section>
-
-      {/* --- Volunteering --- */}
-      <section className="mt-14">
-        <h2 className="text-2xl font-semibold border-b pb-2">Volunteering</h2>
-
-        <div className="mt-6">
-          <h3 className="text-xl font-bold">Camp Kesem Berkeley</h3>
-          <div className="mt-1 ml-4 border-l-2 border-gray-200 pl-4">
-            <p className="font-medium text-gray-800">Counselor</p>
-            <p className="text-sm text-gray-500">Jan 2018 &ndash; May 2020</p>
-          </div>
-        </div>
-      </section>
+        </ResumeSection>
+      </div>
     </div>
   );
 }
