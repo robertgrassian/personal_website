@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Company } from "@/components/resume/Company";
 import { ResumeSection } from "@/components/resume/ResumeSection";
 
-
 export default function Resume() {
   return (
     <div className="max-w-3xl mx-auto px-6 py-16">
@@ -18,85 +17,85 @@ export default function Resume() {
           <div className="mt-8 space-y-10">
             {/* Harness */}
             <Company
-            name="Harness"
-            location="New York, NY (remote)"
-            roles={[
-              {
-                title: "Senior Software Engineer - Feature Management & Experimentation",
-                dateRange: "May 2024 - Present",
-                sections: [
-                  {
-                    label: "Projects",
-                    items: [
-                      "Lead architecture and implementation of Warehouse Native Experimentation support, enabling customers to run experiments directly against their data warehouses",
-                      "Architected and implemented the usage reporting data pipeline, including the Temporal Workflow and dedicated Tinybird (ClickHouse) MVs, to power Harness's flexible pricing model for FME",
-                      "Engineered the MCP server toolset for Harness FME, enabling AI agents to autonomously identify and clean up stale feature flags and analyze which code paths are live in production",
-                    ],
-                  },
-                  {
-                    label: "Leadership",
-                    items: [
-                      "Serves as a Tech Lead on a 15-person engineering team, owning architectural decisions and coordinating cross-functionally with product and stakeholders",
-                      "Facilitates Agentic AI trainings for the 80+ engineers in the FME module to build team knowledge of the latest innovations, increasing AI adoption rate and creation of internal marketplace for Claude Code plugins",
-                    ],
-                  },
-                ],
-              },
-            ]}
-          />
+              name="Harness"
+              location="New York, NY (remote)"
+              roles={[
+                {
+                  title: "Senior Software Engineer - Feature Management & Experimentation",
+                  dateRange: "May 2024 - Present",
+                  sections: [
+                    {
+                      label: "Projects",
+                      items: [
+                        "Lead architecture and implementation of Warehouse Native Experimentation support, enabling customers to run experiments directly against their data warehouses",
+                        "Architected and implemented the usage reporting data pipeline, including the Temporal Workflow and dedicated Tinybird (ClickHouse) MVs, to power Harness's flexible pricing model for FME",
+                        "Engineered the MCP server toolset for Harness FME, enabling AI agents to autonomously identify and clean up stale feature flags and analyze which code paths are live in production",
+                      ],
+                    },
+                    {
+                      label: "Leadership",
+                      items: [
+                        "Serves as a Tech Lead on a 15-person engineering team, owning architectural decisions and coordinating cross-functionally with product and stakeholders",
+                        "Facilitates Agentic AI trainings for the 80+ engineers in the FME module to build team knowledge of the latest innovations, increasing AI adoption rate and creation of internal marketplace for Claude Code plugins",
+                      ],
+                    },
+                  ],
+                },
+              ]}
+            />
 
-          {/* Split */}
-          <Company
-            name="Split Software"
-            location="Redwood City, CA"
-            subtitle="Acquired by Harness"
-            roles={[
-              {
-                title: "Software Engineer - Measurement and Experimentation",
-                dateRange: "Jan 2023 - May 2024",
-                sections: [
-                  {
-                    items: [
-                      "Redesigned experimentation from a feature flag add-on to its own dedicated entity and services, establishing the foundation for all modern experimentation calculations",
-                      "Migrated experimentation platform from Databricks Spark to Tinybird OLAP data platform, enabling real-time data analytics on experiment results",
-                    ],
-                  },
-                ],
-              },
-              {
-                title: "Software Engineer - Office of the CTO",
-                dateRange: "Jul 2021 - Jan 2023",
-                sections: [
-                  {
-                    items: [
-                      "Created a proof of concept for ingestion of external feature flags into Split to enable experimentation, established technical validity and customer demand, and handed off to Engineering to productionize",
-                      "Developed various OpenFeature providers to allow vendor-agnostic use of Split's SDKs, including Java, Go, JavaScript, and Python providers",
-                    ],
-                  },
-                ],
-              },
-            ]}
-          />
+            {/* Split */}
+            <Company
+              name="Split Software"
+              location="Redwood City, CA"
+              subtitle="Acquired by Harness"
+              roles={[
+                {
+                  title: "Software Engineer - Measurement and Experimentation",
+                  dateRange: "Jan 2023 - May 2024",
+                  sections: [
+                    {
+                      items: [
+                        "Redesigned experimentation from a feature flag add-on to its own dedicated entity and services, establishing the foundation for all modern experimentation calculations",
+                        "Migrated experimentation platform from Databricks Spark to Tinybird OLAP data platform, enabling real-time data analytics on experiment results",
+                      ],
+                    },
+                  ],
+                },
+                {
+                  title: "Software Engineer - Office of the CTO",
+                  dateRange: "Jul 2021 - Jan 2023",
+                  sections: [
+                    {
+                      items: [
+                        "Created a proof of concept for ingestion of external feature flags into Split to enable experimentation, established technical validity and customer demand, and handed off to Engineering to productionize",
+                        "Developed various OpenFeature providers to allow vendor-agnostic use of Split's SDKs, including Java, Go, JavaScript, and Python providers",
+                      ],
+                    },
+                  ],
+                },
+              ]}
+            />
 
-          {/* Cisco */}
-          <Company
-            name="Cisco Systems, Inc. - Webex"
-            location="San Jose, CA"
-            roles={[
-              {
-                title: "Software Engineer",
-                dateRange: "Jul 2020 - Jul 2021",
-                sections: [
-                  {
-                    items: [
-                      "Built and shipped a full-stack Notification Center microservice for Webex Control Hub, owning both backend APIs and frontend integration",
-                      "Designed and compared two approaches to detecting Webex call quality degradation: an autoencoder-based ML model and a statistical threshold detector using 95th-percentile sliding window analysis",
-                    ],
-                  },
-                ],
-              },
-            ]}
-          />
+            {/* Cisco */}
+            <Company
+              name="Cisco Systems, Inc. - Webex"
+              location="San Jose, CA"
+              roles={[
+                {
+                  title: "Software Engineer",
+                  dateRange: "Jul 2020 - Jul 2021",
+                  sections: [
+                    {
+                      items: [
+                        "Built and shipped a full-stack Notification Center microservice for Webex Control Hub, owning both backend APIs and frontend integration",
+                        "Designed and compared two approaches to detecting Webex call quality degradation: an autoencoder-based ML model and a statistical threshold detector using 95th-percentile sliding window analysis",
+                      ],
+                    },
+                  ],
+                },
+              ]}
+            />
           </div>
         </ResumeSection>
 
@@ -119,8 +118,8 @@ export default function Resume() {
               <span className="font-medium text-gray-800">Languages:</span> Java, Python, SQL
             </p>
             <p>
-              <span className="font-medium text-gray-800">Technologies:</span> Temporal, Apache Kafka,
-              ClickHouse, Tinybird, Spring Boot, Pandas
+              <span className="font-medium text-gray-800">Technologies:</span> Temporal, Apache
+              Kafka, ClickHouse, Tinybird, Spring Boot, Pandas
             </p>
             <p>
               <span className="font-medium text-gray-800">Agentic development:</span> MCP server
