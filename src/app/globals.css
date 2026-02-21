@@ -3,24 +3,42 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --emphasis: #1f2937; /* gray-800 */
+  --body: #374151; /* gray-700 */
+  --muted: #6b7280; /* gray-500 */
+  --subtle: #9ca3af; /* gray-400 */
+  --divider: #e5e7eb; /* gray-200 */
+  --link: #2563eb; /* blue-600 */
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --emphasis: #e5e7eb; /* gray-200 */
+    --body: #d1d5db; /* gray-300 */
+    --muted: #9ca3af; /* gray-400 */
+    --subtle: #6b7280; /* gray-500 */
+    --divider: #374151; /* gray-700 */
+    --link: #60a5fa; /* blue-400 */
   }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-emphasis: var(--emphasis);
+  --color-body: var(--body);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-divider: var(--divider);
+  --color-link: var(--link);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans);
 }

@@ -5,7 +5,7 @@ import { ResumeSection } from "@/components/resume/ResumeSection";
 export default function Resume() {
   return (
     <div className="max-w-3xl mx-auto px-6 py-16">
-      <Link href="/" className="text-blue-600 hover:underline">
+      <Link href="/" className="text-link hover:underline">
         &larr; Home
       </Link>
 
@@ -104,9 +104,9 @@ export default function Resume() {
         <ResumeSection title="Education">
           <div className="mt-6">
             <h3 className="text-xl font-bold">University of California, Berkeley</h3>
-            <p className="font-medium text-gray-800 mt-1">B.S. Computer Science</p>
-            <p className="text-sm text-gray-500">May 2020</p>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="font-medium text-emphasis mt-1">B.S. Computer Science</p>
+            <p className="text-sm text-muted">May 2020</p>
+            <p className="text-sm text-muted mt-1">
               Entrepreneurship and Technology Certificate from the Sutardja Center
             </p>
           </div>
@@ -114,20 +114,20 @@ export default function Resume() {
 
         {/* --- Skills & Interests --- */}
         <ResumeSection title="Skills & Interests">
-          <div className="mt-6 space-y-2 text-sm text-gray-700">
+          <div className="mt-6 space-y-2 text-sm text-body">
             <p>
-              <span className="font-medium text-gray-800">Languages:</span> Java, Python, SQL
+              <span className="font-medium text-emphasis">Languages:</span> Java, Python, SQL
             </p>
             <p>
-              <span className="font-medium text-gray-800">Technologies:</span> Temporal, Apache
+              <span className="font-medium text-emphasis">Technologies:</span> Temporal, Apache
               Kafka, ClickHouse, Tinybird, Spring Boot, Pandas
             </p>
             <p>
-              <span className="font-medium text-gray-800">Agentic development:</span> MCP server
+              <span className="font-medium text-emphasis">Agentic development:</span> MCP server
               tooling, Claude Code, Agent Skills (/pr-review, /todo, /explain)
             </p>
             <p className="mt-4">
-              <span className="font-medium text-gray-800">Interests:</span> Bouldering, Crochet, Dog
+              <span className="font-medium text-emphasis">Interests:</span> Bouldering, Crochet, Dog
               Walking, Video Games
             </p>
           </div>
