@@ -27,16 +27,16 @@ export default function Resume() {
                     {
                       label: "Projects",
                       items: [
-                        "Lead architecture and implementation of Warehouse Native Experimentation support, enabling customers to run experiments directly against their data warehouses",
-                        "Architected and implemented the usage reporting data pipeline, including the Temporal Workflow and dedicated Tinybird (ClickHouse) MVs, to power Harness's flexible pricing model for FME",
+                        "Led implementation of Warehouse Native Experimentation support, enabling customers to run experiments directly against their data warehouses",
+                        "Architected the usage reporting data pipeline, including the Temporal Workflow and dedicated Tinybird (ClickHouse) MVs, to power Harness's flexible pricing model for FME",
                         "Engineered the MCP server toolset for Harness FME, enabling AI agents to autonomously identify and clean up stale feature flags and analyze which code paths are live in production",
                       ],
                     },
                     {
                       label: "Leadership",
                       items: [
-                        "Serves as a Tech Lead on a 15-person engineering team, owning architectural decisions and coordinating cross-functionally with product and stakeholders",
-                        "Facilitates Agentic AI trainings for the 80+ engineers in the FME module to build team knowledge of the latest innovations, increasing AI adoption rate and creation of internal marketplace for Claude Code plugins",
+                        "Serve as a Tech Lead on a 15-person engineering team, owning architectural decisions and coordinating cross-functionally with product and stakeholders",
+                        "Facilitate Agentic AI trainings for the 80+ engineers in the FME module to build team knowledge of the latest innovations, increasing AI adoption rate and creation of internal marketplace for Claude Code plugins",
                       ],
                     },
                   ],
@@ -68,7 +68,8 @@ export default function Resume() {
                   sections: [
                     {
                       items: [
-                        "Created a proof of concept for ingestion of external feature flags into Split to enable experimentation, established technical validity and customer demand, and handed off to Engineering to productionize",
+                        "Implemented a RAG-based chatbot on Split's documentation and blogs to help customers navigate Split's product",
+                        "Prototyped a system for ingesting external feature flags into Split, validated technical feasibility and customer demand, and handed off to Engineering to productionize",
                         "Developed various OpenFeature providers to allow vendor-agnostic use of Split's SDKs, including Java, Go, JavaScript, and Python providers",
                       ],
                     },
@@ -123,7 +124,7 @@ export default function Resume() {
             </p>
             <p>
               <span className="font-medium text-gray-800">Agentic development:</span> MCP server
-              tooling, Claude Code, Agent Skills
+              tooling, Claude Code, Agent Skills (/pr-review, /todo, /explain)
             </p>
             <p className="mt-4">
               <span className="font-medium text-gray-800">Interests:</span> Bouldering, Crochet, Dog
