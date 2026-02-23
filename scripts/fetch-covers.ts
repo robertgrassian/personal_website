@@ -51,6 +51,9 @@ async function getAccessToken(): Promise<string> {
     `https://id.twitch.tv/oauth2/token?client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&grant_type=client_credentials`,
     { method: "POST" }
   );
+  if (!resp.ok) {
+    throw new Error(`Twitch auth failed: ${resp.status} ${resp.statusText}`);
+  }
   const data = (await resp.json()) as { access_token: string };
   return data.access_token;
 }
@@ -77,6 +80,10 @@ async function fetchCoverUrl(token: string, searchTerm: string): Promise<string>
     body,
   });
 
+  if (!resp.ok) {
+    console.warn(`  [http-error] ${resp.status} ${resp.statusText} for "${searchTerm}"`);
+    return "";
+  }
   const results = (await resp.json()) as Array<{ name?: string; cover?: { url: string } }>;
   const rawUrl = results[0]?.cover?.url;
   if (!rawUrl) return "";

@@ -166,7 +166,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
       />
 
       {shelves.length === 0 ? (
-        <p className="mt-24 text-center text-amber-300/40 text-lg italic">
+        <p className="mt-24 text-center text-shelf-text-muted text-lg italic">
           No games match your filters.
         </p>
       ) : (

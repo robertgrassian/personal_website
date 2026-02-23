@@ -36,7 +36,12 @@ export type Game = {
  */
 export function getGames(): Game[] {
   const csvPath = path.join(process.cwd(), "games.csv");
-  const raw = fs.readFileSync(csvPath, "utf-8");
+  let raw: string;
+  try {
+    raw = fs.readFileSync(csvPath, "utf-8");
+  } catch {
+    throw new Error(`Could not read games.csv at ${csvPath}. Make sure the file exists.`);
+  }
 
   // Split into lines, skip the header row with an empty destructuring slot, keep the data rows.
   // The leading comma in `[, ...rows]` is how you skip an array element in destructuring.
