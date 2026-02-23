@@ -1,0 +1,64 @@
+/* All shelf-specific design tokens, scoped to .shelf-theme.
+   This keeps globals.css free of route-specific color decisions.
+   To tweak colors, edit the values here — the Tailwind utilities and
+   component classes automatically pick up the change. */
+
+.shelf-theme {
+  /* --- Shelf structure --- */
+  --shelf-bg: #f5ece0;
+  --shelf-plank: #c49060;
+  --shelf-edge: #8a5530;
+  --shelf-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+
+  /* --- Page text --- */
+  --shelf-text: #78350f; /* amber-900 */
+  --shelf-text-muted: #b45309b3; /* amber-700/70 */
+  --shelf-text-link: #92400e; /* amber-800 */
+
+  /* --- Shelf section labels --- */
+  --shelf-label: #92400e; /* amber-800 */
+  --shelf-label-muted: #d97706b3; /* amber-600/70 */
+
+  /* --- Filter inputs --- */
+  --shelf-input: #fef3c7; /* amber-100 */
+  --shelf-input-border: #fcd34d99; /* amber-300/60 */
+  --shelf-input-text: #78350f; /* amber-900 */
+  --shelf-input-placeholder: #f59e0b99; /* amber-500/60 */
+  --shelf-input-ring: #d97706; /* amber-600 */
+
+  /* --- Filter bar chrome --- */
+  --shelf-bar-line: #fbbf2480; /* amber-400/50 — bottom border of sticky bar */
+  --shelf-control-label: #b45309b3; /* amber-700/70 — "Group" / "Sort" labels */
+  --shelf-divider: #f59e0b66; /* amber-500/40 — vertical divider between groups */
+}
+
+@media (prefers-color-scheme: dark) {
+  .shelf-theme {
+    /* --- Shelf structure --- */
+    --shelf-bg: #110a04;
+    --shelf-plank: #241508;
+    --shelf-edge: #7c4a1e;
+    --shelf-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+
+    /* --- Page text --- */
+    --shelf-text: #fef3c7; /* amber-100 */
+    --shelf-text-muted: #fcd34db3; /* amber-300/70 */
+    --shelf-text-link: #fcd34d; /* amber-300 */
+
+    /* --- Shelf section labels --- */
+    --shelf-label: #fde68acc; /* amber-200/80 */
+    --shelf-label-muted: #fbbf2466; /* amber-400/40 */
+
+    /* --- Filter inputs --- */
+    --shelf-input: #451a0399; /* amber-950/60 */
+    --shelf-input-border: #92400e66; /* amber-800/40 */
+    --shelf-input-text: #fef3c7; /* amber-100 */
+    --shelf-input-placeholder: #f59e0b66; /* amber-500/40 */
+    --shelf-input-ring: #f59e0b; /* amber-500 */
+
+    /* --- Filter bar chrome --- */
+    --shelf-bar-line: #78350f66; /* amber-900/40 */
+    --shelf-control-label: #f59e0b80; /* amber-500/50 */
+    --shelf-divider: #92400e4d; /* amber-800/30 */
+  }
+}
