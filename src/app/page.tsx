@@ -10,6 +10,9 @@ export default function Home() {
         <Link href="/resume" className="text-link hover:underline">
           Resume
         </Link>
+        <Link href="/video_games" className="text-link hover:underline">
+          Game Library
+        </Link>
       </nav>
 
       <section className="mt-12">

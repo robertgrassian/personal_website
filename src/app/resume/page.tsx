@@ -1,13 +1,11 @@
-import Link from "next/link";
 import { Company } from "@/components/resume/Company";
 import { ResumeSection } from "@/components/resume/ResumeSection";
+import { BackToHome } from "@/components/BackToHome";
 
 export default function Resume() {
   return (
     <div className="max-w-3xl mx-auto px-6 py-16">
-      <Link href="/" className="text-link hover:underline">
-        &larr; Home
-      </Link>
+      <BackToHome />
 
       <h1 className="mt-6 text-4xl font-bold">Resume</h1>
 

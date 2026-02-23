@@ -1,0 +1,4 @@
+{
+  "_comment": "Override map for game cover art. Values: 'https://...' URL = used directly; any other string = used as the IGDB search term (better title than the CSV name); '' = no cover art available (use fallback). Entries here take priority over IGDB auto-search AND will overwrite any existing URL already in the CSV.",
+  "Mario Party 8": "https://images.igdb.com/igdb/image/upload/t_cover_big/coba2w.jpg"
+}

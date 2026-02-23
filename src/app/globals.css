@@ -9,6 +9,11 @@
   --subtle: #9ca3af; /* gray-400 */
   --divider: #e5e7eb; /* gray-200 */
   --link: #2563eb; /* blue-600 */
+
+  /* Video game library — retro home collection shelf palette */
+  --shelf-bg: #110a04; /* near-black warm brown — overall page background */
+  --shelf-plank: #241508; /* dark brown — the shelf surface games sit on */
+  --shelf-edge: #7c4a1e; /* medium warm brown — the shelf rail/edge strip */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -33,6 +38,12 @@
   --color-subtle: var(--subtle);
   --color-divider: var(--divider);
   --color-link: var(--link);
+  /* Shelf tokens — registered here so Tailwind generates bg-shelf-bg, border-shelf-edge, etc. */
+  --color-shelf-bg: var(--shelf-bg);
+  --color-shelf-plank: var(--shelf-plank);
+  --color-shelf-edge: var(--shelf-edge);
+  /* Custom shadow for the shelf plank — too specific for Tailwind's built-in scale */
+  --shadow-shelf: 0 6px 20px rgba(0, 0, 0, 0.6);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
