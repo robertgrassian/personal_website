@@ -16,11 +16,11 @@ export default function VideoGamesPage() {
   const games = getGames();
 
   return (
-    <main className="min-h-screen bg-shelf-bg">
+    <main className="min-h-screen bg-shelf-bg shelf-theme">
       <div className="max-w-7xl mx-auto px-6 py-12">
-        <BackToHome className="text-amber-300" />
-        <h1 className="mt-6 text-4xl font-bold text-amber-100">Game Library</h1>
-        <p className="mt-2 text-amber-300/70">{games.length} games</p>
+        <BackToHome className="text-shelf-text-link" />
+        <h1 className="mt-6 text-4xl font-bold text-shelf-text">Game Library</h1>
+        <p className="mt-2 text-shelf-text-muted">{games.length} games</p>
 
         {/*
           GameLibrary is a "use client" component — it owns all filter/sort state.

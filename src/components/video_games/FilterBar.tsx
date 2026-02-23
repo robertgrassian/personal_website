@@ -35,8 +35,8 @@ type FilterBarProps = {
 
 // Base styles shared between the search input and all select dropdowns.
 const inputBaseClass =
-  "bg-amber-950/60 border border-amber-800/40 text-amber-100 text-sm rounded " +
-  "px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500";
+  "bg-shelf-input border border-shelf-input-border text-shelf-input-text text-sm rounded " +
+  "px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-shelf-input-ring";
 
 // Selects get cursor-pointer on top of the base — inputs don't need it.
 const selectClass = `${inputBaseClass} cursor-pointer`;
@@ -57,7 +57,7 @@ export function FilterBar({
   return (
     // sticky: bar stays at the top of the viewport while scrolling through shelves.
     // backdrop-blur-sm: frosted glass effect so content scrolling behind it doesn't clash.
-    <div className="sticky top-0 z-20 bg-shelf-bg/95 backdrop-blur-sm py-4 border-b border-amber-900/40">
+    <div className="sticky top-0 z-20 bg-shelf-bg/95 backdrop-blur-sm py-4 border-b border-shelf-bar-line">
       <div className="flex flex-wrap gap-3 items-center">
         {/* Text search */}
         <input
@@ -65,7 +65,7 @@ export function FilterBar({
           placeholder="Search games…"
           value={filters.search}
           onChange={(e) => onFilterChange("search", e.target.value)}
-          className={`${inputBaseClass} placeholder:text-amber-500/40 min-w-44`}
+          className={`${inputBaseClass} placeholder:text-shelf-input-placeholder min-w-44`}
         />
 
         {/* Rating filter */}
@@ -111,11 +111,11 @@ export function FilterBar({
         </select>
 
         {/* Visual divider — hidden on small screens */}
-        <div className="hidden sm:block w-px h-6 bg-amber-800/30" />
+        <div className="hidden sm:block w-px h-6 bg-shelf-divider" />
 
         {/* Group by */}
         <div className="flex items-center gap-2">
-          <span className="text-amber-500/50 text-xs uppercase tracking-wide">Group</span>
+          <span className="text-shelf-control-label text-xs uppercase tracking-wide">Group</span>
           <select
             value={groupBy}
             onChange={(e) => onGroupByChange(e.target.value as GroupBy)}
@@ -131,7 +131,7 @@ export function FilterBar({
 
         {/* Sort within shelf */}
         <div className="flex items-center gap-2">
-          <span className="text-amber-500/50 text-xs uppercase tracking-wide">Sort</span>
+          <span className="text-shelf-control-label text-xs uppercase tracking-wide">Sort</span>
           <select
             value={sortOrder}
             onChange={(e) => onSortOrderChange(e.target.value as SortOrder)}

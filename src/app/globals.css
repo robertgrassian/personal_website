@@ -9,11 +9,6 @@
   --subtle: #9ca3af; /* gray-400 */
   --divider: #e5e7eb; /* gray-200 */
   --link: #2563eb; /* blue-600 */
-
-  /* Video game library — retro home collection shelf palette */
-  --shelf-bg: #110a04; /* near-black warm brown — overall page background */
-  --shelf-plank: #241508; /* dark brown — the shelf surface games sit on */
-  --shelf-edge: #7c4a1e; /* medium warm brown — the shelf rail/edge strip */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -38,12 +33,29 @@
   --color-subtle: var(--subtle);
   --color-divider: var(--divider);
   --color-link: var(--link);
-  /* Shelf tokens — registered here so Tailwind generates bg-shelf-bg, border-shelf-edge, etc. */
+
+  /* Shelf tokens — defined on .shelf-theme in video_games/video_games.css.
+     Registered here so Tailwind generates utility classes (bg-shelf-bg, text-shelf-label, etc.).
+     The var() references resolve at runtime via CSS cascade, so they correctly
+     pick up whichever value .shelf-theme sets for the active color scheme. */
   --color-shelf-bg: var(--shelf-bg);
   --color-shelf-plank: var(--shelf-plank);
   --color-shelf-edge: var(--shelf-edge);
-  /* Custom shadow for the shelf plank — too specific for Tailwind's built-in scale */
-  --shadow-shelf: 0 6px 20px rgba(0, 0, 0, 0.6);
+  --color-shelf-text: var(--shelf-text);
+  --color-shelf-text-muted: var(--shelf-text-muted);
+  --color-shelf-text-link: var(--shelf-text-link);
+  --color-shelf-label: var(--shelf-label);
+  --color-shelf-label-muted: var(--shelf-label-muted);
+  --color-shelf-input: var(--shelf-input);
+  --color-shelf-input-border: var(--shelf-input-border);
+  --color-shelf-input-text: var(--shelf-input-text);
+  --color-shelf-input-placeholder: var(--shelf-input-placeholder);
+  --color-shelf-input-ring: var(--shelf-input-ring);
+  --color-shelf-bar-line: var(--shelf-bar-line);
+  --color-shelf-control-label: var(--shelf-control-label);
+  --color-shelf-divider: var(--shelf-divider);
+  --shadow-shelf: var(--shelf-shadow);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

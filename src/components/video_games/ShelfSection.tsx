@@ -11,9 +11,9 @@ export function ShelfSection({ label, games }: ShelfSectionProps) {
   return (
     <section className="mt-10">
       {/* Shelf label — small, muted, uppercase */}
-      <h2 className="text-amber-200/80 text-xs font-semibold uppercase tracking-widest mb-3 px-1">
+      <h2 className="text-shelf-label text-xs font-semibold uppercase tracking-widest mb-3 px-1">
         {label}
-        <span className="ml-2 text-amber-400/40 normal-case tracking-normal font-normal">
+        <span className="ml-2 text-shelf-label-muted normal-case tracking-normal font-normal">
           ({games.length})
         </span>
       </h2>
