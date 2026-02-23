@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Robert Grassian — Personal Website
+
+Personal website built with Next.js 15. Includes a resume page and an interactive video game library browser.
+
+## Features
+
+- **Home** — Bio and navigation
+- **Resume** — Work experience (Harness, Split Software, Cisco), education (UC Berkeley), and skills
+- **Game Library** — Browsable shelf of 100+ games with filtering by rating, system, and genre; grouping by system/rating/genre/decade; and six sort options. Cover art sourced from IGDB.
+
+## Tech Stack
+
+- [Next.js 15](https://nextjs.org) (App Router, React 19, Turbopack)
+- [TypeScript](https://www.typescriptlang.org) (strict mode)
+- [Tailwind CSS 4](https://tailwindcss.com)
+- ESLint + Prettier + Husky pre-commit hooks
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | Description |
+|---|---|
+| `npm run dev` | Start dev server with Turbopack |
+| `npm run build` | Production build |
+| `npm run start` | Run production server |
+| `npm run lint` | Run ESLint |
 
-## Learn More
+## Game Library Data
 
-To learn more about Next.js, take a look at the following resources:
+Game data lives in `games.csv`. Cover art is fetched from the [IGDB API](https://api-docs.igdb.com) via:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npx ts-node scripts/fetch-covers.ts
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Requires `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET` environment variables. Manual cover overrides are stored in `scripts/cover-overrides.json`.
