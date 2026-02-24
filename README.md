@@ -26,19 +26,13 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Scripts
 
-| Command | Description |
-|---|---|
-| `npm run dev` | Start dev server with Turbopack |
-| `npm run build` | Production build |
-| `npm run start` | Run production server |
-| `npm run lint` | Run ESLint |
+| Command         | Description                     |
+| --------------- | ------------------------------- |
+| `npm run dev`   | Start dev server with Turbopack |
+| `npm run build` | Production build                |
+| `npm run start` | Run production server           |
+| `npm run lint`  | Run ESLint                      |
 
 ## Game Library Data
 
-Game data lives in `games.csv`. Cover art is fetched from the [IGDB API](https://api-docs.igdb.com) via:
-
-```bash
-npx ts-node scripts/fetch-covers.ts
-```
-
-Requires `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET` environment variables. Manual cover overrides are stored in `scripts/cover-overrides.json`.
+Game data lives in `games.csv`. Cover art is sourced from the [IGDB API](https://api-docs.igdb.com).
