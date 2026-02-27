@@ -1,4 +1,4 @@
-import { getGames } from "@/lib/games";
+import { getGames } from "@/lib/gamesServer";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { BackToHome } from "@/components/BackToHome";
 

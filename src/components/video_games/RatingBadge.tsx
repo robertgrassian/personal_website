@@ -1,15 +1,21 @@
-// RatingBadge renders a small letter-grade badge in the top-right corner of a game cover.
-// Used for A, B, C, and F ratings. The badge shrinks and fades as the grade gets lower,
-// making S visually dominant while lower grades remain readable but unobtrusive.
+// Letter-grade badge for A, B, C, and F ratings. Shrinks with rank so S stays visually dominant.
 
-type Rank = "A" | "B" | "C" | "F";
+import type { BadgeRank } from "@/lib/games";
+import { RATING_FONT } from "@/lib/games";
 
-// Size, font-size, colors, and human-readable label for each rank.
-// All backgrounds are semi-transparent so they blend with cover art.
-// A is the most visually prominent; B and C share the same opacity level; F is close behind.
+// Per-rank pixel sizes and rgba colors can't be expressed as static Tailwind classes,
+// so they stay in inline style. Layout (position, flex, border-radius, etc.) uses Tailwind.
 const BADGE_CONFIG: Record<
-  Rank,
-  { size: number; fontSize: number; bg: string; color: string; border: string; label: string; shadow?: string }
+  BadgeRank,
+  {
+    size: number;
+    fontSize: number;
+    bg: string;
+    color: string;
+    border: string;
+    label: string;
+    shadow?: string;
+  }
 > = {
   A: {
     size: 17,
@@ -49,19 +55,18 @@ const BADGE_CONFIG: Record<
   },
 };
 
-type RatingBadgeProps = { rank: Rank };
+type RatingBadgeProps = { rank: BadgeRank };
 
 export function RatingBadge({ rank }: RatingBadgeProps) {
   const { size, fontSize, bg, color, border, label, shadow } = BADGE_CONFIG[rank];
 
   return (
     <div
+      role="img"
+      aria-label={`${rank} — ${label}`}
       title={`${rank} — ${label}`}
+      className="absolute top-1.5 right-1.5 z-10 flex items-center justify-center rounded-sm font-bold leading-none"
       style={{
-        position: "absolute",
-        top: 6,
-        right: 6,
-        zIndex: 10,
         width: size,
         height: size,
         fontSize,
@@ -69,13 +74,7 @@ export function RatingBadge({ rank }: RatingBadgeProps) {
         color,
         border: `1.5px solid ${border}`,
         boxShadow: shadow,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: 2,
-        fontFamily: "'Helvetica Neue', Arial, sans-serif",
-        fontWeight: "bold",
-        lineHeight: 1,
+        fontFamily: RATING_FONT,
       }}
     >
       {rank}

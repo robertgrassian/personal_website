@@ -1,19 +1,16 @@
-// RatingRibbon renders the S-rank ribbon in the top-left corner of a game cover.
-// Uses an inline SVG clipped by the parent's overflow:hidden + border-radius.
+// S-rank ribbon in the top-left corner, clipped by the parent's overflow:hidden.
 //
 // SVG coordinate space: 96×96px (matches the cover width).
-//
-// The band sits between two parallel diagonal lines:
-//   Inner edge (near corner): x+y = 37  →  (0,37) to (37,0)
-//   Outer edge (away from corner): x+y = 55  →  (0,55) to (55,0)
-// Perpendicular width: (55−37)/√2 ≈ 13px
-//
-// Text center lies on x+y = 46 (midpoint), at diagonal center (23,23).
+// Band between two diagonal lines:
+//   Inner edge: x+y = 37  →  (0,37) to (37,0)
+//   Outer edge: x+y = 55  →  (0,55) to (55,0)  (perpendicular width ≈ 13px)
+// Text center at the midpoint: (23,23) on x+y = 46.
 
 import { useId } from "react";
+import { RATING_FONT } from "@/lib/games";
 
 export function RatingRibbon() {
-  // useId() ensures the filter ID is unique when multiple S-rank games are on screen.
+  // useId() gives a stable unique ID so multiple S-rank covers don't share a filter reference.
   const uid = useId();
   const filterId = `ribbon-shadow-${uid}`;
 
@@ -23,6 +20,9 @@ export function RatingRibbon() {
       width="100%"
       height="100%"
       viewBox="0 0 96 96"
+      // xMinYMin anchors the square viewBox to the top-left; without it, SVG's default
+      // xMidYMid centers it vertically inside the taller cover div, shifting the ribbon down.
+      preserveAspectRatio="xMinYMin meet"
       aria-label="S — Perfect"
       overflow="visible"
     >
@@ -32,17 +32,16 @@ export function RatingRibbon() {
         </filter>
       </defs>
 
-      {/* Main ribbon band */}
       <polygon points="0,37 37,0 55,0 0,55" fill="#FBBF24" filter={`url(#${filterId})`} />
 
-      {/* Outer edge shadow — dark line to ground the far edge of the band */}
+      {/* Outer edge shadow — grounds the far edge of the band */}
       <line x1="0" y1="55" x2="55" y2="0" stroke="rgba(0,0,0,0.2)" strokeWidth="1" />
 
-      {/* S text — centered at (23,23) on the band midline x+y=46 */}
+      {/* S text — centered at (23,23) on the band midline */}
       <text
         x="23"
         y="23"
-        fontFamily="'Helvetica Neue', Arial, sans-serif"
+        fontFamily={RATING_FONT}
         fontSize="11"
         fontWeight="900"
         fill="#78350F"
