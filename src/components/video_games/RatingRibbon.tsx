@@ -20,8 +20,8 @@ export function RatingRibbon() {
   return (
     <svg
       style={{ position: "absolute", top: 0, left: 0, zIndex: 10, pointerEvents: "none" }}
-      width="96"
-      height="96"
+      width="100%"
+      height="100%"
       viewBox="0 0 96 96"
       aria-label="S — Perfect"
       overflow="visible"
