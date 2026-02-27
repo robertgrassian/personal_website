@@ -1,5 +1,7 @@
 import Image from "next/image";
 import type { Game } from "@/lib/games";
+import { RatingRibbon } from "./RatingRibbon";
+import { RatingBadge } from "./RatingBadge";
 
 // Per-system fallback background colors shown when no cover art is available.
 // These loosely match each system's brand color palette.
@@ -21,14 +23,14 @@ const SYSTEM_COLORS: Record<string, string> = {
   Computer: "#374151",
 };
 
-// Tailwind classes for the colored rating dot in the card corner.
-// Color-codes ratings so they're readable at a glance across the whole shelf.
-const RATING_DOT: Record<string, string> = {
-  Perfect: "bg-yellow-400",
-  Great: "bg-green-400",
-  Good: "bg-blue-400",
-  Okay: "bg-amber-400",
-  Bad: "bg-red-500",
+// Maps the game's stored rating string to an S/A/B/C/F display letter.
+// The underlying data (games.csv and the Game type) does not change.
+const RATING_LETTER: Record<string, string> = {
+  Perfect: "S",
+  Great: "A",
+  Good: "B",
+  Okay: "C",
+  Bad: "F",
 };
 
 type GameCaseProps = {
@@ -42,8 +44,8 @@ type GameCaseProps = {
 // need the directive on the outermost component that introduces interactivity.
 export function GameCase({ game }: GameCaseProps) {
   const fallbackColor = SYSTEM_COLORS[game.system] ?? "#374151";
-  const dotColor = RATING_DOT[game.rating];
   const hasImage = game.imageUrl !== "";
+  const ratingLetter = RATING_LETTER[game.rating]; // undefined if unrated
 
   return (
     // The outer div is the full game case — tall and narrow.
@@ -79,17 +81,15 @@ export function GameCase({ game }: GameCaseProps) {
         >
           <span className="text-white text-[10px] font-medium leading-tight">{game.name}</span>
         </div>
-      </div>
 
-      {/* Rating dot — a small colored circle in the top-right corner.
-          The `title` attribute adds a browser tooltip with the full rating text. */}
-      {dotColor && (
-        <span
-          title={game.rating}
-          className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full ${dotColor}
-                     ring-1 ring-black/20 z-10`}
-        />
-      )}
+        {/* Rating indicator — inside the cover div so it clips with overflow:hidden
+            and translates with the card on hover. z-index:10 keeps it above the
+            hover overlay, which has no explicit z-index. */}
+        {ratingLetter === "S" && <RatingRibbon />}
+        {ratingLetter && ratingLetter !== "S" && (
+          <RatingBadge rank={ratingLetter as "A" | "B" | "C" | "F"} />
+        )}
+      </div>
     </div>
   );
 }
