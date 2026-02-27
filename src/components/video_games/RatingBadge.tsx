@@ -4,12 +4,12 @@
 
 type Rank = "A" | "B" | "C" | "F";
 
-// Size, font-size, and colors for each rank.
+// Size, font-size, colors, and human-readable label for each rank.
 // All backgrounds are semi-transparent so they blend with cover art.
 // A is the most visually prominent; B and C share the same opacity level; F is close behind.
 const BADGE_CONFIG: Record<
   Rank,
-  { size: number; fontSize: number; bg: string; color: string; border: string; shadow?: string }
+  { size: number; fontSize: number; bg: string; color: string; border: string; label: string; shadow?: string }
 > = {
   A: {
     size: 17,
@@ -17,6 +17,7 @@ const BADGE_CONFIG: Record<
     bg: "rgba(22, 101, 52, 0.90)",
     color: "#bbf7d0",
     border: "rgba(21, 128, 61, 0.75)",
+    label: "Great",
     shadow: "0 1px 4px rgba(0,0,0,0.4)",
   },
   B: {
@@ -25,6 +26,7 @@ const BADGE_CONFIG: Record<
     bg: "rgba(30, 64, 175, 0.85)",
     color: "#bfdbfe",
     border: "rgba(37, 99, 235, 0.65)",
+    label: "Good",
     shadow: "0 1px 3px rgba(0,0,0,0.35)",
   },
   C: {
@@ -33,6 +35,7 @@ const BADGE_CONFIG: Record<
     bg: "rgba(120, 53, 15, 0.85)",
     color: "#fef3c7",
     border: "rgba(217, 119, 6, 0.65)",
+    label: "Okay",
     shadow: "0 1px 3px rgba(0,0,0,0.35)",
   },
   F: {
@@ -41,6 +44,7 @@ const BADGE_CONFIG: Record<
     bg: "rgba(127, 29, 29, 0.82)",
     color: "#fecaca",
     border: "rgba(185, 28, 28, 0.65)",
+    label: "Bad",
     shadow: "0 1px 3px rgba(0,0,0,0.3)",
   },
 };
@@ -48,11 +52,11 @@ const BADGE_CONFIG: Record<
 type RatingBadgeProps = { rank: Rank };
 
 export function RatingBadge({ rank }: RatingBadgeProps) {
-  const { size, fontSize, bg, color, border, shadow } = BADGE_CONFIG[rank];
+  const { size, fontSize, bg, color, border, label, shadow } = BADGE_CONFIG[rank];
 
   return (
     <div
-      title={rank}
+      title={`${rank} — ${label}`}
       style={{
         position: "absolute",
         top: 6,

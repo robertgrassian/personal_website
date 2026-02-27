@@ -25,13 +25,21 @@ const SYSTEM_COLORS: Record<string, string> = {
 
 // Maps the game's stored rating string to an S/A/B/C/F display letter.
 // The underlying data (games.csv and the Game type) does not change.
-const RATING_LETTER: Record<string, string> = {
+type RatingLetter = "S" | "A" | "B" | "C" | "F";
+const RATING_LETTER: Record<string, RatingLetter> = {
   Perfect: "S",
   Great: "A",
   Good: "B",
   Okay: "C",
   Bad: "F",
 };
+
+// Renders the appropriate rating widget for any rank, keeping GameCase
+// agnostic of the S vs non-S distinction.
+function RatingIndicator({ rank }: { rank: RatingLetter }) {
+  if (rank === "S") return <RatingRibbon />;
+  return <RatingBadge rank={rank} />;
+}
 
 type GameCaseProps = {
   game: Game;
@@ -45,7 +53,7 @@ type GameCaseProps = {
 export function GameCase({ game }: GameCaseProps) {
   const fallbackColor = SYSTEM_COLORS[game.system] ?? "#374151";
   const hasImage = game.imageUrl !== "";
-  const ratingLetter = RATING_LETTER[game.rating]; // undefined if unrated
+  const ratingLetter: RatingLetter | undefined = RATING_LETTER[game.rating];
 
   return (
     // The outer div is the full game case — tall and narrow.
@@ -85,10 +93,7 @@ export function GameCase({ game }: GameCaseProps) {
         {/* Rating indicator — inside the cover div so it clips with overflow:hidden
             and translates with the card on hover. z-index:10 keeps it above the
             hover overlay, which has no explicit z-index. */}
-        {ratingLetter === "S" && <RatingRibbon />}
-        {ratingLetter && ratingLetter !== "S" && (
-          <RatingBadge rank={ratingLetter as "A" | "B" | "C" | "F"} />
-        )}
+        {ratingLetter && <RatingIndicator rank={ratingLetter} />}
       </div>
     </div>
   );
