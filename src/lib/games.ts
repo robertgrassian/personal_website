@@ -19,9 +19,6 @@ export const RATING_LETTER: Record<Rating, RatingLetter> = {
   Bad: "F",
 };
 
-// Helvetica Neue for compact, distinct letterforms — separate from the site's Geist Sans.
-export const RATING_FONT = "'Helvetica Neue', Arial, sans-serif";
-
 // Defined here alongside Game/Rating to avoid a circular dependency on GameLibrary.
 export type Filters = {
   search: string;

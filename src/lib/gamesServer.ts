@@ -1,4 +1,6 @@
-// Server-only — uses Node.js `fs`. Import only from Server Components.
+// Importing "server-only" causes a build error if this module is ever bundled
+// into a client component — catches the mistake at build time, not runtime.
+import "server-only";
 import fs from "fs";
 import path from "path";
 import type { Game, Rating } from "./games";

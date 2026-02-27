@@ -7,7 +7,6 @@
 // Text center at the midpoint: (23,23) on x+y = 46.
 
 import { useId } from "react";
-import { RATING_FONT } from "@/lib/games";
 
 export function RatingRibbon() {
   // useId() gives a stable unique ID so multiple S-rank covers don't share a filter reference.
@@ -23,8 +22,8 @@ export function RatingRibbon() {
       // xMinYMin anchors the square viewBox to the top-left; without it, SVG's default
       // xMidYMid centers it vertically inside the taller cover div, shifting the ribbon down.
       preserveAspectRatio="xMinYMin meet"
+      role="img"
       aria-label="S — Perfect"
-      overflow="visible"
     >
       <defs>
         <filter id={filterId} x="-30%" y="-30%" width="160%" height="160%">
@@ -41,7 +40,6 @@ export function RatingRibbon() {
       <text
         x="23"
         y="23"
-        fontFamily={RATING_FONT}
         fontSize="11"
         fontWeight="900"
         fill="#78350F"
