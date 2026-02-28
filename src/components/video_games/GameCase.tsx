@@ -1,3 +1,4 @@
+"use client";
 import { useState } from "react";
 import Image from "next/image";
 import { type Game, type RatingLetter, RATING_LETTER } from "@/lib/games";
@@ -33,7 +34,6 @@ type GameCaseProps = {
   game: Game;
 };
 
-// No "use client" needed — Next.js propagates it down the import tree from GameLibrary.
 export function GameCase({ game }: GameCaseProps) {
   const fallbackColor = SYSTEM_COLORS[game.system] ?? "#374151";
   const hasImage = game.imageUrl !== "";
@@ -48,13 +48,12 @@ export function GameCase({ game }: GameCaseProps) {
 
   return (
     // `group` enables group-hover: variants on descendants; `shrink-0` prevents flex squishing.
-    // role="button" + tabIndex=0 makes this keyboard-focusable and announces it as interactive to screen readers.
+    // button gives keyboard (Enter/Space) support for free; appearance-none removes browser chrome.
     // cursor-pointer is scoped to mobile (sm:cursor-default) since desktop reveal is hover-driven, not click-driven.
     // onBlur resets revealed so a tapped cover doesn't stay pinned open after focus moves away.
-    <div
-      role="button"
-      tabIndex={0}
-      className="group relative w-24 shrink-0 cursor-pointer sm:cursor-default select-none"
+    <button
+      type="button"
+      className="group relative w-24 shrink-0 cursor-pointer sm:cursor-default select-none appearance-none bg-transparent border-0 p-0 text-left"
       onClick={() => setRevealed((r) => !r)}
       onMouseLeave={() => setRevealed(false)}
       onBlur={() => setRevealed(false)}
@@ -93,6 +92,6 @@ export function GameCase({ game }: GameCaseProps) {
         {/* Inside the cover div so it clips with overflow:hidden and moves with the hover translate */}
         {ratingLetter && <RatingIndicator rank={ratingLetter} />}
       </div>
-    </div>
+    </button>
   );
 }
