@@ -25,7 +25,7 @@ export function ShelfSection({ label, games }: ShelfSectionProps) {
       */}
       <div
         className="bg-shelf-plank rounded-sm p-4 pb-5 border-b-4 border-shelf-edge
-                   flex flex-wrap gap-3 shadow-shelf"
+                   flex flex-wrap justify-center gap-3 shadow-shelf"
       >
         {games.map((game) => (
           <GameCase key={game.name + "-" + game.system} game={game} />
