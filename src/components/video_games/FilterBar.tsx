@@ -60,7 +60,6 @@ export function FilterBar({
     // Mobile: flex-col stacks rows cleanly. Desktop (sm+): flex-row wraps everything into one line.
     <div className="sticky top-0 z-20 bg-shelf-bg/95 backdrop-blur-sm py-3 sm:py-4 border-b border-shelf-bar-line">
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3 sm:items-center">
-
         {/* Text search — full-width on mobile so it anchors the top of the bar */}
         <input
           type="search"
@@ -70,14 +69,14 @@ export function FilterBar({
           className={`${inputBaseClass} placeholder:text-shelf-input-placeholder w-full sm:w-auto sm:min-w-44`}
         />
 
-        {/* Filter selects — one flex row on mobile (each grows equally), inline on desktop.
-            sm:contents makes this wrapper transparent in the desktop flex row. */}
-        <div className="flex gap-2 sm:contents">
+        {/* Filter selects — 3-column grid on mobile so columns are hard equal-width (no min-width blowout).
+            sm:contents dissolves the wrapper into the parent flex row on desktop. */}
+        <div className="grid grid-cols-3 gap-2 sm:contents">
           {/* Rating filter */}
           <select
             value={filters.rating}
             onChange={(e) => onFilterChange("rating", e.target.value as Rating | "")}
-            className={`${selectClass} flex-1 sm:flex-none`}
+            className={`${selectClass} w-full sm:w-auto`}
           >
             <option value="">All Ratings</option>
             {RATINGS.map((r) => (
@@ -91,7 +90,7 @@ export function FilterBar({
           <select
             value={filters.system}
             onChange={(e) => onFilterChange("system", e.target.value)}
-            className={`${selectClass} flex-1 sm:flex-none`}
+            className={`${selectClass} w-full sm:w-auto`}
           >
             <option value="">All Systems</option>
             {allSystems.map((s) => (
@@ -105,7 +104,7 @@ export function FilterBar({
           <select
             value={filters.genre}
             onChange={(e) => onFilterChange("genre", e.target.value)}
-            className={`${selectClass} flex-1 sm:flex-none`}
+            className={`${selectClass} w-full sm:w-auto`}
           >
             <option value="">All Genres</option>
             {allGenres.map((g) => (
@@ -119,16 +118,18 @@ export function FilterBar({
         {/* Visual divider — desktop only */}
         <div className="hidden sm:block w-px h-6 bg-shelf-divider" />
 
-        {/* Group + Sort — side-by-side row on mobile (selects share space), inline on desktop.
-            sm:contents makes this wrapper transparent in the desktop flex row. */}
-        <div className="flex gap-2 sm:contents">
+        {/* Group + Sort — 2-column grid on mobile, inline on desktop.
+            sm:contents dissolves the wrapper into the parent flex row on desktop. */}
+        <div className="grid grid-cols-2 gap-2 sm:contents">
           {/* Group by */}
-          <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
-            <span className="text-shelf-control-label text-xs uppercase tracking-wide whitespace-nowrap">Group</span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-shelf-control-label text-xs uppercase tracking-wide whitespace-nowrap">
+              Group
+            </span>
             <select
               value={groupBy}
               onChange={(e) => onGroupByChange(e.target.value as GroupBy)}
-              className={`${selectClass} flex-1 sm:flex-none`}
+              className={`${selectClass} flex-1 min-w-0 sm:flex-none`}
             >
               {GROUP_BY_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -139,12 +140,14 @@ export function FilterBar({
           </div>
 
           {/* Sort within shelf */}
-          <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
-            <span className="text-shelf-control-label text-xs uppercase tracking-wide whitespace-nowrap">Sort</span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-shelf-control-label text-xs uppercase tracking-wide whitespace-nowrap">
+              Sort
+            </span>
             <select
               value={sortOrder}
               onChange={(e) => onSortOrderChange(e.target.value as SortOrder)}
-              className={`${selectClass} flex-1 sm:flex-none`}
+              className={`${selectClass} flex-1 min-w-0 sm:flex-none`}
             >
               {SORT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -154,7 +157,6 @@ export function FilterBar({
             </select>
           </div>
         </div>
-
       </div>
     </div>
   );
