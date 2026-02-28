@@ -6,6 +6,7 @@
 
 import { useState, useMemo } from "react";
 import type { Game, Filters } from "@/lib/games";
+import { RATINGS } from "@/lib/games";
 import { ShelfSection } from "./ShelfSection";
 import { FilterBar } from "./FilterBar";
 
@@ -75,14 +76,7 @@ function groupGames(games: Game[], groupBy: GroupBy): Array<{ label: string; gam
     map.get(key)!.push(game);
   }
 
-  const RATING_ORDER: Record<string, number> = {
-    Perfect: 0,
-    Great: 1,
-    Good: 2,
-    Okay: 3,
-    Bad: 4,
-    Unrated: 5,
-  };
+  const RATING_ORDER = Object.fromEntries([...RATINGS.map((r, i) => [r, i]), ["Unrated", RATINGS.length]]);
 
   return Array.from(map.entries())
     .map(([label, games]) => ({ label, games }))

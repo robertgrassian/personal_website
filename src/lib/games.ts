@@ -11,6 +11,9 @@ export type RatingLetter = "S" | "A" | "B" | "C" | "F";
 // Excludes S, which gets RatingRibbon instead of RatingBadge.
 export type BadgeRank = Exclude<RatingLetter, "S">;
 
+// Canonical order: best to worst. Use this anywhere ratings need to be listed or sorted.
+export const RATINGS: Rating[] = ["Perfect", "Great", "Good", "Okay", "Bad"];
+
 export const RATING_LETTER: Record<Rating, RatingLetter> = {
   Perfect: "S",
   Great: "A",

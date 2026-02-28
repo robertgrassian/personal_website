@@ -1,7 +1,6 @@
-import type { Filters, Rating } from "@/lib/games";
+import type { Filters } from "@/lib/games";
+import { RATINGS } from "@/lib/games";
 import type { GroupBy, SortOrder } from "./GameLibrary";
-
-const RATINGS: Rating[] = ["Perfect", "Great", "Good", "Okay", "Bad"];
 
 const GROUP_BY_OPTIONS: { value: GroupBy; label: string }[] = [
   { value: "system", label: "System" },
