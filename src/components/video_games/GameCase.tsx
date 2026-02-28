@@ -1,3 +1,5 @@
+"use client";
+import { useState } from "react";
 import Image from "next/image";
 import { type Game, type RatingLetter, RATING_LETTER } from "@/lib/games";
 import { RatingRibbon } from "./RatingRibbon";
@@ -32,7 +34,6 @@ type GameCaseProps = {
   game: Game;
 };
 
-// No "use client" needed — Next.js propagates it down the import tree from GameLibrary.
 export function GameCase({ game }: GameCaseProps) {
   const fallbackColor = SYSTEM_COLORS[game.system] ?? "#374151";
   const hasImage = game.imageUrl !== "";
@@ -40,9 +41,23 @@ export function GameCase({ game }: GameCaseProps) {
     ? RATING_LETTER[game.rating]
     : undefined;
 
+  // `revealed` drives tap-to-show on touch devices (no hover support).
+  // On desktop, group-hover handles the overlay; onMouseLeave resets revealed so
+  // clicking doesn't permanently pin the overlay open during a hover session.
+  const [revealed, setRevealed] = useState(false);
+
   return (
     // `group` enables group-hover: variants on descendants; `shrink-0` prevents flex squishing.
-    <div className="group relative w-24 shrink-0">
+    // button gives keyboard (Enter/Space) support for free; appearance-none removes browser chrome.
+    // cursor-pointer is scoped to mobile (sm:cursor-default) since desktop reveal is hover-driven, not click-driven.
+    // onBlur resets revealed so a tapped cover doesn't stay pinned open after focus moves away.
+    <button
+      type="button"
+      className="group relative w-24 shrink-0 cursor-pointer sm:cursor-default select-none appearance-none bg-transparent border-0 p-0 text-left"
+      onClick={() => setRevealed((r) => !r)}
+      onMouseLeave={() => setRevealed(false)}
+      onBlur={() => setRevealed(false)}
+    >
       {/* Card face — 2:3 aspect ratio (w-24 × h-36 = 96×144px) */}
       <div
         className="relative h-36 rounded overflow-hidden shadow-lg
@@ -62,11 +77,14 @@ export function GameCase({ game }: GameCaseProps) {
           </div>
         )}
 
-        {/* Title overlay — fades in on hover */}
+        {/* Title overlay — fades in on hover or keyboard focus (desktop) or tap (mobile).
+            group-hover and group-focus-visible are CSS-driven; revealed handles touch state.
+            Separating them avoids the bug where onKeyDown fires on a focused-but-not-hovered cover. */}
         {/* z-0 is explicit: badge/ribbon at z-10 intentionally sit above this overlay */}
         <div
-          className="absolute inset-0 bg-black/75 flex items-end p-2
-                     opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-0"
+          className={`absolute inset-0 bg-black/75 flex items-end p-2
+                     transition-opacity duration-200 z-0
+                     ${revealed ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}
         >
           <span className="text-white text-[10px] font-medium leading-tight">{game.name}</span>
         </div>
@@ -74,6 +92,6 @@ export function GameCase({ game }: GameCaseProps) {
         {/* Inside the cover div so it clips with overflow:hidden and moves with the hover translate */}
         {ratingLetter && <RatingIndicator rank={ratingLetter} />}
       </div>
-    </div>
+    </button>
   );
 }

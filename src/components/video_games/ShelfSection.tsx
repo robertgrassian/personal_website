@@ -20,12 +20,15 @@ export function ShelfSection({ label, games }: ShelfSectionProps) {
 
       {/*
         The shelf "plank" — dark wood-tone background with a thick bottom border as the rail.
-        `flex flex-wrap gap-3` lets games line up horizontally and wrap to the next row.
+        Grid with auto-fill 96px columns: fits as many covers as possible per row, then centers
+        the entire column track area so left and right margins are equal. Items flow left-to-right,
+        so partial rows remain left-aligned within the centered grid.
         The box-shadow adds depth under the rail edge, making the shelf feel 3D.
       */}
       <div
         className="bg-shelf-plank rounded-sm p-4 pb-5 border-b-4 border-shelf-edge
-                   flex flex-wrap gap-3 shadow-shelf"
+                   grid gap-3 justify-center shadow-shelf"
+        style={{ gridTemplateColumns: "repeat(auto-fill, 96px)" }}
       >
         {games.map((game) => (
           <GameCase key={game.name + "-" + game.system} game={game} />
