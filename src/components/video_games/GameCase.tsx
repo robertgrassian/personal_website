@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Image from "next/image";
-import { type Game, type RatingLetter, RATING_LETTER } from "@/lib/games";
+import { type Game, type RatingLetter, RATINGS } from "@/lib/games";
 import { RatingRibbon } from "./RatingRibbon";
 import { RatingBadge } from "./RatingBadge";
 
@@ -37,8 +37,8 @@ type GameCaseProps = {
 export function GameCase({ game }: GameCaseProps) {
   const fallbackColor = SYSTEM_COLORS[game.system] ?? "#374151";
   const hasImage = game.imageUrl !== "";
-  const ratingLetter: RatingLetter | undefined = game.rating
-    ? RATING_LETTER[game.rating]
+  const ratingLetter = game.rating
+    ? RATINGS.find((r) => r.name === game.rating)?.letter
     : undefined;
 
   // `revealed` drives tap-to-show on touch devices (no hover support).

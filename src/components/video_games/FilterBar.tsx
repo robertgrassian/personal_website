@@ -1,4 +1,4 @@
-import type { Filters } from "@/lib/games";
+import type { Filters, Rating } from "@/lib/games";
 import { RATINGS } from "@/lib/games";
 import type { GroupBy, SortOrder } from "./GameLibrary";
 
@@ -79,8 +79,8 @@ export function FilterBar({
           >
             <option value="">All Ratings</option>
             {RATINGS.map((r) => (
-              <option key={r} value={r}>
-                {r}
+              <option key={r.name} value={r.name}>
+                {r.name}
               </option>
             ))}
           </select>

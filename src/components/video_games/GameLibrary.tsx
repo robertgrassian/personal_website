@@ -76,7 +76,10 @@ function groupGames(games: Game[], groupBy: GroupBy): Array<{ label: string; gam
     map.get(key)!.push(game);
   }
 
-  const RATING_ORDER = Object.fromEntries([...RATINGS.map((r, i) => [r, i]), ["Unrated", RATINGS.length]]);
+  const RATING_ORDER = Object.fromEntries([
+    ...RATINGS.map((r, i) => [r.name, i]),
+    ["Unrated", RATINGS.length],
+  ]);
 
   return Array.from(map.entries())
     .map(([label, games]) => ({ label, games }))
