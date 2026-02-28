@@ -102,7 +102,7 @@ export default function Resume() {
         <ResumeSection title="Education">
           <div className="mt-6">
             <h3 className="text-xl font-bold">University of California, Berkeley</h3>
-            <p className="font-medium text-emphasis mt-1">B.S. Computer Science</p>
+            <p className="font-medium text-emphasis mt-1">Bachelors in Computer Science</p>
             <p className="text-sm text-muted">May 2020</p>
             <p className="text-sm text-muted mt-1">
               Entrepreneurship and Technology Certificate from the Sutardja Center
