@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Image from "next/image";
 import { type Game, type RatingLetter, RATING_LETTER } from "@/lib/games";
 import { RatingRibbon } from "./RatingRibbon";
@@ -40,9 +41,18 @@ export function GameCase({ game }: GameCaseProps) {
     ? RATING_LETTER[game.rating]
     : undefined;
 
+  // `revealed` drives tap-to-show on touch devices (no hover support).
+  // On desktop, group-hover handles the overlay; onMouseLeave resets revealed so
+  // clicking doesn't permanently pin the overlay open during a hover session.
+  const [revealed, setRevealed] = useState(false);
+
   return (
     // `group` enables group-hover: variants on descendants; `shrink-0` prevents flex squishing.
-    <div className="group relative w-24 shrink-0">
+    <div
+      className="group relative w-24 shrink-0 cursor-pointer select-none"
+      onClick={() => setRevealed((r) => !r)}
+      onMouseLeave={() => setRevealed(false)}
+    >
       {/* Card face — 2:3 aspect ratio (w-24 × h-36 = 96×144px) */}
       <div
         className="relative h-36 rounded overflow-hidden shadow-lg
@@ -62,11 +72,13 @@ export function GameCase({ game }: GameCaseProps) {
           </div>
         )}
 
-        {/* Title overlay — fades in on hover */}
+        {/* Title overlay — fades in on hover (desktop) or tap (mobile).
+            revealed pins opacity-100 regardless of hover state. */}
         {/* z-0 is explicit: badge/ribbon at z-10 intentionally sit above this overlay */}
         <div
-          className="absolute inset-0 bg-black/75 flex items-end p-2
-                     opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-0"
+          className={`absolute inset-0 bg-black/75 flex items-end p-2
+                     transition-opacity duration-200 z-0
+                     ${revealed ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
         >
           <span className="text-white text-[10px] font-medium leading-tight">{game.name}</span>
         </div>

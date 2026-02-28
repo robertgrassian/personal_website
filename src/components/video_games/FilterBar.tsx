@@ -57,93 +57,104 @@ export function FilterBar({
   return (
     // sticky: bar stays at the top of the viewport while scrolling through shelves.
     // backdrop-blur-sm: frosted glass effect so content scrolling behind it doesn't clash.
-    <div className="sticky top-0 z-20 bg-shelf-bg/95 backdrop-blur-sm py-4 border-b border-shelf-bar-line">
-      <div className="flex flex-wrap gap-3 items-center">
-        {/* Text search */}
+    // Mobile: flex-col stacks rows cleanly. Desktop (sm+): flex-row wraps everything into one line.
+    <div className="sticky top-0 z-20 bg-shelf-bg/95 backdrop-blur-sm py-3 sm:py-4 border-b border-shelf-bar-line">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3 sm:items-center">
+
+        {/* Text search — full-width on mobile so it anchors the top of the bar */}
         <input
           type="search"
           placeholder="Search games…"
           value={filters.search}
           onChange={(e) => onFilterChange("search", e.target.value)}
-          className={`${inputBaseClass} placeholder:text-shelf-input-placeholder min-w-44`}
+          className={`${inputBaseClass} placeholder:text-shelf-input-placeholder w-full sm:w-auto sm:min-w-44`}
         />
 
-        {/* Rating filter */}
-        <select
-          value={filters.rating}
-          onChange={(e) => onFilterChange("rating", e.target.value as Rating | "")}
-          className={selectClass}
-        >
-          <option value="">All Ratings</option>
-          {RATINGS.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
+        {/* Filter selects — one flex row on mobile (each grows equally), inline on desktop.
+            sm:contents makes this wrapper transparent in the desktop flex row. */}
+        <div className="flex gap-2 sm:contents">
+          {/* Rating filter */}
+          <select
+            value={filters.rating}
+            onChange={(e) => onFilterChange("rating", e.target.value as Rating | "")}
+            className={`${selectClass} flex-1 sm:flex-none`}
+          >
+            <option value="">All Ratings</option>
+            {RATINGS.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
 
-        {/* System filter — options derived from actual game data, not hardcoded */}
-        <select
-          value={filters.system}
-          onChange={(e) => onFilterChange("system", e.target.value)}
-          className={selectClass}
-        >
-          <option value="">All Systems</option>
-          {allSystems.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+          {/* System filter — options derived from actual game data, not hardcoded */}
+          <select
+            value={filters.system}
+            onChange={(e) => onFilterChange("system", e.target.value)}
+            className={`${selectClass} flex-1 sm:flex-none`}
+          >
+            <option value="">All Systems</option>
+            {allSystems.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
 
-        {/* Genre filter */}
-        <select
-          value={filters.genre}
-          onChange={(e) => onFilterChange("genre", e.target.value)}
-          className={selectClass}
-        >
-          <option value="">All Genres</option>
-          {allGenres.map((g) => (
-            <option key={g} value={g}>
-              {g}
-            </option>
-          ))}
-        </select>
+          {/* Genre filter */}
+          <select
+            value={filters.genre}
+            onChange={(e) => onFilterChange("genre", e.target.value)}
+            className={`${selectClass} flex-1 sm:flex-none`}
+          >
+            <option value="">All Genres</option>
+            {allGenres.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        {/* Visual divider — hidden on small screens */}
+        {/* Visual divider — desktop only */}
         <div className="hidden sm:block w-px h-6 bg-shelf-divider" />
 
-        {/* Group by */}
-        <div className="flex items-center gap-2">
-          <span className="text-shelf-control-label text-xs uppercase tracking-wide">Group</span>
-          <select
-            value={groupBy}
-            onChange={(e) => onGroupByChange(e.target.value as GroupBy)}
-            className={selectClass}
-          >
-            {GROUP_BY_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+        {/* Group + Sort — side-by-side row on mobile (selects share space), inline on desktop.
+            sm:contents makes this wrapper transparent in the desktop flex row. */}
+        <div className="flex gap-2 sm:contents">
+          {/* Group by */}
+          <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
+            <span className="text-shelf-control-label text-xs uppercase tracking-wide whitespace-nowrap">Group</span>
+            <select
+              value={groupBy}
+              onChange={(e) => onGroupByChange(e.target.value as GroupBy)}
+              className={`${selectClass} flex-1 sm:flex-none`}
+            >
+              {GROUP_BY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sort within shelf */}
+          <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
+            <span className="text-shelf-control-label text-xs uppercase tracking-wide whitespace-nowrap">Sort</span>
+            <select
+              value={sortOrder}
+              onChange={(e) => onSortOrderChange(e.target.value as SortOrder)}
+              className={`${selectClass} flex-1 sm:flex-none`}
+            >
+              {SORT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {/* Sort within shelf */}
-        <div className="flex items-center gap-2">
-          <span className="text-shelf-control-label text-xs uppercase tracking-wide">Sort</span>
-          <select
-            value={sortOrder}
-            onChange={(e) => onSortOrderChange(e.target.value as SortOrder)}
-            className={selectClass}
-          >
-            {SORT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
     </div>
   );
