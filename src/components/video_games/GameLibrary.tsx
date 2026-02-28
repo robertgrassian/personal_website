@@ -75,6 +75,15 @@ function groupGames(games: Game[], groupBy: GroupBy): Array<{ label: string; gam
     map.get(key)!.push(game);
   }
 
+  const RATING_ORDER: Record<string, number> = {
+    Perfect: 0,
+    Great: 1,
+    Good: 2,
+    Okay: 3,
+    Bad: 4,
+    Unrated: 5,
+  };
+
   return Array.from(map.entries())
     .map(([label, games]) => ({ label, games }))
     .sort((a, b) => {
@@ -82,6 +91,10 @@ function groupGames(games: Game[], groupBy: GroupBy): Array<{ label: string; gam
       // Ties (unlikely but possible) fall back to alphabetical.
       if (groupBy === "system") {
         return b.games.length - a.games.length || a.label.localeCompare(b.label);
+      }
+      // For rating grouping: best ratings first (Perfect/S → Bad/F).
+      if (groupBy === "rating") {
+        return (RATING_ORDER[a.label] ?? 99) - (RATING_ORDER[b.label] ?? 99);
       }
       // All other groupings: alphabetical.
       return a.label.localeCompare(b.label);
