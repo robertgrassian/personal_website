@@ -10,12 +10,10 @@ import { RATINGS } from "@/lib/games";
 import { ShelfSection } from "./ShelfSection";
 import { FilterBar } from "./FilterBar";
 
-const RATING_ORDER: Record<Rating | "Unrated", number> = Object.fromEntries([
-  ...RATINGS.map((r, i) => [r.name, i]),
-  ["Unrated", RATINGS.length],
-]);
-
 // --- Types ---
+
+// RatingGroup represents the possible labels when grouping games by rating.
+type RatingGroup = Rating | "Unrated";
 
 // GroupBy determines which property creates the shelf labels/groupings.
 export type GroupBy = "system" | "rating" | "genre" | "decade";
@@ -28,6 +26,11 @@ export type SortOrder =
   | "release-newest"
   | "played-newest"
   | "played-oldest";
+
+const RATING_ORDER: Record<RatingGroup, number> = Object.fromEntries([
+  ...RATINGS.map((r, i) => [r.name, i]),
+  ["Unrated", RATINGS.length],
+]);
 
 // --- Pure helper functions ---
 // Defined outside the component so React doesn't recreate them on each render.
@@ -91,7 +94,10 @@ function groupGames(games: Game[], groupBy: GroupBy): Array<{ label: string; gam
       }
       // For rating grouping: best ratings first (Perfect/S → Bad/F).
       if (groupBy === "rating") {
-        return (RATING_ORDER[a.label] ?? Infinity) - (RATING_ORDER[b.label] ?? Infinity);
+        return (
+          (RATING_ORDER[a.label as RatingGroup] ?? Infinity) -
+          (RATING_ORDER[b.label as RatingGroup] ?? Infinity)
+        );
       }
       // All other groupings: alphabetical.
       return a.label.localeCompare(b.label);
