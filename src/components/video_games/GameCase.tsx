@@ -50,19 +50,14 @@ export function GameCase({ game }: GameCaseProps) {
     // `group` enables group-hover: variants on descendants; `shrink-0` prevents flex squishing.
     // role="button" + tabIndex=0 makes this keyboard-focusable and announces it as interactive to screen readers.
     // cursor-pointer is scoped to mobile (sm:cursor-default) since desktop reveal is hover-driven, not click-driven.
+    // onBlur resets revealed so a tapped cover doesn't stay pinned open after focus moves away.
     <div
       role="button"
       tabIndex={0}
       className="group relative w-24 shrink-0 cursor-pointer sm:cursor-default select-none"
       onClick={() => setRevealed((r) => !r)}
       onMouseLeave={() => setRevealed(false)}
-      onKeyDown={(e) => {
-        // Space and Enter are the standard activation keys for button-role elements.
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault(); // Prevent Space from scrolling the page.
-          setRevealed((r) => !r);
-        }
-      }}
+      onBlur={() => setRevealed(false)}
     >
       {/* Card face — 2:3 aspect ratio (w-24 × h-36 = 96×144px) */}
       <div
@@ -83,13 +78,14 @@ export function GameCase({ game }: GameCaseProps) {
           </div>
         )}
 
-        {/* Title overlay — fades in on hover (desktop) or tap (mobile).
-            revealed pins opacity-100 regardless of hover state. */}
+        {/* Title overlay — fades in on hover or keyboard focus (desktop) or tap (mobile).
+            group-hover and group-focus-visible are CSS-driven; revealed handles touch state.
+            Separating them avoids the bug where onKeyDown fires on a focused-but-not-hovered cover. */}
         {/* z-0 is explicit: badge/ribbon at z-10 intentionally sit above this overlay */}
         <div
           className={`absolute inset-0 bg-black/75 flex items-end p-2
                      transition-opacity duration-200 z-0
-                     ${revealed ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                     ${revealed ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}
         >
           <span className="text-white text-[10px] font-medium leading-tight">{game.name}</span>
         </div>
