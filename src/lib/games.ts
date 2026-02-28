@@ -1,14 +1,25 @@
-import fs from "fs";
-import path from "path";
+// Shared types and constants — no Node.js imports, safe for client and server components.
 
-// Rating is a TypeScript string union.
-// "" is intentionally excluded: unrated games use Rating | "" at the field level,
-// keeping Rating itself a clean set of real values.
+// "" is excluded from Rating so the type stays a clean set of real values;
+// unrated games use `Rating | ""` at the field level.
 export type Rating = "Perfect" | "Great" | "Good" | "Okay" | "Bad";
 
-// Filters captures the active state of all filter controls in the game library UI.
-// Defined here alongside Game and Rating so any component can import it without
-// creating a circular dependency on the GameLibrary client component.
+// S/A/B/C/F display letters. Co-located with Rating so a future refactor
+// (e.g. storing letters directly in the CSV) only touches this file.
+export type RatingLetter = "S" | "A" | "B" | "C" | "F";
+
+// Excludes S, which gets RatingRibbon instead of RatingBadge.
+export type BadgeRank = Exclude<RatingLetter, "S">;
+
+export const RATING_LETTER: Record<Rating, RatingLetter> = {
+  Perfect: "S",
+  Great: "A",
+  Good: "B",
+  Okay: "C",
+  Bad: "F",
+};
+
+// Defined here alongside Game/Rating to avoid a circular dependency on GameLibrary.
 export type Filters = {
   search: string;
   rating: Rating | ""; // "" = no filter applied
@@ -16,7 +27,6 @@ export type Filters = {
   genre: string; // "" = all genres
 };
 
-// Game is a plain data type.
 export type Game = {
   name: string;
   system: string;
@@ -26,45 +36,3 @@ export type Game = {
   firstPlayed: string; // Year string e.g. "2023", or "" if unknown
   imageUrl: string; // Populated by scripts/fetch-covers.ts; "" means show fallback
 };
-
-/**
- * Reads and parses games.csv from the project root.
- *
- * This function uses Node.js `fs` APIs, so it can only run server-side.
- * In Next.js App Router, we call it from a Server Component (page.tsx) —
- * no API route needed. The data then flows down as props to Client Components.
- */
-export function getGames(): Game[] {
-  const csvPath = path.join(process.cwd(), "games.csv");
-  let raw: string;
-  try {
-    raw = fs.readFileSync(csvPath, "utf-8");
-  } catch {
-    throw new Error(`Could not read games.csv at ${csvPath}. Make sure the file exists.`);
-  }
-
-  // Split into lines, skip the header row with an empty destructuring slot, keep the data rows.
-  // The leading comma in `[, ...rows]` is how you skip an array element in destructuring.
-  const [, ...rows] = raw.trim().split("\n");
-
-  return rows
-    .filter((line) => line.trim() !== "") // skip any trailing blank lines
-    .map((line) => {
-      // Simple comma-split works because this dataset has no commas inside values.
-      // Genres use "|" as their delimiter instead, which is why we split them separately.
-      // The `imageUrl = ""` default handles rows that don't yet have the 7th column.
-      const [name, system, rating, genre, releaseDate, firstPlayed, imageUrl = ""] =
-        line.split(",");
-
-      return {
-        name: name?.trim() ?? "",
-        system: system?.trim() ?? "",
-        rating: (rating?.trim() ?? "") as Rating | "",
-        // "Action-Adventure|Puzzle" → ["Action-Adventure", "Puzzle"]
-        genres: genre ? genre.split("|").map((g) => g.trim()) : [],
-        releaseDate: releaseDate?.trim() ?? "",
-        firstPlayed: firstPlayed?.trim() ?? "",
-        imageUrl: imageUrl?.trim() ?? "",
-      };
-    });
-}

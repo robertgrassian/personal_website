@@ -1,8 +1,9 @@
 import Image from "next/image";
-import type { Game } from "@/lib/games";
+import { type Game, type RatingLetter, RATING_LETTER } from "@/lib/games";
+import { RatingRibbon } from "./RatingRibbon";
+import { RatingBadge } from "./RatingBadge";
 
 // Per-system fallback background colors shown when no cover art is available.
-// These loosely match each system's brand color palette.
 const SYSTEM_COLORS: Record<string, string> = {
   "Nintendo Switch": "#e60012",
   "Nintendo Switch 2": "#c0001a",
@@ -21,36 +22,28 @@ const SYSTEM_COLORS: Record<string, string> = {
   Computer: "#374151",
 };
 
-// Tailwind classes for the colored rating dot in the card corner.
-// Color-codes ratings so they're readable at a glance across the whole shelf.
-const RATING_DOT: Record<string, string> = {
-  Perfect: "bg-yellow-400",
-  Great: "bg-green-400",
-  Good: "bg-blue-400",
-  Okay: "bg-amber-400",
-  Bad: "bg-red-500",
-};
+// Dispatches to RatingRibbon (S) or RatingBadge (A–F), keeping GameCase agnostic of the difference.
+function RatingIndicator({ rank }: { rank: RatingLetter }) {
+  if (rank === "S") return <RatingRibbon />;
+  return <RatingBadge rank={rank} />;
+}
 
 type GameCaseProps = {
   game: Game;
 };
 
-// GameCase renders a single game "case" card
-// It has no state or browser APIs, so it doesn't need "use client".
-// When imported by GameLibrary (which has "use client"), it runs on the client automatically.
-// This is a key Next.js concept: "use client" propagates down the import tree — you only
-// need the directive on the outermost component that introduces interactivity.
+// No "use client" needed — Next.js propagates it down the import tree from GameLibrary.
 export function GameCase({ game }: GameCaseProps) {
   const fallbackColor = SYSTEM_COLORS[game.system] ?? "#374151";
-  const dotColor = RATING_DOT[game.rating];
   const hasImage = game.imageUrl !== "";
+  const ratingLetter: RatingLetter | undefined = game.rating
+    ? RATING_LETTER[game.rating]
+    : undefined;
 
   return (
-    // The outer div is the full game case — tall and narrow.
-    // `group` enables Tailwind's group-hover: variants on descendant elements.
-    // `shrink-0` prevents flex from squishing cards below their specified width.
+    // `group` enables group-hover: variants on descendants; `shrink-0` prevents flex squishing.
     <div className="group relative w-24 shrink-0">
-      {/* The card face — 2:3 aspect ratio (96px wide × 144px tall = w-24 × h-36) */}
+      {/* Card face — 2:3 aspect ratio (w-24 × h-36 = 96×144px) */}
       <div
         className="relative h-36 rounded overflow-hidden shadow-lg
                    transition-transform duration-200 ease-out
@@ -58,13 +51,10 @@ export function GameCase({ game }: GameCaseProps) {
         style={!hasImage ? { backgroundColor: fallbackColor } : undefined}
       >
         {hasImage ? (
-          // Next.js <Image> with fill=true makes the image cover the parent container.
-          // The parent needs position:relative — provided by the "relative" Tailwind class.
-          // sizes="96px" tells Next.js the actual rendered width so it serves the right
-          // optimized size from its image pipeline. Without this, it serves a much larger file.
+          // `fill` covers the parent; `sizes="96px"` tells Next.js the rendered width
+          // so it serves the right optimized image size rather than a much larger file.
           <Image src={game.imageUrl} alt={game.name} fill className="object-cover" sizes="96px" />
         ) : (
-          // Fallback: system-colored card with the title text at the bottom.
           <div className="flex items-end justify-center h-full p-2">
             <span className="text-white text-[10px] font-semibold text-center leading-tight line-clamp-4">
               {game.name}
@@ -72,24 +62,18 @@ export function GameCase({ game }: GameCaseProps) {
           </div>
         )}
 
-        {/* Title overlay — fades in on hover, sits on top of the cover or fallback */}
+        {/* Title overlay — fades in on hover */}
+        {/* z-0 is explicit: badge/ribbon at z-10 intentionally sit above this overlay */}
         <div
           className="absolute inset-0 bg-black/75 flex items-end p-2
-                     opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                     opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-0"
         >
           <span className="text-white text-[10px] font-medium leading-tight">{game.name}</span>
         </div>
-      </div>
 
-      {/* Rating dot — a small colored circle in the top-right corner.
-          The `title` attribute adds a browser tooltip with the full rating text. */}
-      {dotColor && (
-        <span
-          title={game.rating}
-          className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full ${dotColor}
-                     ring-1 ring-black/20 z-10`}
-        />
-      )}
+        {/* Inside the cover div so it clips with overflow:hidden and moves with the hover translate */}
+        {ratingLetter && <RatingIndicator rank={ratingLetter} />}
+      </div>
     </div>
   );
 }
