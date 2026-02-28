@@ -5,10 +5,15 @@
 // This is where interactivity lives: useState, event handlers, browser APIs.
 
 import { useState, useMemo } from "react";
-import type { Game, Filters } from "@/lib/games";
+import type { Game, Filters, Rating } from "@/lib/games";
 import { RATINGS } from "@/lib/games";
 import { ShelfSection } from "./ShelfSection";
 import { FilterBar } from "./FilterBar";
+
+const RATING_ORDER: Record<Rating | "Unrated", number> = Object.fromEntries([
+  ...RATINGS.map((r, i) => [r.name, i]),
+  ["Unrated", RATINGS.length],
+]);
 
 // --- Types ---
 
@@ -76,11 +81,6 @@ function groupGames(games: Game[], groupBy: GroupBy): Array<{ label: string; gam
     map.get(key)!.push(game);
   }
 
-  const RATING_ORDER = Object.fromEntries([
-    ...RATINGS.map((r, i) => [r.name, i]),
-    ["Unrated", RATINGS.length],
-  ]);
-
   return Array.from(map.entries())
     .map(([label, games]) => ({ label, games }))
     .sort((a, b) => {
@@ -91,7 +91,7 @@ function groupGames(games: Game[], groupBy: GroupBy): Array<{ label: string; gam
       }
       // For rating grouping: best ratings first (Perfect/S → Bad/F).
       if (groupBy === "rating") {
-        return (RATING_ORDER[a.label] ?? 99) - (RATING_ORDER[b.label] ?? 99);
+        return (RATING_ORDER[a.label] ?? Infinity) - (RATING_ORDER[b.label] ?? Infinity);
       }
       // All other groupings: alphabetical.
       return a.label.localeCompare(b.label);
