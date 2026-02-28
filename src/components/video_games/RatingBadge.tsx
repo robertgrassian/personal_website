@@ -2,11 +2,8 @@
 
 import type { BadgeRank } from "@/lib/games";
 
-const BADGE_SIZE = 16;
-const BADGE_FONT_SIZE = 10;
-
-// Per-rank rgba colors can't be expressed as static Tailwind classes, so they stay in inline style.
-// Layout (position, flex, border-radius, etc.) uses Tailwind.
+// rgba colors can't be expressed as static Tailwind classes, so they stay in inline style.
+// All sizing and layout uses Tailwind (w-4 h-4 text-[10px] etc.).
 const BADGE_CONFIG: Record<
   BadgeRank,
   { bg: string; color: string; border: string; label: string; shadow?: string }
@@ -50,12 +47,8 @@ export function RatingBadge({ rank }: RatingBadgeProps) {
     <div
       role="img"
       aria-label={`${rank} — ${label}`}
-      title={`${rank} — ${label}`}
-      className="absolute top-1.5 right-1.5 z-10 flex items-center justify-center rounded-sm font-bold leading-none"
+      className="absolute top-1.5 right-1.5 z-10 w-4 h-4 text-[10px] flex items-center justify-center rounded-sm font-bold leading-none select-none cursor-default"
       style={{
-        width: BADGE_SIZE,
-        height: BADGE_SIZE,
-        fontSize: BADGE_FONT_SIZE,
         background: bg,
         color,
         border: `1.5px solid ${border}`,

@@ -63,9 +63,10 @@ export function GameCase({ game }: GameCaseProps) {
         )}
 
         {/* Title overlay — fades in on hover */}
+        {/* z-0 is explicit: badge/ribbon at z-10 intentionally sit above this overlay */}
         <div
           className="absolute inset-0 bg-black/75 flex items-end p-2
-                     opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                     opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-0"
         >
           <span className="text-white text-[10px] font-medium leading-tight">{game.name}</span>
         </div>
