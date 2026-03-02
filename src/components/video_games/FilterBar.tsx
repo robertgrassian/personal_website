@@ -24,6 +24,7 @@ type FilterBarProps = {
   // The <K extends keyof Filters> constraint ensures the key and value types always agree —
   // you can't pass onFilterChange("rating", "Nintendo Switch").
   onFilterChange: <K extends keyof Filters>(key: K, value: Filters[K]) => void;
+  onClearFilters: () => void;
   groupBy: GroupBy;
   sortOrder: SortOrder;
   allSystems: string[];
@@ -46,6 +47,7 @@ const selectClass = `${inputBaseClass} cursor-pointer`;
 export function FilterBar({
   filters,
   onFilterChange,
+  onClearFilters,
   groupBy,
   sortOrder,
   allSystems,
@@ -53,6 +55,9 @@ export function FilterBar({
   onGroupByChange,
   onSortOrderChange,
 }: FilterBarProps) {
+  const hasActiveFilters =
+    filters.search !== "" || filters.rating !== "" || filters.system !== "" || filters.genre !== "";
+
   return (
     // sticky: bar stays at the top of the viewport while scrolling through shelves.
     // backdrop-blur-sm: frosted glass effect so content scrolling behind it doesn't clash.
@@ -60,13 +65,24 @@ export function FilterBar({
     <div className="sticky top-0 z-20 bg-shelf-bg/95 backdrop-blur-sm py-3 sm:py-4 border-b border-shelf-bar-line">
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3 sm:items-center">
         {/* Text search — full-width on mobile so it anchors the top of the bar */}
-        <input
-          type="search"
-          placeholder="Search games…"
-          value={filters.search}
-          onChange={(e) => onFilterChange("search", e.target.value)}
-          className={`${inputBaseClass} placeholder:text-shelf-input-placeholder w-full sm:w-auto sm:min-w-44`}
-        />
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <input
+            type="search"
+            placeholder="Search games…"
+            value={filters.search}
+            onChange={(e) => onFilterChange("search", e.target.value)}
+            className={`${inputBaseClass} placeholder:text-shelf-input-placeholder flex-1 sm:flex-none sm:min-w-44`}
+          />
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={onClearFilters}
+              className="text-shelf-control-label text-xs underline underline-offset-2 whitespace-nowrap hover:text-shelf-input-text transition-colors"
+            >
+              Clear
+            </button>
+          )}
+        </div>
 
         {/* Filter selects — 3-column grid on mobile so columns are hard equal-width (no min-width blowout).
             sm:contents dissolves the wrapper into the parent flex row on desktop. */}

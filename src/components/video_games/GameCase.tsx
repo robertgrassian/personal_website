@@ -36,7 +36,7 @@ type GameCaseProps = {
 
 export function GameCase({ game }: GameCaseProps) {
   const fallbackColor = SYSTEM_COLORS[game.system] ?? "#374151";
-  const hasImage = game.imageUrl !== "";
+  const hasImage = game.imageUrl !== "" && !imageError;
   const ratingLetter = game.rating
     ? RATINGS.find((r) => r.name === game.rating)?.letter
     : undefined;
@@ -45,6 +45,9 @@ export function GameCase({ game }: GameCaseProps) {
   // On desktop, group-hover handles the overlay; onMouseLeave resets revealed so
   // clicking doesn't permanently pin the overlay open during a hover session.
   const [revealed, setRevealed] = useState(false);
+  // `imageError` tracks whether the cover image failed to load (broken URL, network issue, etc.).
+  // When true, we fall back to the system color just as if no imageUrl were provided.
+  const [imageError, setImageError] = useState(false);
 
   return (
     // `group` enables group-hover: variants on descendants; `shrink-0` prevents flex squishing.
@@ -68,7 +71,14 @@ export function GameCase({ game }: GameCaseProps) {
         {hasImage ? (
           // `fill` covers the parent; `sizes="96px"` tells Next.js the rendered width
           // so it serves the right optimized image size rather than a much larger file.
-          <Image src={game.imageUrl} alt={game.name} fill className="object-cover" sizes="96px" />
+          <Image
+            src={game.imageUrl}
+            alt={game.name}
+            fill
+            className="object-cover"
+            sizes="96px"
+            onError={() => setImageError(true)}
+          />
         ) : (
           <div className="flex items-end justify-center h-full p-2">
             <span className="text-white text-[10px] font-semibold text-center leading-tight line-clamp-4">

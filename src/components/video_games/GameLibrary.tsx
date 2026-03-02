@@ -173,6 +173,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
       <FilterBar
         filters={filters}
         onFilterChange={setFilter}
+        onClearFilters={() => setFilters(INITIAL_FILTERS)}
         groupBy={groupBy}
         sortOrder={sortOrder}
         allSystems={allSystems}
