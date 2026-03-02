@@ -168,12 +168,17 @@ export function GameLibrary({ games }: GameLibraryProps) {
       }));
   }, [games, filters, groupBy, sortOrder]);
 
+  // Total games currently visible across all shelves (after filtering).
+  const filteredCount = shelves.reduce((sum, s) => sum + s.games.length, 0);
+
   return (
     <div className="mt-8">
       <FilterBar
         filters={filters}
         onFilterChange={setFilter}
         onClearFilters={() => setFilters(INITIAL_FILTERS)}
+        filteredCount={filteredCount}
+        totalCount={games.length}
         groupBy={groupBy}
         sortOrder={sortOrder}
         allSystems={allSystems}
@@ -183,9 +188,16 @@ export function GameLibrary({ games }: GameLibraryProps) {
       />
 
       {shelves.length === 0 ? (
-        <p className="mt-24 text-center text-shelf-text-muted text-lg italic">
-          No games match your filters.
-        </p>
+        <div className="mt-24 text-center">
+          <p className="text-shelf-text-muted text-lg italic">No games match your filters.</p>
+          <button
+            type="button"
+            onClick={() => setFilters(INITIAL_FILTERS)}
+            className="mt-4 text-shelf-text-link text-sm underline underline-offset-2 hover:opacity-75 transition-opacity"
+          >
+            Clear all filters
+          </button>
+        </div>
       ) : (
         <div className="mt-6 pb-24">
           {shelves.map((shelf) => (

@@ -25,6 +25,8 @@ type FilterBarProps = {
   // you can't pass onFilterChange("rating", "Nintendo Switch").
   onFilterChange: <K extends keyof Filters>(key: K, value: Filters[K]) => void;
   onClearFilters: () => void;
+  filteredCount: number;
+  totalCount: number;
   groupBy: GroupBy;
   sortOrder: SortOrder;
   allSystems: string[];
@@ -48,6 +50,8 @@ export function FilterBar({
   filters,
   onFilterChange,
   onClearFilters,
+  filteredCount,
+  totalCount,
   groupBy,
   sortOrder,
   allSystems,
@@ -68,19 +72,25 @@ export function FilterBar({
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <input
             type="search"
+            aria-label="Search games"
             placeholder="Search games…"
             value={filters.search}
             onChange={(e) => onFilterChange("search", e.target.value)}
             className={`${inputBaseClass} placeholder:text-shelf-input-placeholder flex-1 sm:flex-none sm:min-w-44`}
           />
           {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={onClearFilters}
-              className="text-shelf-control-label text-xs underline underline-offset-2 whitespace-nowrap hover:text-shelf-input-text transition-colors"
-            >
-              Clear
-            </button>
+            <>
+              <span className="text-shelf-control-label text-xs whitespace-nowrap">
+                {filteredCount} of {totalCount}
+              </span>
+              <button
+                type="button"
+                onClick={onClearFilters}
+                className="text-shelf-control-label text-xs underline underline-offset-2 whitespace-nowrap hover:text-shelf-input-text transition-colors"
+              >
+                Clear
+              </button>
+            </>
           )}
         </div>
 
