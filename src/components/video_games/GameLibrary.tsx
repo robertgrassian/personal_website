@@ -16,7 +16,8 @@ import { FilterBar } from "./FilterBar";
 type RatingGroup = Rating | "Unrated";
 
 // GroupBy determines which property creates the shelf labels/groupings.
-export type GroupBy = "system" | "rating" | "genre" | "decade";
+// "none" puts all games on a single unlabeled shelf.
+export type GroupBy = "none" | "system" | "rating" | "genre" | "decade";
 
 // SortOrder determines game order within each individual shelf.
 export type SortOrder =
@@ -56,6 +57,8 @@ function filterGames(games: Game[], filters: Filters): Game[] {
 
 function getGroupKey(game: Game, groupBy: GroupBy): string {
   switch (groupBy) {
+    case "none":
+      return "";
     case "system":
       return game.system || "Unknown";
     case "rating":
@@ -153,13 +156,30 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const allSystems = useMemo(() => [...new Set(games.map((g) => g.system))].sort(), [games]);
   const allGenres = useMemo(() => [...new Set(games.flatMap((g) => g.genres))].sort(), [games]);
 
+  // For each dropdown, compute which values still produce results given the *other* active filters.
+  // We clear just that one filter key before filtering, so we're asking:
+  // "if the user picks this option, would anything match everything else they've set?"
+  const availableRatings = useMemo(
+    () => new Set(filterGames(games, { ...filters, rating: "" }).map((g) => g.rating || "")),
+    [games, filters]
+  );
+  const availableSystems = useMemo(
+    () => new Set(filterGames(games, { ...filters, system: "" }).map((g) => g.system)),
+    [games, filters]
+  );
+  const availableGenres = useMemo(
+    () => new Set(filterGames(games, { ...filters, genre: "" }).flatMap((g) => g.genres)),
+    [games, filters]
+  );
+
   // The display pipeline: filter → group → sort within each group.
   // useMemo means this only reruns when one of the listed dependencies actually changes.
   // This is the "derived state" pattern — shelves are computed from state, never stored.
   const shelves = useMemo(() => {
     const filtered = filterGames(games, filters);
-    const groups = groupGames(filtered, groupBy);
-    // Sort games within each shelf, keeping empty shelves out of the output entirely
+    // "none" skips grouping entirely — one unlabeled shelf with all filtered games.
+    const groups =
+      groupBy === "none" ? [{ label: "", games: filtered }] : groupGames(filtered, groupBy);
     return groups
       .filter((g) => g.games.length > 0)
       .map((group) => ({
@@ -171,18 +191,35 @@ export function GameLibrary({ games }: GameLibraryProps) {
   // Total games currently visible across all shelves (after filtering).
   const filteredCount = shelves.reduce((sum, s) => sum + s.games.length, 0);
 
+  const hasActiveFilters =
+    filters.search !== "" || filters.rating !== "" || filters.system !== "" || filters.genre !== "";
+
   return (
     <div className="mt-8">
+      {hasActiveFilters && (
+        <div className="flex items-center gap-3 mb-3">
+          <span className="text-shelf-text-muted text-sm">
+            {filteredCount} of {games.length} games
+          </span>
+          <button
+            type="button"
+            onClick={() => setFilters(INITIAL_FILTERS)}
+            className="text-shelf-text-muted text-sm underline underline-offset-2 cursor-pointer hover:text-shelf-text transition-colors"
+          >
+            Clear filters
+          </button>
+        </div>
+      )}
       <FilterBar
         filters={filters}
         onFilterChange={setFilter}
-        onClearFilters={() => setFilters(INITIAL_FILTERS)}
-        filteredCount={filteredCount}
-        totalCount={games.length}
         groupBy={groupBy}
         sortOrder={sortOrder}
         allSystems={allSystems}
         allGenres={allGenres}
+        availableRatings={availableRatings}
+        availableSystems={availableSystems}
+        availableGenres={availableGenres}
         onGroupByChange={setGroupBy}
         onSortOrderChange={setSortOrder}
       />
@@ -193,7 +230,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
           <button
             type="button"
             onClick={() => setFilters(INITIAL_FILTERS)}
-            className="mt-4 text-shelf-text-link text-sm underline underline-offset-2 hover:opacity-75 transition-opacity"
+            className="mt-4 text-shelf-text-link text-sm underline underline-offset-2 cursor-pointer hover:opacity-75 transition-opacity"
           >
             Clear all filters
           </button>
