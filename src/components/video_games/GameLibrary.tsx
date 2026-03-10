@@ -57,6 +57,8 @@ function filterGames(games: Game[], filters: Filters): Game[] {
 
 function getGroupKey(game: Game, groupBy: GroupBy): string {
   switch (groupBy) {
+    case "none":
+      return "";
     case "system":
       return game.system || "Unknown";
     case "rating":
