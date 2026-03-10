@@ -4,6 +4,50 @@ import "server-only";
 import fs from "fs";
 import path from "path";
 import type { Game, Rating } from "./games";
+import { RATINGS } from "./games";
+
+const VALID_RATINGS = new Set<string>(["", ...RATINGS.map((r) => r.name)]);
+
+// Parses and validates a single CSV row. Logs warnings for fixable problems
+// (bad rating, missing system) and returns the best-effort Game object.
+// Only returns null if the row is completely unparseable or has no name.
+function parseRow(line: string, rowIndex: number): Game | null {
+  const parts = line.split(",");
+  if (parts.length < 2) {
+    console.warn(`[games.csv] Row ${rowIndex}: skipping malformed line (too few columns)`);
+    return null;
+  }
+
+  // The `imageUrl = ""` default handles rows missing the 7th column.
+  const [rawName, rawSystem, rawRating, rawGenre, rawReleaseDate, rawFirstPlayed, rawImageUrl = ""] =
+    parts;
+
+  const name = rawName?.trim() ?? "";
+  const system = rawSystem?.trim() ?? "";
+  let rating = rawRating?.trim() ?? "";
+  const genres = rawGenre ? rawGenre.split("|").map((g) => g.trim()) : [];
+  const releaseDate = rawReleaseDate?.trim() ?? "";
+  const firstPlayed = rawFirstPlayed?.trim() ?? "";
+  const imageUrl = rawImageUrl?.trim() ?? "";
+
+  if (!name) {
+    console.warn(`[games.csv] Row ${rowIndex}: skipping row with no game name`);
+    return null;
+  }
+
+  if (!system) {
+    console.warn(`[games.csv] Row ${rowIndex}: "${name}" has no system`);
+  }
+
+  if (rating && !VALID_RATINGS.has(rating)) {
+    console.warn(
+      `[games.csv] Row ${rowIndex}: "${name}" has unrecognized rating "${rating}" — treating as unrated`,
+    );
+    rating = "";
+  }
+
+  return { name, system, rating: rating as Rating | "", genres, releaseDate, firstPlayed, imageUrl };
+}
 
 export function getGames(): Game[] {
   const csvPath = path.join(process.cwd(), "games.csv");
@@ -19,20 +63,8 @@ export function getGames(): Game[] {
 
   return rows
     .filter((line) => line.trim() !== "") // skip trailing blank lines
-    .map((line) => {
-      // Comma-split works because values never contain commas; genres use "|" instead.
-      // The `imageUrl = ""` default handles rows missing the 7th column.
-      const [name, system, rating, genre, releaseDate, firstPlayed, imageUrl = ""] =
-        line.split(",");
-
-      return {
-        name: name?.trim() ?? "",
-        system: system?.trim() ?? "",
-        rating: (rating?.trim() ?? "") as Rating | "",
-        genres: genre ? genre.split("|").map((g) => g.trim()) : [], // "Action|Puzzle" → ["Action", "Puzzle"]
-        releaseDate: releaseDate?.trim() ?? "",
-        firstPlayed: firstPlayed?.trim() ?? "",
-        imageUrl: imageUrl?.trim() ?? "",
-      };
+    .flatMap((line, i) => {
+      const game = parseRow(line, i + 2); // +2: 1-indexed, skip header
+      return game ? [game] : [];
     });
 }

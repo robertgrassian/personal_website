@@ -3,6 +3,7 @@ import { RATINGS } from "@/lib/games";
 import type { GroupBy, SortOrder } from "./GameLibrary";
 
 const GROUP_BY_OPTIONS: { value: GroupBy; label: string }[] = [
+  { value: "none", label: "None" },
   { value: "system", label: "System" },
   { value: "rating", label: "Rating" },
   { value: "genre", label: "Genre" },
@@ -28,6 +29,11 @@ type FilterBarProps = {
   sortOrder: SortOrder;
   allSystems: string[];
   allGenres: string[];
+  // Sets of values that still have matching games given the other active filters.
+  // Options not in the set are disabled so the user can't pick a dead-end combination.
+  availableRatings: Set<string>;
+  availableSystems: Set<string>;
+  availableGenres: Set<string>;
   onGroupByChange: (v: GroupBy) => void;
   onSortOrderChange: (v: SortOrder) => void;
 };
@@ -40,6 +46,49 @@ const inputBaseClass =
 // Selects get cursor-pointer on top of the base — inputs don't need it.
 const selectClass = `${inputBaseClass} cursor-pointer`;
 
+type FilterSelectProps = {
+  value: string;
+  onChange: (v: string) => void;
+  allLabel: string;
+  // All possible option values in display order.
+  options: string[];
+  // Subset of options that produce results given the other active filters.
+  // Options not in this set are disabled and sorted to the bottom.
+  available: Set<string>;
+  className?: string;
+};
+
+// Renders a <select> with available options at the top and unavailable (disabled) ones below,
+// separated by a divider when both groups are present.
+function FilterSelect({
+  value,
+  onChange,
+  allLabel,
+  options,
+  available,
+  className,
+}: FilterSelectProps) {
+  const enabled = options.filter((o) => available.has(o));
+  const disabled = options.filter((o) => !available.has(o));
+
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={className}>
+      <option value="">{allLabel}</option>
+      {enabled.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+      {enabled.length > 0 && disabled.length > 0 && <option disabled>──────────</option>}
+      {disabled.map((o) => (
+        <option key={o} value={o} disabled>
+          {o}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 // FilterBar owns no state — it receives current values and change-handler callbacks
 // from GameLibrary. This is the "controlled component" pattern: the parent owns state,
 // the child only renders and reports events.
@@ -50,6 +99,9 @@ export function FilterBar({
   sortOrder,
   allSystems,
   allGenres,
+  availableRatings,
+  availableSystems,
+  availableGenres,
   onGroupByChange,
   onSortOrderChange,
 }: FilterBarProps) {
@@ -62,6 +114,7 @@ export function FilterBar({
         {/* Text search — full-width on mobile so it anchors the top of the bar */}
         <input
           type="search"
+          aria-label="Search games"
           placeholder="Search games…"
           value={filters.search}
           onChange={(e) => onFilterChange("search", e.target.value)}
@@ -72,46 +125,34 @@ export function FilterBar({
             sm:contents dissolves the wrapper into the parent flex row on desktop. */}
         <div className="grid grid-cols-3 gap-2 sm:contents">
           {/* Rating filter */}
-          <select
+          <FilterSelect
             value={filters.rating}
-            onChange={(e) => onFilterChange("rating", e.target.value as Rating | "")}
+            onChange={(v) => onFilterChange("rating", v as Rating | "")}
+            allLabel="All Ratings"
+            options={RATINGS.map((r) => r.name)}
+            available={availableRatings}
             className={`${selectClass} w-full sm:w-auto`}
-          >
-            <option value="">All Ratings</option>
-            {RATINGS.map((r) => (
-              <option key={r.name} value={r.name}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+          />
 
           {/* System filter — options derived from actual game data, not hardcoded */}
-          <select
+          <FilterSelect
             value={filters.system}
-            onChange={(e) => onFilterChange("system", e.target.value)}
+            onChange={(v) => onFilterChange("system", v)}
+            allLabel="All Systems"
+            options={allSystems}
+            available={availableSystems}
             className={`${selectClass} w-full sm:w-auto`}
-          >
-            <option value="">All Systems</option>
-            {allSystems.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+          />
 
           {/* Genre filter */}
-          <select
+          <FilterSelect
             value={filters.genre}
-            onChange={(e) => onFilterChange("genre", e.target.value)}
+            onChange={(v) => onFilterChange("genre", v)}
+            allLabel="All Genres"
+            options={allGenres}
+            available={availableGenres}
             className={`${selectClass} w-full sm:w-auto`}
-          >
-            <option value="">All Genres</option>
-            {allGenres.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
         {/* Visual divider — desktop only */}

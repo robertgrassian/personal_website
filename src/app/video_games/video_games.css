@@ -30,7 +30,28 @@
   --shelf-bar-line: #fbbf2480; /* amber-400/50 — bottom border of sticky bar */
   --shelf-control-label: #b45309b3; /* amber-700/70 — "Group" / "Sort" labels */
   --shelf-divider: #f59e0b66; /* amber-500/40 — vertical divider between groups */
+
+  /* --- Game case system fallback colors (shown when no cover art is available) ---
+     Add a new entry here whenever a new console appears in games.csv.
+     Applied via [data-system="..."] attribute selectors on the card element. */
+  --system-fallback: #374151; /* default: gray-700 */
 }
+
+.shelf-theme [data-system="Nintendo Switch"] { --system-fallback: #e60012; }
+.shelf-theme [data-system="Nintendo Switch 2"] { --system-fallback: #c0001a; }
+.shelf-theme [data-system="Nintendo GameCube"] { --system-fallback: #4a2d8f; }
+.shelf-theme [data-system="Nintendo Wii"] { --system-fallback: #5a5a5a; }
+.shelf-theme [data-system="Nintendo Wii U"] { --system-fallback: #009ac7; }
+.shelf-theme [data-system="Nintendo DS"] { --system-fallback: #ac1300; }
+.shelf-theme [data-system="Nintendo 3DS"] { --system-fallback: #cc0000; }
+.shelf-theme [data-system="Game Boy Advance"] { --system-fallback: #7c3f99; }
+.shelf-theme [data-system="Nintendo 64"] { --system-fallback: #8b4513; }
+.shelf-theme [data-system="PS5"] { --system-fallback: #003087; }
+.shelf-theme [data-system="PS4"] { --system-fallback: #003087; }
+.shelf-theme [data-system="PS3"] { --system-fallback: #005bab; }
+.shelf-theme [data-system="Xbox 360"] { --system-fallback: #107c10; }
+.shelf-theme [data-system="Xbox"] { --system-fallback: #107c10; }
+.shelf-theme [data-system="Computer"] { --system-fallback: #374151; }
 
 @media (prefers-color-scheme: dark) {
   .shelf-theme {

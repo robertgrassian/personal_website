@@ -6,17 +6,19 @@ type ShelfSectionProps = {
   games: Game[];
 };
 
-// ShelfSection renders one labeled shelf — a header row plus a "plank" of game cases.
+// ShelfSection renders one shelf — an optional header row plus a "plank" of game cases.
 export function ShelfSection({ label, games }: ShelfSectionProps) {
   return (
     <section className="mt-10">
-      {/* Shelf label — small, muted, uppercase */}
-      <h2 className="text-shelf-label text-xs font-semibold uppercase tracking-widest mb-3 px-1">
-        {label}
-        <span className="ml-2 text-shelf-label-muted normal-case tracking-normal font-normal">
-          ({games.length})
-        </span>
-      </h2>
+      {/* Shelf label — omitted when label is empty (e.g. "group by none") */}
+      {label && (
+        <h2 className="text-shelf-label text-xs font-semibold uppercase tracking-widest mb-3 px-1">
+          {label}
+          <span className="ml-2 text-shelf-label-muted normal-case tracking-normal font-normal">
+            ({games.length})
+          </span>
+        </h2>
+      )}
 
       {/*
         The shelf "plank" — dark wood-tone background with a thick bottom border as the rail.
