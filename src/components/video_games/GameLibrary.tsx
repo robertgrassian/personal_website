@@ -57,8 +57,6 @@ function filterGames(games: Game[], filters: Filters): Game[] {
 
 function getGroupKey(game: Game, groupBy: GroupBy): string {
   switch (groupBy) {
-    case "none":
-      return "";
     case "system":
       return game.system || "Unknown";
     case "rating":
@@ -160,7 +158,12 @@ export function GameLibrary({ games }: GameLibraryProps) {
   // We clear just that one filter key before filtering, so we're asking:
   // "if the user picks this option, would anything match everything else they've set?"
   const availableRatings = useMemo(
-    () => new Set(filterGames(games, { ...filters, rating: "" }).map((g) => g.rating || "")),
+    () =>
+      new Set(
+        filterGames(games, { ...filters, rating: "" })
+          .map((g) => g.rating)
+          .filter((r) => r !== "")
+      ),
     [games, filters]
   );
   const availableSystems = useMemo(
@@ -225,16 +228,9 @@ export function GameLibrary({ games }: GameLibraryProps) {
       />
 
       {shelves.length === 0 ? (
-        <div className="mt-24 text-center">
-          <p className="text-shelf-text-muted text-lg italic">No games match your filters.</p>
-          <button
-            type="button"
-            onClick={() => setFilters(INITIAL_FILTERS)}
-            className="mt-4 text-shelf-text-link text-sm underline underline-offset-2 cursor-pointer hover:opacity-75 transition-opacity"
-          >
-            Clear all filters
-          </button>
-        </div>
+        <p className="mt-24 text-center text-shelf-text-muted text-lg italic">
+          No games match your filters.
+        </p>
       ) : (
         <div className="mt-6 pb-24">
           {shelves.map((shelf) => (
