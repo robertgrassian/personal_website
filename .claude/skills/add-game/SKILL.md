@@ -1,6 +1,6 @@
 ---
 name: add-game
-description: "Add a game to games.csv and fetch its cover art from IGDB. Prompts for all required fields, previews the cover, and confirms before writing."
+description: "Add a game to games.csv. Looks up release date, platform, and genres from Wikipedia's infobox, fetches cover art from IGDB. Asks only when data is ambiguous."
 argument-hint: "[game name (optional)]"
 ---
 
@@ -17,52 +17,134 @@ name,system,rating,genre,release_date,first_played,image_url
 
 ---
 
-## Step 1 — Collect system and rating via dialog
+## Step 1 — Determine game name
 
-Use `AskUserQuestion` with exactly **two questions** — system and rating — both of which are pure option pickers with no free-text input needed:
-
-1. **System** — options: `PS5`, `Nintendo Switch`, `Nintendo Switch 2`, `PC`. "Other" is auto-appended for anything else; the user can note it there.
-2. **Rating** — options: `Perfect`, `Great`, `Good`, `Okay`. "Other" is auto-appended; the user can note `Bad` or leave it blank there.
-
-Do not ask for genres or dates here.
+If the game name was provided as an argument, use it. Otherwise, ask the user for it before proceeding.
 
 ---
 
-## Step 2 — Collect genres, dates, and game name via chat
+## Step 2 — Read existing systems and genres from games.csv
 
-After the dialog, output the following prompt as a single message and wait for the user's reply. Replace `[GAME NAME]` with the actual game name if it was provided; otherwise ask for it in the same message.
+Use the Read tool (not Bash) to read the full `games.csv` file, then extract:
 
-```
-A few more fields for [GAME NAME] — reply in one message:
-
-Genre(s): (comma-separated; e.g. "Third-person Shooter, Survival")
-  Known genres: Action, Action RPG, Action-Adventure, Adventure, Battle Royale,
-  Deck-building, Fighting, First Person Shooter, Metroidvania, Party, Platform,
-  Puzzle, Racing, Real-time Strategy, Rhythm, Roguelike, RPG, Sandbox,
-  Social Simulation, Sports, Survival, Survival Horror, Third-person Shooter,
-  Turn-based Strategy, Visual Novel — or type anything custom.
-
-Release date (YYYY-MM-DD or skip):
-Year first played (YYYY or skip):
-```
-
-Parse the user's reply:
-
-- Split `Genre(s)` on commas; trim whitespace from each; join with `|` for the CSV
-- Treat "skip", "blank", "-", or missing values as empty string for dates
-- If game name was not provided via arguments, extract it from the reply too
+- All unique values from the `system` column → use as the option list when asking the user to pick a system
+- All unique genre tokens from the `genre` column (split each cell on `|`) → use as a reference when mapping Wikipedia genres
 
 ---
 
-## Step 3 — Fetch cover art from IGDB
+## Step 3 — Look up game data on Wikipedia
 
-Check whether `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` are set without echoing their values:
+Search Wikipedia for the game:
+
+```bash
+curl -s "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=GAME_NAME+video+game&srlimit=5&format=json" \
+  | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for r in data['query']['search']:
+    print(r['title'])
+"
+```
+
+Pick the most relevant result (clearly a video game, not a film or book adaptation). Then fetch its wikitext:
+
+```bash
+curl -s "https://en.wikipedia.org/w/api.php?action=query&titles=PAGE_TITLE&prop=revisions&rvprop=content&rvslots=main&format=json" \
+  | python3 -c "
+import sys, json, re
+
+data = json.load(sys.stdin)
+pages = data['query']['pages']
+page = next(iter(pages.values()))
+text = page['revisions'][0]['slots']['main']['*']
+
+# Find the infobox using bracket-matching (handles nested templates)
+start = text.lower().find('{{infobox video game')
+if start == -1:
+    print('NO_INFOBOX')
+    sys.exit()
+
+depth, i, end = 0, start, -1
+while i < len(text):
+    if text[i:i+2] == '{{': depth += 1; i += 2
+    elif text[i:i+2] == '}}':
+        depth -= 1
+        if depth == 0: end = i + 2; break
+        i += 2
+    else: i += 1
+
+infobox = text[start:end] if end > -1 else text[start:]
+
+def extract_field(name, text):
+    m = re.search(r'\|\s*' + re.escape(name) + r'\s*=\s*(.*?)(?=\n\s*\||\}\})', text, re.DOTALL | re.IGNORECASE)
+    return m.group(1).strip() if m else ''
+
+def clean(s):
+    s = re.sub(r'\[\[[^\]]*\|([^\]]+)\]\]', r'\1', s)
+    s = re.sub(r'\[\[([^\]]+)\]\]', r'\1', s)
+    s = re.sub(r'<br\s*/?>', ', ', s, flags=re.IGNORECASE)
+    s = re.sub(r'<[^>]+>', '', s)
+    return s.strip()
+
+genre_raw   = extract_field('genre', infobox)
+plat_raw    = extract_field('platforms', infobox)
+rel_raw     = extract_field('released', infobox)
+
+print('=== GENRE ===')
+print(clean(genre_raw))
+print('=== PLATFORMS ===')
+print(clean(plat_raw))
+print('=== RELEASED (RAW) ===')
+print(rel_raw)
+"
+```
+
+The `=== RELEASED (RAW) ===` section may contain template markup like `{{vgrelease|NA=...|EU=...}}`. Extract the **North America (NA)** date from it. If no NA-specific date exists, use the earliest worldwide date. Always prefer NA. Convert to `YYYY-MM-DD`.
+
+---
+
+## Step 4 — Resolve ambiguity and confirm data
+
+### System
+
+- Map the Wikipedia platforms to systems that appear in `games.csv` (read in Step 2).
+- If the game shipped on multiple platforms **and more than one maps to a system in the library**, ask the user to pick via `AskUserQuestion`. Use the existing system names from `games.csv` as options, plus "Other" appended automatically.
+- If it maps unambiguously to one system, use it without asking.
+
+### Release date
+
+- Always use the **North America release date**. If no NA-specific date is available, use the worldwide date.
+- No need to ask the user about dates — just resolve it and move on.
+
+### Genres
+
+- Use the genres exactly as listed in the Wikipedia infobox side panel.
+- Map them to genres that already exist in `games.csv` (read in Step 2) where there is a clear match.
+- If a Wikipedia genre doesn't match any existing genre, include it as-is — new genres are fine.
+- Do not limit genres to any fixed list.
+
+After resolving all fields, **output a single summary message** to the user showing the game name, system, release date, and genres you found. Note anything that was ambiguous.
+
+---
+
+## Step 5 — Collect rating and first_played via dialog
+
+Use `AskUserQuestion` with exactly **two questions**:
+
+1. **Rating** — options: `Perfect`, `Great`, `Good`, `Okay`. "Other" is auto-appended; the user can note `Bad` or leave blank.
+2. **Year first played** — options: the current year and 4 prior years (e.g. `2026`, `2025`, `2024`, `2023`, `2022`). "Other" is auto-appended for anything else.
+
+---
+
+## Step 6 — Fetch cover art from IGDB
+
+Check whether credentials are set:
 
 ```bash
 [ -n "${IGDB_CLIENT_ID}" ] && [ -n "${IGDB_CLIENT_SECRET}" ] && echo "ok" || echo "missing"
 ```
 
-If the output is `missing`, stop and tell the user: "Cannot continue — `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` must be set in your environment."
+If `missing`, stop and tell the user: "Cannot continue — `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` must be set in your environment."
 
 ### Get an access token:
 
@@ -86,21 +168,21 @@ For each result, upgrade `cover.url`: replace `t_thumb` → `t_cover_big` and `/
 
 ---
 
-## Step 4 — Preview and confirm cover
+## Step 7 — Preview and confirm cover
 
-For each IGDB result, show:
+For each IGDB result show:
 
 - The matched game title
-- The cover as markdown: `![cover](IMAGE_URL)`
+- The cover: `![cover](IMAGE_URL)`
 - The raw image URL
 
-Use `AskUserQuestion` with one option per match (pure option-picking, no typing needed), plus a "Skip cover art" option.
+Use `AskUserQuestion` with one option per match plus "Skip cover art".
 
 ---
 
-## Step 5 — Write to games.csv
+## Step 8 — Write to games.csv
 
-Append the row using `printf` (safer than `echo` with special characters):
+Append the row:
 
 ```bash
 printf '%s\n' 'NAME,SYSTEM,RATING,GENRE,RELEASE_DATE,FIRST_PLAYED,IMAGE_URL' >> /full/path/to/games.csv
@@ -116,6 +198,7 @@ Print a confirmation showing the exact row appended.
 
 ## Notes
 
+- If Wikipedia returns no infobox or the page can't be found, fall back to asking the user for genres, platform, and release date manually.
 - If IGDB returns no results, offer to retry with a different search term or accept a direct URL.
 - If the user skips cover art, use empty string for `image_url`.
 - Do not run `fetch-covers.ts`.

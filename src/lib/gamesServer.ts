@@ -12,15 +12,26 @@ const VALID_RATINGS = new Set<string>(["", ...RATINGS.map((r) => r.name)]);
 // (bad rating, missing system) and returns the best-effort Game object.
 // Only returns null if the row is completely unparseable or has no name.
 function parseRow(line: string, rowIndex: number): Game | null {
-  const parts = line.split(",");
+  // Split on commas, then strip surrounding double-quotes from each field.
+  // This handles fields that were unnecessarily quoted (e.g. "New Super Mario Bros.").
+  // Note: this does not handle RFC 4180 edge cases like quoted fields containing commas;
+  // none of the game names in our CSV contain commas, so this is sufficient.
+  const parts = line.split(",").map((p) => p.replace(/^"(.*)"$/, "$1"));
   if (parts.length < 2) {
     console.warn(`[games.csv] Row ${rowIndex}: skipping malformed line (too few columns)`);
     return null;
   }
 
   // The `imageUrl = ""` default handles rows missing the 7th column.
-  const [rawName, rawSystem, rawRating, rawGenre, rawReleaseDate, rawFirstPlayed, rawImageUrl = ""] =
-    parts;
+  const [
+    rawName,
+    rawSystem,
+    rawRating,
+    rawGenre,
+    rawReleaseDate,
+    rawFirstPlayed,
+    rawImageUrl = "",
+  ] = parts;
 
   const name = rawName?.trim() ?? "";
   const system = rawSystem?.trim() ?? "";
@@ -41,12 +52,20 @@ function parseRow(line: string, rowIndex: number): Game | null {
 
   if (rating && !VALID_RATINGS.has(rating)) {
     console.warn(
-      `[games.csv] Row ${rowIndex}: "${name}" has unrecognized rating "${rating}" — treating as unrated`,
+      `[games.csv] Row ${rowIndex}: "${name}" has unrecognized rating "${rating}" — treating as unrated`
     );
     rating = "";
   }
 
-  return { name, system, rating: rating as Rating | "", genres, releaseDate, firstPlayed, imageUrl };
+  return {
+    name,
+    system,
+    rating: rating as Rating | "",
+    genres,
+    releaseDate,
+    firstPlayed,
+    imageUrl,
+  };
 }
 
 export function getGames(): Game[] {
