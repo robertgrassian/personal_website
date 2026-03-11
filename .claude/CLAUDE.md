@@ -42,6 +42,7 @@ Remaining ideas are tracked in `TODO.md` (backlog).
 
 - When I ask "what's next" or similar (e.g., "what should I work on"), reference `TODO.md` for the answer. Don't explore the codebase — just read the TODO and summarize what's up next.
 - **Never add "Co-Authored-By: Claude" (or any Claude/Anthropic attribution) to git commit messages.**
+- **Use `ggp` instead of `git push` when pushing branches.**
 - **Always support both light and dark mode.** The site uses `@media (prefers-color-scheme: dark)` CSS variables in `globals.css` and Tailwind `dark:` variants in components — both must be addressed for any new UI. Never add color classes that only work in one mode.
 
 ## Repository
