@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import type { Filters, Rating } from "@/lib/games";
 import { RATINGS } from "@/lib/games";
 import type { GroupBy, SortOrder } from "./GameLibrary";
@@ -108,11 +108,36 @@ export function FilterBar({
 }: FilterBarProps) {
   // Track whether the bar should be visible. Starts true so it's shown on initial render.
   const [visible, setVisible] = useState(true);
-  // useRef stores the previous scroll position without triggering a re-render when it changes.
-  const lastScrollY = useRef(0);
-  // barRef measures the rendered height of the bar so the threshold stays accurate
-  // even if the bar's content or layout changes.
+  // Mirror of `visible` as a ref so the scroll handler — registered once in useEffect([]) —
+  // can always read the current value without capturing a stale closure.
+  const visibleRef = useRef(true);
+  // Tracks scroll position at the last visibility toggle, not at every scroll event.
+  // This lets us measure "how far has the user scrolled since the bar last changed state"
+  // rather than "how far since the last pixel of movement", which prevents flip-flopping
+  // on slow or jittery scrolls.
+  const scrollYAtLastToggle = useRef(0);
+  // Cached document-relative top of the bar, measured once at mount before sticky kicks in.
+  // Reading offsetTop during scroll is unreliable: once `position: sticky` is active,
+  // some browsers (notably Firefox) report offsetTop as 0 (the visual position) rather
+  // than the element's natural layout position. getBoundingClientRect().top + scrollY
+  // always gives the absolute document position, so we snapshot it once before any scroll.
+  const stickyThresholdRef = useRef(0);
   const barRef = useRef<HTMLDivElement>(null);
+
+  // Keep the ref in sync with the state value on every render.
+  visibleRef.current = visible;
+
+  // useLayoutEffect runs synchronously after DOM mutations but before the browser paints,
+  // so the measurement happens while the element is still in its natural flow position
+  // (before any scroll could trigger sticky). This is the correct hook for DOM measurements.
+  useLayoutEffect(() => {
+    if (barRef.current) {
+      // Snapshot the bar's document-relative top position before any scroll happens.
+      // This is the exact point where `position: sticky` kicks in, so it's also the
+      // point where direction-based hide/show logic should start.
+      stickyThresholdRef.current = barRef.current.getBoundingClientRect().top + window.scrollY;
+    }
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -121,26 +146,37 @@ export function FilterBar({
       // Desktop: always keep bar visible — this mirrors Tailwind's sm: breakpoint (640px).
       if (window.matchMedia("(min-width: 640px)").matches) {
         setVisible(true);
-        lastScrollY.current = currentScrollY;
+        scrollYAtLastToggle.current = currentScrollY;
         return;
       }
 
-      // Use the bar's actual rendered height as the dead zone at the top of the page.
-      // Falls back to 80px if the ref hasn't attached yet (shouldn't happen in practice).
-      const threshold = barRef.current?.offsetHeight ?? 80;
+      const stickyThreshold = stickyThresholdRef.current;
 
       // Near the top of the page: always show regardless of scroll direction.
-      if (currentScrollY < threshold) {
-        setVisible(true);
-      } else if (currentScrollY > lastScrollY.current) {
-        // Scrolled down → hide the bar to reclaim screen space.
-        setVisible(false);
-      } else {
-        // Scrolled up → user is looking for controls, show the bar.
-        setVisible(true);
+      // Also keep scrollYAtLastToggle current so the delta starts fresh from
+      // wherever the user is when they cross back into the sticky zone.
+      if (currentScrollY < stickyThreshold) {
+        if (!visibleRef.current) {
+          setVisible(true);
+        }
+        scrollYAtLastToggle.current = currentScrollY;
+        return;
       }
 
-      lastScrollY.current = currentScrollY;
+      const delta = currentScrollY - scrollYAtLastToggle.current;
+      // Require at least 10px of intentional movement before toggling.
+      // This filters out micro-reversals from slow or momentum scrolling.
+      const MIN_DELTA = 10;
+
+      if (delta > MIN_DELTA) {
+        // Scrolled down far enough → hide the bar to reclaim screen space.
+        setVisible(false);
+        scrollYAtLastToggle.current = currentScrollY;
+      } else if (delta < -MIN_DELTA) {
+        // Scrolled up far enough → user is looking for controls, show the bar.
+        setVisible(true);
+        scrollYAtLastToggle.current = currentScrollY;
+      }
     };
 
     // { passive: true } tells the browser this handler never calls preventDefault(),
