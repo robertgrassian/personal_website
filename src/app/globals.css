@@ -46,7 +46,6 @@
   --color-shelf-edge: var(--shelf-edge);
   --color-shelf-text: var(--shelf-text);
   --color-shelf-text-muted: var(--shelf-text-muted);
-  --color-shelf-text-link: var(--shelf-text-link);
   --color-shelf-label: var(--shelf-label);
   --color-shelf-label-muted: var(--shelf-label-muted);
   --color-shelf-input: var(--shelf-input);
@@ -57,7 +56,6 @@
   --color-shelf-bar-line: var(--shelf-bar-line);
   --color-shelf-control-label: var(--shelf-control-label);
   --color-shelf-divider: var(--shelf-divider);
-  --shadow-shelf: var(--shelf-shadow);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);

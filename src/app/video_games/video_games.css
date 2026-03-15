@@ -13,7 +13,6 @@
   /* --- Page text: site neutral palette --- */
   --shelf-text: #171717;
   --shelf-text-muted: #6b7280;
-  --shelf-text-link: #b45309;
 
   /* --- Shelf section labels --- */
   --shelf-label: #1f2937;
@@ -157,7 +156,6 @@
     /* --- Page text: site neutral palette --- */
     --shelf-text: #ededed;
     --shelf-text-muted: #9ca3af;
-    --shelf-text-link: #f59e0b;
 
     /* --- Shelf section labels --- */
     --shelf-label: #e5e7eb;

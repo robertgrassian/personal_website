@@ -107,7 +107,6 @@ export function FilterBar({
 }: FilterBarProps) {
   return (
     // sticky: bar stays at the top of the viewport while scrolling through shelves.
-    // sticky: bar stays at the top of the viewport while scrolling through shelves.
     // backdrop-blur-sm: frosted glass effect so content scrolling behind it doesn't clash.
     // rounded-lg + shadow: makes the bar feel like a floating panel over the shelf content.
     // Mobile: flex-col stacks rows cleanly. Desktop (sm+): flex-row wraps everything into one line.
