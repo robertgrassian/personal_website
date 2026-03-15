@@ -1,12 +1,10 @@
 import Image from "next/image";
-import Link from "next/link";
+import { BackToHome } from "@/components/BackToHome";
 
 export default function About() {
   return (
     <main className="max-w-2xl mx-auto px-6 py-16">
-      <Link href="/" className="text-sm text-link hover:underline">
-        ← Home
-      </Link>
+      <BackToHome />
 
       <h1 className="mt-8 text-3xl font-bold text-foreground">About Me</h1>
 

@@ -33,7 +33,7 @@ export default function Home() {
         priority
       />
       {/* Gradient overlay: subtler at top (sky looks great), darker at bottom where tiles sit */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/40 to-black/65" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/40 to-black/65 dark:from-black/40 dark:via-black/55 dark:to-black/75" />
 
       {/* Name + tagline — flex-1 pushes this to fill available space, centering it above the tiles */}
       <div className="relative z-10 flex-1 flex items-center justify-center px-6 text-center">
@@ -56,7 +56,7 @@ export default function Home() {
             <Link
               key={s.href}
               href={s.href}
-              className="group block p-3 sm:p-5 rounded-lg border border-white/20 bg-white/10 backdrop-blur-sm hover:bg-white/20 hover:border-white/40 transition-all duration-200"
+              className="group block p-3 sm:p-5 rounded-lg border border-white/20 bg-white/10 backdrop-blur-sm hover:bg-white/20 hover:border-white/40 transition-all duration-200 text-center"
             >
               <h2 className="text-sm sm:text-base font-semibold text-white">{s.title}</h2>
               {/* Description hidden on mobile — 3 narrow columns leave no room for wrapping text */}
