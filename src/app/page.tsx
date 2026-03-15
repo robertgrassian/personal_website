@@ -25,8 +25,8 @@ export default function Home() {
     <main className="relative h-screen flex flex-col overflow-hidden">
       {/* Full-page background image — fill spans the positioned parent (main) */}
       <Image
-        src="/images/IMG_0767.jpeg"
-        alt="San Pedro cliffs"
+        src="/images/san-pedro-cliffs.jpeg"
+        alt=""
         fill
         sizes="100vw"
         className="object-cover"

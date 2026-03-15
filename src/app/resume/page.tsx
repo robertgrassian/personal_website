@@ -4,7 +4,7 @@ import { BackToHome } from "@/components/BackToHome";
 
 export default function Resume() {
   return (
-    <div className="max-w-3xl mx-auto px-6 py-16">
+    <main className="max-w-3xl mx-auto px-6 py-16">
       <BackToHome />
 
       <h1 className="mt-6 text-4xl font-bold">Resume</h1>
@@ -102,7 +102,9 @@ export default function Resume() {
         <ResumeSection title="Education">
           <div className="mt-6">
             <h3 className="text-xl font-bold">University of California, Berkeley</h3>
-            <p className="font-medium text-emphasis mt-1">Bachelor&apos;s Degree in Computer Science</p>
+            <p className="font-medium text-emphasis mt-1">
+              Bachelor&apos;s Degree in Computer Science
+            </p>
             <p className="text-sm text-muted">May 2020</p>
             <p className="text-sm text-muted mt-1">
               Entrepreneurship and Technology Certificate from the Sutardja Center
@@ -131,6 +133,6 @@ export default function Resume() {
           </div>
         </ResumeSection>
       </div>
-    </div>
+    </main>
   );
 }

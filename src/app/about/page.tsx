@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export default function About() {
   return (
-    <div className="max-w-2xl mx-auto px-6 py-16">
+    <main className="max-w-2xl mx-auto px-6 py-16">
       <Link href="/" className="text-sm text-link hover:underline">
         ← Home
       </Link>
@@ -45,14 +45,14 @@ export default function About() {
           // width/height must match each image's actual display aspect ratio —
           // the browser uses them to reserve space before the image loads (prevents layout shift)
           {
-            src: "/images/IMG_1669.jpeg",
+            src: "/images/kirby-cliffs.jpeg",
             alt: "Kirby at the San Pedro cliffs",
             caption: "My dog Kirby",
             width: 900,
             height: 1200,
           },
           {
-            src: "/images/IMG_2999.jpeg",
+            src: "/images/san-pedro.jpeg",
             alt: "San Pedro cliffs",
             caption: "San Pedro",
             width: 1200,
@@ -79,6 +79,6 @@ export default function About() {
           </figure>
         ))}
       </div>
-    </div>
+    </main>
   );
 }
