@@ -9,12 +9,35 @@ Check the first word of `$ARGUMENTS` (case-insensitive) to determine the mode: `
 
 ## If listing (`/todo list`)
 
-Read `TODO.md` and present a concise summary of what to work on. Show:
+Read `TODO.md` in full, then output two sections:
 
-1. **In Progress** — everything in this section (these are active tasks).
-2. **Up Next** — everything in this section (these are queued up).
+### 1. Claude's Picks (3 items)
 
-Do **not** show Backlog, Recently Completed, or future/deferred sections unless the user asks. Keep the output short and scannable.
+Scan every `- [ ]` item across all sections. Choose 3 that you'd most recommend tackling next. Consider: quick wins, high user-visible impact, things that would be impressive to a visitor, things that seem fun or satisfying to build, and items that unblock other work. For each pick, include a one-line reason why you're recommending it.
+
+Format:
+
+```
+**Claude's Picks**
+- [ ] <task> — <one-line reason>
+- [ ] <task> — <one-line reason>
+- [ ] <task> — <one-line reason>
+```
+
+### 2. Recently Added (3 items)
+
+New items are always inserted at the **top** of the **Backlog / Ideas** section. Show the first 3 `- [ ]` items from that section as a proxy for most recently added.
+
+Format:
+
+```
+**Recently Added**
+- [ ] <task>
+- [ ] <task>
+- [ ] <task>
+```
+
+Keep the output short and scannable. Do **not** show all sections or every item unless the user asks.
 
 ## If marking done (`/todo done <description>`)
 
