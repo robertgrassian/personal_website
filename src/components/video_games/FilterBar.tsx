@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from "react";
 import type { Filters, Rating } from "@/lib/games";
 import { RATINGS } from "@/lib/games";
 import type { GroupBy, SortOrder } from "./GameLibrary";
@@ -105,12 +106,59 @@ export function FilterBar({
   onGroupByChange,
   onSortOrderChange,
 }: FilterBarProps) {
+  // Track whether the bar should be visible. Starts true so it's shown on initial render.
+  const [visible, setVisible] = useState(true);
+  // useRef stores the previous scroll position without triggering a re-render when it changes.
+  const lastScrollY = useRef(0);
+  // barRef measures the rendered height of the bar so the threshold stays accurate
+  // even if the bar's content or layout changes.
+  const barRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      // Desktop: always keep bar visible — this mirrors Tailwind's sm: breakpoint (640px).
+      if (window.matchMedia("(min-width: 640px)").matches) {
+        setVisible(true);
+        lastScrollY.current = currentScrollY;
+        return;
+      }
+
+      // Use the bar's actual rendered height as the dead zone at the top of the page.
+      // Falls back to 80px if the ref hasn't attached yet (shouldn't happen in practice).
+      const threshold = barRef.current?.offsetHeight ?? 80;
+
+      // Near the top of the page: always show regardless of scroll direction.
+      if (currentScrollY < threshold) {
+        setVisible(true);
+      } else if (currentScrollY > lastScrollY.current) {
+        // Scrolled down → hide the bar to reclaim screen space.
+        setVisible(false);
+      } else {
+        // Scrolled up → user is looking for controls, show the bar.
+        setVisible(true);
+      }
+
+      lastScrollY.current = currentScrollY;
+    };
+
+    // { passive: true } tells the browser this handler never calls preventDefault(),
+    // allowing it to optimize scroll performance (no need to wait for JS before scrolling).
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   return (
     // sticky: bar stays at the top of the viewport while scrolling through shelves.
     // backdrop-blur-sm: frosted glass effect so content scrolling behind it doesn't clash.
     // rounded-b-lg + shelf-filter-bar: visually separates the bar from shelf content (shadow in light, border in dark).
     // Mobile: flex-col stacks rows cleanly. Desktop (sm+): flex-row wraps everything into one line.
-    <div className="sticky top-0 z-20 bg-shelf-bg/95 backdrop-blur-sm px-4 py-3 sm:py-4 rounded-b-lg shelf-filter-bar">
+    // transition-transform + conditional translate: animates the bar sliding off/on screen on mobile.
+    <div
+      ref={barRef}
+      className={`sticky top-0 z-20 bg-shelf-bg/95 backdrop-blur-sm px-4 py-3 sm:py-4 rounded-b-lg shelf-filter-bar transition-transform duration-300 ${visible ? "translate-y-0" : "-translate-y-full"}`}
+    >
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3 sm:items-center">
         {/* Text search — full-width on mobile so it anchors the top of the bar */}
         <input
