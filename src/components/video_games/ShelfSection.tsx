@@ -21,15 +21,16 @@ export function ShelfSection({ label, games }: ShelfSectionProps) {
       )}
 
       {/*
-        The shelf "plank" — dark wood-tone background with a thick bottom border as the rail.
+        The shelf "plank" — wood-grain background with a 3D gradient lip (via ::after in CSS).
         Grid with auto-fill 96px columns: fits as many covers as possible per row, then centers
         the entire column track area so left and right margins are equal. Items flow left-to-right,
         so partial rows remain left-aligned within the centered grid.
-        The box-shadow adds depth under the rail edge, making the shelf feel 3D.
+        Inset box-shadows and the gradient lip add depth, making the shelf feel 3D.
+        Extra bottom margin (mb-2) leaves room for the ::after lip element.
       */}
       <div
-        className="bg-shelf-plank rounded-sm p-4 pb-5 border-b-4 border-shelf-edge
-                   grid gap-3 justify-center shadow-shelf"
+        className="bg-shelf-plank shelf-plank-grain rounded-sm p-4 pb-5 mb-2
+                   grid gap-3 justify-center"
         style={{ gridTemplateColumns: "repeat(auto-fill, 96px)" }}
       >
         {games.map((game) => (

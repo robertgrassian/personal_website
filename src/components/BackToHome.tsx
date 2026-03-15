@@ -7,7 +7,7 @@ type BackToHomeProps = {
 
 export function BackToHome({ className = "text-link" }: BackToHomeProps) {
   return (
-    <Link href="/" className={`${className} hover:underline`}>
+    <Link href="/" className={`${className} hover:text-link-hover hover:underline`}>
       &larr; Home
     </Link>
   );

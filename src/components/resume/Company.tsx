@@ -16,7 +16,7 @@ export function Company({ name, location, subtitle, roles }: CompanyProps) {
         <span className="text-sm text-muted">{location}</span>
       </div>
       {subtitle && <p className="text-xs text-subtle mt-0.5">{subtitle}</p>}
-      <div className="mt-3 ml-4 border-l-2 border-divider pl-4 space-y-6">
+      <div className="mt-3 ml-4 border-l-2 border-link/20 pl-4 space-y-6">
         {roles.map((role, index) => (
           <Role key={index} {...role} />
         ))}
