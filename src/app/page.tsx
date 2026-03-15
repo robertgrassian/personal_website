@@ -22,7 +22,7 @@ const sections = [
 export default function Home() {
   return (
     // overflow-hidden prevents any scroll — everything lives within the viewport
-    <main className="relative h-screen flex flex-col overflow-hidden">
+    <main className="relative h-dvh flex flex-col overflow-hidden">
       {/* Full-page background image — fill spans the positioned parent (main) */}
       <Image
         src="/images/san-pedro-cliffs.jpeg"
@@ -58,7 +58,7 @@ export default function Home() {
             <Link
               key={s.href}
               href={s.href}
-              className="group block p-3 sm:p-5 rounded-lg border border-white/20 bg-white/10 backdrop-blur-sm hover:bg-white/20 hover:border-white/40 transition-all duration-200 text-center"
+              className="group flex flex-col items-center justify-center p-3 sm:p-5 rounded-lg border border-white/20 bg-white/10 backdrop-blur-sm hover:bg-white/20 hover:border-white/40 transition-all duration-200 text-center"
             >
               <h2 className="text-sm sm:text-base font-semibold text-white">{s.title}</h2>
               {/* Description hidden on mobile — 3 narrow columns leave no room for wrapping text */}
