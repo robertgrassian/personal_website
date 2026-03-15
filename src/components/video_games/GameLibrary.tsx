@@ -4,7 +4,7 @@
 // Everything this component imports also runs on the client, even without their own "use client".
 // This is where interactivity lives: hooks, event handlers, browser APIs.
 
-import { useMemo } from "react";
+import { useState, useEffect, useTransition, useRef, useMemo } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import type { Game, Filters, Rating } from "@/lib/games";
 import { RATINGS } from "@/lib/games";
@@ -145,6 +145,43 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [, startTransition] = useTransition();
+
+  // searchInput is local state so the text input responds instantly to every keystroke.
+  // It's initialized from the URL so the value is correct on first render (e.g. shared link).
+  const [searchInput, setSearchInput] = useState(() => searchParams.get("search") ?? "");
+
+  // A ref always holds the latest searchParams without being a useEffect dependency.
+  // This lets the debounce timer read the current params when it fires, without the timer
+  // resetting every time the URL changes.
+  const searchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    searchParamsRef.current = searchParams;
+  });
+
+  // Sync searchInput back to local state when the URL changes externally
+  // (e.g. when clearFilters removes the search param).
+  useEffect(() => {
+    setSearchInput(searchParams.get("search") ?? "");
+  }, [searchParams]);
+
+  // Debounce: wait until the user pauses typing before updating the URL.
+  // This prevents a router.replace() on every keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(searchParamsRef.current.toString());
+      if (searchInput === "") {
+        params.delete("search");
+      } else {
+        params.set("search", searchInput);
+      }
+      const qs = params.toString();
+      startTransition(() => {
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      });
+    }, 300);
+    return () => clearTimeout(timer); // Cancel the pending timer if the user types again
+  }, [searchInput, pathname, router]);
 
   // Filter/sort/group state lives in the URL so it survives refresh and navigation.
   // searchParams is a stable reference — it only changes when the URL actually changes.
@@ -160,8 +197,16 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const groupBy = (searchParams.get("groupBy") ?? DEFAULT_GROUP_BY) as GroupBy;
   const sortOrder = (searchParams.get("sortOrder") ?? DEFAULT_SORT_ORDER) as SortOrder;
 
+  // activeFilters drives all filtering logic — search comes from local state so results
+  // update instantly on each keystroke, while the URL catches up after the debounce.
+  const activeFilters = useMemo(
+    () => ({ ...filters, search: searchInput }),
+    [filters, searchInput]
+  );
+
   // Default values are omitted from the URL to keep it clean; absent params fall back to defaults on read.
   // router.replace() updates the URL without pushing a new history entry, so back-button behavior is preserved.
+  // startTransition marks the navigation as non-urgent so React keeps the UI responsive.
   function updateParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
     const isDefault =
@@ -174,11 +219,19 @@ export function GameLibrary({ games }: GameLibraryProps) {
       params.set(key, value);
     }
     const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    startTransition(() => {
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    });
   }
 
-  const setFilter = <K extends keyof Filters>(key: K, value: Filters[K]) =>
-    updateParam(key, value as string);
+  // "search" key updates local state only — the debounce effect handles the URL sync.
+  const setFilter = <K extends keyof Filters>(key: K, value: Filters[K]) => {
+    if (key === "search") {
+      setSearchInput(value as string);
+    } else {
+      updateParam(key, value as string);
+    }
+  };
 
   const setGroupBy = (value: GroupBy) => updateParam("groupBy", value);
   const setSortOrder = (value: SortOrder) => updateParam("sortOrder", value);
@@ -190,7 +243,9 @@ export function GameLibrary({ games }: GameLibraryProps) {
     params.delete("system");
     params.delete("genre");
     const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    startTransition(() => {
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    });
   }
 
   // Derive unique systems and genres for the filter dropdowns.
@@ -205,26 +260,26 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const availableRatings = useMemo(
     () =>
       new Set(
-        filterGames(games, { ...filters, rating: "" })
+        filterGames(games, { ...activeFilters, rating: "" })
           .map((g) => g.rating)
           .filter((r) => r !== "")
       ),
-    [games, filters]
+    [games, activeFilters]
   );
   const availableSystems = useMemo(
-    () => new Set(filterGames(games, { ...filters, system: "" }).map((g) => g.system)),
-    [games, filters]
+    () => new Set(filterGames(games, { ...activeFilters, system: "" }).map((g) => g.system)),
+    [games, activeFilters]
   );
   const availableGenres = useMemo(
-    () => new Set(filterGames(games, { ...filters, genre: "" }).flatMap((g) => g.genres)),
-    [games, filters]
+    () => new Set(filterGames(games, { ...activeFilters, genre: "" }).flatMap((g) => g.genres)),
+    [games, activeFilters]
   );
 
   // The display pipeline: filter → group → sort within each group.
   // useMemo means this only reruns when one of the listed dependencies actually changes.
   // This is the "derived state" pattern — shelves are computed from state, never stored.
   const shelves = useMemo(() => {
-    const filtered = filterGames(games, filters);
+    const filtered = filterGames(games, activeFilters);
     // "none" skips grouping entirely — one unlabeled shelf with all filtered games.
     const groups =
       groupBy === "none" ? [{ label: "", games: filtered }] : groupGames(filtered, groupBy);
@@ -234,13 +289,16 @@ export function GameLibrary({ games }: GameLibraryProps) {
         ...group,
         games: sortGames(group.games, sortOrder),
       }));
-  }, [games, filters, groupBy, sortOrder]);
+  }, [games, activeFilters, groupBy, sortOrder]);
 
   // Total games currently visible across all shelves (after filtering).
   const filteredCount = shelves.reduce((sum, s) => sum + s.games.length, 0);
 
   const hasActiveFilters =
-    filters.search !== "" || filters.rating !== "" || filters.system !== "" || filters.genre !== "";
+    activeFilters.search !== "" ||
+    activeFilters.rating !== "" ||
+    activeFilters.system !== "" ||
+    activeFilters.genre !== "";
 
   return (
     <div className="mt-8">
@@ -259,7 +317,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
         </div>
       )}
       <FilterBar
-        filters={filters}
+        filters={activeFilters}
         onFilterChange={setFilter}
         groupBy={groupBy}
         sortOrder={sortOrder}
