@@ -2,9 +2,12 @@
 
 // "use client" marks this as the boundary between Server and Client rendering.
 // Everything this component imports also runs on the client, even without their own "use client".
-// This is where interactivity lives: useState, event handlers, browser APIs.
+// This is where interactivity lives: hooks, event handlers, browser APIs.
 
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
+// useSearchParams reads URL query params (?search=zelda&groupBy=rating).
+// useRouter + usePathname let us write back to those params via router.replace().
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import type { Game, Filters, Rating } from "@/lib/games";
 import { RATINGS } from "@/lib/games";
 import { ShelfSection } from "./ShelfSection";
@@ -135,20 +138,70 @@ type GameLibraryProps = {
   games: Game[]; // Full game list, received from the Server Component
 };
 
-const INITIAL_FILTERS: Filters = { search: "", rating: "", system: "", genre: "" };
+// Defaults are omitted from the URL to keep it clean.
+// When a param is absent, we fall back to these values on read.
+const DEFAULT_GROUP_BY: GroupBy = "system";
+const DEFAULT_SORT_ORDER: SortOrder = "name-asc";
 
 export function GameLibrary({ games }: GameLibraryProps) {
-  // The four filter fields are one logical unit, so they share a single state object.
-  // Grouping related state makes it easier to reason about and reset all at once.
-  const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
-  const [groupBy, setGroupBy] = useState<GroupBy>("system");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("name-asc");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  // Helper to update a single filter key while preserving the rest.
-  // The callback form (prev => ...) is important: it guarantees we merge into the *latest*
-  // state snapshot, not a potentially stale closure.
+  // Derive all interactive state directly from URL params.
+  // This is what fixes the bug: the URL is the single source of truth,
+  // so refresh and navigation both read the same place.
+  //
+  // searchParams is a stable reference from Next.js — it only changes when the URL
+  // actually changes. Depending on it directly means adding a new filter field never
+  // requires updating the deps array; just add the field inside the object.
+  const filters = useMemo<Filters>(
+    () => ({
+      search: searchParams.get("search") ?? "",
+      rating: (searchParams.get("rating") ?? "") as Rating | "",
+      system: searchParams.get("system") ?? "",
+      genre: searchParams.get("genre") ?? "",
+    }),
+    [searchParams]
+  );
+  const groupBy = (searchParams.get("groupBy") ?? DEFAULT_GROUP_BY) as GroupBy;
+  const sortOrder = (searchParams.get("sortOrder") ?? DEFAULT_SORT_ORDER) as SortOrder;
+
+  // Builds a new URL string reflecting the given key/value change.
+  // Values equal to their default (or empty strings) are omitted to keep URLs clean.
+  // router.replace() swaps the current history entry rather than pushing a new one,
+  // so the back button still works naturally.
+  function updateParam(key: string, value: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    const isDefault =
+      value === "" ||
+      (key === "groupBy" && value === DEFAULT_GROUP_BY) ||
+      (key === "sortOrder" && value === DEFAULT_SORT_ORDER);
+    if (isDefault) {
+      params.delete(key);
+    } else {
+      params.set(key, value);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
   const setFilter = <K extends keyof Filters>(key: K, value: Filters[K]) =>
-    setFilters((prev) => ({ ...prev, [key]: value }));
+    updateParam(key, value as string);
+
+  const setGroupBy = (value: GroupBy) => updateParam("groupBy", value);
+  const setSortOrder = (value: SortOrder) => updateParam("sortOrder", value);
+
+  // Clears only the four filter params, preserving groupBy and sortOrder.
+  function clearFilters() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("search");
+    params.delete("rating");
+    params.delete("system");
+    params.delete("genre");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
 
   // Derive unique systems and genres for the filter dropdowns.
   // useMemo memoizes the result until its dependencies change.
@@ -208,7 +261,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
           </span>
           <button
             type="button"
-            onClick={() => setFilters(INITIAL_FILTERS)}
+            onClick={clearFilters}
             className="text-shelf-text-muted text-sm underline underline-offset-2 cursor-pointer hover:text-shelf-text transition-colors"
           >
             Clear filters

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getGames } from "@/lib/gamesServer";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { BackToHome } from "@/components/BackToHome";
@@ -30,7 +31,17 @@ export default function VideoGamesPage() {
           One constraint: props passed from Server to Client must be serializable
           (no functions, no class instances) — plain objects and arrays only. Game[] fits perfectly.
         */}
-        <GameLibrary games={games} />
+        {/*
+          Suspense is required here because GameLibrary uses useSearchParams().
+          Next.js App Router needs a Suspense boundary around any client component
+          that reads search params — without it, the server render would block waiting
+          for param values that don't exist until the browser loads.
+          The fallback is null because the rest of the page (header, game count) renders
+          immediately; only the library content itself suspends momentarily.
+        */}
+        <Suspense fallback={null}>
+          <GameLibrary games={games} />
+        </Suspense>
       </div>
     </main>
   );
