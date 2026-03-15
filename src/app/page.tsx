@@ -53,6 +53,8 @@ export default function Home() {
           {sections.map((s) => (
             // backdrop-blur-sm + bg-white/10 = frosted glass effect over the photo
             // `group` lets the h2 inside respond to the Link's hover state
+            // text-white and bg-white/* have no dark: variants intentionally —
+            // the photo + overlay guarantee a dark surface in both color schemes
             <Link
               key={s.href}
               href={s.href}
