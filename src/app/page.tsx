@@ -1,5 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
+// Static import lets Next.js read the file at build time and generate a
+// tiny base64 blur placeholder + extract dimensions automatically.
+import sanPedroCliffs from "../../public/images/san-pedro-cliffs.jpeg";
 
 const sections = [
   {
@@ -25,11 +28,12 @@ export default function Home() {
     <main className="relative h-dvh flex flex-col overflow-hidden">
       {/* Full-page background image — fill spans the positioned parent (main) */}
       <Image
-        src="/images/san-pedro-cliffs.jpeg"
+        src={sanPedroCliffs}
         alt=""
         fill
         sizes="100vw"
         className="object-cover"
+        placeholder="blur" // shows auto-generated blurDataURL while the full image loads
         priority
       />
       {/* Gradient overlay: subtler at top (sky looks great), darker at bottom where tiles sit */}
