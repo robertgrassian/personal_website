@@ -1,85 +1,215 @@
-/* All shelf-specific design tokens, scoped to .shelf-theme.
-   This keeps globals.css free of route-specific color decisions.
-   To tweak colors, edit the values here — the Tailwind utilities and
-   component classes automatically pick up the change. */
+/* Shelf-specific design tokens, scoped to .shelf-theme.
+   Shelf structure (plank, edge, shadow) uses unique dark walnut tones.
+   Chrome (inputs, labels, filter bar) uses warm-neutral colors that
+   bridge the site palette with the wood aesthetic. */
 
 .shelf-theme {
-  /* --- Shelf structure --- */
-  --shelf-bg: #f5ece0;
-  --shelf-plank: #c49060;
-  --shelf-edge: #8a5530;
-  --shelf-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  /* --- Shelf structure: dark walnut --- */
+  --shelf-bg: #faf9f7;
+  --shelf-plank: #5c3a1e;
+  --shelf-edge: #3d2613;
+  --shelf-edge-bottom: #170f07; /* darker edge for lip gradient: manually darkened from --shelf-edge */
+  --shelf-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
 
-  /* --- Page text --- */
-  --shelf-text: #78350f; /* amber-900 */
-  --shelf-text-muted: #b45309b3; /* amber-700/70 */
-  --shelf-text-link: #92400e; /* amber-800 */
+  /* --- Page text: site neutral palette --- */
+  --shelf-text: #171717;
+  --shelf-text-muted: #6b7280;
 
   /* --- Shelf section labels --- */
-  --shelf-label: #92400e; /* amber-800 */
-  --shelf-label-muted: #d97706b3; /* amber-600/70 */
+  --shelf-label: #1f2937;
+  --shelf-label-muted: #9ca3af;
 
-  /* --- Filter inputs --- */
-  --shelf-input: #fef3c7; /* amber-100 */
-  --shelf-input-border: #fcd34d99; /* amber-300/60 */
-  --shelf-input-text: #78350f; /* amber-900 */
-  --shelf-input-placeholder: #f59e0b99; /* amber-500/60 */
-  --shelf-input-ring: #d97706; /* amber-600 */
+  /* --- Filter inputs: warm-tinted to match page warmth --- */
+  --shelf-input: #fdfbf8;
+  --shelf-input-border: #e0dbd4;
+  --shelf-input-text: #171717;
+  --shelf-input-placeholder: #a39e96;
+  --shelf-input-ring: #b45309;
 
   /* --- Filter bar chrome --- */
-  --shelf-bar-line: #fbbf2480; /* amber-400/50 — bottom border of sticky bar */
-  --shelf-control-label: #b45309b3; /* amber-700/70 — "Group" / "Sort" labels */
-  --shelf-divider: #f59e0b66; /* amber-500/40 — vertical divider between groups */
+  --shelf-control-label: #6b7280;
+  --shelf-divider: #e0dbd4;
 
   /* --- Game case system fallback colors (shown when no cover art is available) ---
      Add a new entry here whenever a new console appears in games.csv.
      Applied via [data-system="..."] attribute selectors on the card element. */
-  --system-fallback: #374151; /* default: gray-700 */
+  --system-fallback: #374151;
 }
 
-.shelf-theme [data-system="Nintendo Switch"] { --system-fallback: #e60012; }
-.shelf-theme [data-system="Nintendo Switch 2"] { --system-fallback: #c0001a; }
-.shelf-theme [data-system="Nintendo GameCube"] { --system-fallback: #4a2d8f; }
-.shelf-theme [data-system="Nintendo Wii"] { --system-fallback: #5a5a5a; }
-.shelf-theme [data-system="Nintendo Wii U"] { --system-fallback: #009ac7; }
-.shelf-theme [data-system="Nintendo DS"] { --system-fallback: #ac1300; }
-.shelf-theme [data-system="Nintendo 3DS"] { --system-fallback: #cc0000; }
-.shelf-theme [data-system="Game Boy Advance"] { --system-fallback: #7c3f99; }
-.shelf-theme [data-system="Nintendo 64"] { --system-fallback: #8b4513; }
-.shelf-theme [data-system="PS5"] { --system-fallback: #003087; }
-.shelf-theme [data-system="PS4"] { --system-fallback: #003087; }
-.shelf-theme [data-system="PS3"] { --system-fallback: #005bab; }
-.shelf-theme [data-system="Xbox 360"] { --system-fallback: #107c10; }
-.shelf-theme [data-system="Xbox"] { --system-fallback: #107c10; }
-.shelf-theme [data-system="Computer"] { --system-fallback: #374151; }
+.shelf-theme [data-system="Nintendo Switch"] {
+  --system-fallback: #e60012;
+}
+.shelf-theme [data-system="Nintendo Switch 2"] {
+  --system-fallback: #c0001a;
+}
+.shelf-theme [data-system="Nintendo GameCube"] {
+  --system-fallback: #4a2d8f;
+}
+.shelf-theme [data-system="Nintendo Wii"] {
+  --system-fallback: #5a5a5a;
+}
+.shelf-theme [data-system="Nintendo Wii U"] {
+  --system-fallback: #009ac7;
+}
+.shelf-theme [data-system="Nintendo DS"] {
+  --system-fallback: #ac1300;
+}
+.shelf-theme [data-system="Nintendo 3DS"] {
+  --system-fallback: #cc0000;
+}
+.shelf-theme [data-system="Game Boy Advance"] {
+  --system-fallback: #7c3f99;
+}
+.shelf-theme [data-system="Nintendo 64"] {
+  --system-fallback: #8b4513;
+}
+.shelf-theme [data-system="PS5"] {
+  --system-fallback: #003087;
+}
+.shelf-theme [data-system="PS4"] {
+  --system-fallback: #003087;
+}
+.shelf-theme [data-system="PS3"] {
+  --system-fallback: #005bab;
+}
+.shelf-theme [data-system="Xbox 360"] {
+  --system-fallback: #107c10;
+}
+.shelf-theme [data-system="Xbox"] {
+  --system-fallback: #107c10;
+}
+.shelf-theme [data-system="Computer"] {
+  --system-fallback: #374151;
+}
+
+/* Wood grain texture — layered gradients over the plank color for a realistic look.
+   Fine grain lines at two rhythms, broad color bands, and subtle knot hints.
+   Only the CSS variables below change in dark mode — the gradients are defined once. */
+.shelf-plank-grain {
+  /* Grain color tokens */
+  --g1a: rgba(0, 0, 0, 0.1); /* primary fine grain, dominant stripe */
+  --g1b: rgba(0, 0, 0, 0.06); /* primary fine grain, secondary stripe */
+  --g2a: rgba(255, 255, 255, 0.08); /* secondary grain rhythm, dominant */
+  --g2b: rgba(255, 255, 255, 0.05); /* secondary grain rhythm, secondary */
+  --g3wa: rgba(255, 200, 120, 0.08); /* broad warm band, stronger */
+  --g3wb: rgba(255, 200, 120, 0.06); /* broad warm band, softer */
+  --g3da: rgba(0, 0, 0, 0.04); /* broad dark band at 35% */
+  --g3db: rgba(0, 0, 0, 0.05); /* broad dark band at 85% */
+  --g4: rgba(0, 0, 0, 0.06); /* large knot radial */
+  --g5: rgba(0, 0, 0, 0.04); /* small knot radial */
+  --gsh-top: rgba(255, 255, 255, 0.1); /* inset top highlight */
+  --gsh-bot: rgba(0, 0, 0, 0.15); /* inset bottom shadow */
+  --lip: 5px; /* ::after lip thickness */
+
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      var(--g1a) 0px,
+      transparent 1px,
+      transparent 2px,
+      var(--g1b) 3px,
+      transparent 4px,
+      transparent 9px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      var(--g2a) 0px,
+      transparent 1px,
+      transparent 5px,
+      var(--g2b) 6px,
+      transparent 7px,
+      transparent 15px
+    ),
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--g3wa) 10%,
+      transparent 20%,
+      var(--g3da) 35%,
+      transparent 45%,
+      var(--g3wb) 60%,
+      transparent 70%,
+      var(--g3db) 85%,
+      transparent 100%
+    ),
+    radial-gradient(ellipse 60px 30px at 25% 60%, var(--g4) 0%, transparent 70%),
+    radial-gradient(ellipse 40px 20px at 72% 35%, var(--g5) 0%, transparent 70%);
+  box-shadow:
+    inset 0 2px 4px var(--gsh-top),
+    inset 0 -2px 6px var(--gsh-bot),
+    var(--shelf-shadow);
+  /* 3D lip: remove bottom rounding so the gradient edge sits flush */
+  position: relative;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* 3D front edge — gradient pseudo-element for a beveled shelf lip */
+.shelf-plank-grain::after {
+  content: "";
+  position: absolute;
+  bottom: calc(-1 * var(--lip));
+  left: 0;
+  right: 0;
+  height: var(--lip);
+  background: linear-gradient(to bottom, var(--shelf-edge) 0%, var(--shelf-edge-bottom) 100%);
+  border-radius: 0 0 2px 2px;
+}
+
+/* Filter bar separation from shelf content — shadow in light mode, border in dark mode. */
+.shelf-filter-bar {
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
 
 @media (prefers-color-scheme: dark) {
+  .shelf-filter-bar {
+    box-shadow: none;
+    border-bottom: 1px solid var(--shelf-divider);
+  }
+
   .shelf-theme {
-    /* --- Shelf structure --- */
-    --shelf-bg: #110a04;
-    --shelf-plank: #241508;
-    --shelf-edge: #7c4a1e;
+    /* --- Shelf structure: deep walnut on dark --- */
+    --shelf-bg: #0f0d0b;
+    --shelf-plank: #2a1a0e;
+    --shelf-edge: #8b5e3c;
+    --shelf-edge-bottom: #37251a; /* manually darkened from --shelf-edge */
     --shelf-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
 
-    /* --- Page text --- */
-    --shelf-text: #fef3c7; /* amber-100 */
-    --shelf-text-muted: #fcd34db3; /* amber-300/70 */
-    --shelf-text-link: #fcd34d; /* amber-300 */
+    /* --- Page text: site neutral palette --- */
+    --shelf-text: #ededed;
+    --shelf-text-muted: #9ca3af;
 
     /* --- Shelf section labels --- */
-    --shelf-label: #fde68acc; /* amber-200/80 */
-    --shelf-label-muted: #fbbf2466; /* amber-400/40 */
+    --shelf-label: #e5e7eb;
+    --shelf-label-muted: #6b7280;
 
-    /* --- Filter inputs --- */
-    --shelf-input: #451a0399; /* amber-950/60 */
-    --shelf-input-border: #92400e66; /* amber-800/40 */
-    --shelf-input-text: #fef3c7; /* amber-100 */
-    --shelf-input-placeholder: #f59e0b66; /* amber-500/40 */
-    --shelf-input-ring: #f59e0b; /* amber-500 */
+    /* --- Filter inputs: warm-tinted for dark --- */
+    --shelf-input: rgba(255, 240, 220, 0.04);
+    --shelf-input-border: #3d3530;
+    --shelf-input-text: #ededed;
+    --shelf-input-placeholder: #6b6560;
+    --shelf-input-ring: #f59e0b;
 
     /* --- Filter bar chrome --- */
-    --shelf-bar-line: #78350f66; /* amber-900/40 */
-    --shelf-control-label: #f59e0b80; /* amber-500/50 */
-    --shelf-divider: #92400e4d; /* amber-800/30 */
+    --shelf-control-label: #9ca3af;
+    --shelf-divider: #3d3530;
+  }
+
+  .shelf-plank-grain {
+    --g1a: rgba(255, 255, 255, 0.06);
+    --g1b: rgba(255, 255, 255, 0.03);
+    --g2a: rgba(0, 0, 0, 0.12);
+    --g2b: rgba(0, 0, 0, 0.08);
+    --g3wa: rgba(255, 180, 80, 0.04);
+    --g3wb: rgba(255, 180, 80, 0.03);
+    --g3da: rgba(0, 0, 0, 0.06);
+    --g3db: rgba(0, 0, 0, 0.07);
+    --g4: rgba(0, 0, 0, 0.08);
+    --g5: rgba(0, 0, 0, 0.06);
+    --gsh-top: rgba(255, 255, 255, 0.04);
+    --gsh-bot: rgba(0, 0, 0, 0.3);
+    --lip: 7px;
   }
 }

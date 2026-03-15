@@ -19,7 +19,7 @@ export default function VideoGamesPage() {
   return (
     <main className="min-h-screen bg-shelf-bg shelf-theme">
       <div className="max-w-7xl mx-auto px-6 py-12">
-        <BackToHome className="text-shelf-text-link" />
+        <BackToHome />
         <h1 className="mt-6 text-4xl font-bold text-shelf-text">Game Library</h1>
         <p className="mt-2 text-shelf-text-muted">{games.length} games</p>
 

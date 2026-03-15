@@ -108,8 +108,9 @@ export function FilterBar({
   return (
     // sticky: bar stays at the top of the viewport while scrolling through shelves.
     // backdrop-blur-sm: frosted glass effect so content scrolling behind it doesn't clash.
+    // rounded-b-lg + shelf-filter-bar: visually separates the bar from shelf content (shadow in light, border in dark).
     // Mobile: flex-col stacks rows cleanly. Desktop (sm+): flex-row wraps everything into one line.
-    <div className="sticky top-0 z-20 bg-shelf-bg/95 backdrop-blur-sm py-3 sm:py-4 border-b border-shelf-bar-line">
+    <div className="sticky top-0 z-20 bg-shelf-bg/95 backdrop-blur-sm px-4 py-3 sm:py-4 rounded-b-lg shelf-filter-bar">
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3 sm:items-center">
         {/* Text search — full-width on mobile so it anchors the top of the bar */}
         <input

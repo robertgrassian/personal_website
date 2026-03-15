@@ -8,7 +8,8 @@
   --muted: #6b7280; /* gray-500 */
   --subtle: #9ca3af; /* gray-400 */
   --divider: #e5e7eb; /* gray-200 */
-  --link: #2563eb; /* blue-600 */
+  --link: #b45309; /* amber-700 */
+  --link-hover: #92400e; /* amber-800 */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,7 +21,8 @@
     --muted: #9ca3af; /* gray-400 */
     --subtle: #6b7280; /* gray-500 */
     --divider: #374151; /* gray-700 */
-    --link: #60a5fa; /* blue-400 */
+    --link: #f59e0b; /* amber-500 */
+    --link-hover: #fbbf24; /* amber-400 */
   }
 }
 
@@ -33,6 +35,7 @@
   --color-subtle: var(--subtle);
   --color-divider: var(--divider);
   --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
 
   /* Shelf tokens — defined on .shelf-theme in video_games/video_games.css.
      Registered here so Tailwind generates utility classes (bg-shelf-bg, text-shelf-label, etc.).
@@ -43,7 +46,6 @@
   --color-shelf-edge: var(--shelf-edge);
   --color-shelf-text: var(--shelf-text);
   --color-shelf-text-muted: var(--shelf-text-muted);
-  --color-shelf-text-link: var(--shelf-text-link);
   --color-shelf-label: var(--shelf-label);
   --color-shelf-label-muted: var(--shelf-label-muted);
   --color-shelf-input: var(--shelf-input);
@@ -51,10 +53,8 @@
   --color-shelf-input-text: var(--shelf-input-text);
   --color-shelf-input-placeholder: var(--shelf-input-placeholder);
   --color-shelf-input-ring: var(--shelf-input-ring);
-  --color-shelf-bar-line: var(--shelf-bar-line);
   --color-shelf-control-label: var(--shelf-control-label);
   --color-shelf-divider: var(--shelf-divider);
-  --shadow-shelf: var(--shelf-shadow);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);

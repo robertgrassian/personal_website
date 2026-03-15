@@ -1,13 +1,8 @@
 import Link from "next/link";
 
-type BackToHomeProps = {
-  // Optional className so pages with different backgrounds can style the link color.
-  className?: string;
-};
-
-export function BackToHome({ className = "text-link" }: BackToHomeProps) {
+export function BackToHome() {
   return (
-    <Link href="/" className={`${className} hover:underline`}>
+    <Link href="/" className="text-link hover:text-link-hover hover:underline">
       &larr; Home
     </Link>
   );
