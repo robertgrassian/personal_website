@@ -26,7 +26,6 @@
   --shelf-input-ring: #b45309;
 
   /* --- Filter bar chrome --- */
-  --shelf-bar-line: #e0dbd4;
   --shelf-control-label: #6b7280;
   --shelf-divider: #e0dbd4;
 
@@ -124,7 +123,6 @@
     var(--shelf-shadow);
   /* 3D lip: remove bottom rounding so the gradient edge sits flush */
   position: relative;
-  border-bottom-width: 0 !important;
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -169,7 +167,6 @@
     --shelf-input-ring: #f59e0b;
 
     /* --- Filter bar chrome --- */
-    --shelf-bar-line: #3d3530;
     --shelf-control-label: #9ca3af;
     --shelf-divider: #3d3530;
   }
