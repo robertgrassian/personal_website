@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getGames } from "@/lib/gamesServer";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { BackToHome } from "@/components/BackToHome";
@@ -29,8 +30,13 @@ export default function VideoGamesPage() {
 
           One constraint: props passed from Server to Client must be serializable
           (no functions, no class instances) — plain objects and arrays only. Game[] fits perfectly.
+
+          Suspense is required because GameLibrary uses useSearchParams(), which needs a
+          Suspense boundary in the App Router so the server render isn't blocked on client-only param values.
         */}
-        <GameLibrary games={games} />
+        <Suspense fallback={null}>
+          <GameLibrary games={games} />
+        </Suspense>
       </div>
     </main>
   );
