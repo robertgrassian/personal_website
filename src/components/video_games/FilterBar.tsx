@@ -39,6 +39,10 @@ type FilterBarProps = {
   onSortOrderChange: (v: SortOrder) => void;
 };
 
+// Minimum scroll distance (px) before toggling filter bar visibility.
+// Filters out micro-reversals from slow or momentum scrolling.
+const MIN_SCROLL_DELTA = 10;
+
 // Base styles shared between the search input and all select dropdowns.
 const inputBaseClass =
   "bg-shelf-input border border-shelf-input-border text-shelf-input-text text-sm rounded " +
@@ -158,13 +162,12 @@ export function FilterBar({
       const delta = currentScrollY - scrollYAtLastToggle.current;
       // Require at least 10px of intentional movement before toggling.
       // This filters out micro-reversals from slow or momentum scrolling.
-      const MIN_DELTA = 10;
 
-      if (delta > MIN_DELTA) {
+      if (delta > MIN_SCROLL_DELTA) {
         // Scrolled down far enough → hide the bar to reclaim screen space.
         setVisible(false);
         scrollYAtLastToggle.current = currentScrollY;
-      } else if (delta < -MIN_DELTA) {
+      } else if (delta < -MIN_SCROLL_DELTA) {
         // Scrolled up far enough → user is looking for controls, show the bar.
         setVisible(true);
         scrollYAtLastToggle.current = currentScrollY;
@@ -183,6 +186,9 @@ export function FilterBar({
 
     const attachScroll = () => {
       if (!scrollAttached) {
+        // Reset the anchor so the delta is measured from the current position,
+        // not a stale value from a previous mobile session.
+        scrollYAtLastToggle.current = window.scrollY;
         // { passive: true } tells the browser this handler never calls preventDefault(),
         // allowing it to optimize scroll performance (no need to wait for JS before scrolling).
         window.addEventListener("scroll", handleScroll, { passive: true });
