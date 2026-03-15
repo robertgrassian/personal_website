@@ -1,0 +1,84 @@
+import Image from "next/image";
+import Link from "next/link";
+
+export default function About() {
+  return (
+    <div className="max-w-2xl mx-auto px-6 py-16">
+      <Link href="/" className="text-sm text-link hover:underline">
+        ← Home
+      </Link>
+
+      <h1 className="mt-8 text-3xl font-bold text-foreground">About Me</h1>
+
+      <div className="mt-6 space-y-4 text-body leading-relaxed">
+        <p>
+          I am a software engineer with a passion for building scalable and efficient applications.
+          I&apos;m primarily a backend engineer, and I enjoy learning new technologies and improving
+          my skills.
+        </p>
+        <p>
+          Raised in LA (San Pedro)
+          <br />
+          CS degree from UC Berkeley
+          <br />
+          LA &rarr; SF &rarr; NYC
+        </p>
+
+        <p>
+          Currently working at Harness on the Feature Management and Experimentation module, focused
+          on building out our experimentation capabilities.
+        </p>
+      </div>
+
+      {/*
+        PHOTOS
+      */}
+
+      {/*
+        CSS columns masonry — each photo gets the full column width and renders
+        at its natural aspect ratio. New photos can be added to the array below
+        and will flow into the layout automatically.
+        `break-inside-avoid` prevents a single figure from splitting across columns.
+      */}
+      <div className="mt-12 columns-1 sm:columns-2 gap-6">
+        {[
+          // width/height must match each image's actual display aspect ratio —
+          // the browser uses them to reserve space before the image loads (prevents layout shift)
+          {
+            src: "/images/IMG_1669.jpeg",
+            alt: "Kirby at the San Pedro cliffs",
+            caption: "My dog Kirby",
+            width: 900,
+            height: 1200,
+          },
+          {
+            src: "/images/IMG_2999.jpeg",
+            alt: "San Pedro cliffs",
+            caption: "San Pedro",
+            width: 1200,
+            height: 900,
+          },
+        ].map((photo) => (
+          <figure key={photo.src} className="break-inside-avoid mb-6">
+            <div className="rounded-lg overflow-hidden">
+              {/*
+                width + height set the intrinsic aspect ratio for layout — next/image
+                uses these to reserve space, but the image is resized to 100% width
+                via the className. This is how you get natural-height images (no fill).
+              */}
+              <Image
+                src={photo.src}
+                alt={photo.alt}
+                width={photo.width}
+                height={photo.height}
+                sizes="(max-width: 640px) 100vw, 50vw"
+                className="w-full h-auto"
+              />
+            </div>
+            <figcaption className="mt-2 text-sm text-muted">{photo.caption}</figcaption>
+          </figure>
+        ))}
+      </div>
+    </div>
+  );
+}
