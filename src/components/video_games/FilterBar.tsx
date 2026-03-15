@@ -108,8 +108,8 @@ export function FilterBar({
 }: FilterBarProps) {
   // Track whether the bar should be visible. Starts true so it's shown on initial render.
   const [visible, setVisible] = useState(true);
-  // Mirror of `visible` as a ref so the scroll handler — registered once in useEffect([]) —
-  // can always read the current value without capturing a stale closure.
+  // Mirror of `visible` as a ref so the scroll handler can always read the current value
+  // without capturing a stale closure.
   const visibleRef = useRef(true);
   // Tracks scroll position at the last visibility toggle, not at every scroll event.
   // This lets us measure "how far has the user scrolled since the bar last changed state"
@@ -142,14 +142,6 @@ export function FilterBar({
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
-
-      // Desktop: always keep bar visible — this mirrors Tailwind's sm: breakpoint (640px).
-      if (window.matchMedia("(min-width: 640px)").matches) {
-        setVisible(true);
-        scrollYAtLastToggle.current = currentScrollY;
-        return;
-      }
-
       const stickyThreshold = stickyThresholdRef.current;
 
       // Near the top of the page: always show regardless of scroll direction.
@@ -179,10 +171,51 @@ export function FilterBar({
       }
     };
 
-    // { passive: true } tells the browser this handler never calls preventDefault(),
-    // allowing it to optimize scroll performance (no need to wait for JS before scrolling).
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    // MediaQueryList created once, reused across breakpoint changes — never re-allocated
+    // on scroll. Its `change` event fires only when the viewport crosses 640px, not on
+    // every scroll tick.
+    const mql = window.matchMedia("(min-width: 640px)");
+
+    // attachScroll / detachScroll: conditionally wire the scroll listener only on mobile.
+    // On desktop the listener is never registered, so there is zero JS overhead per scroll.
+    // This also avoids calling setVisible(true) repeatedly when it's already true.
+    let scrollAttached = false;
+
+    const attachScroll = () => {
+      if (!scrollAttached) {
+        // { passive: true } tells the browser this handler never calls preventDefault(),
+        // allowing it to optimize scroll performance (no need to wait for JS before scrolling).
+        window.addEventListener("scroll", handleScroll, { passive: true });
+        scrollAttached = true;
+      }
+    };
+
+    const detachScroll = () => {
+      if (scrollAttached) {
+        window.removeEventListener("scroll", handleScroll);
+        scrollAttached = false;
+      }
+    };
+
+    // Called immediately and on every viewport-width breakpoint change.
+    const onBreakpointChange = () => {
+      if (mql.matches) {
+        // Switched to desktop: tear down the scroll listener and restore the bar.
+        detachScroll();
+        setVisible(true);
+      } else {
+        // Switched to mobile: wire up the scroll listener.
+        attachScroll();
+      }
+    };
+
+    mql.addEventListener("change", onBreakpointChange);
+    onBreakpointChange(); // run once for the initial viewport width
+
+    return () => {
+      mql.removeEventListener("change", onBreakpointChange);
+      detachScroll();
+    };
   }, []);
 
   return (
@@ -193,7 +226,7 @@ export function FilterBar({
     // transition-transform + conditional translate: animates the bar sliding off/on screen on mobile.
     <div
       ref={barRef}
-      className={`sticky top-0 z-20 bg-shelf-bg/95 backdrop-blur-sm px-4 py-3 sm:py-4 rounded-b-lg shelf-filter-bar transition-transform duration-300 ${visible ? "translate-y-0" : "-translate-y-full"}`}
+      className={`sticky top-0 z-20 bg-shelf-bg/95 backdrop-blur-sm px-4 py-3 sm:py-4 rounded-b-lg shelf-filter-bar transition-transform duration-300 ${visible ? "translate-y-0" : "-translate-y-full pointer-events-none"}`}
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3 sm:items-center">
         {/* Text search — full-width on mobile so it anchors the top of the bar */}
