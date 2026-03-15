@@ -141,6 +141,17 @@ type GameLibraryProps = {
 const DEFAULT_GROUP_BY: GroupBy = "system";
 const DEFAULT_SORT_ORDER: SortOrder = "name-asc";
 
+// Used to validate URL params — an unknown string from the URL falls back to the default.
+const VALID_GROUP_BY: readonly GroupBy[] = ["none", "system", "rating", "genre", "decade"];
+const VALID_SORT_ORDER: readonly SortOrder[] = [
+  "name-asc",
+  "name-desc",
+  "release-oldest",
+  "release-newest",
+  "played-newest",
+  "played-oldest",
+];
+
 export function GameLibrary({ games }: GameLibraryProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -156,14 +167,21 @@ export function GameLibrary({ games }: GameLibraryProps) {
   // resetting every time the URL changes.
   const searchParamsRef = useRef(searchParams);
   useEffect(() => {
+    // No dep array — intentionally runs after every render to keep the ref always current.
     searchParamsRef.current = searchParams;
   });
 
   // Sync searchInput back to local state when the URL changes externally
   // (e.g. when clearFilters removes the search param).
+  // Guard against syncing the value we just set — avoids a no-op re-render after our own debounce fires.
   useEffect(() => {
-    setSearchInput(searchParams.get("search") ?? "");
-  }, [searchParams]);
+    const urlSearch = searchParams.get("search") ?? "";
+    if (urlSearch !== searchInput) {
+      setSearchInput(urlSearch);
+    }
+    // searchInput is intentionally omitted from deps: we only want to react to URL changes,
+    // not re-run whenever the user types. eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounce: wait until the user pauses typing before updating the URL.
   // This prevents a router.replace() on every keystroke.
@@ -194,8 +212,15 @@ export function GameLibrary({ games }: GameLibraryProps) {
     }),
     [searchParams]
   );
-  const groupBy = (searchParams.get("groupBy") ?? DEFAULT_GROUP_BY) as GroupBy;
-  const sortOrder = (searchParams.get("sortOrder") ?? DEFAULT_SORT_ORDER) as SortOrder;
+  const rawGroupBy = searchParams.get("groupBy");
+  const groupBy: GroupBy = VALID_GROUP_BY.includes(rawGroupBy as GroupBy)
+    ? (rawGroupBy as GroupBy)
+    : DEFAULT_GROUP_BY;
+
+  const rawSortOrder = searchParams.get("sortOrder");
+  const sortOrder: SortOrder = VALID_SORT_ORDER.includes(rawSortOrder as SortOrder)
+    ? (rawSortOrder as SortOrder)
+    : DEFAULT_SORT_ORDER;
 
   // activeFilters drives all filtering logic — search comes from local state so results
   // update instantly on each keystroke, while the URL catches up after the debounce.
@@ -236,6 +261,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const setGroupBy = (value: GroupBy) => updateParam("groupBy", value);
   const setSortOrder = (value: SortOrder) => updateParam("sortOrder", value);
 
+  // Clears filter params only; groupBy and sortOrder are view preferences and are preserved.
   function clearFilters() {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("search");
