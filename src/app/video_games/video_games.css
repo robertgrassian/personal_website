@@ -8,7 +8,7 @@
   --shelf-bg: #faf9f7;
   --shelf-plank: #5c3a1e;
   --shelf-edge: #3d2613;
-  --shelf-edge-bottom: #170f07; /* darker edge for lip gradient: color-mix(--shelf-edge 60%, black) */
+  --shelf-edge-bottom: #170f07; /* darker edge for lip gradient: manually darkened from --shelf-edge */
   --shelf-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
 
   /* --- Page text: site neutral palette --- */
@@ -156,13 +156,25 @@
   border-radius: 0 0 2px 2px;
 }
 
+/* Filter bar separation from shelf content — shadow in light mode, border in dark mode. */
+.shelf-filter-bar {
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
 @media (prefers-color-scheme: dark) {
+  .shelf-filter-bar {
+    box-shadow: none;
+    border-bottom: 1px solid var(--shelf-divider);
+  }
+
   .shelf-theme {
     /* --- Shelf structure: deep walnut on dark --- */
     --shelf-bg: #0f0d0b;
     --shelf-plank: #2a1a0e;
     --shelf-edge: #8b5e3c;
-    --shelf-edge-bottom: #37251a; /* color-mix(--shelf-edge 40%, black) */
+    --shelf-edge-bottom: #37251a; /* manually darkened from --shelf-edge */
     --shelf-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
 
     /* --- Page text: site neutral palette --- */
