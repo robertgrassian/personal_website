@@ -5,8 +5,6 @@
 // This is where interactivity lives: hooks, event handlers, browser APIs.
 
 import { useMemo } from "react";
-// useSearchParams reads URL query params (?search=zelda&groupBy=rating).
-// useRouter + usePathname let us write back to those params via router.replace().
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import type { Game, Filters, Rating } from "@/lib/games";
 import { RATINGS } from "@/lib/games";
@@ -148,13 +146,8 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Derive all interactive state directly from URL params.
-  // This is what fixes the bug: the URL is the single source of truth,
-  // so refresh and navigation both read the same place.
-  //
-  // searchParams is a stable reference from Next.js — it only changes when the URL
-  // actually changes. Depending on it directly means adding a new filter field never
-  // requires updating the deps array; just add the field inside the object.
+  // Filter/sort/group state lives in the URL so it survives refresh and navigation.
+  // searchParams is a stable reference — it only changes when the URL actually changes.
   const filters = useMemo<Filters>(
     () => ({
       search: searchParams.get("search") ?? "",
@@ -167,10 +160,8 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const groupBy = (searchParams.get("groupBy") ?? DEFAULT_GROUP_BY) as GroupBy;
   const sortOrder = (searchParams.get("sortOrder") ?? DEFAULT_SORT_ORDER) as SortOrder;
 
-  // Builds a new URL string reflecting the given key/value change.
-  // Values equal to their default (or empty strings) are omitted to keep URLs clean.
-  // router.replace() swaps the current history entry rather than pushing a new one,
-  // so the back button still works naturally.
+  // Default values are omitted from the URL to keep it clean; absent params fall back to defaults on read.
+  // router.replace() updates the URL without pushing a new history entry, so back-button behavior is preserved.
   function updateParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
     const isDefault =
@@ -192,7 +183,6 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const setGroupBy = (value: GroupBy) => updateParam("groupBy", value);
   const setSortOrder = (value: SortOrder) => updateParam("sortOrder", value);
 
-  // Clears only the four filter params, preserving groupBy and sortOrder.
   function clearFilters() {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("search");
