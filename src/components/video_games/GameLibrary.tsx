@@ -4,7 +4,7 @@
 // Everything this component imports also runs on the client, even without their own "use client".
 // This is where interactivity lives: hooks, event handlers, browser APIs.
 
-import { useState, useEffect, useTransition, useRef, useMemo } from "react";
+import { useState, useEffect, useTransition, useRef, useMemo, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import type { Game, Filters, Rating } from "@/lib/games";
 import { RATINGS } from "@/lib/games";
@@ -162,12 +162,9 @@ export function GameLibrary({ games }: GameLibraryProps) {
   // It's initialized from the URL so the value is correct on first render (e.g. shared link).
   const [searchInput, setSearchInput] = useState(() => searchParams.get("search") ?? "");
 
-  // A ref always holds the latest searchParams without being a useEffect dependency.
-  // This lets the debounce timer read the current params when it fires, without the timer
-  // resetting every time the URL changes.
-  // "Latest ref" pattern: always reflects the current searchParams without being a dep.
+  // "Latest ref" pattern: always holds the current searchParams without being a dep.
   // The debounce timer reads this ref when it fires so it sees the most recent params,
-  // without searchParams being in the debounce effect's dep array (which would reset the timer on every URL change).
+  // without searchParams in its dep array (which would reset the timer on every URL change).
   const searchParamsRef = useRef(searchParams);
   useEffect(() => {
     searchParamsRef.current = searchParams;
@@ -231,37 +228,48 @@ export function GameLibrary({ games }: GameLibraryProps) {
   // Default values are omitted from the URL to keep it clean; absent params fall back to defaults on read.
   // router.replace() updates the URL without pushing a new history entry, so back-button behavior is preserved.
   // startTransition marks the navigation as non-urgent so React keeps the UI responsive.
-  function updateParam(key: string, value: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    const isDefault =
-      value === "" ||
-      (key === "groupBy" && value === DEFAULT_GROUP_BY) ||
-      (key === "sortOrder" && value === DEFAULT_SORT_ORDER);
-    if (isDefault) {
-      params.delete(key);
-    } else {
-      params.set(key, value);
-    }
-    const qs = params.toString();
-    startTransition(() => {
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-    });
-  }
+  const updateParam = useCallback(
+    (key: string, value: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      const isDefault =
+        value === "" ||
+        (key === "groupBy" && value === DEFAULT_GROUP_BY) ||
+        (key === "sortOrder" && value === DEFAULT_SORT_ORDER);
+      if (isDefault) {
+        params.delete(key);
+      } else {
+        params.set(key, value);
+      }
+      const qs = params.toString();
+      startTransition(() => {
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      });
+    },
+    [searchParams, pathname, router]
+  );
 
   // "search" key updates local state only — the debounce effect handles the URL sync.
-  const setFilter = <K extends keyof Filters>(key: K, value: Filters[K]) => {
-    if (key === "search") {
-      setSearchInput(value as string);
-    } else {
-      updateParam(key, value as string);
-    }
-  };
+  const setFilter = useCallback(
+    <K extends keyof Filters>(key: K, value: Filters[K]) => {
+      if (key === "search") {
+        setSearchInput(value as string);
+      } else {
+        updateParam(key, value as string);
+      }
+    },
+    [updateParam]
+  );
 
-  const setGroupBy = (value: GroupBy) => updateParam("groupBy", value);
-  const setSortOrder = (value: SortOrder) => updateParam("sortOrder", value);
+  const setGroupBy = useCallback((value: GroupBy) => updateParam("groupBy", value), [updateParam]);
+  const setSortOrder = useCallback(
+    (value: SortOrder) => updateParam("sortOrder", value),
+    [updateParam]
+  );
 
   // Clears filter params only; groupBy and sortOrder are view preferences and are preserved.
-  function clearFilters() {
+  // searchInput is cleared immediately so the input resets without waiting for the URL round-trip.
+  const clearFilters = useCallback(() => {
+    setSearchInput("");
     const params = new URLSearchParams(searchParams.toString());
     params.delete("search");
     params.delete("rating");
@@ -271,7 +279,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
     startTransition(() => {
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     });
-  }
+  }, [searchParams, pathname, router]);
 
   // Derive unique systems and genres for the filter dropdowns.
   // useMemo memoizes the result until its dependencies change.
