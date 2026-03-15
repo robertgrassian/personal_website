@@ -165,23 +165,20 @@ export function GameLibrary({ games }: GameLibraryProps) {
   // A ref always holds the latest searchParams without being a useEffect dependency.
   // This lets the debounce timer read the current params when it fires, without the timer
   // resetting every time the URL changes.
+  // "Latest ref" pattern: always reflects the current searchParams without being a dep.
+  // The debounce timer reads this ref when it fires so it sees the most recent params,
+  // without searchParams being in the debounce effect's dep array (which would reset the timer on every URL change).
   const searchParamsRef = useRef(searchParams);
   useEffect(() => {
-    // No dep array — intentionally runs after every render to keep the ref always current.
     searchParamsRef.current = searchParams;
-  });
+  }); // no dep array — intentionally runs after every render
 
   // Sync searchInput back to local state when the URL changes externally
   // (e.g. when clearFilters removes the search param).
-  // Guard against syncing the value we just set — avoids a no-op re-render after our own debounce fires.
+  // No guard needed: React bails out of re-renders when setState is called with the same value.
   useEffect(() => {
-    const urlSearch = searchParams.get("search") ?? "";
-    if (urlSearch !== searchInput) {
-      setSearchInput(urlSearch);
-    }
-    // searchInput is intentionally omitted from deps: we only want to react to URL changes,
-    // not re-run whenever the user types. eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+    setSearchInput(searchParams.get("search") ?? "");
+  }, [searchParams]);
 
   // Debounce: wait until the user pauses typing before updating the URL.
   // This prevents a router.replace() on every keystroke.
@@ -212,6 +209,8 @@ export function GameLibrary({ games }: GameLibraryProps) {
     }),
     [searchParams]
   );
+  // groupBy and sortOrder are primitive strings, not objects, so no useMemo needed —
+  // React compares primitive deps by value, not reference, so downstream memos won't re-run spuriously.
   const rawGroupBy = searchParams.get("groupBy");
   const groupBy: GroupBy = VALID_GROUP_BY.includes(rawGroupBy as GroupBy)
     ? (rawGroupBy as GroupBy)
