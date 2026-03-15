@@ -160,8 +160,6 @@ export function FilterBar({
       }
 
       const delta = currentScrollY - scrollYAtLastToggle.current;
-      // Require at least 10px of intentional movement before toggling.
-      // This filters out micro-reversals from slow or momentum scrolling.
 
       if (delta > MIN_SCROLL_DELTA) {
         // Scrolled down far enough → hide the bar to reclaim screen space.
@@ -189,6 +187,9 @@ export function FilterBar({
         // Reset the anchor so the delta is measured from the current position,
         // not a stale value from a previous mobile session.
         scrollYAtLastToggle.current = window.scrollY;
+        // Ensure the bar is visible when entering mobile — it may have been hidden
+        // during a previous mobile session before the user resized to desktop.
+        setVisible(true);
         // { passive: true } tells the browser this handler never calls preventDefault(),
         // allowing it to optimize scroll performance (no need to wait for JS before scrolling).
         window.addEventListener("scroll", handleScroll, { passive: true });
