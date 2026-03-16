@@ -40,43 +40,43 @@
   --system-fallback: #e60012;
 }
 .shelf-theme [data-system="Nintendo Switch 2"] {
-  --system-fallback: #c0001a;
+  --system-fallback: #c8102e;
 }
 .shelf-theme [data-system="Nintendo GameCube"] {
-  --system-fallback: #4a2d8f;
+  --system-fallback: #6f42c1;
 }
 .shelf-theme [data-system="Nintendo Wii"] {
-  --system-fallback: #5a5a5a;
+  --system-fallback: #a0a0a0;
 }
 .shelf-theme [data-system="Nintendo Wii U"] {
   --system-fallback: #009ac7;
 }
 .shelf-theme [data-system="Nintendo DS"] {
-  --system-fallback: #ac1300;
+  --system-fallback: #7a8b99;
 }
 .shelf-theme [data-system="Nintendo 3DS"] {
-  --system-fallback: #cc0000;
+  --system-fallback: #d4436a;
 }
 .shelf-theme [data-system="Game Boy Advance"] {
-  --system-fallback: #7c3f99;
+  --system-fallback: #5b3680;
 }
 .shelf-theme [data-system="Nintendo 64"] {
   --system-fallback: #8b4513;
 }
 .shelf-theme [data-system="PS5"] {
-  --system-fallback: #003087;
+  --system-fallback: #00439c;
 }
 .shelf-theme [data-system="PS4"] {
-  --system-fallback: #003087;
+  --system-fallback: #1e3a5f;
 }
 .shelf-theme [data-system="PS3"] {
   --system-fallback: #005bab;
 }
 .shelf-theme [data-system="Xbox 360"] {
-  --system-fallback: #107c10;
+  --system-fallback: #4ea24e;
 }
 .shelf-theme [data-system="Xbox"] {
-  --system-fallback: #107c10;
+  --system-fallback: #1a5c1a;
 }
 .shelf-theme [data-system="Computer"] {
   --system-fallback: #374151;
@@ -163,7 +163,81 @@
     0 2px 4px -2px rgba(0, 0, 0, 0.1);
 }
 
+/* ── Game case 3D flip ──
+   perspective on the scene creates 3D space; preserve-3d on the inner
+   container lets front/back faces rotate as a unit. backface-visibility
+   hides whichever face is turned away from the viewer.
+   --case-depth is half the case thickness — front and back each push out
+   by this amount, and the spine width is 2× this value. */
+.game-case-scene {
+  --case-depth: 6px;
+  perspective: 800px;
+}
+.game-case-inner {
+  transform-style: preserve-3d;
+  /* Two separate transitions: flip (transform) is slow, hover lift (translate) is fast. */
+  transition:
+    transform 0.6s ease,
+    translate 0.2s ease-out;
+}
+.game-case-inner.is-flipped {
+  transform: rotateY(180deg);
+}
+.game-case-front,
+.game-case-back {
+  backface-visibility: hidden;
+}
+/* translateZ pushes each face outward by half the case thickness,
+   creating a gap between them where the spine edges live. */
+.game-case-front {
+  transform: translateZ(var(--case-depth));
+}
+/* Pre-rotated 180° so it's hidden by default, revealed when parent flips.
+   translateZ pushes it forward from the back's perspective. */
+.game-case-back {
+  transform: rotateY(180deg) translateZ(var(--case-depth));
+}
+
+/* Spine edges — thin strips rotated 90° to connect front and back faces.
+   Width = 2 × --case-depth so it exactly fills the gap between faces. */
+.game-case-spine {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: calc(2 * var(--case-depth));
+  /* Matches the border-radius on front/back faces so spine corners don't peek out. */
+  border-radius: 0.25rem;
+  /* Uses the same per-console color tokens as the no-cover-art fallback. */
+  background: var(--system-fallback, #1a1a2e);
+  /* Hidden by default so perspective doesn't reveal a sliver on the card edges.
+     On flip-back, stay visible past mid-rotation (0.4s delay) then fade out. */
+  opacity: 0;
+  transition: opacity 0.15s 0.4s;
+}
+.game-case-inner.is-flipped .game-case-spine {
+  opacity: 1;
+  transition: opacity 0.15s;
+}
+.game-case-spine-left {
+  left: 0;
+  transform: translateX(calc(-1 * var(--case-depth))) rotateY(-90deg);
+}
+.game-case-spine-right {
+  right: 0;
+  transform: translateX(var(--case-depth)) rotateY(90deg);
+}
+
+/* Dark matte surface for the back face — console color dimmed with a dark overlay. */
+.game-case-back-surface {
+  background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55))
+    var(--system-fallback, #1a1a2e);
+}
+
 @media (prefers-color-scheme: dark) {
+  .game-case-back-surface {
+    background: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65))
+      var(--system-fallback, #111118);
+  }
   .shelf-filter-bar {
     box-shadow: none;
     border-bottom: 1px solid var(--shelf-divider);
