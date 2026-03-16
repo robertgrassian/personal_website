@@ -19,38 +19,24 @@ export function GameCaseBack({ game }: GameCaseBackProps) {
   const ratingColor = ratingEntry ? (RATING_COLORS[ratingEntry.letter] ?? "#e5e7eb") : undefined;
 
   return (
-    <div className="game-case-back-surface h-full rounded flex flex-col justify-between p-2 text-gray-200">
+    <div className="game-case-back-surface h-full rounded flex flex-col p-2.5 text-gray-200 overflow-hidden">
       {/* Game name */}
-      <div>
-        <p className="text-[10px] font-bold leading-tight line-clamp-3">{game.name}</p>
-        <div className="border-t border-gray-600 my-1" />
-      </div>
+      <p className="text-[11px] font-bold leading-tight line-clamp-2 shrink-0">{game.name}</p>
+      <div className="border-t border-gray-600 my-1.5 shrink-0" />
 
-      {/* Metadata rows */}
-      <div className="flex flex-col gap-0.5 text-[9px] leading-snug flex-1">
+      {/* Metadata — no labels, distinguished by styling and order */}
+      <div className="flex flex-col gap-1.5 text-[10px] leading-snug min-h-0 overflow-hidden">
         {ratingEntry && (
-          <p>
-            <span className="text-gray-400">★</span>{" "}
-            <span style={{ color: ratingColor }}>{ratingEntry.name}</span>
+          <p className="font-semibold" style={{ color: ratingColor }}>
+            ★ {ratingEntry.name}
           </p>
         )}
-        <p>
-          <span className="text-gray-400">🎮</span> {game.system}
-        </p>
-        <p>
-          <span className="text-gray-400">📅</span> {formatDate(game.releaseDate)}
-        </p>
-        <p>
-          <span className="text-gray-400">▶</span> {game.firstPlayed || "—"}
-        </p>
+        <p className="font-medium">{game.system}</p>
+        <p className="text-gray-400">{formatDate(game.releaseDate)}</p>
+        {game.genres.length > 0 && (
+          <p className="text-gray-400 line-clamp-2">{game.genres.join(", ")}</p>
+        )}
       </div>
-
-      {/* Genres at the bottom */}
-      {game.genres.length > 0 && (
-        <p className="text-[8px] text-gray-400 leading-tight mt-1 line-clamp-2">
-          {game.genres.join(" · ")}
-        </p>
-      )}
     </div>
   );
 }

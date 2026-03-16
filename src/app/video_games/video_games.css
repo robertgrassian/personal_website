@@ -40,43 +40,43 @@
   --system-fallback: #e60012;
 }
 .shelf-theme [data-system="Nintendo Switch 2"] {
-  --system-fallback: #c0001a;
+  --system-fallback: #c8102e;
 }
 .shelf-theme [data-system="Nintendo GameCube"] {
-  --system-fallback: #4a2d8f;
+  --system-fallback: #6f42c1;
 }
 .shelf-theme [data-system="Nintendo Wii"] {
-  --system-fallback: #5a5a5a;
+  --system-fallback: #a0a0a0;
 }
 .shelf-theme [data-system="Nintendo Wii U"] {
   --system-fallback: #009ac7;
 }
 .shelf-theme [data-system="Nintendo DS"] {
-  --system-fallback: #ac1300;
+  --system-fallback: #7a8b99;
 }
 .shelf-theme [data-system="Nintendo 3DS"] {
-  --system-fallback: #cc0000;
+  --system-fallback: #d4436a;
 }
 .shelf-theme [data-system="Game Boy Advance"] {
-  --system-fallback: #7c3f99;
+  --system-fallback: #5b3680;
 }
 .shelf-theme [data-system="Nintendo 64"] {
   --system-fallback: #8b4513;
 }
 .shelf-theme [data-system="PS5"] {
-  --system-fallback: #003087;
+  --system-fallback: #00439c;
 }
 .shelf-theme [data-system="PS4"] {
-  --system-fallback: #003087;
+  --system-fallback: #1e3a5f;
 }
 .shelf-theme [data-system="PS3"] {
   --system-fallback: #005bab;
 }
 .shelf-theme [data-system="Xbox 360"] {
-  --system-fallback: #107c10;
+  --system-fallback: #4ea24e;
 }
 .shelf-theme [data-system="Xbox"] {
-  --system-fallback: #107c10;
+  --system-fallback: #1a5c1a;
 }
 .shelf-theme [data-system="Computer"] {
   --system-fallback: #374151;
