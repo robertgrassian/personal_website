@@ -27,6 +27,16 @@ export type Filters = {
   genre: string; // "" = all genres
 };
 
+// Color per rating letter, used on the back face of game cases.
+// Keyed by RatingLetter so any component can look up the color from a rating.
+export const RATING_COLORS: Record<RatingLetter, string> = {
+  S: "#fbbf24", // gold for Perfect
+  A: "#bbf7d0",
+  B: "#bfdbfe",
+  C: "#fef3c7",
+  F: "#fecaca",
+};
+
 export type Game = {
   name: string;
   system: string;

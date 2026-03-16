@@ -163,7 +163,60 @@
     0 2px 4px -2px rgba(0, 0, 0, 0.1);
 }
 
+/* ── Game case 3D flip ──
+   perspective on the scene creates 3D space; preserve-3d on the inner
+   container lets front/back faces rotate as a unit. backface-visibility
+   hides whichever face is turned away from the viewer. */
+.game-case-scene {
+  perspective: 800px;
+}
+.game-case-inner {
+  transform-style: preserve-3d;
+  /* Two separate transitions: flip (transform) is slow, hover lift (translate) is fast. */
+  transition:
+    transform 0.6s ease,
+    translate 0.2s ease-out;
+}
+.game-case-inner.is-flipped {
+  transform: rotateY(180deg);
+}
+.game-case-front,
+.game-case-back {
+  backface-visibility: hidden;
+}
+/* translateZ pushes each face outward by half the case thickness,
+   creating a 12px gap between them where the spine edges live. */
+.game-case-front {
+  transform: translateZ(6px);
+}
+/* Pre-rotated 180° so it's hidden by default, revealed when parent flips.
+   translateZ pushes it forward from the back's perspective (= -6px in world Z). */
+.game-case-back {
+  transform: rotateY(180deg) translateZ(6px);
+}
+
+/* Spine edges — thin strips rotated 90° to connect front and back faces.
+   12px wide = matches the gap between the two faces (2 × 6px translateZ). */
+.game-case-spine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  /* Uses the same per-console color tokens as the no-cover-art fallback. */
+  background: var(--system-fallback, #1a1a2e);
+}
+
+/* Dark matte surface for the back face — console color dimmed with a dark overlay. */
+.game-case-back-surface {
+  background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55))
+    var(--system-fallback, #1a1a2e);
+}
+
 @media (prefers-color-scheme: dark) {
+  .game-case-back-surface {
+    background: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65))
+      var(--system-fallback, #111118);
+  }
   .shelf-filter-bar {
     box-shadow: none;
     border-bottom: 1px solid var(--shelf-divider);
