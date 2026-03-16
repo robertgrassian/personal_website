@@ -46,6 +46,7 @@ function getPhotoDataUrl(): string {
 export default async function OGImage() {
   const caveatFont = await loadCaveatFont();
 
+  // getPhotoDataUrl() reads from disk — only call it when Variant A is active.
   const jsx = VARIANT === "A" ? <VariantA photoSrc={getPhotoDataUrl()} /> : <VariantB />;
 
   return new ImageResponse(jsx, {
@@ -102,7 +103,7 @@ function TextContent({ showTagline }: { showTagline: boolean }) {
   );
 }
 
-// ─── Option A: San Pedro cliffs photo ────────────────────────────────────────
+// ─── San Pedro cliffs photo ──────────────────────────────────────────────────
 function VariantA({ photoSrc }: { photoSrc: string }) {
   return (
     <div style={{ width: "100%", height: "100%", display: "flex", position: "relative" }}>

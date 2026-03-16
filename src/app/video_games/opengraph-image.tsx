@@ -128,9 +128,9 @@ export default function OGImage() {
             gap: COVER_GAP,
           }}
         >
-          {coverGames.map((game, i) => (
+          {coverGames.map((game) => (
             <img
-              key={i}
+              key={game.name}
               alt=""
               src={game.imageUrl}
               style={{
