@@ -166,8 +166,11 @@
 /* ── Game case 3D flip ──
    perspective on the scene creates 3D space; preserve-3d on the inner
    container lets front/back faces rotate as a unit. backface-visibility
-   hides whichever face is turned away from the viewer. */
+   hides whichever face is turned away from the viewer.
+   --case-depth is half the case thickness — front and back each push out
+   by this amount, and the spine width is 2× this value. */
 .game-case-scene {
+  --case-depth: 6px;
   perspective: 800px;
 }
 .game-case-inner {
@@ -185,25 +188,43 @@
   backface-visibility: hidden;
 }
 /* translateZ pushes each face outward by half the case thickness,
-   creating a 12px gap between them where the spine edges live. */
+   creating a gap between them where the spine edges live. */
 .game-case-front {
-  transform: translateZ(6px);
+  transform: translateZ(var(--case-depth));
 }
 /* Pre-rotated 180° so it's hidden by default, revealed when parent flips.
-   translateZ pushes it forward from the back's perspective (= -6px in world Z). */
+   translateZ pushes it forward from the back's perspective. */
 .game-case-back {
-  transform: rotateY(180deg) translateZ(6px);
+  transform: rotateY(180deg) translateZ(var(--case-depth));
 }
 
 /* Spine edges — thin strips rotated 90° to connect front and back faces.
-   12px wide = matches the gap between the two faces (2 × 6px translateZ). */
+   Width = 2 × --case-depth so it exactly fills the gap between faces. */
 .game-case-spine {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 12px;
+  top: 2px;
+  bottom: 2px;
+  width: calc(2 * var(--case-depth));
+  /* Matches the border-radius on front/back faces so spine corners don't peek out. */
+  border-radius: 0.25rem;
   /* Uses the same per-console color tokens as the no-cover-art fallback. */
   background: var(--system-fallback, #1a1a2e);
+  /* Hidden by default so perspective doesn't reveal a sliver on the card edges.
+     On flip-back, stay visible past mid-rotation (0.4s delay) then fade out. */
+  opacity: 0;
+  transition: opacity 0.15s 0.4s;
+}
+.game-case-inner.is-flipped .game-case-spine {
+  opacity: 1;
+  transition: opacity 0.15s;
+}
+.game-case-spine-left {
+  left: 0;
+  transform: translateX(calc(-1 * var(--case-depth))) rotateY(-90deg);
+}
+.game-case-spine-right {
+  right: 0;
+  transform: translateX(var(--case-depth)) rotateY(90deg);
 }
 
 /* Dark matte surface for the back face — console color dimmed with a dark overlay. */

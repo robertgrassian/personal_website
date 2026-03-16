@@ -1,5 +1,7 @@
 // Spine edge of the game case — a thin strip connecting front and back faces,
 // visible mid-rotation during the 3D flip. Colored per-console via --system-fallback.
+// Positioning and transforms are handled by CSS classes (game-case-spine-left/right)
+// which reference the --case-depth custom property defined on .game-case-scene.
 
 import { SpineText } from "./SpineText";
 
@@ -9,23 +11,9 @@ type GameCaseSpineProps = {
   side: "left" | "right";
 };
 
-// Transform values position the spine flush with the card edge and rotate it
-// perpendicular so its width fills the Z gap between front and back faces.
-const SPINE_TRANSFORMS = {
-  left: "translateX(-6px) rotateY(-90deg)",
-  right: "translateX(6px) rotateY(90deg)",
-} as const;
-
 export function GameCaseSpine({ name, system, side }: GameCaseSpineProps) {
   return (
-    <div
-      className="game-case-spine"
-      data-system={system}
-      style={{
-        [side]: 0,
-        transform: SPINE_TRANSFORMS[side],
-      }}
-    >
+    <div className={`game-case-spine game-case-spine-${side}`} data-system={system}>
       <SpineText name={name} />
     </div>
   );

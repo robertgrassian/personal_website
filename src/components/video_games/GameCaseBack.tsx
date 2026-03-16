@@ -1,13 +1,13 @@
 // Back face of the game case — shown when the card is flipped.
 // Displays game metadata in the same 96×144px footprint as the cover art.
 
-import { type Game, RATINGS, RATING_COLORS } from "@/lib/games";
+import { type Game, RATINGS } from "@/lib/games";
 
 // "2023-05-12" → "May 2023"
 function formatDate(iso: string): string {
   if (!iso) return "—";
-  const date = new Date(iso + "T00:00:00"); // avoid timezone shift
-  return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  const date = new Date(iso + "T00:00:00Z"); // Z = UTC, avoids local-timezone shift
+  return date.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
 }
 
 type GameCaseBackProps = {
@@ -16,7 +16,6 @@ type GameCaseBackProps = {
 
 export function GameCaseBack({ game }: GameCaseBackProps) {
   const ratingEntry = game.rating ? RATINGS.find((r) => r.name === game.rating) : undefined;
-  const ratingColor = ratingEntry ? (RATING_COLORS[ratingEntry.letter] ?? "#e5e7eb") : undefined;
 
   return (
     <div className="game-case-back-surface h-full rounded flex flex-col p-2.5 text-gray-200 overflow-hidden">
@@ -27,7 +26,7 @@ export function GameCaseBack({ game }: GameCaseBackProps) {
       {/* Metadata — no labels, distinguished by styling and order */}
       <div className="flex flex-col gap-1.5 text-[10px] leading-snug min-h-0 overflow-hidden">
         {ratingEntry && (
-          <p className="font-semibold" style={{ color: ratingColor }}>
+          <p className="font-semibold" style={{ color: ratingEntry.color }}>
             ★ {ratingEntry.name}
           </p>
         )}
