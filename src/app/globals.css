@@ -8,7 +8,7 @@
   --muted: #6b7280; /* gray-500 */
   --subtle: #9ca3af; /* gray-400 */
   --divider: #e5e7eb; /* gray-200 */
-  --link: #b45309; /* amber-700 */
+  --link: #b45309; /* amber-700 — also referenced as OG.accent in src/lib/og-theme.ts */
   --link-hover: #92400e; /* amber-800 */
 }
 
