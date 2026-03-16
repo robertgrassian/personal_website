@@ -15,23 +15,14 @@ export const contentType = "image/png";
 
 const VARIANT: "A" | "B" = "A";
 
-// Fetches the Caveat Bold font binary from Google Fonts.
+// Reads the bundled Caveat Bold font from disk.
 // ImageResponse (Satori under the hood) can't use CSS or next/font — fonts must be
 // loaded as ArrayBuffer and passed explicitly via the `fonts` option.
-// We request with an older user-agent so Google returns a WOFF URL (not WOFF2),
-// which Satori handles most reliably.
-async function loadCaveatFont(): Promise<ArrayBuffer> {
-  const css = await fetch("https://fonts.googleapis.com/css2?family=Caveat:wght@700", {
-    headers: { "User-Agent": "Mozilla/4.0" },
-  }).then((r) => r.text());
-
-  // The CSS has multiple @font-face blocks (one per unicode range).
-  // The last url() is the latin subset, which covers "my site".
-  const urls = [...css.matchAll(/url\(([^)]+)\)/g)].map((m) => m[1]);
-  const url = urls[urls.length - 1];
-  if (!url) throw new Error("Could not parse Caveat font URL from Google Fonts CSS");
-
-  return fetch(url).then((r) => r.arrayBuffer());
+// The TTF is stored in public/fonts/ so it's always available without a network call.
+function loadCaveatFont(): ArrayBuffer {
+  const fontPath = path.join(process.cwd(), "public/fonts/Caveat-Bold.ttf");
+  const buffer = fs.readFileSync(fontPath);
+  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 }
 
 // Reads the local photo and returns a base64 data URL.
@@ -44,7 +35,7 @@ function getPhotoDataUrl(): string {
 }
 
 export default async function OGImage() {
-  const caveatFont = await loadCaveatFont();
+  const caveatFont = loadCaveatFont();
 
   // getPhotoDataUrl() reads from disk — only call it when Variant A is active.
   const jsx = VARIANT === "A" ? <VariantA photoSrc={getPhotoDataUrl()} /> : <VariantB />;
