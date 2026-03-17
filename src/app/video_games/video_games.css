@@ -227,17 +227,26 @@
   transform: translateX(var(--case-depth)) rotateY(90deg);
 }
 
-/* Dark matte surface for the back face — console color dimmed with a dark overlay. */
+/* Back face base — dominant color (or console fallback) shows through
+   underneath the blurred cover art and dark overlay layers.
+   Tuning knobs — adjust in DevTools on any .game-case-back-surface element:
+     --back-blur:    how much the cover art is blurred (px)
+     --back-img-opacity: how visible the cover art is (0–1)
+     --back-overlay: how dark the text-safety overlay is (0–1) */
 .game-case-back-surface {
-  background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55))
-    var(--system-fallback, #1a1a2e);
+  --back-blur: 6px;
+  --back-img-opacity: 0.6;
+  --back-overlay: 0.25;
+  background-color: var(--system-fallback, #1a1a2e);
 }
 
 @media (prefers-color-scheme: dark) {
   .game-case-back-surface {
-    background: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65))
-      var(--system-fallback, #111118);
+    --back-blur: 8px;
+    --back-img-opacity: 0.55;
+    --back-overlay: 0.35;
   }
+
   .shelf-filter-bar {
     box-shadow: none;
     border-bottom: 1px solid var(--shelf-divider);

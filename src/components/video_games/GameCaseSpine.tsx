@@ -7,14 +7,15 @@ import { SpineText } from "./SpineText";
 
 type GameCaseSpineProps = {
   name: string;
-  system: string;
+  system: string | undefined;
   side: "left" | "right";
+  darkBackground?: boolean;
 };
 
-export function GameCaseSpine({ name, system, side }: GameCaseSpineProps) {
+export function GameCaseSpine({ name, system, side, darkBackground = true }: GameCaseSpineProps) {
   return (
     <div className={`game-case-spine game-case-spine-${side}`} data-system={system}>
-      <SpineText name={name} />
+      <SpineText name={name} darkBackground={darkBackground} />
     </div>
   );
 }

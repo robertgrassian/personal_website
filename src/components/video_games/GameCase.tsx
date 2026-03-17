@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { type Game, RATINGS } from "@/lib/games";
+import { extractDominantColor } from "@/lib/dominant-color";
 import { RatingIndicator } from "./RatingIndicator";
 import { GameCaseBack } from "./GameCaseBack";
 import { GameCaseSpine } from "./GameCaseSpine";
@@ -26,6 +27,33 @@ export function GameCase({ game }: GameCaseProps) {
   // When true, we fall back to the system color just as if no imageUrl were provided.
   const [imageError, setImageError] = useState(false);
 
+  // Dominant color extracted from the cover art — used for spine and back face.
+  // null means not yet extracted or no image; falls back to --system-fallback from CSS.
+  // isDark tracks whether the color is dark (true) or light (false) — used to pick
+  // contrasting text color on the spine. Provided by fast-average-color's luminance check.
+  const [dominantColor, setDominantColor] = useState<string | null>(null);
+  const [isDark, setIsDark] = useState(true);
+  // Ref to the <img> element inside Next.js <Image> — needed by FastAverageColor
+  // to read pixel data from the rendered image via a hidden <canvas>.
+  const imageRef = useRef<HTMLImageElement>(null);
+
+  // Extracts the dominant color once the cover image has fully loaded.
+  // useCallback keeps a stable reference so it doesn't re-trigger the Image onLoad.
+  // Uses getColorAsync because the image may not be fully decoded yet when onLoad fires —
+  // the async version waits for decode to complete before reading pixel data.
+  const handleImageLoad = useCallback(() => {
+    const img = imageRef.current;
+    if (!img) return;
+    // Uses a shared FAC instance with a sequential queue — see src/lib/dominant-color.ts.
+    // This avoids 100+ simultaneous canvas reads janking the main thread on page load.
+    extractDominantColor(img)
+      .then((result) => {
+        setDominantColor(result.hex);
+        setIsDark(result.isDark);
+      })
+      .catch(() => {});
+  }, []);
+
   const hasImage = game.imageUrl !== "" && !imageError;
   const ratingLetter = game.rating
     ? RATINGS.find((r) => r.name === game.rating)?.letter
@@ -47,10 +75,18 @@ export function GameCase({ game }: GameCaseProps) {
     >
       {/* Inner container — rotates as a unit for the 3D flip.
           Hover lift is here so both faces translate together. */}
+      {/* When dominantColor is set, override --system-fallback at this level.
+          CSS cascading means children (spine, back face) inherit it automatically,
+          no prop drilling needed — they already read var(--system-fallback). */}
       <div
         className={`game-case-inner h-36 relative
                     group-hover:-translate-y-2 group-hover:shadow-xl
                     ${flipped ? "is-flipped" : ""}`}
+        style={
+          dominantColor
+            ? ({ "--system-fallback": dominantColor } as React.CSSProperties)
+            : undefined
+        }
       >
         {/* ── Front face ── */}
         <div
@@ -63,11 +99,13 @@ export function GameCase({ game }: GameCaseProps) {
             // `fill` covers the parent; `sizes="96px"` tells Next.js the rendered width
             // so it serves the right optimized image size rather than a much larger file.
             <Image
+              ref={imageRef}
               src={game.imageUrl}
               alt={game.name}
               fill
               className="object-cover"
               sizes="96px"
+              onLoad={handleImageLoad}
               onError={() => setImageError(true)}
             />
           ) : (
@@ -94,14 +132,26 @@ export function GameCase({ game }: GameCaseProps) {
         </div>
 
         {/* ── Spine edges ── visible mid-rotation, connecting front and back. */}
-        <GameCaseSpine name={game.name} system={game.system} side="left" />
-        <GameCaseSpine name={game.name} system={game.system} side="right" />
+        {/* Only pass system when there's no dominant color — otherwise the
+            [data-system] selector would override the inherited --system-fallback. */}
+        <GameCaseSpine
+          name={game.name}
+          system={dominantColor ? undefined : game.system}
+          side="left"
+          darkBackground={isDark}
+        />
+        <GameCaseSpine
+          name={game.name}
+          system={dominantColor ? undefined : game.system}
+          side="right"
+          darkBackground={isDark}
+        />
 
         {/* ── Back face ── */}
         <div
           className="game-case-back absolute inset-0 rounded overflow-hidden shadow-lg"
           aria-hidden={!flipped}
-          data-system={game.system}
+          data-system={dominantColor ? undefined : game.system}
         >
           <GameCaseBack game={game} />
         </div>
