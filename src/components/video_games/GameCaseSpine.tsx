@@ -7,7 +7,7 @@ import { SpineText } from "./SpineText";
 
 type GameCaseSpineProps = {
   name: string;
-  system: string;
+  system: string | undefined;
   side: "left" | "right";
 };
 
