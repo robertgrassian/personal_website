@@ -34,14 +34,20 @@ export function GameCaseBack({ game }: GameCaseBackProps) {
           alt=""
           fill
           aria-hidden
-          className="object-cover scale-110 blur-[8px] opacity-60 dark:opacity-55"
+          className="object-cover scale-110"
           sizes="96px"
+          // blur and opacity driven by CSS variables (--back-blur, --back-img-opacity)
+          // defined on .game-case-back-surface — tweak them live in DevTools.
+          style={{ filter: "blur(var(--back-blur))", opacity: "var(--back-img-opacity)" }}
         />
       )}
 
       {/* Layer 2: Dark overlay — ensures text contrast over the blurred image.
-          Lighter than the old full overlay so the artwork shows through. */}
-      <div className="absolute inset-0 bg-black/25 dark:bg-black/35" />
+          Opacity driven by --back-overlay CSS variable for easy tuning. */}
+      <div
+        className="absolute inset-0"
+        style={{ backgroundColor: `rgb(0 0 0 / var(--back-overlay))` }}
+      />
 
       {/* Layer 3: Text content — sits above all background layers. */}
       <div className="relative z-10 h-full flex flex-col p-2.5 text-gray-200">
@@ -57,9 +63,9 @@ export function GameCaseBack({ game }: GameCaseBackProps) {
             </p>
           )}
           <p className="font-medium">{game.system}</p>
-          <p className="text-gray-400">{formatDate(game.releaseDate)}</p>
+          <p className="font-medium">{formatDate(game.releaseDate)}</p>
           {game.genres.length > 0 && (
-            <p className="text-gray-400 line-clamp-2">{game.genres.join(", ")}</p>
+            <p className="font-medium line-clamp-2">{game.genres.join(", ")}</p>
           )}
         </div>
       </div>

@@ -228,9 +228,23 @@
 }
 
 /* Back face base — dominant color (or console fallback) shows through
-   underneath the blurred cover art and dark overlay layers. */
+   underneath the blurred cover art and dark overlay layers.
+   Tuning knobs — adjust in DevTools on any .game-case-back-surface element:
+     --back-blur:    how much the cover art is blurred (px)
+     --back-img-opacity: how visible the cover art is (0–1)
+     --back-overlay: how dark the text-safety overlay is (0–1) */
 .game-case-back-surface {
+  --back-blur: 8px;
+  --back-img-opacity: 0.6;
+  --back-overlay: 0.25;
   background-color: var(--system-fallback, #1a1a2e);
+}
+
+@media (prefers-color-scheme: dark) {
+  .game-case-back-surface {
+    --back-img-opacity: 0.55;
+    --back-overlay: 0.35;
+  }
 }
 
 @media (prefers-color-scheme: dark) {

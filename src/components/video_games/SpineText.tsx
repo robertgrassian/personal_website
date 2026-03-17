@@ -7,9 +7,10 @@ import { useState, useRef, useLayoutEffect } from "react";
 
 type SpineTextProps = {
   name: string;
+  darkBackground?: boolean;
 };
 
-export function SpineText({ name }: SpineTextProps) {
+export function SpineText({ name, darkBackground = true }: SpineTextProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
   const [scale, setScale] = useState(1);
@@ -32,7 +33,9 @@ export function SpineText({ name }: SpineTextProps) {
       <div ref={containerRef} className="h-full flex items-center justify-center">
         <span
           ref={textRef}
-          className="text-gray-300 text-[9px] font-semibold whitespace-nowrap tracking-tight"
+          // Light text on dark spines, dark text on light spines — driven by
+          // fast-average-color's luminance detection of the cover art.
+          className={`text-[9px] font-semibold whitespace-nowrap tracking-tight ${darkBackground ? "text-gray-300" : "text-gray-950"}`}
           style={{ writingMode: "vertical-rl", transform: `scale(${scale})` }}
         >
           {name}

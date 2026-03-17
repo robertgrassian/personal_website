@@ -29,7 +29,10 @@ export function GameCase({ game }: GameCaseProps) {
 
   // Dominant color extracted from the cover art — used for spine and back face.
   // null means not yet extracted or no image; falls back to --system-fallback from CSS.
+  // isDark tracks whether the color is dark (true) or light (false) — used to pick
+  // contrasting text color on the spine. Provided by fast-average-color's luminance check.
   const [dominantColor, setDominantColor] = useState<string | null>(null);
+  const [isDark, setIsDark] = useState(true);
   // Ref to the <img> element inside Next.js <Image> — needed by FastAverageColor
   // to read pixel data from the rendered image via a hidden <canvas>.
   const imageRef = useRef<HTMLImageElement>(null);
@@ -44,7 +47,10 @@ export function GameCase({ game }: GameCaseProps) {
     const fac = new FastAverageColor();
     fac
       .getColorAsync(img, { algorithm: "dominant" })
-      .then((result) => setDominantColor(result.hex))
+      .then((result) => {
+        setDominantColor(result.hex);
+        setIsDark(result.isDark);
+      })
       .catch(() => {})
       .finally(() => fac.destroy());
   }, []);
@@ -137,11 +143,13 @@ export function GameCase({ game }: GameCaseProps) {
           name={game.name}
           system={dominantColor ? undefined : game.system}
           side="left"
+          darkBackground={isDark}
         />
         <GameCaseSpine
           name={game.name}
           system={dominantColor ? undefined : game.system}
           side="right"
+          darkBackground={isDark}
         />
 
         {/* ── Back face ── */}
