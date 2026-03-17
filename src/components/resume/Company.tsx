@@ -11,7 +11,9 @@ export type CompanyProps = {
 export function Company({ name, location, subtitle, roles }: CompanyProps) {
   return (
     <div>
-      <div className="flex justify-between items-baseline">
+      {/* On mobile, stack name and location vertically so long locations don't squish the name.
+          sm+ puts them on the same line with space-between. */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline">
         <h3 className="text-xl font-bold">{name}</h3>
         <span className="text-sm text-muted">{location}</span>
       </div>
