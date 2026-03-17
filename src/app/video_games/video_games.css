@@ -245,9 +245,7 @@
     --back-img-opacity: 0.55;
     --back-overlay: 0.35;
   }
-}
 
-@media (prefers-color-scheme: dark) {
   .shelf-filter-bar {
     box-shadow: none;
     border-bottom: 1px solid var(--shelf-divider);

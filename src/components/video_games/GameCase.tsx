@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import { FastAverageColor } from "fast-average-color";
 import { type Game, RATINGS } from "@/lib/games";
+import { extractDominantColor } from "@/lib/dominant-color";
 import { RatingIndicator } from "./RatingIndicator";
 import { GameCaseBack } from "./GameCaseBack";
 import { GameCaseSpine } from "./GameCaseSpine";
@@ -44,15 +44,14 @@ export function GameCase({ game }: GameCaseProps) {
   const handleImageLoad = useCallback(() => {
     const img = imageRef.current;
     if (!img) return;
-    const fac = new FastAverageColor();
-    fac
-      .getColorAsync(img, { algorithm: "dominant" })
+    // Uses a shared FAC instance with a sequential queue — see src/lib/dominant-color.ts.
+    // This avoids 100+ simultaneous canvas reads janking the main thread on page load.
+    extractDominantColor(img)
       .then((result) => {
         setDominantColor(result.hex);
         setIsDark(result.isDark);
       })
-      .catch(() => {})
-      .finally(() => fac.destroy());
+      .catch(() => {});
   }, []);
 
   const hasImage = game.imageUrl !== "" && !imageError;
