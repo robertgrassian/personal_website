@@ -105,10 +105,6 @@ export function GameCase({ game }: GameCaseProps) {
               fill
               className="object-cover"
               sizes="96px"
-              // crossOrigin tells the browser the image can be read by canvas.
-              // Without it, drawImage works but getImageData throws a SecurityError
-              // even though Next.js proxies the image through the same origin.
-              crossOrigin="anonymous"
               onLoad={handleImageLoad}
               onError={() => setImageError(true)}
             />

@@ -242,6 +242,7 @@
 
 @media (prefers-color-scheme: dark) {
   .game-case-back-surface {
+    --back-blur: 8px;
     --back-img-opacity: 0.55;
     --back-overlay: 0.35;
   }

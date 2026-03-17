@@ -34,11 +34,17 @@ export function GameCaseBack({ game }: GameCaseBackProps) {
           alt=""
           fill
           aria-hidden
-          className="object-cover scale-110 -scale-x-100"
+          className="object-cover"
           sizes="96px"
           // blur and opacity driven by CSS variables (--back-blur, --back-img-opacity)
           // defined on .game-case-back-surface — tweak them live in DevTools.
-          style={{ filter: "blur(var(--back-blur))", opacity: "var(--back-img-opacity)" }}
+          // scale(-1.1, 1.1): flips horizontally (so visual weight mirrors the front)
+          // and overscales 10% to prevent blur from showing transparent edges.
+          style={{
+            transform: "scale(-1.1, 1.1)",
+            filter: "blur(var(--back-blur))",
+            opacity: "var(--back-img-opacity)",
+          }}
         />
       )}
 
