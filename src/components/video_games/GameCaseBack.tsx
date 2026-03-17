@@ -34,7 +34,7 @@ export function GameCaseBack({ game }: GameCaseBackProps) {
           alt=""
           fill
           aria-hidden
-          className="object-cover scale-110"
+          className="object-cover scale-110 -scale-x-100"
           sizes="96px"
           // blur and opacity driven by CSS variables (--back-blur, --back-img-opacity)
           // defined on .game-case-back-surface — tweak them live in DevTools.
