@@ -140,7 +140,7 @@ type GameLibraryProps = {
 
 // Defaults are omitted from the URL to keep it clean.
 // When a param is absent, we fall back to these values on read.
-const DEFAULT_GROUP_BY: GroupBy = "system";
+const DEFAULT_GROUP_BY: GroupBy = "rating";
 const DEFAULT_SORT_ORDER: SortOrder = "name-asc";
 
 // Used to validate URL params — an unknown string from the URL falls back to the default.

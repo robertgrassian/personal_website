@@ -253,7 +253,7 @@ export function GameStats({ games }: GameStatsProps) {
               label={g.name}
               count={g.count}
               pct={(g.count / maxGenreCount) * 100}
-              color="#7c3aed"
+              color="var(--stats-genres)"
             />
           ))}
         </div>
@@ -269,7 +269,7 @@ export function GameStats({ games }: GameStatsProps) {
                 label={d.decade}
                 count={d.count}
                 pct={(d.count / maxDecadeCount) * 100}
-                color="#0891b2" // cyan — visually distinct from amber and violet
+                color="var(--stats-decades)"
               />
             ))}
           </div>
