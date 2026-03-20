@@ -23,22 +23,15 @@ function parseRow(line: string, rowIndex: number): Game | null {
   }
 
   // The `imageUrl = ""` default handles rows missing the 7th column.
-  const [
-    rawName,
-    rawSystem,
-    rawRating,
-    rawGenre,
-    rawReleaseDate,
-    rawFirstPlayed,
-    rawImageUrl = "",
-  ] = parts;
+  const [rawName, rawSystem, rawRating, rawGenre, rawReleaseDate, rawLastPlayed, rawImageUrl = ""] =
+    parts;
 
   const name = rawName?.trim() ?? "";
   const system = rawSystem?.trim() ?? "";
   let rating = rawRating?.trim() ?? "";
   const genres = rawGenre ? rawGenre.split("|").map((g) => g.trim()) : [];
   const releaseDate = rawReleaseDate?.trim() ?? "";
-  const firstPlayed = rawFirstPlayed?.trim() ?? "";
+  const lastPlayed = rawLastPlayed?.trim() ?? "";
   const imageUrl = rawImageUrl?.trim() ?? "";
 
   if (!name) {
@@ -63,7 +56,7 @@ function parseRow(line: string, rowIndex: number): Game | null {
     rating: rating as Rating | "",
     genres,
     releaseDate,
-    firstPlayed,
+    lastPlayed,
     imageUrl,
   };
 }

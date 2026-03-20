@@ -123,11 +123,11 @@ function sortGames(games: Game[], sortOrder: SortOrder): Game[] {
       case "release-newest":
         return b.releaseDate.localeCompare(a.releaseDate);
       case "played-newest":
-        // Games with no firstPlayed ("") sort to the end via "0000" sentinel
-        return (b.firstPlayed || "0000").localeCompare(a.firstPlayed || "0000");
+        // Games with no lastPlayed ("") sort to the end via "0000" sentinel
+        return (b.lastPlayed || "0000").localeCompare(a.lastPlayed || "0000");
       case "played-oldest":
-        // Games with no firstPlayed ("") sort to the end via "9999" sentinel
-        return (a.firstPlayed || "9999").localeCompare(b.firstPlayed || "9999");
+        // Games with no lastPlayed ("") sort to the end via "9999" sentinel
+        return (a.lastPlayed || "9999").localeCompare(b.lastPlayed || "9999");
     }
   });
 }

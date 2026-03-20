@@ -16,8 +16,8 @@ const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
   { value: "name-desc", label: "Name Z→A" },
   { value: "release-newest", label: "Release: Newest" },
   { value: "release-oldest", label: "Release: Oldest" },
-  { value: "played-newest", label: "Played: Newest" },
-  { value: "played-oldest", label: "Played: Oldest" },
+  { value: "played-newest", label: "Last Played: Recent" },
+  { value: "played-oldest", label: "Last Played: Oldest" },
 ];
 
 type FilterBarProps = {
