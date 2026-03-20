@@ -33,6 +33,6 @@ export type Game = {
   rating: Rating | ""; // "" = no rating assigned yet
   genres: string[]; // CSV stores "Action-Adventure|Puzzle"; we split on "|"
   releaseDate: string; // ISO date string, e.g. "2023-05-12"
-  firstPlayed: string; // Year string e.g. "2023", or "" if unknown
+  lastPlayed: string; // ISO date string e.g. "2023-05-12", or "" if unknown
   imageUrl: string; // Populated by scripts/fetch-covers.ts; "" means show fallback
 };
