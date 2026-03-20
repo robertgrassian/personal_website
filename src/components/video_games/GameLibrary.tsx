@@ -361,7 +361,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
         <button
           type="button"
           onClick={() => setStatsOpen(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-shelf-text hover:bg-shelf-input transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
         >
           <ChartBarIcon className="w-4 h-4" aria-hidden />
           <span>Stats</span>

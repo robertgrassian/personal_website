@@ -9,6 +9,30 @@ export default function About() {
 
       <h1 className="mt-8 text-3xl font-bold text-foreground">About Me</h1>
 
+      {/* Social links — intentionally muted; hover brightens to the site accent color */}
+      <div className="mt-6 flex items-center gap-6">
+        <a
+          href="https://www.linkedin.com/in/rgrassian/"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="LinkedIn"
+          className="flex items-center gap-2 text-subtle hover:text-link transition-colors duration-150"
+        >
+          <LinkedInIcon className="w-5 h-5 shrink-0" aria-hidden />
+          <span className="text-sm">LinkedIn</span>
+        </a>
+        <a
+          href="https://github.com/robertgrassian"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="GitHub"
+          className="flex items-center gap-2 text-subtle hover:text-link transition-colors duration-150"
+        >
+          <GitHubIcon className="w-5 h-5 shrink-0" aria-hidden />
+          <span className="text-sm">GitHub</span>
+        </a>
+      </div>
+
       <div className="mt-6 space-y-4 text-body leading-relaxed">
         <p>
           I am a software engineer with a passion for building scalable and efficient applications.
@@ -27,31 +51,6 @@ export default function About() {
           Currently working at Harness on the Feature Management and Experimentation module, focused
           on building out our experimentation capabilities.
         </p>
-      </div>
-
-      {/* Social links — intentionally muted; hover brightens to the site accent color */}
-      <div className="mt-6 flex items-center gap-6">
-        <a
-          href="https://github.com/robertgrassian"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="GitHub"
-          className="flex items-center gap-2 text-subtle hover:text-link transition-colors duration-150"
-        >
-          <GitHubIcon className="w-5 h-5 shrink-0" aria-hidden />
-          <span className="text-sm">GitHub</span>
-        </a>
-
-        <a
-          href="https://linkedin.com/in/robertgrassian"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="LinkedIn"
-          className="flex items-center gap-2 text-subtle hover:text-link transition-colors duration-150"
-        >
-          <LinkedInIcon className="w-5 h-5 shrink-0" aria-hidden />
-          <span className="text-sm">LinkedIn</span>
-        </a>
       </div>
 
       {/*
