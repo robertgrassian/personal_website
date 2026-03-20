@@ -63,7 +63,7 @@ export function StatsPanel({ games, isOpen, onClose }: StatsPanelProps) {
             aria-label="Close stats panel"
             className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-divider transition-colors"
           >
-            <CloseIcon className="w-5 h-5" aria-hidden />
+            <CloseIcon className="w-5 h-5 cursor-pointer" aria-hidden />
           </button>
         </div>
 

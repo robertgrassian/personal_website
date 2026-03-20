@@ -4,11 +4,11 @@
 // `as const` locks in the literal types so Rating and RatingLetter can be derived from the data.
 // Adding or renaming a rating only requires changing this array.
 export const RATINGS = [
-  { name: "Perfect", letter: "S", color: "#fbbf24" },
-  { name: "Great", letter: "A", color: "#bbf7d0" },
-  { name: "Good", letter: "B", color: "#bfdbfe" },
-  { name: "Okay", letter: "C", color: "#fef3c7" },
-  { name: "Bad", letter: "F", color: "#fecaca" },
+  { name: "Perfect", letter: "S", color: "#d97706" },
+  { name: "Great", letter: "A", color: "#0d9488" },
+  { name: "Good", letter: "B", color: "#6366f1" },
+  { name: "Okay", letter: "C", color: "#a16207" },
+  { name: "Bad", letter: "F", color: "#be123c" },
 ] as const;
 
 // "" is excluded from Rating so the type stays a clean set of real values;

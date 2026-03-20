@@ -122,17 +122,11 @@ export function GameStats({ games }: GameStatsProps) {
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
-    // --- Games played by year (first_played field) ---
-    const yearMap = new Map<string, number>();
-    for (const game of games) {
-      if (game.firstPlayed) {
-        yearMap.set(game.firstPlayed, (yearMap.get(game.firstPlayed) ?? 0) + 1);
-      }
-    }
-    // Sort chronologically
-    const years = [...yearMap.entries()]
-      .map(([year, count]) => ({ year, count }))
-      .sort((a, b) => a.year.localeCompare(b.year));
+    // --- Recently played (top 3 by lastPlayed date, descending) ---
+    const recentlyPlayed = [...games]
+      .filter((g) => g.lastPlayed)
+      .sort((a, b) => b.lastPlayed.localeCompare(a.lastPlayed))
+      .slice(0, 3);
 
     // --- Release decade distribution ---
     const decadeMap = new Map<string, number>();
@@ -160,7 +154,7 @@ export function GameStats({ games }: GameStatsProps) {
       ratingRows,
       systems,
       genres,
-      years,
+      recentlyPlayed,
       decades,
     };
   }, [games]);
@@ -168,7 +162,6 @@ export function GameStats({ games }: GameStatsProps) {
   const maxSystemCount = stats.systems[0]?.count ?? 1;
   const maxGenreCount = stats.genres[0]?.count ?? 1;
   const maxRatingCount = Math.max(...stats.ratingRows.map((r) => r.count), 1);
-  const maxYearCount = Math.max(...stats.years.map((y) => y.count), 1);
   const maxDecadeCount = Math.max(...stats.decades.map((d) => d.count), 1);
 
   return (
@@ -182,6 +175,25 @@ export function GameStats({ games }: GameStatsProps) {
           <StatCard value={stats.perfectCount} label="Perfect (S)" accent />
         </div>
       </StatsSection>
+
+      {/* ─── Recently Played ─── */}
+      {stats.recentlyPlayed.length > 0 && (
+        <StatsSection title="Recently Played">
+          <ol className="space-y-2">
+            {stats.recentlyPlayed.map((game, i) => (
+              <li key={game.name} className="flex items-center gap-3">
+                <span className="w-5 shrink-0 text-sm font-bold tabular-nums text-muted text-right">
+                  {i + 1}.
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm text-emphasis truncate">{game.name}</p>
+                  <p className="text-xs text-muted">{game.system}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </StatsSection>
+      )}
 
       {/* ─── Rating Breakdown ─── */}
       <StatsSection title="Ratings">
@@ -205,7 +217,6 @@ export function GameStats({ games }: GameStatsProps) {
                     style={{
                       width: `${(row.count / maxRatingCount) * 100}%`,
                       background: row.color,
-                      opacity: 0.85,
                     }}
                   />
                 </div>
@@ -246,27 +257,6 @@ export function GameStats({ games }: GameStatsProps) {
           ))}
         </div>
       </StatsSection>
-
-      {/* ─── Gaming Activity by Year ─── (only shown when enough data exists) */}
-      {stats.years.length >= 2 && (
-        <StatsSection title="Played by Year">
-          <div className="space-y-2.5">
-            {stats.years.map((y) => (
-              <BarRow
-                key={y.year}
-                label={y.year}
-                count={y.count}
-                pct={(y.count / maxYearCount) * 100}
-                color="#7c3aed" // violet — distinct from the amber used elsewhere
-              />
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-subtle">
-            {games.length - stats.years.reduce((s, y) => s + y.count, 0)} games have no year
-            recorded
-          </p>
-        </StatsSection>
-      )}
 
       {/* ─── Release Era ─── */}
       {stats.decades.length > 0 && (

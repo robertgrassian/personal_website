@@ -63,11 +63,7 @@ export function GameCaseBack({ game }: GameCaseBackProps) {
 
         {/* Metadata — no labels, distinguished by styling and order */}
         <div className="flex flex-col gap-1.5 text-[10px] leading-snug min-h-0 overflow-hidden">
-          {ratingEntry && (
-            <p className="font-semibold" style={{ color: ratingEntry.color }}>
-              ★ {ratingEntry.name}
-            </p>
-          )}
+          {ratingEntry && <p className="font-semibold text-gray-200">★ {ratingEntry.name}</p>}
           <p className="font-medium">{game.system}</p>
           <p className="font-medium">{formatDate(game.releaseDate)}</p>
           {game.genres.length > 0 && (
