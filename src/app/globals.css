@@ -10,6 +10,17 @@
   --divider: #e5e7eb; /* gray-200 */
   --link: #b45309; /* amber-700 — also referenced as OG.accent in src/lib/og-theme.ts */
   --link-hover: #92400e; /* amber-800 */
+
+  /* Rating bar/badge colors — darker shades for light mode (readable on light track) */
+  --rating-s: #d97706; /* amber-600 */
+  --rating-a: #0d9488; /* teal-600 */
+  --rating-b: #6366f1; /* indigo-500 */
+  --rating-c: #a16207; /* amber-700 */
+  --rating-f: #be123c; /* rose-700 */
+
+  /* Stats chart accent colors */
+  --stats-genres: #7c3aed; /* violet-700 */
+  --stats-decades: #0891b2; /* cyan-600 */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +34,17 @@
     --divider: #374151; /* gray-700 */
     --link: #f59e0b; /* amber-500 */
     --link-hover: #fbbf24; /* amber-400 */
+
+    /* Rating colors — lighter/brighter so bars pop against the dark divider track */
+    --rating-s: #fbbf24; /* amber-400 */
+    --rating-a: #2dd4bf; /* teal-400 */
+    --rating-b: #818cf8; /* indigo-400 */
+    --rating-c: #fcd34d; /* amber-300 — lighter yellow to stay distinct from S */
+    --rating-f: #fb7185; /* rose-400 */
+
+    /* Stats chart accent colors */
+    --stats-genres: #a78bfa; /* violet-400 */
+    --stats-decades: #22d3ee; /* cyan-400 */
   }
 }
 

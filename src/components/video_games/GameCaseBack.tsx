@@ -62,16 +62,17 @@ export function GameCaseBack({ game }: GameCaseBackProps) {
         <div className="border-t border-white/20 my-1.5 shrink-0" />
 
         {/* Metadata — no labels, distinguished by styling and order */}
-        <div className="flex flex-col gap-1.5 text-[10px] leading-snug min-h-0 overflow-hidden">
-          {ratingEntry && (
-            <p className="font-semibold" style={{ color: ratingEntry.color }}>
-              ★ {ratingEntry.name}
-            </p>
-          )}
+        <div className="flex flex-col gap-1 text-[10px] leading-snug min-h-0">
+          {ratingEntry && <p className="font-semibold text-gray-200">★ {ratingEntry.name}</p>}
           <p className="font-medium">{game.system}</p>
           <p className="font-medium">{formatDate(game.releaseDate)}</p>
           {game.genres.length > 0 && (
-            <p className="font-medium line-clamp-2">{game.genres.join(", ")}</p>
+            <p className="font-medium truncate">
+              {game.genres.slice(0, 2).join(", ")}
+              {game.genres.length > 2 && (
+                <span className="text-gray-400"> +{game.genres.length - 2} more</span>
+              )}
+            </p>
           )}
         </div>
       </div>
