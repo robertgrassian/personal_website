@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { BackToHome } from "@/components/BackToHome";
+import { GitHubIcon, LinkedInIcon } from "@/components/Icon";
 
 export default function About() {
   return (
@@ -26,6 +27,31 @@ export default function About() {
           Currently working at Harness on the Feature Management and Experimentation module, focused
           on building out our experimentation capabilities.
         </p>
+      </div>
+
+      {/* Social links — intentionally muted; hover brightens to the site accent color */}
+      <div className="mt-6 flex items-center gap-6">
+        <a
+          href="https://github.com/robertgrassian"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="GitHub"
+          className="flex items-center gap-2 text-subtle hover:text-link transition-colors duration-150"
+        >
+          <GitHubIcon className="w-5 h-5 shrink-0" aria-hidden />
+          <span className="text-sm">GitHub</span>
+        </a>
+
+        <a
+          href="https://linkedin.com/in/robertgrassian"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="LinkedIn"
+          className="flex items-center gap-2 text-subtle hover:text-link transition-colors duration-150"
+        >
+          <LinkedInIcon className="w-5 h-5 shrink-0" aria-hidden />
+          <span className="text-sm">LinkedIn</span>
+        </a>
       </div>
 
       {/*

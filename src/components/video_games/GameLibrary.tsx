@@ -10,6 +10,8 @@ import type { Game, Filters, Rating } from "@/lib/games";
 import { RATINGS } from "@/lib/games";
 import { ShelfSection } from "./ShelfSection";
 import { FilterBar } from "./FilterBar";
+import { StatsPanel } from "./StatsPanel";
+import { ChartBarIcon } from "@/components/Icon";
 
 // --- Types ---
 
@@ -157,6 +159,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
+  const [statsOpen, setStatsOpen] = useState(false);
 
   // searchInput is local state so the text input responds instantly to every keystroke.
   // It's initialized from the URL so the value is correct on first render (e.g. shared link).
@@ -335,20 +338,38 @@ export function GameLibrary({ games }: GameLibraryProps) {
 
   return (
     <div className="mt-8">
-      {hasActiveFilters && (
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-shelf-text-muted text-sm">
-            {filteredCount} of {games.length} games
-          </span>
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="text-shelf-text-muted text-sm underline underline-offset-2 cursor-pointer hover:text-shelf-text transition-colors"
-          >
-            Clear filters
-          </button>
+      {/* Top bar: game count / active-filter controls on the left, Stats trigger on the right */}
+      <div className="flex items-center justify-between mb-3 min-h-[1.5rem]">
+        <div className="flex items-center gap-3">
+          {hasActiveFilters && (
+            <>
+              <span className="text-shelf-text-muted text-sm">
+                {filteredCount} of {games.length} games
+              </span>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-shelf-text-muted text-sm underline underline-offset-2 cursor-pointer hover:text-shelf-text transition-colors"
+              >
+                Clear filters
+              </button>
+            </>
+          )}
         </div>
-      )}
+
+        {/* Stats trigger — always visible, anchored to the right */}
+        <button
+          type="button"
+          onClick={() => setStatsOpen(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-shelf-text hover:bg-shelf-input transition-colors"
+        >
+          <ChartBarIcon className="w-4 h-4" aria-hidden />
+          <span>Stats</span>
+        </button>
+      </div>
+
+      <StatsPanel games={games} isOpen={statsOpen} onClose={() => setStatsOpen(false)} />
+
       <FilterBar
         filters={activeFilters}
         onFilterChange={setFilter}
