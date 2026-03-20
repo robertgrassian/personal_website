@@ -12,23 +12,24 @@ type StatsPanelProps = {
 };
 
 export function StatsPanel({ games, isOpen, onClose }: StatsPanelProps) {
-  // Lock body scroll while the panel is open so the page doesn't scroll behind it.
+  // Lock body scroll and listen for Escape while the panel is open.
+  // Restores the previous overflow value on cleanup rather than blindly
+  // resetting to "" — safe if another scroll lock is active concurrently.
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isOpen]);
+    if (!isOpen) return;
 
-  // Close on Escape key press.
-  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
-    if (isOpen) window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    window.addEventListener("keydown", handleKey);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKey);
+    };
   }, [isOpen, onClose]);
 
   return (

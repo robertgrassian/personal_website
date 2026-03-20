@@ -19,7 +19,7 @@ function BarRow({
   label: string;
   count: number;
   pct: number;
-  color?: string; // CSS color string for inline style; falls back to amber CSS var
+  color?: string; // CSS color string for inline style; falls back to --link CSS var if omitted
 }) {
   return (
     <div className="flex items-center gap-3">
@@ -253,6 +253,7 @@ export function GameStats({ games }: GameStatsProps) {
               label={g.name}
               count={g.count}
               pct={(g.count / maxGenreCount) * 100}
+              color="#7c3aed"
             />
           ))}
         </div>
