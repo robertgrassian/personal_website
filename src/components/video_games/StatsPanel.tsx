@@ -62,6 +62,7 @@ export function StatsPanel({ games, isOpen, onClose }: StatsPanelProps) {
         aria-label="Library stats"
         aria-modal="true"
         aria-hidden={!isOpen}
+        inert={!isOpen}
         role="dialog"
         className={`fixed top-0 right-0 z-40 h-full w-full sm:w-[420px] flex flex-col bg-background border-l border-divider shadow-2xl transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
