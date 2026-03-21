@@ -4,15 +4,7 @@
 // It re-renders this component whenever the route changes, keeping the active link in sync.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-// Caveat is loaded via Next.js font optimization: downloaded at build time, served locally,
-// and injected as a CSS variable — no third-party font request at runtime.
-import { Caveat } from "next/font/google";
-
-const caveat = Caveat({
-  weight: "700",
-  subsets: ["latin"],
-  display: "swap",
-});
+import { caveat } from "../lib/fonts";
 
 const links = [
   { href: "/about", label: "About" },
