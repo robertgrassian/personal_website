@@ -13,7 +13,7 @@ export default function Resume() {
         {/* Download link — styled as a small outlined button using the site accent color */}
         <a
           href="/resume.pdf"
-          download
+          download="GrassianRobert_Resume.pdf"
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-link/40 text-link text-sm font-medium hover:bg-link/8 transition-colors duration-150 shrink-0"
         >
           <DownloadIcon className="w-4 h-4" aria-hidden />
