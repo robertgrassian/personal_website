@@ -32,7 +32,7 @@ export function Nav() {
     // z-50 ensures the nav sits above all page content, including sticky filter bars (z-20).
     <nav className="sticky top-0 z-50 border-b border-divider bg-background/90 backdrop-blur-sm">
       <div className="px-6 h-[var(--nav-height)] flex items-center justify-between">
-        {/* Site name — two-line display with Pacifico, links back to home */}
+        {/* Site name — two-line display with Caveat, links back to home */}
         <Link
           href="/"
           className={`${caveat.className} text-2xl leading-tight text-foreground hover:text-link transition-colors duration-150`}
