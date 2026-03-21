@@ -4,9 +4,12 @@ Personal website built with Next.js 15. Includes a resume page and an interactiv
 
 ## Features
 
-- **Home** — Bio and navigation
+- **Home** — Full-bleed hero with navigation tiles linking to each section
+- **About** — Bio, photos, and social links
 - **Resume** — Work experience (Harness, Split Software, Cisco), education (UC Berkeley), and skills
 - **Game Library** — Browsable shelf of 100+ games with filtering by rating, system, and genre; grouping by system/rating/genre/decade; and six sort options. Cover art sourced from IGDB.
+
+A persistent site-wide nav bar (Caveat font, sticky) links all sections. The homepage is nav-free — it has its own tile navigation.
 
 ## Tech Stack
 

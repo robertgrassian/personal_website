@@ -233,7 +233,7 @@ export function FilterBar({
     // transition-transform + conditional translate: animates the bar sliding off/on screen on mobile.
     <div
       ref={barRef}
-      className={`sticky top-0 z-20 bg-shelf-bg/95 backdrop-blur-sm px-4 py-3 sm:py-4 rounded-b-lg shelf-filter-bar transition-transform duration-300 ${visible ? "translate-y-0" : "-translate-y-full pointer-events-none"}`}
+      className={`sticky top-[var(--nav-height)] z-20 bg-shelf-bg/95 backdrop-blur-sm px-4 py-3 sm:py-4 rounded-b-lg shelf-filter-bar transition-transform duration-300 ${visible ? "translate-y-0" : "-translate-y-full pointer-events-none"}`}
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3 sm:items-center">
         {/* Text search — full-width on mobile so it anchors the top of the bar */}

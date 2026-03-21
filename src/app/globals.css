@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  --nav-height: 4rem; /* 64px — consumed as h-[var(--nav-height)] in Nav.tsx and top-[var(--nav-height)] in FilterBar.tsx */
+
   --background: #ffffff;
   --foreground: #171717;
   --emphasis: #1f2937; /* gray-800 */

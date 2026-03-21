@@ -21,22 +21,34 @@ This is a personal website built with **Next.js 15, React 19, TypeScript, and Ta
 
 ## Project Vision
 
-### 1. Resume / About Me (root)
+### 1. Homepage (`/`) — Built
 
-The homepage should function as a personal website / interactive resume — professional background, skills, projects, and contact info. This section is in progress — the structure exists but content and design polish are still evolving.
+A full-bleed hero photo (San Pedro cliffs) with a frosted-glass tile grid at the bottom linking to About, Game Library, and Resume. No nav bar — the tiles serve as the navigation.
 
-### 2. Video Game Library (`/video_games`) — Built
+### 2. About Me (`/about`) — Built
+
+Bio, social links (GitHub, LinkedIn), and a masonry photo grid. Content and design may evolve.
+
+### 3. Resume (`/resume`) — Built
+
+Work history, skills, and a PDF download link.
+
+### 4. Video Game Library (`/video_games`) — Built
 
 A showcase of every video game I've ever played, driven by `games.csv` at the project root. The UI is **"video game shelves"** — game cover art displayed on shelf planks, styled to evoke a home collection or Blockbuster. This section is largely complete:
 
-- CSV-driven data parsed server-side via `src/lib/games.ts`
+- CSV-driven data parsed server-side via `src/lib/gamesServer.ts` (server-only); types and constants in `src/lib/games.ts`
 - Shelf UI with cover art (fetched via IGDB) and system-colored fallbacks
 - Filter bar: search, rating, system, genre
 - Group by: system, rating, genre, decade
-- Sort within shelves: name, release date, first played
+- Sort within shelves: name, release date, last played
 - Cover art fetched via `scripts/fetch-covers.ts` using the IGDB API
 
 Remaining ideas are tracked in `TODO.md` (backlog).
+
+### 5. Site-wide Navigation — Built
+
+`src/components/Nav.tsx` — a sticky nav bar rendered in the root layout. Uses Caveat (Google Font, weight 700) for the site name. Hidden on `/` since the homepage has its own tile navigation. The nav height is defined as `--nav-height` in `globals.css` (`:root`) and consumed via `h-[var(--nav-height)]` in `Nav.tsx` and `top-[var(--nav-height)]` in `FilterBar.tsx` — change it in one place and both update.
 
 ## Conventions
 

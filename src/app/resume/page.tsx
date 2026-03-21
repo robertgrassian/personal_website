@@ -1,19 +1,16 @@
 import { Company } from "@/components/resume/Company";
 import { ResumeSection } from "@/components/resume/ResumeSection";
-import { BackToHome } from "@/components/BackToHome";
 import { DownloadIcon } from "@/components/Icon";
 
 export default function Resume() {
   return (
     <main className="max-w-3xl mx-auto px-6 py-16">
-      <BackToHome />
-
-      <div className="mt-6 flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <h1 className="text-4xl font-bold">Resume</h1>
         {/* Download link — styled as a small outlined button using the site accent color */}
         <a
           href="/resume.pdf"
-          download
+          download="GrassianRobert_Resume.pdf"
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-link/40 text-link text-sm font-medium hover:bg-link/8 transition-colors duration-150 shrink-0"
         >
           <DownloadIcon className="w-4 h-4" aria-hidden />
