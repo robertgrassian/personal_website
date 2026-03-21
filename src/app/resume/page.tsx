@@ -121,6 +121,18 @@ export default function Resume() {
           </div>
         </ResumeSection>
 
+        {/* --- Patents --- */}
+        <ResumeSection title="Patents">
+          <div className="mt-6">
+            <h3 className="text-base font-medium text-emphasis">
+              Systems and methods for a feature data platform
+            </h3>
+            <p className="text-sm text-muted mt-1">
+              US 12,579,051 B2 · Harness Inc. · Granted March 2026
+            </p>
+          </div>
+        </ResumeSection>
+
         {/* --- Skills & Interests --- */}
         <ResumeSection title="Skills & Interests">
           <div className="mt-6 space-y-2 text-sm text-body">
