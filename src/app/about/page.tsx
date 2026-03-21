@@ -1,13 +1,10 @@
 import Image from "next/image";
-import { BackToHome } from "@/components/BackToHome";
 import { GitHubIcon, LinkedInIcon } from "@/components/Icon";
 
 export default function About() {
   return (
     <main className="max-w-2xl mx-auto px-6 py-16">
-      <BackToHome />
-
-      <h1 className="mt-8 text-3xl font-bold text-foreground">About Me</h1>
+      <h1 className="text-3xl font-bold text-foreground">About Me</h1>
 
       {/* Social links — intentionally muted; hover brightens to the site accent color */}
       <div className="mt-6 flex items-center gap-6">

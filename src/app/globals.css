@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  --nav-height: 4rem; /* 64px — must match h-[var(--nav-height)] in Nav.tsx; FilterBar uses this as its sticky top offset */
+
   --background: #ffffff;
   --foreground: #171717;
   --emphasis: #1f2937; /* gray-800 */

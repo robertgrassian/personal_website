@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import { getGames } from "@/lib/gamesServer";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
-import { BackToHome } from "@/components/BackToHome";
 
 // Next.js reads this export to set the <title> and <meta> for this route.
 // This is a Next.js App Router convention — works only in Server Components and layouts.
@@ -19,8 +18,7 @@ export default function VideoGamesPage() {
   return (
     <main className="min-h-screen bg-shelf-bg shelf-theme">
       <div className="max-w-7xl mx-auto px-6 py-12">
-        <BackToHome />
-        <h1 className="mt-6 text-4xl font-bold text-shelf-text">Game Library</h1>
+        <h1 className="text-4xl font-bold text-shelf-text">Game Library</h1>
         <p className="mt-2 text-shelf-text-muted">{games.length} games</p>
 
         {/*
