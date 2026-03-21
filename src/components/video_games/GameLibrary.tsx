@@ -58,22 +58,22 @@ function filterGames(games: Game[], filters: Filters): Game[] {
   });
 }
 
-function getGroupKey(game: Game, groupBy: GroupBy): string {
+function getGroupKeys(game: Game, groupBy: GroupBy): string[] {
   switch (groupBy) {
     case "none":
-      return "";
+      return [""];
     case "system":
-      return game.system || "Unknown";
+      return [game.system || "Unknown"];
     case "rating":
-      return game.rating || "Unrated";
+      return [game.rating || "Unrated"];
     case "genre":
-      // A game can have multiple genres — we group by the primary (first) one.
-      return game.genres[0] || "Unknown";
+      // A game can have multiple genres — appear in a shelf for each one.
+      return game.genres.length > 0 ? game.genres : ["Unknown"];
     case "decade": {
       const year = parseInt(game.releaseDate.slice(0, 4));
-      if (isNaN(year) || year < 1970) return "Unknown";
+      if (isNaN(year) || year < 1970) return ["Unknown"];
       // Math.floor(year / 10) * 10 → e.g. 2023 → 2020 → "2020s"
-      return `${Math.floor(year / 10) * 10}s`;
+      return [`${Math.floor(year / 10) * 10}s`];
     }
   }
 }
@@ -82,12 +82,11 @@ function groupGames(games: Game[], groupBy: GroupBy): Array<{ label: string; gam
   // Map preserves insertion order — we collect games by key, then sort labels alphabetically.
   const map = new Map<string, Game[]>();
   for (const game of games) {
-    const key = getGroupKey(game, groupBy);
-    // Push into the existing array rather than spreading into a new one on every iteration.
-    // The spread pattern [...(map.get(key) ?? []), game] is O(n²) — it copies the whole
-    // array each time. This push approach is O(n) total.
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(game);
+    // getGroupKeys returns multiple keys when a game belongs to several groups (e.g. multiple genres).
+    for (const key of getGroupKeys(game, groupBy)) {
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(game);
+    }
   }
 
   return Array.from(map.entries())
