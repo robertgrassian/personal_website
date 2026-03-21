@@ -39,3 +39,20 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Game Library Data
 
 Game data lives in `games.csv`. Cover art is sourced from the [IGDB API](https://api-docs.igdb.com).
+
+To fetch/refresh cover art:
+
+```bash
+CLIENT_ID=<igdb_client_id> CLIENT_SECRET=<igdb_client_secret> npx tsx scripts/fetch-covers.ts
+```
+
+## Claude Skills
+
+Slash commands defined in `.claude/skills/` for use with Claude Code in this project:
+
+| Skill      | Trigger     | Description                                            |
+| ---------- | ----------- | ------------------------------------------------------ |
+| `add-game` | `/add-game` | Add a game to `games.csv` with cover art from IGDB     |
+| `todo`     | `/todo`     | Manage the project TODO list (add, list, done, do)     |
+| `explain`  | `/explain`  | Walk through code step-by-step (what it does and how)  |
+| `teach`    | `/teach`    | Teach the concepts and "why" behind code or web topics |
