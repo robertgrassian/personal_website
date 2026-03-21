@@ -3,6 +3,7 @@ import Link from "next/link";
 // Static import lets Next.js read the file at build time and generate a
 // tiny base64 blur placeholder + extract dimensions automatically.
 import sanPedroCliffs from "../../public/images/san-pedro-cliffs.jpeg";
+import { caveat } from "../lib/fonts";
 
 const sections = [
   {
@@ -42,7 +43,7 @@ export default function Home() {
       {/* Name + tagline — flex-1 pushes this to fill available space, centering it above the tiles */}
       <div className="relative z-10 flex-1 flex items-center justify-center px-6 text-center">
         <div>
-          <h1 className="text-4xl sm:text-6xl font-bold text-white tracking-tight">
+          <h1 className={`text-4xl sm:text-6xl text-white tracking-tight ${caveat.className}`}>
             Robert Grassian
           </h1>
           <p className="mt-3 text-base sm:text-xl text-white/75 tracking-wide">
