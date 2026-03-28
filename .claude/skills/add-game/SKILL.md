@@ -7,13 +7,13 @@ argument-hint: "[game name (optional)]"
 You are adding a game to `games.csv` at the project root. The CSV columns are:
 
 ```
-name,system,rating,genre,release_date,first_played,image_url
+name,system,rating,genre,release_date,last_played,image_url
 ```
 
 - `genre` is pipe-separated for multiple genres (e.g. `Action-Adventure|Puzzle`)
 - `rating` must be one of: `Perfect`, `Great`, `Good`, `Okay`, `Bad`, or empty
 - `release_date` is ISO format: `YYYY-MM-DD`, or empty
-- `first_played` is a 4-digit year (e.g. `2024`), or empty
+- `last_played` is ISO format: `YYYY-MM-DD`, or empty
 
 ---
 
@@ -127,12 +127,12 @@ After resolving all fields, **output a single summary message** to the user show
 
 ---
 
-## Step 5 — Collect rating and first_played via dialog
+## Step 5 — Collect rating and last_played via dialog
 
 Use `AskUserQuestion` with exactly **two questions**:
 
 1. **Rating** — options: `Perfect`, `Great`, `Good`, `Okay`. "Other" is auto-appended; the user can note `Bad` or leave blank.
-2. **Year first played** — options: the current year and 4 prior years (e.g. `2026`, `2025`, `2024`, `2023`, `2022`). "Other" is auto-appended for anything else.
+2. **Last played date** — options: the game's NA release date as the first option (mark it "(Recommended)" if the user is likely unsure, i.e. it was released more than a year ago), then the first day of the current year and 2 prior years (e.g. `2026-01-01`, `2025-01-01`, `2024-01-01`). "Other" is auto-appended for anything else. All dates in `YYYY-MM-DD` format. Do NOT include today's date as an option. Note: `AskUserQuestion` allows a maximum of 4 options — the release date counts as one, leaving room for 3 year entries.
 
 ---
 
@@ -185,7 +185,7 @@ Use `AskUserQuestion` with one option per match plus "Skip cover art".
 Append the row:
 
 ```bash
-printf '%s\n' 'NAME,SYSTEM,RATING,GENRE,RELEASE_DATE,FIRST_PLAYED,IMAGE_URL' >> /full/path/to/games.csv
+printf '%s\n' 'NAME,SYSTEM,RATING,GENRE,RELEASE_DATE,LAST_PLAYED,IMAGE_URL' >> /full/path/to/games.csv
 ```
 
 - Wrap `name` in double quotes if it contains a comma
