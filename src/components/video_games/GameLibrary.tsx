@@ -10,8 +10,7 @@ import type { Game, Filters, Rating } from "@/lib/games";
 import { RATINGS } from "@/lib/games";
 import { ShelfSection } from "./ShelfSection";
 import { FilterBar } from "./FilterBar";
-import { StatsPanel } from "./StatsPanel";
-import { ChartBarIcon } from "@/components/Icon";
+import { StatsTab } from "./StatsTab";
 
 // --- Types ---
 
@@ -158,7 +157,6 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
-  const [statsOpen, setStatsOpen] = useState(false);
 
   // searchInput is local state so the text input responds instantly to every keystroke.
   // It's initialized from the URL so the value is correct on first render (e.g. shared link).
@@ -236,7 +234,8 @@ export function GameLibrary({ games }: GameLibraryProps) {
       const isDefault =
         value === "" ||
         (key === "groupBy" && value === DEFAULT_GROUP_BY) ||
-        (key === "sortOrder" && value === DEFAULT_SORT_ORDER);
+        (key === "sortOrder" && value === DEFAULT_SORT_ORDER) ||
+        (key === "tab" && value === "library");
       if (isDefault) {
         params.delete(key);
       } else {
@@ -259,6 +258,13 @@ export function GameLibrary({ games }: GameLibraryProps) {
         updateParam(key, value as string);
       }
     },
+    [updateParam]
+  );
+
+  // "library" is the default tab (omitted from URL); "stats" is explicit.
+  const activeTab = searchParams.get("tab") === "stats" ? "stats" : "library";
+  const setTab = useCallback(
+    (tab: "library" | "stats") => updateParam("tab", tab),
     [updateParam]
   );
 
@@ -337,11 +343,31 @@ export function GameLibrary({ games }: GameLibraryProps) {
 
   return (
     <div className="mt-8">
-      {/* Top bar: game count / active-filter controls on the left, Stats trigger on the right */}
-      <div className="flex items-center justify-between mb-3 min-h-[1.5rem]">
-        <div className="flex items-center gap-3">
+      {/* ── Tab bar ──────────────────────────────────────────────────────── */}
+      {/* -mb-px makes the active tab's bottom border sit on top of the container border. */}
+      <div className="flex gap-1 border-b border-divider mb-6">
+        {(["library", "stats"] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setTab(tab)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px capitalize transition-colors cursor-pointer ${
+              activeTab === tab
+                ? "border-link text-link"
+                : "border-transparent text-muted hover:text-foreground hover:border-divider"
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Library tab ──────────────────────────────────────────────────── */}
+      {activeTab === "library" && (
+        <>
+          {/* Active filter summary — shown only when filters are applied */}
           {hasActiveFilters && (
-            <>
+            <div className="flex items-center gap-3 mb-3">
               <span className="text-shelf-text-muted text-sm">
                 {filteredCount} of {games.length} games
               </span>
@@ -352,48 +378,39 @@ export function GameLibrary({ games }: GameLibraryProps) {
               >
                 Clear filters
               </button>
-            </>
+            </div>
           )}
-        </div>
 
-        {/* Stats trigger — always visible, anchored to the right */}
-        <button
-          type="button"
-          onClick={() => setStatsOpen(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
-        >
-          <ChartBarIcon className="w-4 h-4" aria-hidden />
-          <span>Stats</span>
-        </button>
-      </div>
+          <FilterBar
+            filters={activeFilters}
+            onFilterChange={setFilter}
+            groupBy={groupBy}
+            sortOrder={sortOrder}
+            allSystems={allSystems}
+            allGenres={allGenres}
+            availableRatings={availableRatings}
+            availableSystems={availableSystems}
+            availableGenres={availableGenres}
+            onGroupByChange={setGroupBy}
+            onSortOrderChange={setSortOrder}
+          />
 
-      <StatsPanel games={games} isOpen={statsOpen} onClose={() => setStatsOpen(false)} />
-
-      <FilterBar
-        filters={activeFilters}
-        onFilterChange={setFilter}
-        groupBy={groupBy}
-        sortOrder={sortOrder}
-        allSystems={allSystems}
-        allGenres={allGenres}
-        availableRatings={availableRatings}
-        availableSystems={availableSystems}
-        availableGenres={availableGenres}
-        onGroupByChange={setGroupBy}
-        onSortOrderChange={setSortOrder}
-      />
-
-      {shelves.length === 0 ? (
-        <p className="mt-24 text-center text-shelf-text-muted text-lg italic">
-          No games match your filters.
-        </p>
-      ) : (
-        <div className="mt-6 pb-24">
-          {shelves.map((shelf) => (
-            <ShelfSection key={shelf.label} label={shelf.label} games={shelf.games} />
-          ))}
-        </div>
+          {shelves.length === 0 ? (
+            <p className="mt-24 text-center text-shelf-text-muted text-lg italic">
+              No games match your filters.
+            </p>
+          ) : (
+            <div className="mt-6 pb-24">
+              {shelves.map((shelf) => (
+                <ShelfSection key={shelf.label} label={shelf.label} games={shelf.games} />
+              ))}
+            </div>
+          )}
+        </>
       )}
+
+      {/* ── Stats tab ────────────────────────────────────────────────────── */}
+      {activeTab === "stats" && <StatsTab games={games} />}
     </div>
   );
 }
