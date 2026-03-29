@@ -36,3 +36,9 @@ export type Game = {
   lastPlayed: string; // ISO date string e.g. "2023-05-12", or "" if unknown
   imageUrl: string; // Populated by scripts/fetch-covers.ts; "" means show fallback
 };
+
+// Returns the game's genres, or ["Unknown"] if none are set.
+// Use this wherever a game needs to appear once per genre (grouping, SQL expansion, etc.).
+export function gameGenres(game: Game): string[] {
+  return game.genres.length > 0 ? game.genres : ["Unknown"];
+}

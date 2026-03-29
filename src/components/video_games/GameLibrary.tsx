@@ -6,7 +6,7 @@
 import { useState, useEffect, useTransition, useRef, useMemo, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import type { Game, Filters, Rating } from "@/lib/games";
-import { RATINGS } from "@/lib/games";
+import { RATINGS, gameGenres } from "@/lib/games";
 import { ShelfSection } from "./ShelfSection";
 import { FilterBar } from "./FilterBar";
 import { StatsPanel } from "./StatsPanel";
@@ -58,8 +58,7 @@ function getGroupKeys(game: Game, groupBy: GroupBy): string[] {
     case "rating":
       return [game.rating || "Unrated"];
     case "genre":
-      // A game with multiple genres appears in a shelf for each one.
-      return game.genres.length > 0 ? game.genres : ["Unknown"];
+      return gameGenres(game);
     case "decade": {
       const year = parseInt(game.releaseDate.slice(0, 4));
       if (isNaN(year) || year < 1970) return ["Unknown"];

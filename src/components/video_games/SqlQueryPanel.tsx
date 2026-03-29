@@ -2,15 +2,15 @@
 
 import { useState, useCallback, useMemo } from "react";
 import type { Game } from "@/lib/games";
-import { RATINGS } from "@/lib/games";
+import { RATINGS, gameGenres } from "@/lib/games";
 
 // Flat row shape passed to AlaSQL. Game.genres[] is joined to a string
 // because SQL doesn't have array columns.
 type SqlRow = {
   name: string;
   system: string;
-  rating: string | null;   // letter grade, e.g. "A"
-  genres: string;          // comma-separated, e.g. "Platform, Fighting"
+  rating: string | null;       // letter grade, e.g. "A"
+  genre: string;               // one row per genre (games with multiple genres appear multiple times)
   release_date: string | null; // "YYYY-MM-DD"
   release_year: number | null;
   last_played: string | null;  // "YYYY-MM-DD"
@@ -18,24 +18,26 @@ type SqlRow = {
 
 const RATING_LETTER = Object.fromEntries(RATINGS.map((r) => [r.name, r.letter]));
 
-function toSqlRow(game: Game): SqlRow {
+// Returns one row per genre so multi-genre games appear multiple times,
+// mirroring how the shelf grouping works in the library view.
+function toSqlRows(game: Game): SqlRow[] {
   const y = game.releaseDate ? parseInt(game.releaseDate.slice(0, 4), 10) : NaN;
-  return {
+  const base = {
     name: game.name,
     system: game.system,
     rating: game.rating ? (RATING_LETTER[game.rating] ?? null) : null,
-    genres: game.genres.join(", "),
     release_date: game.releaseDate || null,
     release_year: isNaN(y) ? null : y,
     last_played: game.lastPlayed || null,
   };
+  return gameGenres(game).map((genre) => ({ ...base, genre }));
 }
 
 const SCHEMA_COLUMNS = [
   { name: "name",         desc: "Game title" },
   { name: "system",       desc: "Console or platform" },
   { name: "rating",       desc: "Letter grade (S/A/B/C/F) or NULL" },
-  { name: "genres",       desc: "Comma-separated genres" },
+  { name: "genre",        desc: "One row per genre; multi-genre games appear multiple times" },
   { name: "release_date", desc: "ISO date (YYYY-MM-DD) or NULL" },
   { name: "release_year", desc: "Year as integer" },
   { name: "last_played",  desc: "ISO date or NULL" },
@@ -60,7 +62,7 @@ ORDER BY cnt DESC`,
   },
   {
     label: "S-tier games",
-    sql: `SELECT name, system, genres
+    sql: `SELECT DISTINCT name, system
 FROM games
 WHERE rating = 'S'
 ORDER BY name`,
@@ -125,7 +127,7 @@ type SqlQueryPanelProps = {
 };
 
 export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
-  const rows = useMemo(() => games.map(toSqlRow), [games]);
+  const rows = useMemo(() => games.flatMap(toSqlRows), [games]);
 
   const [sql, setSql] = useState(EXAMPLE_QUERIES[0].sql);
   const [results, setResults] = useState<Record<string, unknown>[] | null>(null);
