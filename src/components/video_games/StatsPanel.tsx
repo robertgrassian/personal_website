@@ -66,7 +66,7 @@ export function StatsPanel({ games, isOpen, onClose }: StatsPanelProps) {
         aria-hidden={!isOpen}
         inert={!isOpen}
         role="dialog"
-        className={`fixed top-[var(--nav-height)] right-0 z-40 h-[calc(100%-var(--nav-height))] w-full sm:w-[480px] flex flex-col bg-background border-l border-divider shadow-2xl transition-transform duration-300 ease-in-out ${
+        className={`fixed top-[var(--nav-height)] right-0 z-40 h-[calc(100%-var(--nav-height))] w-full sm:w-[560px] flex flex-col bg-background border-l border-divider shadow-2xl transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >

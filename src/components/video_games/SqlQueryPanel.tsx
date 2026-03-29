@@ -47,18 +47,18 @@ function toGameGenreRows(game: Game): GameGenreRow[] {
 const GAMES_COLUMNS = [
   { name: "name",         desc: "Game title" },
   { name: "system",       desc: "Console or platform" },
-  { name: "rating",       desc: "Letter grade (S/A/B/C/F) or NULL" },
-  { name: "genres",       desc: "Comma-separated genres" },
+  { name: "rating",       desc: "S / A / B / C / F — or NULL if unrated" },
+  { name: "genres",       desc: "Comma-separated; e.g. \"Platform, Fighting\"" },
   { name: "release_date", desc: "ISO date (YYYY-MM-DD) or NULL" },
-  { name: "release_year", desc: "Year as integer" },
+  { name: "release_year", desc: "Year as integer, e.g. 2024" },
   { name: "last_played",  desc: "ISO date or NULL" },
 ];
 
-// game_genres is a pre-exploded join table for genre-level queries.
+// game_genres is the exploded version of games.genres — one row per game-genre pair.
 // Multi-genre games appear once per genre. Join to games on name.
 const GAME_GENRES_COLUMNS = [
-  { name: "name",  desc: "Game title (joins to games.name)" },
-  { name: "genre", desc: "Single genre" },
+  { name: "name",  desc: "Game title — joins to games.name" },
+  { name: "genre", desc: "Single genre value" },
 ];
 
 // --- Example queries ---
@@ -209,6 +209,7 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
               <button
                 key={col.name}
                 type="button"
+                title={col.desc}
                 onClick={() => runQuery(`SELECT DISTINCT ${col.name}\nFROM games\nORDER BY ${col.name}`)}
                 className="px-2 py-1 rounded bg-divider/40 font-mono text-xs text-link hover:bg-link/10 transition-colors cursor-pointer"
               >
@@ -228,6 +229,7 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
               <button
                 key={col.name}
                 type="button"
+                title={col.desc}
                 onClick={() => runQuery(`SELECT DISTINCT ${col.name}\nFROM game_genres\nORDER BY ${col.name}`)}
                 className="px-2 py-1 rounded bg-divider/40 font-mono text-xs text-link hover:bg-link/10 transition-colors cursor-pointer"
               >

@@ -1,8 +1,5 @@
 "use client";
 
-// "use client" marks this as the boundary between Server and Client rendering.
-// Everything this component imports also runs on the client.
-
 import { useState, useEffect, useTransition, useRef, useMemo, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import type { Game, Filters, Rating } from "@/lib/games";
