@@ -166,35 +166,13 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
           Schema —{" "}
           <code className="font-mono text-link lowercase tracking-normal">games</code>
         </h3>
-        <div className="overflow-x-auto rounded-lg border border-divider">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-divider bg-background">
-                <th className="px-3 py-2 text-left text-xs font-semibold text-muted">Column</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-muted">Type</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-muted hidden sm:table-cell">Description</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-muted hidden md:table-cell">Example</th>
-              </tr>
-            </thead>
-            <tbody>
-              {SCHEMA_COLUMNS.map((col, i) => (
-                <tr key={col.name} className={i % 2 === 0 ? "bg-background" : "bg-divider/20"}>
-                  <td className="px-3 py-2 font-mono text-xs text-link">{col.name}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-muted">{col.type}</td>
-                  <td className="px-3 py-2 text-xs text-muted hidden sm:table-cell">{col.desc}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-subtle hidden md:table-cell">{col.example}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex flex-wrap gap-2">
+          {SCHEMA_COLUMNS.map((col) => (
+            <code key={col.name} className="px-2 py-1 rounded bg-divider/40 font-mono text-xs text-link">
+              {col.name}
+            </code>
+          ))}
         </div>
-        <p className="mt-2 text-xs text-muted">
-          <span className="font-medium">Note:</span>{" "}
-          <code className="font-mono">count</code> and{" "}
-          <code className="font-mono">total</code> are reserved words in AlaSQL — use aliases like{" "}
-          <code className="font-mono">cnt</code> instead. Only{" "}
-          <code className="font-mono">SELECT</code> queries are supported.
-        </p>
       </section>
 
       {/* Example queries */}
