@@ -8,8 +8,6 @@ type GameStatsProps = {
   games: Game[];
 };
 
-// BarRow renders a labeled horizontal bar with a count.
-// `pct` is 0–100; the bar fill width is a percentage of the available track.
 function BarRow({
   label,
   count,
@@ -19,42 +17,25 @@ function BarRow({
   label: string;
   count: number;
   pct: number;
-  color?: string; // CSS color string for inline style; falls back to --link CSS var if omitted
+  color?: string;
 }) {
   return (
     <div className="flex items-center gap-3">
-      {/* Label — fixed width so bars all start at the same horizontal position */}
       <span className="w-36 shrink-0 text-sm text-muted truncate text-right" title={label}>
         {label}
       </span>
-
-      {/* Track + fill */}
       <div className="flex-1 h-2 rounded-full bg-divider overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-500"
-          style={{
-            width: `${pct}%`,
-            background: color ?? "var(--link)",
-          }}
+          style={{ width: `${pct}%`, background: color ?? "var(--link)" }}
         />
       </div>
-
-      {/* Count */}
       <span className="w-8 shrink-0 text-right text-sm tabular-nums text-muted">{count}</span>
     </div>
   );
 }
 
-// StatCard renders one of the four overview numbers at the top.
-function StatCard({
-  value,
-  label,
-  accent,
-}: {
-  value: number | string;
-  label: string;
-  accent?: boolean;
-}) {
+function StatCard({ value, label, accent }: { value: number | string; label: string; accent?: boolean }) {
   return (
     <div
       className={`flex flex-col items-center justify-center rounded-lg border px-3 py-4 text-center ${
@@ -69,7 +50,6 @@ function StatCard({
   );
 }
 
-// Section wrapper with a title and divider.
 function StatsSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
@@ -81,8 +61,6 @@ function StatsSection({ title, children }: { title: string; children: React.Reac
 
 export function GameStats({ games }: GameStatsProps) {
   const stats = useMemo(() => {
-    // --- Rating distribution ---
-    // Initialize all known ratings at 0, then count.
     const ratingMap = new Map<string, number>(RATINGS.map((r) => [r.name, 0]));
     ratingMap.set("Unrated", 0);
     for (const game of games) {
@@ -90,7 +68,6 @@ export function GameStats({ games }: GameStatsProps) {
       ratingMap.set(key, (ratingMap.get(key) ?? 0) + 1);
     }
 
-    // Ordered list matching RATINGS constant, then Unrated at the end.
     const ratingRows = [
       ...RATINGS.map((r) => ({
         name: r.name,
@@ -101,7 +78,6 @@ export function GameStats({ games }: GameStatsProps) {
       { name: "Unrated", letter: "·", color: "#9ca3af", count: ratingMap.get("Unrated") ?? 0 },
     ];
 
-    // --- System distribution ---
     const systemMap = new Map<string, number>();
     for (const game of games) {
       systemMap.set(game.system, (systemMap.get(game.system) ?? 0) + 1);
@@ -110,7 +86,6 @@ export function GameStats({ games }: GameStatsProps) {
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count);
 
-    // --- Genre distribution --- (top 10 by count)
     const genreMap = new Map<string, number>();
     for (const game of games) {
       for (const genre of game.genres) {
@@ -122,13 +97,11 @@ export function GameStats({ games }: GameStatsProps) {
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
-    // --- Recently played (top 3 by lastPlayed date, descending) ---
     const recentlyPlayed = [...games]
       .filter((g) => g.lastPlayed)
       .sort((a, b) => b.lastPlayed.localeCompare(a.lastPlayed))
       .slice(0, 3);
 
-    // --- Release decade distribution ---
     const decadeMap = new Map<string, number>();
     for (const game of games) {
       const y = parseInt(game.releaseDate?.slice(0, 4) ?? "");
@@ -141,16 +114,11 @@ export function GameStats({ games }: GameStatsProps) {
       .map(([decade, count]) => ({ decade, count }))
       .sort((a, b) => a.decade.localeCompare(b.decade));
 
-    // Aggregate stats for the hero cards
-    const perfectCount = ratingMap.get("Perfect") ?? 0;
-    const uniqueGenres = genreMap.size;
-    const uniqueSystems = systemMap.size;
-
     return {
       total: games.length,
-      uniqueSystems,
-      uniqueGenres,
-      perfectCount,
+      uniqueSystems: systemMap.size,
+      uniqueGenres: genreMap.size,
+      perfectCount: ratingMap.get("Perfect") ?? 0,
       ratingRows,
       systems,
       genres,
@@ -166,7 +134,6 @@ export function GameStats({ games }: GameStatsProps) {
 
   return (
     <div className="space-y-8">
-      {/* ─── Overview ─── */}
       <StatsSection title="Overview">
         <div className="grid grid-cols-2 gap-2">
           <StatCard value={stats.total} label="Total Games" />
@@ -176,7 +143,6 @@ export function GameStats({ games }: GameStatsProps) {
         </div>
       </StatsSection>
 
-      {/* ─── Recently Played ─── */}
       {stats.recentlyPlayed.length > 0 && (
         <StatsSection title="Recently Played">
           <ol className="space-y-2">
@@ -195,22 +161,18 @@ export function GameStats({ games }: GameStatsProps) {
         </StatsSection>
       )}
 
-      {/* ─── Rating Breakdown ─── */}
       <StatsSection title="Ratings">
         <div className="space-y-2.5">
           {stats.ratingRows
             .filter((r) => r.count > 0)
             .map((row) => (
               <div key={row.name} className="flex items-center gap-3">
-                {/* Letter badge — matches the visual identity of the RatingBadge component */}
                 <span
                   className="w-6 h-6 shrink-0 flex items-center justify-center rounded text-xs font-bold text-gray-900"
                   style={{ background: row.color }}
                 >
                   {row.letter}
                 </span>
-
-                {/* Track + fill */}
                 <div className="flex-1 h-2 rounded-full bg-divider overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-500"
@@ -220,8 +182,6 @@ export function GameStats({ games }: GameStatsProps) {
                     }}
                   />
                 </div>
-
-                {/* Count */}
                 <span className="w-8 shrink-0 text-right text-sm tabular-nums text-muted">
                   {row.count}
                 </span>
@@ -230,7 +190,6 @@ export function GameStats({ games }: GameStatsProps) {
         </div>
       </StatsSection>
 
-      {/* ─── By Platform ─── */}
       <StatsSection title="By Platform">
         <div className="space-y-2.5">
           {stats.systems.map((s) => (
@@ -244,7 +203,6 @@ export function GameStats({ games }: GameStatsProps) {
         </div>
       </StatsSection>
 
-      {/* ─── Top Genres ─── */}
       <StatsSection title="Top Genres">
         <div className="space-y-2.5">
           {stats.genres.map((g) => (
@@ -259,7 +217,6 @@ export function GameStats({ games }: GameStatsProps) {
         </div>
       </StatsSection>
 
-      {/* ─── Release Era ─── */}
       {stats.decades.length > 0 && (
         <StatsSection title="Release Era">
           <div className="space-y-2.5">

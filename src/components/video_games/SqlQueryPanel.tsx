@@ -4,24 +4,19 @@ import { useState, useCallback, useMemo } from "react";
 import type { Game } from "@/lib/games";
 import { RATINGS } from "@/lib/games";
 
-// ── SQL row shape ────────────────────────────────────────────────────────────
-// The Game type has arrays (genres) and rich objects that don't map well to
-// relational columns, so we flatten everything into a plain object here before
-// handing it to AlaSQL.
-
+// Flat row shape passed to AlaSQL. Game.genres[] is joined to a string
+// because SQL doesn't have array columns.
 type SqlRow = {
   name: string;
   system: string;
-  rating: string | null; // "Perfect" | "Great" | … | null
-  rating_letter: string | null; // "S" | "A" | "B" | "C" | "F" | null
-  genres: string; // comma-separated, e.g. "Platform, Fighting"
-  release_date: string | null; // "YYYY-MM-DD" or null
-  release_year: number | null; // integer, e.g. 2024
-  last_played: string | null; // "YYYY-MM-DD" or null
+  rating: string | null;       // e.g. "Great"
+  rating_letter: string | null; // e.g. "A"
+  genres: string;              // comma-separated, e.g. "Platform, Fighting"
+  release_date: string | null; // "YYYY-MM-DD"
+  release_year: number | null;
+  last_played: string | null;  // "YYYY-MM-DD"
 };
 
-// Build a lookup map from rating name → letter using the shared RATINGS constant.
-// e.g. { Perfect: "S", Great: "A", … }
 const RATING_LETTER = Object.fromEntries(RATINGS.map((r) => [r.name, r.letter]));
 
 function toSqlRow(game: Game): SqlRow {
@@ -38,48 +33,18 @@ function toSqlRow(game: Game): SqlRow {
   };
 }
 
-// ── Schema reference ─────────────────────────────────────────────────────────
-
 const SCHEMA_COLUMNS = [
-  { name: "name", type: "TEXT", desc: "Game title", example: '"Astro Bot"' },
-  { name: "system", type: "TEXT", desc: "Console or platform", example: '"PS5"' },
-  { name: "rating", type: "TEXT", desc: "Rating name or NULL", example: '"Great"' },
-  {
-    name: "rating_letter",
-    type: "TEXT",
-    desc: "Letter grade or NULL",
-    example: '"A"',
-  },
-  {
-    name: "genres",
-    type: "TEXT",
-    desc: "Comma-separated genres",
-    example: '"Platform, Fighting"',
-  },
-  {
-    name: "release_date",
-    type: "TEXT",
-    desc: "ISO date (YYYY-MM-DD) or NULL",
-    example: '"2024-09-06"',
-  },
-  {
-    name: "release_year",
-    type: "INT",
-    desc: "Year extracted from release_date",
-    example: "2024",
-  },
-  {
-    name: "last_played",
-    type: "TEXT",
-    desc: "ISO date or NULL",
-    example: '"2024-09-06"',
-  },
+  { name: "name",          type: "TEXT", desc: "Game title",                    example: '"Astro Bot"' },
+  { name: "system",        type: "TEXT", desc: "Console or platform",            example: '"PS5"' },
+  { name: "rating",        type: "TEXT", desc: "Rating name or NULL",            example: '"Great"' },
+  { name: "rating_letter", type: "TEXT", desc: "Letter grade or NULL",           example: '"A"' },
+  { name: "genres",        type: "TEXT", desc: "Comma-separated genres",         example: '"Platform, Fighting"' },
+  { name: "release_date",  type: "TEXT", desc: "ISO date (YYYY-MM-DD) or NULL",  example: '"2024-09-06"' },
+  { name: "release_year",  type: "INT",  desc: "Year extracted from release_date", example: "2024" },
+  { name: "last_played",   type: "TEXT", desc: "ISO date or NULL",               example: '"2024-09-06"' },
 ];
 
-// ── Example queries ──────────────────────────────────────────────────────────
-// Note: "count" and "total" are reserved words in AlaSQL 4.x — use aliases
-// like "cnt" or "num" instead. Column names from the data are fine to use.
-
+// AlaSQL reserves "count" and "total" as keywords — use aliases like "cnt" instead.
 const EXAMPLE_QUERIES = [
   {
     label: "By platform",
@@ -119,41 +84,50 @@ LIMIT 10`,
   },
 ];
 
-// ── Query executor ───────────────────────────────────────────────────────────
-// Dynamically imports AlaSQL so it stays out of the server-render bundle.
-// AlaSQL is registered globally — we create and drop the "games" table around
-// each query so the user writes natural SQL without placeholder syntax.
+// Only SELECT statements are allowed. This prevents any destructive or
+// schema-mutating operations (DROP, INSERT, UPDATE, DELETE, CREATE, etc.).
+function validateQuery(sql: string): string | null {
+  const normalized = sql.trim().replace(/\s+/g, " ").toUpperCase();
+  if (!normalized.startsWith("SELECT")) {
+    return "Only SELECT queries are supported.";
+  }
+  // Block keywords that have no place in a read-only SELECT.
+  const blocked = /\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|TRUNCATE|REPLACE|MERGE)\b/;
+  if (blocked.test(normalized)) {
+    return "Query contains a disallowed keyword. Only SELECT is permitted.";
+  }
+  return null;
+}
 
+// AlaSQL runs entirely in the browser against in-memory data.
+// The "games" table is created fresh for each query and dropped afterward.
 async function execQuery(sql: string, rows: SqlRow[]): Promise<Record<string, unknown>[]> {
-  // next/dynamic isn't needed here because this function only runs inside a
-  // click handler (never on the server).
+  const validationError = validateQuery(sql);
+  if (validationError) throw new Error(validationError);
+
   const mod = await import("alasql");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const alasql = (mod as any).default ?? mod;
 
   alasql("DROP TABLE IF EXISTS games");
   alasql("CREATE TABLE games");
-  // Shallow-copy each row so AlaSQL can't mutate our source data.
   alasql.tables["games"].data = rows.map((r) => ({ ...r }));
 
   try {
     const result = alasql(sql);
     return Array.isArray(result) ? result : [{ result }];
   } finally {
-    // Always clean up even if the query throws, so the next run starts clean.
     alasql("DROP TABLE IF EXISTS games");
   }
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
+// --- Component ---
 
 type SqlQueryPanelProps = {
   games: Game[];
 };
 
 export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
-  // Map Game[] to flat SQL rows once per render (games prop is stable — it's
-  // set from the server and never changes during the session).
   const rows = useMemo(() => games.map(toSqlRow), [games]);
 
   const [sql, setSql] = useState(EXAMPLE_QUERIES[0].sql);
@@ -182,12 +156,11 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
     setError(null);
   }, []);
 
-  // Derive column names from the first result row for the table header.
   const columns = results && results.length > 0 ? Object.keys(results[0]) : [];
 
   return (
     <div className="space-y-8">
-      {/* ─── Schema reference ─── */}
+      {/* Schema reference */}
       <section>
         <h3 className="text-xs font-semibold uppercase tracking-widest text-subtle mb-3">
           Schema —{" "}
@@ -197,50 +170,34 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-divider bg-background">
-                <th className="px-3 py-2 text-left text-xs font-semibold text-muted">
-                  Column
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-muted">
-                  Type
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-muted hidden sm:table-cell">
-                  Description
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-muted hidden md:table-cell">
-                  Example
-                </th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-muted">Column</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-muted">Type</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-muted hidden sm:table-cell">Description</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-muted hidden md:table-cell">Example</th>
               </tr>
             </thead>
             <tbody>
               {SCHEMA_COLUMNS.map((col, i) => (
-                <tr
-                  key={col.name}
-                  className={i % 2 === 0 ? "bg-background" : "bg-divider/20"}
-                >
+                <tr key={col.name} className={i % 2 === 0 ? "bg-background" : "bg-divider/20"}>
                   <td className="px-3 py-2 font-mono text-xs text-link">{col.name}</td>
                   <td className="px-3 py-2 font-mono text-xs text-muted">{col.type}</td>
-                  <td className="px-3 py-2 text-xs text-muted hidden sm:table-cell">
-                    {col.desc}
-                  </td>
-                  <td className="px-3 py-2 font-mono text-xs text-subtle hidden md:table-cell">
-                    {col.example}
-                  </td>
+                  <td className="px-3 py-2 text-xs text-muted hidden sm:table-cell">{col.desc}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-subtle hidden md:table-cell">{col.example}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        {/* AlaSQL quirk callout */}
         <p className="mt-2 text-xs text-muted">
           <span className="font-medium">Note:</span>{" "}
           <code className="font-mono">count</code> and{" "}
-          <code className="font-mono">total</code> are reserved words — use aliases like{" "}
-          <code className="font-mono">cnt</code> or <code className="font-mono">num</code>{" "}
-          instead.
+          <code className="font-mono">total</code> are reserved words in AlaSQL — use aliases like{" "}
+          <code className="font-mono">cnt</code> instead. Only{" "}
+          <code className="font-mono">SELECT</code> queries are supported.
         </p>
       </section>
 
-      {/* ─── Example queries ─── */}
+      {/* Example queries */}
       <section>
         <h3 className="text-xs font-semibold uppercase tracking-widest text-subtle mb-3">
           Examples
@@ -263,7 +220,7 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
         </div>
       </section>
 
-      {/* ─── Query editor ─── */}
+      {/* Query editor */}
       <section>
         <h3 className="text-xs font-semibold uppercase tracking-widest text-subtle mb-3">
           Query
@@ -290,7 +247,7 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
             disabled={isRunning || !sql.trim()}
             className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-link text-white hover:bg-link-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
-            {isRunning ? "Running…" : "▶  Run Query"}
+            {isRunning ? "Running..." : "Run Query"}
           </button>
           <button
             type="button"
@@ -299,11 +256,10 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
           >
             Clear
           </button>
-          <span className="ml-auto text-xs text-muted hidden sm:inline">⌘ + Enter to run</span>
+          <span className="ml-auto text-xs text-muted hidden sm:inline">Cmd+Enter to run</span>
         </div>
       </section>
 
-      {/* ─── Error display ─── */}
       {error && (
         <div
           className="rounded-lg border border-divider bg-background px-4 py-3 border-l-4"
@@ -316,7 +272,6 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
         </div>
       )}
 
-      {/* ─── Results table ─── */}
       {results !== null && (
         <section>
           <h3 className="text-xs font-semibold uppercase tracking-widest text-subtle mb-3">
