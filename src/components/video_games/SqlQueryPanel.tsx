@@ -9,9 +9,8 @@ import { RATINGS } from "@/lib/games";
 type SqlRow = {
   name: string;
   system: string;
-  rating: string | null;       // e.g. "Great"
-  rating_letter: string | null; // e.g. "A"
-  genres: string;              // comma-separated, e.g. "Platform, Fighting"
+  rating: string | null;   // letter grade, e.g. "A"
+  genres: string;          // comma-separated, e.g. "Platform, Fighting"
   release_date: string | null; // "YYYY-MM-DD"
   release_year: number | null;
   last_played: string | null;  // "YYYY-MM-DD"
@@ -24,8 +23,7 @@ function toSqlRow(game: Game): SqlRow {
   return {
     name: game.name,
     system: game.system,
-    rating: game.rating || null,
-    rating_letter: game.rating ? (RATING_LETTER[game.rating] ?? null) : null,
+    rating: game.rating ? (RATING_LETTER[game.rating] ?? null) : null,
     genres: game.genres.join(", "),
     release_date: game.releaseDate || null,
     release_year: isNaN(y) ? null : y,
@@ -34,14 +32,13 @@ function toSqlRow(game: Game): SqlRow {
 }
 
 const SCHEMA_COLUMNS = [
-  { name: "name",          type: "TEXT", desc: "Game title",                    example: '"Astro Bot"' },
-  { name: "system",        type: "TEXT", desc: "Console or platform",            example: '"PS5"' },
-  { name: "rating",        type: "TEXT", desc: "Rating name or NULL",            example: '"Great"' },
-  { name: "rating_letter", type: "TEXT", desc: "Letter grade or NULL",           example: '"A"' },
-  { name: "genres",        type: "TEXT", desc: "Comma-separated genres",         example: '"Platform, Fighting"' },
-  { name: "release_date",  type: "TEXT", desc: "ISO date (YYYY-MM-DD) or NULL",  example: '"2024-09-06"' },
-  { name: "release_year",  type: "INT",  desc: "Year extracted from release_date", example: "2024" },
-  { name: "last_played",   type: "TEXT", desc: "ISO date or NULL",               example: '"2024-09-06"' },
+  { name: "name",         desc: "Game title" },
+  { name: "system",       desc: "Console or platform" },
+  { name: "rating",       desc: "Letter grade (S/A/B/C/F) or NULL" },
+  { name: "genres",       desc: "Comma-separated genres" },
+  { name: "release_date", desc: "ISO date (YYYY-MM-DD) or NULL" },
+  { name: "release_year", desc: "Year as integer" },
+  { name: "last_played",  desc: "ISO date or NULL" },
 ];
 
 // AlaSQL reserves "count" and "total" as keywords — use aliases like "cnt" instead.
@@ -55,17 +52,17 @@ ORDER BY cnt DESC`,
   },
   {
     label: "By rating",
-    sql: `SELECT rating, rating_letter, COUNT(*) AS cnt
+    sql: `SELECT rating, COUNT(*) AS cnt
 FROM games
 WHERE rating IS NOT NULL
-GROUP BY rating, rating_letter
+GROUP BY rating
 ORDER BY cnt DESC`,
   },
   {
-    label: "Perfect games",
+    label: "S-tier games",
     sql: `SELECT name, system, genres
 FROM games
-WHERE rating = 'Perfect'
+WHERE rating = 'S'
 ORDER BY name`,
   },
   {
