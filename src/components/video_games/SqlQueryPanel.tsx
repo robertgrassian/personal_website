@@ -132,20 +132,22 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
 
-  const handleRun = useCallback(async () => {
-    if (!sql.trim()) return;
+  // Accepts SQL directly so callers don't need to setSql then wait for re-render.
+  const runQuery = useCallback(async (query: string) => {
+    if (!query.trim()) return;
+    setSql(query);
     setIsRunning(true);
     setError(null);
     setResults(null);
     try {
-      const data = await execQuery(sql, rows);
+      const data = await execQuery(query, rows);
       setResults(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setIsRunning(false);
     }
-  }, [sql, rows]);
+  }, [rows]);
 
   const handleClear = useCallback(() => {
     setSql("");
@@ -165,9 +167,14 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
         </h3>
         <div className="flex flex-wrap gap-2">
           {SCHEMA_COLUMNS.map((col) => (
-            <code key={col.name} className="px-2 py-1 rounded bg-divider/40 font-mono text-xs text-link">
+            <button
+              key={col.name}
+              type="button"
+              onClick={() => runQuery(`SELECT DISTINCT ${col.name}\nFROM games\nORDER BY ${col.name}`)}
+              className="px-2 py-1 rounded bg-divider/40 font-mono text-xs text-link hover:bg-link/10 transition-colors cursor-pointer"
+            >
               {col.name}
-            </code>
+            </button>
           ))}
         </div>
       </section>
@@ -182,11 +189,7 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
             <button
               key={ex.label}
               type="button"
-              onClick={() => {
-                setSql(ex.sql);
-                setResults(null);
-                setError(null);
-              }}
+              onClick={() => runQuery(ex.sql)}
               className="px-3 py-1.5 rounded-md text-xs border border-divider text-muted hover:border-link hover:text-link hover:bg-link/5 transition-colors cursor-pointer"
             >
               {ex.label}
@@ -207,7 +210,7 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
             // Cmd/Ctrl+Enter runs the query without submitting a form.
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
               e.preventDefault();
-              handleRun();
+              runQuery(sql);
             }
           }}
           rows={6}
@@ -218,7 +221,7 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
         <div className="flex items-center gap-3 mt-3">
           <button
             type="button"
-            onClick={handleRun}
+            onClick={() => runQuery(sql)}
             disabled={isRunning || !sql.trim()}
             className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-link text-white hover:bg-link-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
