@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   images: {
@@ -11,13 +12,14 @@ const nextConfig: NextConfig = {
     ],
   },
   webpack(config) {
-    // AlaSQL's Node.js bundle optionally requires 'react-native-fetch-blob',
-    // which doesn't exist in any Next.js environment. Aliasing it to false
-    // tells webpack to replace it with an empty module so the build succeeds.
-    // AlaSQL only needs this for its native file I/O helpers, which we never use.
+    // AlaSQL's package.json `main` field points to alasql.fs.js (Node build),
+    // which transitively imports react-native-fs — a TypeScript file that
+    // webpack can't parse. The `browser` field points to alasql.min.js, which
+    // has no native dependencies. We alias the package name to the browser
+    // bundle so webpack always resolves the right variant.
     config.resolve.alias = {
       ...config.resolve.alias,
-      "react-native-fetch-blob": false,
+      alasql: path.resolve("./node_modules/alasql/dist/alasql.min.js"),
     };
     return config;
   },
