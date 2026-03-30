@@ -26,6 +26,11 @@ export function StatsPanel({ games, isOpen, onClose }: StatsPanelProps) {
 
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
+  // Reset to the default tab when the panel closes so re-opening always starts on Overview.
+  useEffect(() => {
+    if (!isOpen) setActiveTab("overview");
+  }, [isOpen]);
+
   // Lock body scroll and listen for Escape while the panel is open.
   // Restores the previous overflow value on cleanup rather than blindly
   // resetting to "" — safe if another scroll lock is active concurrently.
@@ -105,10 +110,14 @@ export function StatsPanel({ games, isOpen, onClose }: StatsPanelProps) {
           ))}
         </div>
 
-        {/* Scrollable content */}
+        {/* Scrollable content — both panels stay mounted to preserve query state across tab switches */}
         <div className="overflow-y-auto flex-1 px-6 py-6">
-          {activeTab === "overview" && <GameStats games={games} />}
-          {activeTab === "query" && <SqlQueryPanel games={games} />}
+          <div className={activeTab === "overview" ? "" : "hidden"}>
+            <GameStats games={games} />
+          </div>
+          <div className={activeTab === "query" ? "" : "hidden"}>
+            <SqlQueryPanel games={games} />
+          </div>
         </div>
       </aside>
     </>
