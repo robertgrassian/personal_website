@@ -112,12 +112,13 @@ FROM (
       WHEN 'A' THEN 3
       WHEN 'B' THEN 2
       WHEN 'C' THEN 1
-      ELSE 0
+      WHEN 'F' THEN 0
     END AS rating_value
   FROM (
     SELECT game_genres.name, genre, games.rating
     FROM game_genres
     INNER JOIN games ON games.name = game_genres.name
+    WHERE games.rating IS NOT NULL
   ) t
 )
 GROUP BY genre
