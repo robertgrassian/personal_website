@@ -10,8 +10,9 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "alasql": "^4.17.0",
     "fast-average-color": "^9.5.0",
-    "next": "15.4.10",
+    "next": "^15.5.14",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },

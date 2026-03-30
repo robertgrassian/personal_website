@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Game } from "@/lib/games";
 import { GameStats } from "./GameStats";
+import { SqlQueryPanel } from "./SqlQueryPanel";
 import { CloseIcon } from "@/components/Icon";
 
 type StatsPanelProps = {
@@ -11,10 +12,13 @@ type StatsPanelProps = {
   onClose: () => void;
 };
 
+type PanelTab = "overview" | "query";
+
 export function StatsPanel({ games, isOpen, onClose }: StatsPanelProps) {
-  // "Latest ref" pattern: always holds the current onClose without being a dep.
-  // Prevents the scroll-lock effect from re-running when the parent re-renders
-  // and passes a new inline arrow function reference for onClose.
+  const [activeTab, setActiveTab] = useState<PanelTab>("overview");
+
+  // "Latest ref" pattern: keeps onClose stable as a dep-free ref so the
+  // scroll-lock effect doesn't re-run when the parent re-renders.
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -25,7 +29,6 @@ export function StatsPanel({ games, isOpen, onClose }: StatsPanelProps) {
   // Lock body scroll and listen for Escape while the panel is open.
   // Restores the previous overflow value on cleanup rather than blindly
   // resetting to "" — safe if another scroll lock is active concurrently.
-  // Moves focus to the close button on open so keyboard users land inside the dialog.
   useEffect(() => {
     if (!isOpen) return;
 
@@ -56,20 +59,19 @@ export function StatsPanel({ games, isOpen, onClose }: StatsPanelProps) {
         }`}
       />
 
-      {/* Slide-over panel — translates off-screen when closed.
-          aria-hidden hides it from the a11y tree while invisible. */}
+      {/* Slide-over panel */}
       <aside
         aria-label="Library stats"
         aria-modal="true"
         aria-hidden={!isOpen}
         inert={!isOpen}
         role="dialog"
-        className={`fixed top-[var(--nav-height)] right-0 z-40 h-[calc(100%-var(--nav-height))] w-full sm:w-[420px] flex flex-col bg-background border-l border-divider shadow-2xl transition-transform duration-300 ease-in-out ${
+        className={`fixed top-[var(--nav-height)] right-0 z-40 h-[calc(100%-var(--nav-height))] flex flex-col bg-background border-l border-divider shadow-2xl transition-[transform,width] duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
-        }`}
+        } ${activeTab === "query" ? "w-full sm:w-[min(90vw,1000px)]" : "w-full sm:w-[560px]"}`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-divider shrink-0 rounded-b-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-divider shrink-0">
           <div>
             <h2 className="text-base font-bold text-emphasis">Library Stats</h2>
             <p className="text-xs text-muted mt-0.5">{games.length} games total</p>
@@ -85,9 +87,28 @@ export function StatsPanel({ games, isOpen, onClose }: StatsPanelProps) {
           </button>
         </div>
 
-        {/* Scrollable stats content */}
+        {/* Tab strip */}
+        <div className="flex border-b border-divider px-6 shrink-0">
+          {(["overview", "query"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`py-2.5 mr-4 text-sm font-medium border-b-2 -mb-px capitalize transition-colors cursor-pointer ${
+                activeTab === tab
+                  ? "border-link text-link"
+                  : "border-transparent text-muted hover:text-foreground hover:border-divider"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {/* Scrollable content */}
         <div className="overflow-y-auto flex-1 px-6 py-6">
-          <GameStats games={games} />
+          {activeTab === "overview" && <GameStats games={games} />}
+          {activeTab === "query" && <SqlQueryPanel games={games} />}
         </div>
       </aside>
     </>
