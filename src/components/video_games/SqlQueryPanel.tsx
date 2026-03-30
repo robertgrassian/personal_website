@@ -9,11 +9,11 @@ import { RATINGS, gameGenres } from "@/lib/games";
 type GameRow = {
   name: string;
   system: string;
-  rating: string | null;       // letter grade, e.g. "A"
-  genres: string;              // comma-separated, e.g. "Platform, Fighting"
+  rating: string | null; // letter grade, e.g. "A"
+  genres: string; // comma-separated, e.g. "Platform, Fighting"
   release_date: string | null; // "YYYY-MM-DD"
   release_year: number | null;
-  last_played: string | null;  // "YYYY-MM-DD"
+  last_played: string | null; // "YYYY-MM-DD"
 };
 
 // Normalized join table: one row per game-genre pair.
@@ -45,19 +45,19 @@ function toGameGenreRows(game: Game): GameGenreRow[] {
 // --- Schema definition ---
 
 const GAMES_COLUMNS = [
-  { name: "name",         desc: "Game title" },
-  { name: "system",       desc: "Console or platform" },
-  { name: "rating",       desc: "S / A / B / C / F — or NULL if unrated" },
-  { name: "genres",       desc: "Comma-separated; e.g. \"Platform, Fighting\"" },
+  { name: "name", desc: "Game title" },
+  { name: "system", desc: "Console or platform" },
+  { name: "rating", desc: "S / A / B / C / F — or NULL if unrated" },
+  { name: "genres", desc: 'Comma-separated; e.g. "Platform, Fighting"' },
   { name: "release_date", desc: "ISO date (YYYY-MM-DD) or NULL" },
   { name: "release_year", desc: "Year as integer, e.g. 2024" },
-  { name: "last_played",  desc: "ISO date or NULL" },
+  { name: "last_played", desc: "ISO date or NULL" },
 ];
 
 // game_genres is the exploded version of games.genres — one row per game-genre pair.
 // Multi-genre games appear once per genre. Join to games on name.
 const GAME_GENRES_COLUMNS = [
-  { name: "name",  desc: "Game title — joins to games.name" },
+  { name: "name", desc: "Game title — joins to games.name" },
   { name: "genre", desc: "Single genre value" },
 ];
 
@@ -103,6 +103,27 @@ GROUP BY decade
 ORDER BY decade`,
   },
   {
+    label: "Top genres",
+    sql: `SELECT genre, ROUND(AVG(rating_value), 2) AS avg_rating, GROUP_CONCAT(name) AS games
+FROM (
+  SELECT name, genre,
+    CASE rating
+      WHEN 'S' THEN 4
+      WHEN 'A' THEN 3
+      WHEN 'B' THEN 2
+      WHEN 'C' THEN 1
+      ELSE 0
+    END AS rating_value
+  FROM (
+    SELECT game_genres.name, genre, games.rating
+    FROM game_genres
+    INNER JOIN games ON games.name = game_genres.name
+  ) t
+)
+GROUP BY genre
+ORDER BY avg_rating DESC`,
+  },
+  {
     label: "Sample rows",
     sql: `SELECT *
 FROM games
@@ -118,20 +139,28 @@ function validateQuery(sql: string): string | null {
   if (!normalized.startsWith("SELECT")) {
     return "Only SELECT queries are supported.";
   }
-  const blocked = /\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|TRUNCATE|REPLACE|MERGE)\b/;
+  const blocked =
+    /\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|TRUNCATE|REPLACE|MERGE)\b/;
   if (blocked.test(normalized)) {
     return "Query contains a disallowed keyword. Only SELECT is permitted.";
   }
   return null;
 }
 
+const ROW_LIMIT = 500;
+
+type QueryResult = {
+  rows: Record<string, unknown>[];
+  truncated: boolean;
+};
+
 // AlaSQL runs entirely in the browser against in-memory data.
 // Both tables are created fresh for each query and dropped afterward.
 async function execQuery(
   sql: string,
   gameRows: GameRow[],
-  gameGenreRows: GameGenreRow[],
-): Promise<Record<string, unknown>[]> {
+  gameGenreRows: GameGenreRow[]
+): Promise<QueryResult> {
   const validationError = validateQuery(sql);
   if (validationError) throw new Error(validationError);
 
@@ -148,7 +177,9 @@ async function execQuery(
 
   try {
     const result = alasql(sql);
-    return Array.isArray(result) ? result : [{ result }];
+    const rows: Record<string, unknown>[] = Array.isArray(result) ? result : [{ result }];
+    const truncated = rows.length > ROW_LIMIT;
+    return { rows: truncated ? rows.slice(0, ROW_LIMIT) : rows, truncated };
   } finally {
     alasql("DROP TABLE IF EXISTS games");
     alasql("DROP TABLE IF EXISTS game_genres");
@@ -167,24 +198,30 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
 
   const [sql, setSql] = useState(EXAMPLE_QUERIES[0].sql);
   const [results, setResults] = useState<Record<string, unknown>[] | null>(null);
+  const [truncated, setTruncated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
 
-  const runQuery = useCallback(async (query: string) => {
-    if (!query.trim()) return;
-    setSql(query);
-    setIsRunning(true);
-    setError(null);
-    setResults(null);
-    try {
-      const data = await execQuery(query, gameRows, gameGenreRows);
-      setResults(data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setIsRunning(false);
-    }
-  }, [gameRows, gameGenreRows]);
+  const runQuery = useCallback(
+    async (query: string) => {
+      if (!query.trim()) return;
+      setSql(query);
+      setIsRunning(true);
+      setError(null);
+      setResults(null);
+      setTruncated(false);
+      try {
+        const { rows, truncated } = await execQuery(query, gameRows, gameGenreRows);
+        setResults(rows);
+        setTruncated(truncated);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setIsRunning(false);
+      }
+    },
+    [gameRows, gameGenreRows]
+  );
 
   const handleClear = useCallback(() => {
     setSql("");
@@ -210,7 +247,9 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
                 key={col.name}
                 type="button"
                 title={col.desc}
-                onClick={() => runQuery(`SELECT DISTINCT ${col.name}\nFROM games\nORDER BY ${col.name}`)}
+                onClick={() =>
+                  runQuery(`SELECT DISTINCT ${col.name}\nFROM games\nORDER BY ${col.name}`)
+                }
                 className="px-2 py-1 rounded bg-divider/40 font-mono text-xs text-link hover:bg-link/10 transition-colors cursor-pointer"
               >
                 {col.name}
@@ -230,7 +269,9 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
                 key={col.name}
                 type="button"
                 title={col.desc}
-                onClick={() => runQuery(`SELECT DISTINCT ${col.name}\nFROM game_genres\nORDER BY ${col.name}`)}
+                onClick={() =>
+                  runQuery(`SELECT DISTINCT ${col.name}\nFROM game_genres\nORDER BY ${col.name}`)
+                }
                 className="px-2 py-1 rounded bg-divider/40 font-mono text-xs text-link hover:bg-link/10 transition-colors cursor-pointer"
               >
                 {col.name}
@@ -261,9 +302,7 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
 
       {/* Query editor */}
       <section>
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-subtle mb-3">
-          Query
-        </h3>
+        <h3 className="text-xs font-semibold uppercase tracking-widest text-subtle mb-3">Query</h3>
         <textarea
           value={sql}
           onChange={(e) => setSql(e.target.value)}
@@ -315,8 +354,8 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
         <section>
           <h3 className="text-xs font-semibold uppercase tracking-widest text-subtle mb-3">
             Results —{" "}
-            <span className="tabular-nums">{results.length}</span>{" "}
-            {results.length === 1 ? "row" : "rows"}
+            <span className="tabular-nums">{truncated ? `${ROW_LIMIT}+` : results.length}</span>{" "}
+            {results.length === 1 && !truncated ? "row" : "rows"}
           </h3>
 
           {results.length === 0 ? (

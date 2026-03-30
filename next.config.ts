@@ -2,6 +2,13 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
+  // Turbopack alias (used by `npm run dev`): point alasql at its browser
+  // bundle so Turbopack never tries to parse alasql.fs.js → react-native-fs.
+  turbopack: {
+    resolveAlias: {
+      alasql: "./node_modules/alasql/dist/alasql.min.js",
+    },
+  },
   images: {
     remotePatterns: [
       {

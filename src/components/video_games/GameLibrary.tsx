@@ -298,33 +298,34 @@ export function GameLibrary({ games }: GameLibraryProps) {
 
   return (
     <div className="mt-8">
-      {/* Stats icon — opens the slide-over panel */}
-      <div className="flex items-center justify-end mb-4">
+      {/* Top bar: active filter controls on the left, Stats trigger on the right */}
+      <div className="flex items-center justify-between mb-3 min-h-[1.5rem]">
+        <div className="flex items-center gap-3">
+          {hasActiveFilters && (
+            <>
+              <span className="text-shelf-text-muted text-sm">
+                {filteredCount} of {games.length} games
+              </span>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-shelf-text-muted text-sm underline underline-offset-2 cursor-pointer hover:text-shelf-text transition-colors"
+              >
+                Clear filters
+              </button>
+            </>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => setStatsOpen(true)}
           aria-label="Open library stats"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-muted border border-divider hover:text-foreground hover:border-foreground/30 transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
         >
           <ChartBarIcon className="w-4 h-4" aria-hidden />
-          Stats
+          <span>Stats</span>
         </button>
       </div>
-
-      {hasActiveFilters && (
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-shelf-text-muted text-sm">
-            {filteredCount} of {games.length} games
-          </span>
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="text-shelf-text-muted text-sm underline underline-offset-2 cursor-pointer hover:text-shelf-text transition-colors"
-          >
-            Clear filters
-          </button>
-        </div>
-      )}
 
       <FilterBar
         filters={activeFilters}
