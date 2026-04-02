@@ -89,8 +89,8 @@ async function fetchCoverUrl(token: string, searchTerm: string): Promise<string>
   if (!rawUrl) return "";
 
   // IGDB returns thumbnail URLs like: //images.igdb.com/igdb/image/upload/t_thumb/abc123.jpg
-  // Upgrade to "t_cover_big" (264×374px) for display quality.
-  return rawUrl.replace("t_thumb", "t_cover_big").replace("//", "https://");
+  // Upgrade to "t_cover_big_2x" (528×748px) for crisp display on large/high-DPI screens.
+  return rawUrl.replace("t_thumb", "t_cover_big_2x").replace("//", "https://");
 }
 
 // --- Main ---

@@ -164,7 +164,7 @@ curl -s -X POST "https://api.igdb.com/v4/games" \
   -d 'search "GAME_NAME"; fields name, cover.url; where cover != null; limit 4;'
 ```
 
-For each result, upgrade `cover.url`: replace `t_thumb` → `t_cover_big` and `//` → `https://`.
+For each result, upgrade `cover.url`: replace `t_thumb` → `t_cover_big_2x` and `//` → `https://`.
 
 ---
 
