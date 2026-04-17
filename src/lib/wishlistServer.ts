@@ -7,20 +7,22 @@ import type { WishlistGame } from "./wishlist";
 
 // CSV schema (wishlist.csv header):
 // name,system,genre,release_date,image_url,starred,date_added,notes
-//
-// Order matters — parseRow destructures by position. If you add/reorder columns,
-// update this file and wishlist.csv together.
+// Order matters — parseRow destructures by position. `notes` is last and may
+// contain commas (free text); no other field may.
+
+// Rejoining anything at this index or later preserves commas inside notes.
+const NOTES_COL = 7;
 
 function parseRow(line: string, rowIndex: number): WishlistGame | null {
-  // Split on commas, then strip surrounding double-quotes from each field.
-  // Same approach as gamesServer.ts — sufficient because none of our values contain commas.
+  // Split on comma and strip wrapping quotes — same approach as gamesServer.ts.
+  // No RFC 4180 support; the "no commas except in notes" invariant must hold.
   const parts = line.split(",").map((p) => p.replace(/^"(.*)"$/, "$1"));
   if (parts.length < 2) {
     console.warn(`[wishlist.csv] Row ${rowIndex}: skipping malformed line (too few columns)`);
     return null;
   }
 
-  // Defaults handle rows missing trailing columns (e.g. no notes).
+  // Defaults handle rows missing trailing columns.
   const [
     rawName,
     rawSystem,
@@ -29,8 +31,8 @@ function parseRow(line: string, rowIndex: number): WishlistGame | null {
     rawImageUrl = "",
     rawStarred = "",
     rawDateAdded = "",
-    rawNotes = "",
   ] = parts;
+  const rawNotes = parts.slice(NOTES_COL).join(",");
 
   const name = rawName?.trim() ?? "";
   const system = rawSystem?.trim() ?? "";
@@ -39,7 +41,7 @@ function parseRow(line: string, rowIndex: number): WishlistGame | null {
   const imageUrl = rawImageUrl?.trim() ?? "";
   const starred = rawStarred.trim().toLowerCase() === "true";
   const dateAdded = rawDateAdded?.trim() ?? "";
-  const notes = rawNotes?.trim() ?? "";
+  const notes = rawNotes.trim();
 
   if (!name) {
     console.warn(`[wishlist.csv] Row ${rowIndex}: skipping row with no game name`);
@@ -68,8 +70,7 @@ export function getWishlist(): WishlistGame[] {
   try {
     raw = fs.readFileSync(csvPath, "utf-8");
   } catch {
-    // Returning an empty list (instead of throwing) means the wishlist feature
-    // still works on fresh clones before anyone has seeded the CSV.
+    // Fresh clones don't have wishlist.csv yet — don't crash the page.
     return [];
   }
 

@@ -1,12 +1,9 @@
-// View/group/sort type definitions and per-view configuration for the game library.
-// Split out of GameLibrary.tsx so the URL-state hook, the pipeline helpers, and
-// the FilterBar can all share the same schema without circular imports.
+// View/group/sort types and per-view config. Shared by the URL-state hook,
+// the pipeline helpers, and the FilterBar.
 
 export type View = "played" | "wishlist";
 
-// GroupBy and SortOrder are single unions covering BOTH views. Not every value
-// is valid in every view — VIEW_CONFIG[view].validGroupBy / validSortOrder hold
-// the per-view subsets used for URL validation and dropdown options.
+// Unions across BOTH views. Per-view valid subsets live in VIEW_CONFIG below.
 export type GroupBy = "none" | "system" | "rating" | "starred" | "genre" | "decade";
 
 export type SortOrder =
@@ -20,8 +17,7 @@ export type SortOrder =
   | "added-oldest"
   | "starred-first";
 
-// All view-specific data colocated in one Record. Adding a new view means
-// filling one object (compile-time complete) rather than updating four maps.
+// All view-specific data in one Record — adding a view = one object literal.
 export type ViewConfig = {
   label: string;
   defaultGroupBy: GroupBy;

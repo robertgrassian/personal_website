@@ -8,10 +8,8 @@ import { RatingIndicator } from "./RatingIndicator";
 import { GameCaseBack } from "./GameCaseBack";
 import { GameCaseSpine } from "./GameCaseSpine";
 
-// GameCase is view-agnostic: it accepts any BaseGame plus two optional flags.
-// A played Game supplies `rating` (and the badge renders). A WishlistGame
-// supplies `starred` (and the star overlay renders). Never both — the prop
-// types `rating?` and `starred?` admit either, and the render logic picks one.
+// View-agnostic input: Game supplies `rating` (badge); WishlistGame supplies
+// `starred` (star overlay). Never both — render logic picks one.
 export type GameCaseInput = BaseGame & {
   rating?: Rating | "";
   starred?: boolean;
@@ -137,8 +135,8 @@ export function GameCase({ game }: GameCaseProps) {
             <span className="text-white text-[10px] font-medium leading-tight">{game.name}</span>
           </div>
 
-          {/* Inside the front face so it clips with overflow:hidden.
-              Priority: rating badge (played games) > star overlay (starred wishlist games). */}
+          {/* Inside front face so overflow:hidden clips. Rating badge takes
+              priority over the wishlist star — a game shouldn't have both. */}
           {ratingLetter && showBadge && <RatingIndicator rank={ratingLetter} />}
           {!ratingLetter && game.starred && showBadge && (
             <div

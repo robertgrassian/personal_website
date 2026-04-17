@@ -1,17 +1,15 @@
-// Fields shared by played games and wishlist games. Both Game and WishlistGame
-// extend this interface so shared UI (shelves, covers, filter bar) can accept
-// either type via structural typing — no `implements` keyword needed in TS.
+// Fields common to Game and WishlistGame. Shared UI (shelves, cases, filter
+// bar) accepts BaseGame so either type fits via TS structural typing.
 
 export interface BaseGame {
   name: string;
   system: string;
-  genres: string[]; // CSV stores "Action-Adventure|Puzzle"; we split on "|"
-  releaseDate: string; // ISO date string, e.g. "2023-05-12" ("" if unknown)
-  imageUrl: string; // Populated by scripts/fetch-covers.ts; "" means show fallback
+  genres: string[]; // CSV stores "Action-Adventure|Puzzle"; split on "|"
+  releaseDate: string; // ISO date, e.g. "2023-05-12" ("" if unknown)
+  imageUrl: string; // populated by scripts/fetch-covers.ts; "" = fallback
 }
 
-// Returns the game's genres, or ["Unknown"] if none are set.
-// Use this wherever a game needs to appear once per genre (grouping, SQL expansion, etc.).
+// Returns game.genres or ["Unknown"]. Use when a game must appear once per genre.
 export function baseGameGenres(game: BaseGame): string[] {
   return game.genres.length > 0 ? game.genres : ["Unknown"];
 }

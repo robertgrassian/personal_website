@@ -13,7 +13,7 @@ const sections = [
   },
   {
     href: "/video_games",
-    title: "Game Library",
+    title: "Video Game Library",
     description: "Every game I've ever played",
   },
   {

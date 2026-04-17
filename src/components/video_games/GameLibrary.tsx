@@ -26,8 +26,7 @@ type GameLibraryProps = {
 export function GameLibrary({ games, wishlist }: GameLibraryProps) {
   const [statsOpen, setStatsOpen] = useState(false);
 
-  // All URL-backed state is encapsulated in the hook — GameLibrary just
-  // consumes the current values and wires callbacks into the UI.
+  // URL-backed state lives in the hook; this component only renders.
   const {
     view,
     groupBy,
@@ -44,8 +43,7 @@ export function GameLibrary({ games, wishlist }: GameLibraryProps) {
     clearFilters,
   } = useGameLibraryUrlState();
 
-  // Option lists for each view's dropdowns. Stable over the lifetime of the
-  // page since games/wishlist are immutable props from the server component.
+  // Option lists for each view's dropdowns — memoized on the immutable props.
   const allSystems = useMemo(() => [...new Set(games.map((g) => g.system))].sort(), [games]);
   const allGenres = useMemo(() => [...new Set(games.flatMap((g) => g.genres))].sort(), [games]);
   const allSystemsWishlist = useMemo(
@@ -57,8 +55,8 @@ export function GameLibrary({ games, wishlist }: GameLibraryProps) {
     [wishlist]
   );
 
-  // "Available" sets — options that still yield results given the other
-  // active filters. Dropdowns grey-out options outside these sets.
+  // "Available" sets — values that still yield results given the other active
+  // filters. Options outside these sets render as disabled in the dropdowns.
   const availableRatings = useMemo(
     () =>
       new Set(
@@ -91,11 +89,8 @@ export function GameLibrary({ games, wishlist }: GameLibraryProps) {
     [wishlist, activeWishlistFilters]
   );
 
-  // Derived display pipeline: filter → group → sort within each group.
-  // Branch on view up front so only the active view's pipeline runs — the
-  // hook validates groupBy/sortOrder against the active view only, so running
-  // the other view's pipeline with the current groupBy would throw (e.g.
-  // groupBy "rating" is invalid in wishlist and the pipeline throws on it).
+  // filter → group → sort, branched by view so each pipeline runs against
+  // data of its own type (Game[] vs WishlistGame[]).
   const activeShelves = useMemo(() => {
     if (view === "played") {
       const filtered = filterGames(games, activeFilters);
@@ -116,8 +111,7 @@ export function GameLibrary({ games, wishlist }: GameLibraryProps) {
   const activeTotal = view === "played" ? games.length : wishlist.length;
   const filteredCount = activeShelves.reduce((sum, s) => sum + s.games.length, 0);
 
-  // Shared URL keys are identical on both filter objects, so we can check them once.
-  // View-specific keys (currently just `rating` on played) branch on view.
+  // Shared keys check once; rating is played-only.
   const hasActiveFilters =
     activeFilters.search !== "" ||
     activeFilters.system !== "" ||
@@ -126,7 +120,7 @@ export function GameLibrary({ games, wishlist }: GameLibraryProps) {
 
   return (
     <div className="mt-8">
-      {/* View tab strip — underline pattern mirrored from StatsPanel tabs. */}
+      {/* View tab strip — underline pattern shared with StatsPanel. */}
       <div className="flex border-b border-shelf-plank mb-4">
         {VALID_VIEW.map((v) => (
           <button
@@ -136,7 +130,7 @@ export function GameLibrary({ games, wishlist }: GameLibraryProps) {
             className={`py-2.5 mr-4 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
               view === v
                 ? "border-link text-link"
-                : "border-transparent text-shelf-text-muted hover:text-shelf-text hover:border-shelf-plank"
+                : "border-transparent text-shelf-text-muted hover:text-link hover:border-shelf-plank"
             }`}
           >
             {VIEW_CONFIG[v].label}
@@ -144,8 +138,7 @@ export function GameLibrary({ games, wishlist }: GameLibraryProps) {
         ))}
       </div>
 
-      {/* Top bar: active filter controls on the left, Stats trigger on the right.
-          Stats is played-only — the wishlist doesn't have ratings/playtime data to chart. */}
+      {/* Top bar: filter status on the left, Stats button on the right (played-only). */}
       <div className="flex items-center justify-between mb-3 min-h-[1.5rem]">
         <div className="flex items-center gap-3">
           {hasActiveFilters && (
@@ -226,7 +219,6 @@ export function GameLibrary({ games, wishlist }: GameLibraryProps) {
         </div>
       )}
 
-      {/* StatsPanel is played-only — don't mount it at all on wishlist view. */}
       {view === "played" && (
         <StatsPanel games={games} isOpen={statsOpen} onClose={() => setStatsOpen(false)} />
       )}

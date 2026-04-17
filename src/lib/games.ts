@@ -2,8 +2,7 @@
 
 import type { BaseGame } from "./baseGame";
 
-// Re-export the shared genre helper so existing imports (`gameGenres` from "@/lib/games")
-// keep working. Game extends BaseGame, so the function accepts a Game unchanged.
+// Re-export under the old name so existing `gameGenres` imports keep working.
 export { baseGameGenres as gameGenres } from "./baseGame";
 
 // Single source of truth: all ratings in order, best to worst.
@@ -33,9 +32,8 @@ export type Filters = {
   genre: string; // "" = all genres
 };
 
-// Game extends the shared BaseGame shape with fields that only apply to
-// already-played games (rating, lastPlayed). Wishlist entries use WishlistGame
-// instead; components that only need fields common to both accept BaseGame.
+// Game = BaseGame + played-only fields. Shared UI uses BaseGame so both this
+// and WishlistGame fit.
 export interface Game extends BaseGame {
   rating: Rating | ""; // "" = no rating assigned yet
   lastPlayed: string; // ISO date string e.g. "2023-05-12", or "" if unknown

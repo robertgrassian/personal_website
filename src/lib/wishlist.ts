@@ -1,18 +1,16 @@
-// Shared types for the "want to play" wishlist — no Node.js imports, safe for
-// client and server components. The server-side CSV parser lives in wishlistServer.ts.
+// Shared types for the wishlist — no Node.js imports, safe for client and
+// server components. Server-side CSV parsing lives in wishlistServer.ts.
 
 import type { BaseGame } from "./baseGame";
 
-// WishlistGame extends BaseGame with fields that only apply to games the user
-// hasn't played yet. Notably absent: `rating` and `lastPlayed` (Game-only).
+// Wishlist-only fields. No `rating` or `lastPlayed` (those are Game-only).
 export interface WishlistGame extends BaseGame {
-  starred: boolean; // priority sublist — "on my short list" games
-  dateAdded: string; // ISO date, e.g. "2026-04-17" ("" if unknown)
-  notes: string; // optional free text — why it's on the list, source, etc.
+  starred: boolean; // priority sublist
+  dateAdded: string; // ISO date ("" if unknown)
+  notes: string; // free text
 }
 
-// Filters applicable to the wishlist view. Differs from `Filters` (games.ts)
-// by omitting the rating filter (wishlist games haven't been rated yet).
+// Like `Filters` (games.ts) minus `rating` — wishlist games aren't rated.
 export type WishlistFilters = {
   search: string;
   system: string; // "" = all systems

@@ -1,13 +1,13 @@
-// Pure filter/group/sort helpers for the game library. No React, no hooks.
-// Split from GameLibrary.tsx so rendering stays focused on orchestration.
+// Pure filter/group/sort helpers. No React, no hooks.
 //
-// Unreachable switch cases throw instead of silently falling through —
-// URL validation prevents them, but if validation ever drifts, a loud
-// error is far easier to debug than a silently wrong default.
+// Each pipeline calls a shared helper for BaseGame cases; the helper returns
+// null for view-specific keys so the caller handles them. Unrecognized values
+// warn and fall back to name-sort rather than throwing — URL validation
+// should prevent them, but a warning beats a white-screen crash.
 
 import type { Game, Filters, Rating } from "@/lib/games";
-import { RATINGS, gameGenres } from "@/lib/games";
-import { baseGameGenres } from "@/lib/baseGame";
+import { RATINGS } from "@/lib/games";
+import { type BaseGame, baseGameGenres } from "@/lib/baseGame";
 import type { WishlistGame, WishlistFilters } from "@/lib/wishlist";
 import type { GroupBy, SortOrder } from "./libraryConfig";
 
@@ -18,38 +18,83 @@ const RATING_ORDER: Record<RatingGroup, number> = Object.fromEntries([
   ["Unrated", RATINGS.length],
 ]);
 
-// --- Played pipeline ---
+// --- Shared helpers ---
 
-export function filterGames(games: Game[], filters: Filters): Game[] {
-  return games.filter((game) => {
-    if (filters.search && !game.name.toLowerCase().includes(filters.search.toLowerCase())) {
-      return false;
-    }
-    if (filters.rating && game.rating !== filters.rating) return false;
-    if (filters.system && game.system !== filters.system) return false;
-    if (filters.genre && !game.genres.includes(filters.genre)) return false;
-    return true;
-  });
+// Filter fields present on both Filters and WishlistFilters.
+type BaseFilters = { search: string; system: string; genre: string };
+
+function passesBaseFilters(game: BaseGame, filters: BaseFilters): boolean {
+  if (filters.search && !game.name.toLowerCase().includes(filters.search.toLowerCase())) {
+    return false;
+  }
+  if (filters.system && game.system !== filters.system) return false;
+  if (filters.genre && !game.genres.includes(filters.genre)) return false;
+  return true;
 }
 
-function getGroupKeys(game: Game, groupBy: GroupBy): string[] {
+// Returns keys for BaseGame-compatible GroupBy values; null for view-specific
+// ones ("rating", "starred") so the caller decides.
+function sharedGroupKeys(game: BaseGame, groupBy: GroupBy): string[] | null {
   switch (groupBy) {
     case "none":
       return [""];
     case "system":
       return [game.system || "Unknown"];
-    case "rating":
-      return [game.rating || "Unrated"];
     case "genre":
-      return gameGenres(game);
+      return baseGameGenres(game);
     case "decade": {
       const year = parseInt(game.releaseDate.slice(0, 4));
       if (isNaN(year) || year < 1970) return ["Unknown"];
       return [`${Math.floor(year / 10) * 10}s`];
     }
-    case "starred":
-      throw new Error(`unreachable: groupBy "starred" in played view`);
+    default:
+      return null;
   }
+}
+
+// Last-resort grouping: single unlabeled shelf + warn. Matches groupBy="none".
+function fallbackGroupKeys(groupBy: GroupBy, view: string): string[] {
+  console.warn(`pipeline: unsupported groupBy "${groupBy}" in ${view} view — using single shelf`);
+  return [""];
+}
+
+// Returns compare result for BaseGame-compatible SortOrder values; null otherwise.
+function sharedCompare(a: BaseGame, b: BaseGame, sortOrder: SortOrder): number | null {
+  switch (sortOrder) {
+    case "name-asc":
+      return a.name.localeCompare(b.name);
+    case "name-desc":
+      return b.name.localeCompare(a.name);
+    case "release-oldest":
+      return a.releaseDate.localeCompare(b.releaseDate);
+    case "release-newest":
+      return b.releaseDate.localeCompare(a.releaseDate);
+    default:
+      return null;
+  }
+}
+
+// Last-resort compare: alphabetical + warn.
+function fallbackCompare(a: BaseGame, b: BaseGame, sortOrder: SortOrder, view: string): number {
+  console.warn(`pipeline: unsupported sortOrder "${sortOrder}" in ${view} view — sorting by name`);
+  return a.name.localeCompare(b.name);
+}
+
+// --- Played pipeline ---
+
+export function filterGames(games: Game[], filters: Filters): Game[] {
+  return games.filter((game) => {
+    if (!passesBaseFilters(game, filters)) return false;
+    if (filters.rating && game.rating !== filters.rating) return false;
+    return true;
+  });
+}
+
+function getGroupKeys(game: Game, groupBy: GroupBy): string[] {
+  const shared = sharedGroupKeys(game, groupBy);
+  if (shared) return shared;
+  if (groupBy === "rating") return [game.rating || "Unrated"];
+  return fallbackGroupKeys(groupBy, "played");
 }
 
 export function groupGames(
@@ -82,23 +127,15 @@ export function groupGames(
 
 export function sortGames(games: Game[], sortOrder: SortOrder): Game[] {
   return [...games].sort((a, b) => {
+    const shared = sharedCompare(a, b, sortOrder);
+    if (shared !== null) return shared;
     switch (sortOrder) {
-      case "name-asc":
-        return a.name.localeCompare(b.name);
-      case "name-desc":
-        return b.name.localeCompare(a.name);
-      case "release-oldest":
-        return a.releaseDate.localeCompare(b.releaseDate);
-      case "release-newest":
-        return b.releaseDate.localeCompare(a.releaseDate);
       case "played-newest":
         return (b.lastPlayed || "0000").localeCompare(a.lastPlayed || "0000");
       case "played-oldest":
         return (a.lastPlayed || "9999").localeCompare(b.lastPlayed || "9999");
-      case "added-newest":
-      case "added-oldest":
-      case "starred-first":
-        throw new Error(`unreachable: sortOrder "${sortOrder}" in played view`);
+      default:
+        return fallbackCompare(a, b, sortOrder, "played");
     }
   });
 }
@@ -106,34 +143,14 @@ export function sortGames(games: Game[], sortOrder: SortOrder): Game[] {
 // --- Wishlist pipeline ---
 
 export function filterWishlist(list: WishlistGame[], filters: WishlistFilters): WishlistGame[] {
-  return list.filter((w) => {
-    if (filters.search && !w.name.toLowerCase().includes(filters.search.toLowerCase())) {
-      return false;
-    }
-    if (filters.system && w.system !== filters.system) return false;
-    if (filters.genre && !w.genres.includes(filters.genre)) return false;
-    return true;
-  });
+  return list.filter((w) => passesBaseFilters(w, filters));
 }
 
 function getWishlistGroupKeys(w: WishlistGame, groupBy: GroupBy): string[] {
-  switch (groupBy) {
-    case "none":
-      return [""];
-    case "system":
-      return [w.system || "Unknown"];
-    case "starred":
-      return [w.starred ? "Starred" : "Other"];
-    case "genre":
-      return baseGameGenres(w);
-    case "decade": {
-      const year = parseInt(w.releaseDate.slice(0, 4));
-      if (isNaN(year) || year < 1970) return ["Unknown"];
-      return [`${Math.floor(year / 10) * 10}s`];
-    }
-    case "rating":
-      throw new Error(`unreachable: groupBy "rating" in wishlist view`);
-  }
+  const shared = sharedGroupKeys(w, groupBy);
+  if (shared) return shared;
+  if (groupBy === "starred") return [w.starred ? "Starred" : "Other"];
+  return fallbackGroupKeys(groupBy, "wishlist");
 }
 
 export function groupWishlist(
@@ -166,15 +183,9 @@ export function groupWishlist(
 
 export function sortWishlist(list: WishlistGame[], sortOrder: SortOrder): WishlistGame[] {
   return [...list].sort((a, b) => {
+    const shared = sharedCompare(a, b, sortOrder);
+    if (shared !== null) return shared;
     switch (sortOrder) {
-      case "name-asc":
-        return a.name.localeCompare(b.name);
-      case "name-desc":
-        return b.name.localeCompare(a.name);
-      case "release-oldest":
-        return a.releaseDate.localeCompare(b.releaseDate);
-      case "release-newest":
-        return b.releaseDate.localeCompare(a.releaseDate);
       case "added-newest":
         return (b.dateAdded || "0000").localeCompare(a.dateAdded || "0000");
       case "added-oldest":
@@ -182,9 +193,8 @@ export function sortWishlist(list: WishlistGame[], sortOrder: SortOrder): Wishli
       case "starred-first":
         // Boolean → number so starred (true → 1) outranks unstarred (false → 0).
         return Number(b.starred) - Number(a.starred) || a.name.localeCompare(b.name);
-      case "played-newest":
-      case "played-oldest":
-        throw new Error(`unreachable: sortOrder "${sortOrder}" in wishlist view`);
+      default:
+        return fallbackCompare(a, b, sortOrder, "wishlist");
     }
   });
 }

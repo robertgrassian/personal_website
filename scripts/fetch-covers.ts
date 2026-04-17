@@ -100,17 +100,14 @@ async function fetchCoverUrl(token: string, searchTerm: string): Promise<string>
 
 // --- Main ---
 async function main() {
-  // First positional CLI arg overrides the default CSV path. This lets us point
-  // the same script at games.csv or wishlist.csv without duplicating logic.
+  // Optional CSV path arg — lets the same script run against games.csv or wishlist.csv.
   const csvArg = process.argv[2] ?? "games.csv";
   const csvPath = path.join(process.cwd(), csvArg);
   const raw = fs.readFileSync(csvPath, "utf-8");
   const lines = raw.trim().split("\n");
   const [header, ...rows] = lines;
 
-  // Find the image_url column by header name, not a hardcoded index. games.csv
-  // has it at position 6 but wishlist.csv puts it at position 4 — the script
-  // must adapt to whatever schema the target CSV uses.
+  // Look up columns by header name so the script adapts to any CSV schema.
   const headerCols = header.split(",").map((c) => c.trim());
   const nameCol = headerCols.indexOf("name");
   let imageUrlCol = headerCols.indexOf("image_url");
@@ -118,7 +115,7 @@ async function main() {
     throw new Error(`CSV ${csvArg} has no "name" column — cannot look up games`);
   }
 
-  // If image_url is missing, we'll append it. New column index = current length.
+  // Append image_url if the CSV doesn't have it yet.
   const finalHeader = imageUrlCol === -1 ? `${header},image_url` : header;
   if (imageUrlCol === -1) imageUrlCol = headerCols.length;
 
@@ -131,7 +128,7 @@ async function main() {
     if (!row.trim()) continue;
 
     const parts = row.split(",");
-    // Pad with empty strings if the row is shorter than the header (e.g. no image_url yet).
+    // Pad when the row has no image_url slot yet.
     while (parts.length <= imageUrlCol) parts.push("");
 
     const name = parts[nameCol]?.trim() ?? "";

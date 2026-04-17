@@ -1,11 +1,6 @@
-// Custom hook encapsulating all URL-backed state for the game library.
-// Everything read from or written to ?view, ?groupBy, ?sortOrder, ?search,
-// ?rating, ?system, ?genre lives here — GameLibrary.tsx consumes the result
-// and focuses on rendering.
-//
-// Naming convention: custom hooks must start with "use" — that's how React's
-// linter / runtime identify them for the rules-of-hooks check (a hook can
-// only be called inside another hook or a component).
+// All URL-backed state for the game library: ?view, ?groupBy, ?sortOrder,
+// ?search, ?rating, ?system, ?genre. Custom hooks must start with "use" so
+// React's rules-of-hooks lint/runtime checks apply.
 
 import { useState, useEffect, useRef, useTransition, useMemo, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
@@ -20,8 +15,7 @@ import {
   DEFAULT_VIEW,
 } from "./libraryConfig";
 
-// search, system, and genre behave identically across views — same URL keys,
-// same string type, same semantics. One shared setter replaces per-view callbacks.
+// Filter keys that behave identically across views — one shared setter.
 export type SharedFilterKey = "search" | "system" | "genre";
 
 type UrlState = {
@@ -48,25 +42,21 @@ export function useGameLibraryUrlState(): UrlState {
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
 
-  // searchInput is local React state so the input responds instantly to every
-  // keystroke; the URL update is debounced (300ms) so we're not firing a
-  // router.replace on every character.
+  // Input responds instantly; URL update is debounced 300ms below.
   const [searchInput, setSearchInput] = useState(() => searchParams.get("search") ?? "");
 
-  // "Latest ref" pattern: holds the current searchParams without being a dep
-  // of the debounce effect. Without this, every URL change would reset the
-  // debounce timer, which is the opposite of what we want.
+  // "Latest ref" pattern: the debounce effect reads current params without
+  // re-subscribing on every URL change (which would reset the timer).
   const searchParamsRef = useRef(searchParams);
   useEffect(() => {
     searchParamsRef.current = searchParams;
-  }); // intentionally no dep array — runs after every render
+  }); // no dep array — runs after every render
 
-  // Sync searchInput when the URL changes externally (e.g. clearFilters).
+  // Sync local input when the URL changes externally (e.g. clearFilters).
   useEffect(() => {
     setSearchInput(searchParams.get("search") ?? "");
   }, [searchParams]);
 
-  // Debounced URL update for the search input.
   useEffect(() => {
     const timer = setTimeout(() => {
       const params = new URLSearchParams(searchParamsRef.current.toString());
@@ -118,8 +108,7 @@ export function useGameLibraryUrlState(): UrlState {
     [searchParams]
   );
 
-  // activeFilters uses live searchInput (pre-debounce) so the shelf updates
-  // on every keystroke while the URL catches up asynchronously.
+  // Use live searchInput (pre-debounce) so shelves update per keystroke.
   const activeFilters = useMemo(
     () => ({ ...filters, search: searchInput }),
     [filters, searchInput]
@@ -131,13 +120,12 @@ export function useGameLibraryUrlState(): UrlState {
 
   // --- Setters ---
 
-  // router.replace updates the URL without pushing a new history entry.
-  // startTransition marks navigation non-urgent so the UI stays responsive.
+  // router.replace: no history entry. startTransition: keeps UI responsive.
   const updateParam = useCallback(
     (key: string, value: string) => {
       const params = new URLSearchParams(searchParams.toString());
-      // Resolve current view from URL (not closure) so defaults are evaluated
-      // against the active view even mid-transition.
+      // Read view from the URL (not closure) so defaults resolve against the
+      // live value, even mid-transition.
       const rawViewInUrl = params.get("view");
       const currentView: View = VALID_VIEW.includes(rawViewInUrl as View)
         ? (rawViewInUrl as View)
@@ -161,10 +149,8 @@ export function useGameLibraryUrlState(): UrlState {
     [searchParams, pathname, router]
   );
 
-  // setView is its own path — it also strips stale groupBy/sortOrder values
-  // that the new view doesn't support. Without this, the URL would keep
-  // `?sortOrder=starred-first` after switching from wishlist back to played,
-  // even though the played view has no such sort option.
+  // setView also strips groupBy/sortOrder values the new view doesn't support,
+  // so e.g. `?sortOrder=starred-first` doesn't leak from wishlist to played.
   const setView = useCallback(
     (value: View) => {
       const params = new URLSearchParams(searchParams.toString());

@@ -2,8 +2,8 @@ name,system,genre,release_date,image_url,starred,date_added,notes
 Disco Elysium,PlayStation 5,CRPG,2019-10-15,https://images.igdb.com/igdb/image/upload/t_cover_big/co1sfj.jpg,,2026-04-17,
 Persona 5,PlayStation 5,JRPG,2016-09-15,https://images.igdb.com/igdb/image/upload/t_cover_big/co1r76.jpg,,2026-04-17,
 Horizon Forbidden West,PlayStation 5,Action RPG,2022-02-18,https://images.igdb.com/igdb/image/upload/t_cover_big/co2gvu.jpg,,2026-04-17,
-Bloodborne,PlayStation 4,Soulslike|Action RPG,2015-03-24,https://images.igdb.com/igdb/image/upload/t_cover_big/cob99l.jpg,,2026-04-17,
-Pokemon Colosseum,Nintendo GameCube,RPG,2003-11-21,https://images.igdb.com/igdb/image/upload/t_cover_big/co2tpe.jpg,,2026-04-17,Maybe emulate via Dolphin
+Bloodborne,PlayStation 4,Soulslike|Action RPG,2015-03-24,https://images.igdb.com/igdb/image/upload/t_cover_big/cob99l.jpg,true,2026-04-17,
+Pokemon Colosseum,Nintendo GameCube,RPG,2003-11-21,https://images.igdb.com/igdb/image/upload/t_cover_big/co2tpe.jpg,,2026-04-17,
 Outer Wilds,PlayStation 5,Adventure|Puzzle,2019-05-28,https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg,,2026-04-17,
 Black Myth: Wukong,PlayStation 5,Action RPG,2024-08-20,https://images.igdb.com/igdb/image/upload/t_cover_big/co8h3y.jpg,,2026-04-17,
 Grim Fandango,Nintendo Switch,Graphic Adventure,1998-10-30,https://images.igdb.com/igdb/image/upload/t_cover_big/co25r3.jpg,,2026-04-17,
@@ -11,7 +11,7 @@ Civilization VII,Computer,Turn-based Strategy,2025-02-11,https://images.igdb.com
 Octopath Traveler 0,Nintendo Switch,JRPG,2025-12-04,https://images.igdb.com/igdb/image/upload/t_cover_big/coa7is.jpg,,2026-04-17,
 Plants vs. Zombies Replanted,Nintendo Switch,Tower Defense,2025-10-23,https://images.igdb.com/igdb/image/upload/t_cover_big/coa7ic.jpg,,2026-04-17,Remake of PvZ1
 Inscryption,Nintendo Switch,Deck-builder|Puzzle,2021-10-19,https://images.igdb.com/igdb/image/upload/t_cover_big/co401c.jpg,,2026-04-17,
-Little Kitty Big City,Nintendo Switch,Adventure,2024-05-09,https://images.igdb.com/igdb/image/upload/t_cover_big/co6mbt.jpg,,2026-04-17,Recommended by Pao
+Little Kitty Big City,Nintendo Switch,Adventure,2024-05-09,https://images.igdb.com/igdb/image/upload/t_cover_big/co6mbt.jpg,,2026-04-17,Recommended for Pao
 Cyberpunk 2077,PlayStation 5,Action RPG,2020-12-10,https://images.igdb.com/igdb/image/upload/t_cover_big/co7iy1.jpg,,2026-04-17,
 A Short Hike,Nintendo Switch,Adventure,2019-07-30,https://images.igdb.com/igdb/image/upload/t_cover_big/co6e83.jpg,,2026-04-17,
 Lumines Arise,PlayStation 5,Puzzle,2025-11-11,https://images.igdb.com/igdb/image/upload/t_cover_big/co9wve.jpg,,2026-04-17,

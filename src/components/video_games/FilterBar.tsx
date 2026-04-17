@@ -4,12 +4,11 @@ import { RATINGS } from "@/lib/games";
 import type { WishlistFilters } from "@/lib/wishlist";
 import type { GroupBy, SortOrder } from "./libraryConfig";
 
-// search, system, genre behave identically across views — one shared callback
-// handles all three. rating is played-only and gets its own typed callback.
+// Filter keys shared by both views — one setter handles all three.
+// `rating` is played-only and gets its own typed callback in PlayedProps.
 type SharedFilterKey = "search" | "system" | "genre";
 
-// All labels live here so FilterBar can pick the right subset per view.
-// Parent passes `validGroupBy` / `validSortOrder` and we filter these maps.
+// Full label maps; parent passes `validGroupBy`/`validSortOrder` to pick the subset.
 const GROUP_BY_LABELS: Record<GroupBy, string> = {
   none: "None",
   system: "System",
@@ -43,11 +42,8 @@ const inputBaseClass =
 // Selects get cursor-pointer on top of the base — inputs don't need it.
 const selectClass = `${inputBaseClass} cursor-pointer`;
 
-// --- Props ---
-//
-// Discriminated union on `view`. Shared layout/search props go in SharedProps.
-// The rating-specific callback only appears in PlayedProps — TypeScript narrows
-// to it inside `view === "played"` branches.
+// Props are a discriminated union on `view` — rating-specific props only
+// exist in PlayedProps, and TS narrows to them inside `view === "played"`.
 
 type SharedProps = {
   groupBy: GroupBy;
@@ -255,7 +251,6 @@ export function FilterBar(props: FilterBarProps) {
     };
   }, []);
 
-  // Derived per-view option lists for the Group/Sort dropdowns.
   const groupByOptions = validGroupBy.map((value) => ({ value, label: GROUP_BY_LABELS[value] }));
   const sortOptions = validSortOrder.map((value) => ({ value, label: SORT_LABELS[value] }));
 
@@ -280,12 +275,11 @@ export function FilterBar(props: FilterBarProps) {
           className={`${inputBaseClass} placeholder:text-shelf-input-placeholder w-full sm:w-auto sm:min-w-44`}
         />
 
-        {/* Filter selects — mobile: 3-col grid when rating shows (played), 2-col when not (wishlist).
+        {/* Mobile: 3-col when rating shows (played), 2-col otherwise.
             sm:contents dissolves the wrapper into the parent flex row on desktop. */}
         <div
           className={`grid gap-2 sm:contents ${view === "played" ? "grid-cols-3" : "grid-cols-2"}`}
         >
-          {/* Rating filter — played view only. The discriminated union narrows here. */}
           {view === "played" && (
             <FilterSelect
               value={props.filters.rating}
