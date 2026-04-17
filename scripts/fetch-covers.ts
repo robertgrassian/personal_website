@@ -1,7 +1,7 @@
 /**
  * scripts/fetch-covers.ts
  *
- * Fetches game cover art URLs from IGDB and writes them into games.csv.
+ * Fetches game cover art URLs from IGDB and writes them into a CSV file.
  * Reads cover-overrides.json first — overrides take priority over IGDB auto-search
  * and will re-fetch even if a URL already exists in the CSV.
  *
@@ -11,8 +11,13 @@
  * Setup:
  *   1. Go to https://dev.twitch.tv/console → "Register Your Application"
  *   2. Click "Manage" → copy your Client ID and Client Secret
- *   3. Run:
- *        CLIENT_ID=your_id CLIENT_SECRET=your_secret npx tsx scripts/fetch-covers.ts
+ *   3. Run (CSV path optional, defaults to games.csv):
+ *        CLIENT_ID=xxx CLIENT_SECRET=xxx npx tsx scripts/fetch-covers.ts [csv-path]
+ *        CLIENT_ID=xxx CLIENT_SECRET=xxx npx tsx scripts/fetch-covers.ts wishlist.csv
+ *
+ * The target CSV must have a "name" column (used as the IGDB search term) and
+ * an "image_url" column (where results are written). Other columns are preserved
+ * in place; column order is inferred from the header, not hardcoded.
  *
  * cover-overrides.json value format:
  *   "Game CSV Name": "IGDB search term"   → re-fetches using this title instead
@@ -95,13 +100,30 @@ async function fetchCoverUrl(token: string, searchTerm: string): Promise<string>
 
 // --- Main ---
 async function main() {
-  const csvPath = path.join(process.cwd(), "games.csv");
+  // First positional CLI arg overrides the default CSV path. This lets us point
+  // the same script at games.csv or wishlist.csv without duplicating logic.
+  const csvArg = process.argv[2] ?? "games.csv";
+  const csvPath = path.join(process.cwd(), csvArg);
   const raw = fs.readFileSync(csvPath, "utf-8");
   const lines = raw.trim().split("\n");
   const [header, ...rows] = lines;
 
+  // Find the image_url column by header name, not a hardcoded index. games.csv
+  // has it at position 6 but wishlist.csv puts it at position 4 — the script
+  // must adapt to whatever schema the target CSV uses.
+  const headerCols = header.split(",").map((c) => c.trim());
+  const nameCol = headerCols.indexOf("name");
+  let imageUrlCol = headerCols.indexOf("image_url");
+  if (nameCol === -1) {
+    throw new Error(`CSV ${csvArg} has no "name" column — cannot look up games`);
+  }
+
+  // If image_url is missing, we'll append it. New column index = current length.
+  const finalHeader = imageUrlCol === -1 ? `${header},image_url` : header;
+  if (imageUrlCol === -1) imageUrlCol = headerCols.length;
+
   const token = await getAccessToken();
-  console.log("✓  Got IGDB access token\n");
+  console.log(`✓  Got IGDB access token (target: ${csvArg})\n`);
 
   const updatedRows: string[] = [];
 
@@ -109,7 +131,10 @@ async function main() {
     if (!row.trim()) continue;
 
     const parts = row.split(",");
-    const name = parts[0]?.trim() ?? "";
+    // Pad with empty strings if the row is shorter than the header (e.g. no image_url yet).
+    while (parts.length <= imageUrlCol) parts.push("");
+
+    const name = parts[nameCol]?.trim() ?? "";
     const override = overrides[name]; // undefined if not in overrides.json
 
     // --- Branch 1: Override exists ---
@@ -118,18 +143,18 @@ async function main() {
       if (override.startsWith("https://")) {
         // Direct URL — use it verbatim, no IGDB call needed.
         console.log(`  [override-url]    ${name}`);
-        parts[6] = override;
+        parts[imageUrlCol] = override;
       } else if (override === "") {
         // Explicitly no cover art — use app fallback.
         console.log(`  [override-none]   ${name}`);
-        parts[6] = "";
+        parts[imageUrlCol] = "";
       } else {
         // Use the override value as the IGDB search term (better official title).
         const imageUrl = await fetchCoverUrl(token, override);
         console.log(
           `  ${imageUrl ? "[override-ok]  " : "[override-miss]"} ${name}  →  "${override}"`
         );
-        parts[6] = imageUrl;
+        parts[imageUrlCol] = imageUrl;
         await new Promise((res) => setTimeout(res, 300));
       }
       updatedRows.push(parts.join(","));
@@ -138,9 +163,9 @@ async function main() {
 
     // --- Branch 2: No override, already has a URL ---
     // Skip — only re-process via an explicit override entry.
-    if (parts[6]?.trim()) {
+    if (parts[imageUrlCol]?.trim()) {
       console.log(`  [skip]            ${name}`);
-      updatedRows.push(row);
+      updatedRows.push(parts.join(","));
       continue;
     }
 
@@ -148,15 +173,14 @@ async function main() {
     // Normal IGDB search using the CSV name.
     const imageUrl = await fetchCoverUrl(token, name);
     console.log(`  ${imageUrl ? "[ok]   " : "[miss] "}           ${name}`);
-    parts[6] = imageUrl;
+    parts[imageUrlCol] = imageUrl;
     updatedRows.push(parts.join(","));
     await new Promise((res) => setTimeout(res, 300));
   }
 
-  const finalHeader = header.includes("image_url") ? header : `${header},image_url`;
   const output = [finalHeader, ...updatedRows].join("\n") + "\n";
   fs.writeFileSync(csvPath, output, "utf-8");
-  console.log(`\n✓  Done! Processed ${updatedRows.length} rows.`);
+  console.log(`\n✓  Done! Processed ${updatedRows.length} rows in ${csvArg}.`);
 }
 
 main().catch(console.error);

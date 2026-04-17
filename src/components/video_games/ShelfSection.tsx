@@ -1,9 +1,11 @@
-import type { Game } from "@/lib/games";
-import { GameCase } from "./GameCase";
+import { GameCase, type GameCaseInput } from "./GameCase";
 
 type ShelfSectionProps = {
   label: string;
-  games: Game[];
+  // Accepts either Game[] or WishlistGame[] — both structurally match GameCaseInput
+  // (BaseGame + optional rating/starred). This is TypeScript structural typing at work:
+  // no generics needed, no union type, no `implements` keyword.
+  games: GameCaseInput[];
 };
 
 // ShelfSection renders one shelf — an optional header row plus a "plank" of game cases.

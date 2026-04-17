@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { getGames } from "@/lib/gamesServer";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
+import { getWishlist } from "@/lib/wishlistServer";
 
 export const metadata = {
   title: "Game Library | Robert Grassian",
@@ -8,6 +9,7 @@ export const metadata = {
 
 export default function VideoGamesPage() {
   const games = getGames();
+  const wishlist = getWishlist();
 
   return (
     <main className="min-h-screen bg-shelf-bg shelf-theme">
@@ -17,7 +19,7 @@ export default function VideoGamesPage() {
 
         {/* Suspense is required because GameLibrary uses useSearchParams() */}
         <Suspense fallback={null}>
-          <GameLibrary games={games} />
+          <GameLibrary games={games} wishlist={wishlist} />
         </Suspense>
       </div>
     </main>

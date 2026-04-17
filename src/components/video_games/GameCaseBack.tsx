@@ -4,7 +4,8 @@
 // around to the back) while the overlay keeps text readable.
 
 import Image from "next/image";
-import { type Game, RATINGS } from "@/lib/games";
+import { RATINGS } from "@/lib/games";
+import type { GameCaseInput } from "./GameCase";
 
 // "2023-05-12" → "May 2023"
 function formatDate(iso: string): string {
@@ -14,7 +15,7 @@ function formatDate(iso: string): string {
 }
 
 type GameCaseBackProps = {
-  game: Game;
+  game: GameCaseInput;
 };
 
 export function GameCaseBack({ game }: GameCaseBackProps) {

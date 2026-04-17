@@ -1,14 +1,24 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import { type Game, RATINGS } from "@/lib/games";
+import type { BaseGame } from "@/lib/baseGame";
+import { type Rating, RATINGS } from "@/lib/games";
 import { extractDominantColor } from "@/lib/dominant-color";
 import { RatingIndicator } from "./RatingIndicator";
 import { GameCaseBack } from "./GameCaseBack";
 import { GameCaseSpine } from "./GameCaseSpine";
 
+// GameCase is view-agnostic: it accepts any BaseGame plus two optional flags.
+// A played Game supplies `rating` (and the badge renders). A WishlistGame
+// supplies `starred` (and the star overlay renders). Never both — the prop
+// types `rating?` and `starred?` admit either, and the render logic picks one.
+export type GameCaseInput = BaseGame & {
+  rating?: Rating | "";
+  starred?: boolean;
+};
+
 type GameCaseProps = {
-  game: Game;
+  game: GameCaseInput;
 };
 
 export function GameCase({ game }: GameCaseProps) {
@@ -127,8 +137,22 @@ export function GameCase({ game }: GameCaseProps) {
             <span className="text-white text-[10px] font-medium leading-tight">{game.name}</span>
           </div>
 
-          {/* Inside the front face so it clips with overflow:hidden */}
+          {/* Inside the front face so it clips with overflow:hidden.
+              Priority: rating badge (played games) > star overlay (starred wishlist games). */}
           {ratingLetter && showBadge && <RatingIndicator rank={ratingLetter} />}
+          {!ratingLetter && game.starred && showBadge && (
+            <div
+              role="img"
+              aria-label="Starred — priority wishlist pick"
+              className="absolute top-1 right-1 z-10 text-xl leading-none select-none cursor-default"
+              style={{
+                color: "#fde047", // tailwind yellow-300
+                textShadow: "0 1px 2px rgba(0,0,0,0.7)",
+              }}
+            >
+              ★
+            </div>
+          )}
         </div>
 
         {/* ── Spine edges ── visible mid-rotation, connecting front and back. */}
