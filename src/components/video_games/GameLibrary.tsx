@@ -116,15 +116,13 @@ export function GameLibrary({ games, wishlist }: GameLibraryProps) {
   const activeTotal = view === "played" ? games.length : wishlist.length;
   const filteredCount = activeShelves.reduce((sum, s) => sum + s.games.length, 0);
 
+  // Shared URL keys are identical on both filter objects, so we can check them once.
+  // View-specific keys (currently just `rating` on played) branch on view.
   const hasActiveFilters =
-    view === "played"
-      ? activeFilters.search !== "" ||
-        activeFilters.rating !== "" ||
-        activeFilters.system !== "" ||
-        activeFilters.genre !== ""
-      : activeWishlistFilters.search !== "" ||
-        activeWishlistFilters.system !== "" ||
-        activeWishlistFilters.genre !== "";
+    activeFilters.search !== "" ||
+    activeFilters.system !== "" ||
+    activeFilters.genre !== "" ||
+    (view === "played" && activeFilters.rating !== "");
 
   return (
     <div className="mt-8">
@@ -228,7 +226,10 @@ export function GameLibrary({ games, wishlist }: GameLibraryProps) {
         </div>
       )}
 
-      <StatsPanel games={games} isOpen={statsOpen} onClose={() => setStatsOpen(false)} />
+      {/* StatsPanel is played-only — don't mount it at all on wishlist view. */}
+      {view === "played" && (
+        <StatsPanel games={games} isOpen={statsOpen} onClose={() => setStatsOpen(false)} />
+      )}
     </div>
   );
 }
