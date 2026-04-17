@@ -1,34 +1,53 @@
 ---
 name: add-game
-description: "Add a game to games.csv. Looks up release date, platform, and genres from Wikipedia's infobox, fetches cover art from IGDB. Asks only when data is ambiguous."
-argument-hint: "[game name (optional)]"
+description: "Add a game to games.csv or wishlist.csv. Pass 'wishlist' as the first arg to add to the wishlist. Looks up release date, platform, and genres from Wikipedia's infobox, fetches cover art from IGDB. Asks only when data is ambiguous."
+argument-hint: "[wishlist] [game name (optional)]"
 ---
 
-You are adding a game to `games.csv` at the project root. The CSV columns are:
+You are adding a game to a CSV file at the project root.
+
+## Mode detection
+
+Check the first argument:
+
+- If it starts with `wishlist` (case-insensitive), set **mode = wishlist** and treat any remaining text as the game name.
+- Otherwise, set **mode = games** and treat all args as the game name.
+
+**games.csv** columns:
 
 ```
 name,system,rating,genre,release_date,last_played,image_url
 ```
 
+**wishlist.csv** columns:
+
+```
+name,system,genre,release_date,image_url,starred,date_added,notes
+```
+
 - `genre` is pipe-separated for multiple genres (e.g. `Action-Adventure|Puzzle`)
-- `rating` must be one of: `Perfect`, `Great`, `Good`, `Okay`, `Bad`, or empty
-- `release_date` is ISO format: `YYYY-MM-DD`, or empty
-- `last_played` is ISO format: `YYYY-MM-DD`, or empty
+- `rating` (games only) must be one of: `Perfect`, `Great`, `Good`, `Okay`, `Bad`, or empty
+- `starred` (wishlist only) is `true` or empty
+- `date_added` (wishlist only) is today's date in ISO format: `YYYY-MM-DD` — get it with `date +%F`
+- `notes` (wishlist only) is free text or empty
+- `release_date` / `last_played` are ISO format: `YYYY-MM-DD`, or empty
 
 ---
 
 ## Step 1 — Determine game name
 
-If the game name was provided as an argument, use it. Otherwise, ask the user for it before proceeding.
+If the game name was provided (after stripping the `wishlist` prefix if present), use it. Otherwise, ask the user for it before proceeding.
 
 ---
 
-## Step 2 — Read existing systems and genres from games.csv
+## Step 2 — Read existing systems and genres
 
-Use the Read tool (not Bash) to read the full `games.csv` file, then extract:
+**Always read `games.csv`** to extract:
 
 - All unique values from the `system` column → use as the option list when asking the user to pick a system
 - All unique genre tokens from the `genre` column (split each cell on `|`) → use as a reference when mapping Wikipedia genres
+
+If **mode = wishlist**, also read `wishlist.csv` and merge any additional system/genre tokens not already found in `games.csv`.
 
 ---
 
@@ -108,7 +127,7 @@ The `=== RELEASED (RAW) ===` section may contain template markup like `{{vgrelea
 ### System
 
 - Map the Wikipedia platforms to systems that appear in `games.csv` (read in Step 2).
-- If the game shipped on multiple platforms **and more than one maps to a system in the library**, ask the user to pick via `AskUserQuestion`. Use the existing system names from `games.csv` as options, plus "Other" appended automatically.
+- If the game shipped on multiple platforms **and more than one maps to a system in the library**, ask the user to pick via `AskUserQuestion`. Use the existing system names as options, plus "Other" appended automatically.
 - If it maps unambiguously to one system, use it without asking.
 
 ### Release date
@@ -127,12 +146,21 @@ After resolving all fields, **output a single summary message** to the user show
 
 ---
 
-## Step 5 — Collect rating and last_played via dialog
+## Step 5 — Collect mode-specific fields via dialog
+
+### If mode = games
 
 Use `AskUserQuestion` with exactly **two questions**:
 
 1. **Rating** — options: `Perfect`, `Great`, `Good`, `Okay`. "Other" is auto-appended; the user can note `Bad` or leave blank.
 2. **Last played date** — options: the game's NA release date as the first option (mark it "(Recommended)" if the user is likely unsure, i.e. it was released more than a year ago), then the first day of the current year and 2 prior years (e.g. `2026-01-01`, `2025-01-01`, `2024-01-01`). "Other" is auto-appended for anything else. All dates in `YYYY-MM-DD` format. Do NOT include today's date as an option. Note: `AskUserQuestion` allows a maximum of 4 options — the release date counts as one, leaving room for 3 year entries.
+
+### If mode = wishlist
+
+Use `AskUserQuestion` with exactly **two questions**:
+
+1. **Starred?** — options: `Yes`, `No`.
+2. **Notes** — options: `No notes`, `Replay`. "Other" is auto-appended for anything custom (e.g. "Recommended for Pao", "Remake of X").
 
 ---
 
@@ -180,13 +208,31 @@ Use `AskUserQuestion` with one option per match plus "Skip cover art".
 
 ---
 
-## Step 8 — Write to games.csv
+## Step 8 — Write to the target CSV
 
-Append the row:
+Get today's date (wishlist only):
 
 ```bash
-printf '%s\n' 'NAME,SYSTEM,RATING,GENRE,RELEASE_DATE,LAST_PLAYED,IMAGE_URL' >> /full/path/to/games.csv
+date +%F
 ```
+
+**If mode = games**, append to `games.csv`:
+
+```
+NAME,SYSTEM,RATING,GENRE,RELEASE_DATE,LAST_PLAYED,IMAGE_URL
+```
+
+**If mode = wishlist**, append to `wishlist.csv`:
+
+```
+NAME,SYSTEM,GENRE,RELEASE_DATE,IMAGE_URL,STARRED,DATE_ADDED,NOTES
+```
+
+- `starred`: `true` if the user said Yes, otherwise empty
+- `date_added`: today's date from `date +%F`
+- `notes`: the user's answer, or empty if "No notes"
+
+Use `printf '%s\n' 'ROW' >> /full/path/to/FILE.csv` to append.
 
 - Wrap `name` in double quotes if it contains a comma
 - Join genres with `|`
@@ -202,4 +248,4 @@ Print a confirmation showing the exact row appended.
 - If IGDB returns no results, offer to retry with a different search term or accept a direct URL.
 - If the user skips cover art, use empty string for `image_url`.
 - Do not run `fetch-covers.ts`.
-- Do not commit or push — only modify `games.csv`.
+- Do not commit or push — only modify the target CSV.
