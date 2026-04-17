@@ -1,9 +1,9 @@
-import type { Game } from "@/lib/games";
-import { GameCase } from "./GameCase";
+import { GameCase, type GameCaseInput } from "./GameCase";
 
 type ShelfSectionProps = {
   label: string;
-  games: Game[];
+  // Game[] and WishlistGame[] both fit via structural typing — no union needed.
+  games: GameCaseInput[];
 };
 
 // ShelfSection renders one shelf — an optional header row plus a "plank" of game cases.

@@ -1,42 +1,33 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import type { Filters, Rating } from "@/lib/games";
 import { RATINGS } from "@/lib/games";
-import type { GroupBy, SortOrder } from "./GameLibrary";
+import type { WishlistFilters } from "@/lib/wishlist";
+import type { GroupBy, SortOrder } from "./libraryConfig";
 
-const GROUP_BY_OPTIONS: { value: GroupBy; label: string }[] = [
-  { value: "none", label: "None" },
-  { value: "system", label: "System" },
-  { value: "rating", label: "Rating" },
-  { value: "genre", label: "Genre" },
-  { value: "decade", label: "Decade" },
-];
+// Filter keys shared by both views — one setter handles all three.
+// `rating` is played-only and gets its own typed callback in PlayedProps.
+type SharedFilterKey = "search" | "system" | "genre";
 
-const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
-  { value: "name-asc", label: "Name A→Z" },
-  { value: "name-desc", label: "Name Z→A" },
-  { value: "release-newest", label: "Release: Newest" },
-  { value: "release-oldest", label: "Release: Oldest" },
-  { value: "played-newest", label: "Last Played: Recent" },
-  { value: "played-oldest", label: "Last Played: Oldest" },
-];
+// Full label maps; parent passes `validGroupBy`/`validSortOrder` to pick the subset.
+const GROUP_BY_LABELS: Record<GroupBy, string> = {
+  none: "None",
+  system: "System",
+  rating: "Rating",
+  starred: "Starred",
+  genre: "Genre",
+  decade: "Decade",
+};
 
-type FilterBarProps = {
-  filters: Filters;
-  // Generic callback: onFilterChange("rating", "Great") updates just that key.
-  // The <K extends keyof Filters> constraint ensures the key and value types always agree —
-  // you can't pass onFilterChange("rating", "Nintendo Switch").
-  onFilterChange: <K extends keyof Filters>(key: K, value: Filters[K]) => void;
-  groupBy: GroupBy;
-  sortOrder: SortOrder;
-  allSystems: string[];
-  allGenres: string[];
-  // Sets of values that still have matching games given the other active filters.
-  // Options not in the set are disabled so the user can't pick a dead-end combination.
-  availableRatings: Set<string>;
-  availableSystems: Set<string>;
-  availableGenres: Set<string>;
-  onGroupByChange: (v: GroupBy) => void;
-  onSortOrderChange: (v: SortOrder) => void;
+const SORT_LABELS: Record<SortOrder, string> = {
+  "name-asc": "Name A→Z",
+  "name-desc": "Name Z→A",
+  "release-newest": "Release: Newest",
+  "release-oldest": "Release: Oldest",
+  "played-newest": "Last Played: Recent",
+  "played-oldest": "Last Played: Oldest",
+  "added-newest": "Added: Recent",
+  "added-oldest": "Added: Oldest",
+  "starred-first": "Starred First",
 };
 
 // Minimum scroll distance (px) before toggling filter bar visibility.
@@ -50,6 +41,37 @@ const inputBaseClass =
 
 // Selects get cursor-pointer on top of the base — inputs don't need it.
 const selectClass = `${inputBaseClass} cursor-pointer`;
+
+// Props are a discriminated union on `view` — rating-specific props only
+// exist in PlayedProps, and TS narrows to them inside `view === "played"`.
+
+type SharedProps = {
+  groupBy: GroupBy;
+  sortOrder: SortOrder;
+  validGroupBy: readonly GroupBy[];
+  validSortOrder: readonly SortOrder[];
+  allSystems: string[];
+  allGenres: string[];
+  availableSystems: Set<string>;
+  availableGenres: Set<string>;
+  onSharedFilterChange: (key: SharedFilterKey, value: string) => void;
+  onGroupByChange: (v: GroupBy) => void;
+  onSortOrderChange: (v: SortOrder) => void;
+};
+
+type PlayedProps = SharedProps & {
+  view: "played";
+  filters: Filters;
+  onRatingChange: (value: Rating | "") => void;
+  availableRatings: Set<string>;
+};
+
+type WishlistProps = SharedProps & {
+  view: "wishlist";
+  filters: WishlistFilters;
+};
+
+type FilterBarProps = PlayedProps | WishlistProps;
 
 type FilterSelectProps = {
   value: string;
@@ -97,19 +119,23 @@ function FilterSelect({
 // FilterBar owns no state — it receives current values and change-handler callbacks
 // from GameLibrary. This is the "controlled component" pattern: the parent owns state,
 // the child only renders and reports events.
-export function FilterBar({
-  filters,
-  onFilterChange,
-  groupBy,
-  sortOrder,
-  allSystems,
-  allGenres,
-  availableRatings,
-  availableSystems,
-  availableGenres,
-  onGroupByChange,
-  onSortOrderChange,
-}: FilterBarProps) {
+export function FilterBar(props: FilterBarProps) {
+  const {
+    view,
+    filters,
+    groupBy,
+    sortOrder,
+    validGroupBy,
+    validSortOrder,
+    allSystems,
+    allGenres,
+    availableSystems,
+    availableGenres,
+    onSharedFilterChange,
+    onGroupByChange,
+    onSortOrderChange,
+  } = props;
+
   // Track whether the bar should be visible. Starts true so it's shown on initial render.
   const [visible, setVisible] = useState(true);
   // Mirror of `visible` as a ref so the scroll handler can always read the current value
@@ -225,6 +251,9 @@ export function FilterBar({
     };
   }, []);
 
+  const groupByOptions = validGroupBy.map((value) => ({ value, label: GROUP_BY_LABELS[value] }));
+  const sortOptions = validSortOrder.map((value) => ({ value, label: SORT_LABELS[value] }));
+
   return (
     // sticky: bar stays at the top of the viewport while scrolling through shelves.
     // backdrop-blur-sm: frosted glass effect so content scrolling behind it doesn't clash.
@@ -242,27 +271,30 @@ export function FilterBar({
           aria-label="Search games"
           placeholder="Search games…"
           value={filters.search}
-          onChange={(e) => onFilterChange("search", e.target.value)}
+          onChange={(e) => onSharedFilterChange("search", e.target.value)}
           className={`${inputBaseClass} placeholder:text-shelf-input-placeholder w-full sm:w-auto sm:min-w-44`}
         />
 
-        {/* Filter selects — 3-column grid on mobile so columns are hard equal-width (no min-width blowout).
+        {/* Mobile: 3-col when rating shows (played), 2-col otherwise.
             sm:contents dissolves the wrapper into the parent flex row on desktop. */}
-        <div className="grid grid-cols-3 gap-2 sm:contents">
-          {/* Rating filter */}
-          <FilterSelect
-            value={filters.rating}
-            onChange={(v) => onFilterChange("rating", v as Rating | "")}
-            allLabel="All Ratings"
-            options={RATINGS.map((r) => r.name)}
-            available={availableRatings}
-            className={`${selectClass} w-full sm:w-auto`}
-          />
+        <div
+          className={`grid gap-2 sm:contents ${view === "played" ? "grid-cols-3" : "grid-cols-2"}`}
+        >
+          {view === "played" && (
+            <FilterSelect
+              value={props.filters.rating}
+              onChange={(v) => props.onRatingChange(v as Rating | "")}
+              allLabel="All Ratings"
+              options={RATINGS.map((r) => r.name)}
+              available={props.availableRatings}
+              className={`${selectClass} w-full sm:w-auto`}
+            />
+          )}
 
           {/* System filter — options derived from actual game data, not hardcoded */}
           <FilterSelect
             value={filters.system}
-            onChange={(v) => onFilterChange("system", v)}
+            onChange={(v) => onSharedFilterChange("system", v)}
             allLabel="All Systems"
             options={allSystems}
             available={availableSystems}
@@ -272,7 +304,7 @@ export function FilterBar({
           {/* Genre filter */}
           <FilterSelect
             value={filters.genre}
-            onChange={(v) => onFilterChange("genre", v)}
+            onChange={(v) => onSharedFilterChange("genre", v)}
             allLabel="All Genres"
             options={allGenres}
             available={availableGenres}
@@ -296,7 +328,7 @@ export function FilterBar({
               onChange={(e) => onGroupByChange(e.target.value as GroupBy)}
               className={`${selectClass} flex-1 min-w-0 sm:flex-none`}
             >
-              {GROUP_BY_OPTIONS.map((o) => (
+              {groupByOptions.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
@@ -314,7 +346,7 @@ export function FilterBar({
               onChange={(e) => onSortOrderChange(e.target.value as SortOrder)}
               className={`${selectClass} flex-1 min-w-0 sm:flex-none`}
             >
-              {SORT_OPTIONS.map((o) => (
+              {sortOptions.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>

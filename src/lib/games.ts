@@ -1,5 +1,10 @@
 // Shared types and constants — no Node.js imports, safe for client and server components.
 
+import type { BaseGame } from "./baseGame";
+
+// Re-export under the old name so existing `gameGenres` imports keep working.
+export { baseGameGenres as gameGenres } from "./baseGame";
+
 // Single source of truth: all ratings in order, best to worst.
 // `as const` locks in the literal types so Rating and RatingLetter can be derived from the data.
 // Adding or renaming a rating only requires changing this array.
@@ -27,18 +32,9 @@ export type Filters = {
   genre: string; // "" = all genres
 };
 
-export type Game = {
-  name: string;
-  system: string;
+// Game = BaseGame + played-only fields. Shared UI uses BaseGame so both this
+// and WishlistGame fit.
+export interface Game extends BaseGame {
   rating: Rating | ""; // "" = no rating assigned yet
-  genres: string[]; // CSV stores "Action-Adventure|Puzzle"; we split on "|"
-  releaseDate: string; // ISO date string, e.g. "2023-05-12"
   lastPlayed: string; // ISO date string e.g. "2023-05-12", or "" if unknown
-  imageUrl: string; // Populated by scripts/fetch-covers.ts; "" means show fallback
-};
-
-// Returns the game's genres, or ["Unknown"] if none are set.
-// Use this wherever a game needs to appear once per genre (grouping, SQL expansion, etc.).
-export function gameGenres(game: Game): string[] {
-  return game.genres.length > 0 ? game.genres : ["Unknown"];
 }
