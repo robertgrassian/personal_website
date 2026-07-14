@@ -144,8 +144,8 @@ export default function Resume() {
               Kafka, ClickHouse, Tinybird, Spring Boot, Pandas
             </p>
             <p>
-              <span className="font-medium text-emphasis">Agentic development:</span> MCP server
-              tooling, Claude Code, Agent Skills (/pr-review, /todo, /explain)
+              <span className="font-medium text-emphasis">Agentic development:</span> Claude Code,
+              MCP server tooling, Agent Skills
             </p>
             <p className="mt-4">
               <span className="font-medium text-emphasis">Interests:</span> Bouldering, Crochet, Dog

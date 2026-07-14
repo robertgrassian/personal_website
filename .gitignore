@@ -43,5 +43,9 @@ next-env.d.ts
 # claude
 .claude/settings.local.json
 
+# python (skill tools)
+__pycache__/
+*.pyc
+
 TODO.md
 .vscode/

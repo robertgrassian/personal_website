@@ -53,72 +53,33 @@ If **mode = wishlist**, also read `wishlist.csv` and merge any additional system
 
 ## Step 3 — Look up game data on Wikipedia
 
-Search Wikipedia for the game:
+The Wikipedia lookup logic lives in a helper script, `.claude/tools/wikipedia.py`
+(see `.claude/tools/README.md`). Run it from the project root.
+
+Search Wikipedia for the game — this prints a JSON array of candidate page titles:
 
 ```bash
-curl -s "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=GAME_NAME+video+game&srlimit=5&format=json" \
-  | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-for r in data['query']['search']:
-    print(r['title'])
-"
+python3 .claude/tools/wikipedia.py search "GAME_NAME"
 ```
 
-Pick the most relevant result (clearly a video game, not a film or book adaptation). Then fetch its wikitext:
+Pick the most relevant result (clearly a video game, not a film or book adaptation). Then fetch its infobox fields — this prints a JSON object:
 
 ```bash
-curl -s "https://en.wikipedia.org/w/api.php?action=query&titles=PAGE_TITLE&prop=revisions&rvprop=content&rvslots=main&format=json" \
-  | python3 -c "
-import sys, json, re
-
-data = json.load(sys.stdin)
-pages = data['query']['pages']
-page = next(iter(pages.values()))
-text = page['revisions'][0]['slots']['main']['*']
-
-# Find the infobox using bracket-matching (handles nested templates)
-start = text.lower().find('{{infobox video game')
-if start == -1:
-    print('NO_INFOBOX')
-    sys.exit()
-
-depth, i, end = 0, start, -1
-while i < len(text):
-    if text[i:i+2] == '{{': depth += 1; i += 2
-    elif text[i:i+2] == '}}':
-        depth -= 1
-        if depth == 0: end = i + 2; break
-        i += 2
-    else: i += 1
-
-infobox = text[start:end] if end > -1 else text[start:]
-
-def extract_field(name, text):
-    m = re.search(r'\|\s*' + re.escape(name) + r'\s*=\s*(.*?)(?=\n\s*\||\}\})', text, re.DOTALL | re.IGNORECASE)
-    return m.group(1).strip() if m else ''
-
-def clean(s):
-    s = re.sub(r'\[\[[^\]]*\|([^\]]+)\]\]', r'\1', s)
-    s = re.sub(r'\[\[([^\]]+)\]\]', r'\1', s)
-    s = re.sub(r'<br\s*/?>', ', ', s, flags=re.IGNORECASE)
-    s = re.sub(r'<[^>]+>', '', s)
-    return s.strip()
-
-genre_raw   = extract_field('genre', infobox)
-plat_raw    = extract_field('platforms', infobox)
-rel_raw     = extract_field('released', infobox)
-
-print('=== GENRE ===')
-print(clean(genre_raw))
-print('=== PLATFORMS ===')
-print(clean(plat_raw))
-print('=== RELEASED (RAW) ===')
-print(rel_raw)
-"
+python3 .claude/tools/wikipedia.py infobox "PAGE_TITLE"
 ```
 
-The `=== RELEASED (RAW) ===` section may contain template markup like `{{vgrelease|NA=...|EU=...}}`. Extract the **North America (NA)** date from it. If no NA-specific date exists, use the earliest worldwide date. Always prefer NA. Convert to `YYYY-MM-DD`.
+The output looks like:
+
+```json
+{
+  "genre": "Metroidvania, Action-adventure",
+  "platforms": "Windows, Nintendo Switch",
+  "released_raw": "{{vgrelease|NA=February 24, 2017|WW=...}}"
+}
+```
+
+- If the page has no video-game infobox, the output is `{"error": "no_infobox"}` — fall back to asking the user manually (see Notes).
+- `released_raw` is intentionally left un-cleaned. It may contain template markup like `{{vgrelease|NA=...|EU=...}}`. Extract the **North America (NA)** date from it. If no NA-specific date exists, use the earliest worldwide date. Always prefer NA. Convert to `YYYY-MM-DD`.
 
 ---
 
