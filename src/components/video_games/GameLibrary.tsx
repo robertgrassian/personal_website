@@ -120,41 +120,25 @@ export function GameLibrary({ games, wishlist }: GameLibraryProps) {
 
   return (
     <div className="mt-8">
-      {/* View tab strip — underline pattern shared with StatsPanel. */}
-      <div className="flex border-b border-shelf-plank mb-4">
-        {VALID_VIEW.map((v) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => setView(v)}
-            className={`py-2.5 mr-4 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
-              view === v
-                ? "border-link text-link"
-                : "border-transparent text-shelf-text-muted hover:text-link hover:border-shelf-plank"
-            }`}
-          >
-            {VIEW_CONFIG[v].label}
-          </button>
-        ))}
-      </div>
-
-      {/* Top bar: filter status on the left, Stats button on the right (played-only). */}
-      <div className="flex items-center justify-between mb-3 min-h-[1.5rem]">
-        <div className="flex items-center gap-3">
-          {hasActiveFilters && (
-            <>
-              <span className="text-shelf-text-muted text-sm">
-                {filteredCount} of {activeTotal} games
-              </span>
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="text-shelf-text-muted text-sm underline underline-offset-2 cursor-pointer hover:text-shelf-text transition-colors"
-              >
-                Clear filters
-              </button>
-            </>
-          )}
+      {/* View tab strip — underline pattern shared with StatsPanel.
+          justify-between puts the Stats button on the same baseline row as the
+          tabs (played-only), keeping the strip a single compact line. */}
+      <div className="flex items-center justify-between border-b border-shelf-plank mb-4">
+        <div className="flex">
+          {VALID_VIEW.map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setView(v)}
+              className={`py-2.5 mr-4 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
+                view === v
+                  ? "border-link text-link"
+                  : "border-transparent text-shelf-text-muted hover:text-link hover:border-shelf-plank"
+              }`}
+            >
+              {VIEW_CONFIG[v].label}
+            </button>
+          ))}
         </div>
         {view === "played" && (
           <button
@@ -168,6 +152,23 @@ export function GameLibrary({ games, wishlist }: GameLibraryProps) {
           </button>
         )}
       </div>
+
+      {/* Filter status — rendered only while filters are active, so the row
+          contributes no height (whitespace) the rest of the time. */}
+      {hasActiveFilters && (
+        <div className="flex items-center gap-3 mb-3">
+          <span className="text-shelf-text-muted text-sm">
+            {filteredCount} of {activeTotal} games
+          </span>
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="text-shelf-text-muted text-sm underline underline-offset-2 cursor-pointer hover:text-shelf-text transition-colors"
+          >
+            Clear filters
+          </button>
+        </div>
+      )}
 
       {view === "played" ? (
         <FilterBar

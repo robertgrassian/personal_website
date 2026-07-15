@@ -22,9 +22,18 @@ function parseRow(line: string, rowIndex: number): Game | null {
     return null;
   }
 
-  // The `imageUrl = ""` default handles rows missing the 7th column.
-  const [rawName, rawSystem, rawRating, rawGenre, rawReleaseDate, rawLastPlayed, rawImageUrl = ""] =
-    parts;
+  // The `= ""` defaults handle rows missing the trailing optional columns —
+  // most rows have no currently_playing value at all.
+  const [
+    rawName,
+    rawSystem,
+    rawRating,
+    rawGenre,
+    rawReleaseDate,
+    rawLastPlayed,
+    rawImageUrl = "",
+    rawCurrentlyPlaying = "",
+  ] = parts;
 
   const name = rawName?.trim() ?? "";
   const system = rawSystem?.trim() ?? "";
@@ -58,6 +67,9 @@ function parseRow(line: string, rowIndex: number): Game | null {
     releaseDate,
     lastPlayed,
     imageUrl,
+    // Strict equality with "true" — anything else (empty, typo) is just false,
+    // so a bad value degrades to "no featured game" rather than an error.
+    currentlyPlaying: rawCurrentlyPlaying.trim() === "true",
   };
 }
 
