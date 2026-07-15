@@ -16,8 +16,12 @@ Check the first argument:
 **games.csv** columns:
 
 ```
-name,system,rating,genre,release_date,last_played,image_url
+name,system,rating,genre,release_date,last_played,image_url,currently_playing
 ```
+
+- `currently_playing` is optional and managed by the **now-playing** skill —
+  this skill always appends 7-field rows and never sets it. (The CSV parser
+  treats a missing trailing field as false.)
 
 **wishlist.csv** columns:
 
@@ -113,8 +117,8 @@ After resolving all fields, **output a single summary message** to the user show
 
 Use `AskUserQuestion` with exactly **two questions**:
 
-1. **Rating** — options: `Perfect`, `Great`, `Good`, `Okay`. "Other" is auto-appended; the user can note `Bad` or leave blank.
-2. **Last played date** — options: the game's NA release date as the first option (mark it "(Recommended)" if the user is likely unsure, i.e. it was released more than a year ago), then the first day of the current year and 2 prior years (e.g. `2026-01-01`, `2025-01-01`, `2024-01-01`). "Other" is auto-appended for anything else. All dates in `YYYY-MM-DD` format. Do NOT include today's date as an option. Note: `AskUserQuestion` allows a maximum of 4 options — the release date counts as one, leaving room for 3 year entries.
+1. **Rating** — options: `Perfect`, `Great`, `Good`, `Okay`. "Other" is auto-appended; the user can note `Bad` or leave blank. If the user says they're **currently playing** the game (not finished), skip this question and leave the rating blank.
+2. **Last played date** — options: the game's NA release date as the first option (mark it "(Recommended)" if the user is likely unsure, i.e. it was released more than a year ago), then the first day of the current year and 2 prior years (e.g. `2026-01-01`, `2025-01-01`, `2024-01-01`). "Other" is auto-appended for anything else. All dates in `YYYY-MM-DD` format. Do NOT include today's date as an option. Note: `AskUserQuestion` allows a maximum of 4 options — the release date counts as one, leaving room for 3 year entries. Exception: if the rating question was skipped because the game is currently being played, skip this question too and use today's date (`date +%F`).
 
 ### If mode = wishlist
 
@@ -210,3 +214,4 @@ Print a confirmation showing the exact row appended.
 - If the user skips cover art, use empty string for `image_url`.
 - Do not run `fetch-covers.ts`.
 - Do not commit or push — only modify the target CSV.
+- If the game was added as currently being played, offer to run the `now-playing` skill next to flag it.
