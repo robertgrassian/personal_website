@@ -50,9 +50,10 @@ CLIENT_ID=<igdb_client_id> CLIENT_SECRET=<igdb_client_secret> npx tsx scripts/fe
 
 Slash commands defined in `.claude/skills/` for use with Claude Code in this project:
 
-| Skill      | Trigger     | Description                                            |
-| ---------- | ----------- | ------------------------------------------------------ |
-| `add-game` | `/add-game` | Add a game to `games.csv` with cover art from IGDB     |
-| `todo`     | `/todo`     | Manage the project TODO list (add, list, done, do)     |
-| `explain`  | `/explain`  | Walk through code step-by-step (what it does and how)  |
-| `teach`    | `/teach`    | Teach the concepts and "why" behind code or web topics |
+| Skill         | Trigger        | Description                                            |
+| ------------- | -------------- | ------------------------------------------------------ |
+| `add-game`    | `/add-game`    | Add a game to `games.csv` with cover art from IGDB     |
+| `now-playing` | `/now-playing` | Mark a game as currently playing (shown on the CRT TV) |
+| `todo`        | `/todo`        | Manage the project TODO list (add, list, done, do)     |
+| `explain`     | `/explain`     | Walk through code step-by-step (what it does and how)  |
+| `teach`       | `/teach`       | Teach the concepts and "why" behind code or web topics |

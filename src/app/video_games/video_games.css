@@ -245,7 +245,7 @@
    Bezel reuses the shelf walnut tones; grain runs vertically (0deg gradients)
    so it reads as panel veneer rather than a shelf plank.
    Layers inside .crt-screen, back to front:
-     cover art (cropped to fill) → scanlines → glass glare → OSD text. */
+     cover art (cropped to fill) → scanlines → roll bar → glass glare → OSD text. */
 .crt-tv-body {
   /* Grain/shadow tokens — overridden for dark mode in the media query below. */
   --crt-grain: rgba(0, 0, 0, 0.1);
@@ -289,6 +289,31 @@
     0 0 0 3px #1a1512;
 }
 
+/* Power-on: the picture snaps on from a thin over-bright horizontal line and
+   settles to normal brightness — a classic tube turn-on. Plays once per mount.
+   `both` fill keeps the collapsed 0% state during the initial delay, so the
+   screen reads as "off" for a beat before switching on. */
+.crt-picture {
+  position: absolute;
+  inset: 0;
+  animation: crt-power-on 0.6s ease-out 0.15s both;
+}
+
+@keyframes crt-power-on {
+  0% {
+    transform: scaleY(0.005);
+    filter: brightness(6);
+  }
+  60% {
+    transform: scaleY(1);
+    filter: brightness(1.8);
+  }
+  100% {
+    transform: scaleY(1);
+    filter: brightness(1);
+  }
+}
+
 .crt-scanlines {
   position: absolute;
   inset: 0;
@@ -313,6 +338,37 @@
   pointer-events: none;
 }
 
+/* Roll bar — the faint bright band that drifts down a CRT picture (the
+   artifact you see when filming a tube TV). The band is a fixed-height
+   gradient translated from above the screen to below it; linear timing keeps
+   the drift mechanical. Height/duration are the tuning knobs. */
+.crt-rollbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 48px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 40%,
+    rgba(255, 255, 255, 0.11) 50%,
+    rgba(255, 255, 255, 0.06) 60%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: crt-roll 8s linear infinite;
+}
+
+@keyframes crt-roll {
+  from {
+    transform: translateY(-48px);
+  }
+  to {
+    transform: translateY(128px);
+  }
+}
+
 /* VCR-style on-screen display. steps(2, jump-none) snaps between full and dim
    with no tween — a digital blink, not a smooth pulse. */
 .crt-osd {
@@ -325,7 +381,20 @@
   letter-spacing: 0.1em;
   color: #6ee86e;
   text-shadow: 0 0 6px rgba(110, 232, 110, 0.9);
-  animation: crt-blink 2.4s steps(2, jump-none) infinite;
+  /* Two animations: a one-shot fade-in after the power-on finishes (backwards
+     fill hides the OSD until its delay elapses), then the endless blink. */
+  animation:
+    crt-osd-in 0.2s 0.75s backwards,
+    crt-blink 2.4s 0.95s steps(2, jump-none) infinite;
+}
+
+@keyframes crt-osd-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes crt-blink {
@@ -353,8 +422,14 @@
 
 @media (prefers-reduced-motion: reduce) {
   .crt-osd,
-  .crt-live-dot {
+  .crt-live-dot,
+  .crt-picture {
     animation: none;
+  }
+
+  /* A frozen roll bar would just look like a smudge — hide it entirely. */
+  .crt-rollbar {
+    display: none;
   }
 }
 

@@ -30,28 +30,34 @@ export function CurrentlyPlaying({ game }: CurrentlyPlayingProps) {
         <div className="px-5">
           <div className="crt-tv-body">
             <div className="crt-screen">
-              {hasImage ? (
-                // Cover crops to fill the screen like live footage. The portrait
-                // art gets cut top/bottom; center 22% keeps the focus on the upper
-                // part of the cover, where key art and titles usually sit.
-                <Image
-                  src={game.imageUrl}
-                  alt={`${game.name} cover art`}
-                  fill
-                  className="object-cover [object-position:center_22%]"
-                  sizes="168px"
-                />
-              ) : (
-                // No cover art: render the title as green OSD text on the dark tube.
-                <p
-                  className="absolute inset-0 flex items-center justify-center p-3 text-center
-                             font-mono text-xs font-bold text-[#6ee86e]
-                             [text-shadow:0_0_6px_rgba(110,232,110,0.9)]"
-                >
-                  {game.name}
-                </p>
-              )}
-              <div className="crt-scanlines" aria-hidden />
+              {/* Picture layers live in .crt-picture so the power-on animation
+                  scales them as one image. Glare stays outside — it's on the
+                  glass, visible even while the tube is "off". */}
+              <div className="crt-picture">
+                {hasImage ? (
+                  // Cover crops to fill the screen like live footage. The portrait
+                  // art gets cut top/bottom; center 22% keeps the focus on the upper
+                  // part of the cover, where key art and titles usually sit.
+                  <Image
+                    src={game.imageUrl}
+                    alt={`${game.name} cover art`}
+                    fill
+                    className="object-cover [object-position:center_22%]"
+                    sizes="168px"
+                  />
+                ) : (
+                  // No cover art: render the title as green OSD text on the dark tube.
+                  <p
+                    className="absolute inset-0 flex items-center justify-center p-3 text-center
+                               font-mono text-xs font-bold text-[#6ee86e]
+                               [text-shadow:0_0_6px_rgba(110,232,110,0.9)]"
+                  >
+                    {game.name}
+                  </p>
+                )}
+                <div className="crt-scanlines" aria-hidden />
+                <div className="crt-rollbar" aria-hidden />
+              </div>
               <div className="crt-glare" aria-hidden />
               <span className="crt-osd" aria-hidden>
                 ▶ PLAY

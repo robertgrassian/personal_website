@@ -98,8 +98,15 @@ def _extract_field(field, text):
 
     The value ends, at brace depth 0, at either the next `| field =` line or
     the `}}` that closes the infobox itself.
+
+    Only horizontal whitespace after `=` is consumed here — a trailing `\s*`
+    would eat the newline too, so an *empty* field (`| released =\n| genre =`)
+    would start the scan inside the next field and capture its value. Leaving
+    the newline in place lets the depth-0 newline-pipe check below terminate an
+    empty value immediately (and `.strip()` still trims a value that legitimately
+    begins on the following line).
     """
-    m = re.search(r"\|\s*" + re.escape(field) + r"\s*=\s*", text, re.IGNORECASE)
+    m = re.search(r"\|\s*" + re.escape(field) + r"\s*=[ \t]*", text, re.IGNORECASE)
     if not m:
         return ""
 
