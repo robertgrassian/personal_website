@@ -87,13 +87,46 @@ def _clean(s):
 
 
 def _extract_field(field, text):
-    """Pull a single `| field = value` value out of an infobox template body."""
-    m = re.search(
-        r"\|\s*" + re.escape(field) + r"\s*=\s*(.*?)(?=\n\s*\||\}\})",
-        text,
-        re.DOTALL | re.IGNORECASE,
-    )
-    return m.group(1).strip() if m else ""
+    """Pull a single `| field = value` value out of an infobox template body.
+
+    Scans forward from `| field =` with a {{ }} brace-depth counter, so a
+    value that contains nested templates (e.g.
+    {{collapsible list|title={{nobold|...}}|...}} or {{Unbulleted list|...}})
+    is captured whole. A naive "stop at the first `}}` or newline-pipe" match
+    truncates such values mid-template — the inner `}}` or a pipe-separated
+    list item inside the template looks like the end of the field.
+
+    The value ends, at brace depth 0, at either the next `| field =` line or
+    the `}}` that closes the infobox itself.
+    """
+    m = re.search(r"\|\s*" + re.escape(field) + r"\s*=\s*", text, re.IGNORECASE)
+    if not m:
+        return ""
+
+    start = m.end()
+    depth, i = 0, start
+    while i < len(text):
+        if text[i:i + 2] == "{{":
+            depth += 1
+            i += 2
+        elif text[i:i + 2] == "}}":
+            if depth == 0:
+                # Closing braces of the infobox itself; the value ends here.
+                break
+            depth -= 1
+            i += 2
+        elif depth == 0 and text[i] == "\n":
+            # A newline that begins the next `| field =` line ends the value.
+            j = i + 1
+            while j < len(text) and text[j] in " \t":
+                j += 1
+            if j < len(text) and text[j] == "|":
+                break
+            i += 1
+        else:
+            i += 1
+
+    return text[start:i].strip()
 
 
 def parse_infobox(wikitext):

@@ -66,7 +66,7 @@ Search Wikipedia for the game — this prints a JSON array of candidate page tit
 python3 .claude/tools/wikipedia.py search "GAME_NAME"
 ```
 
-Pick the most relevant result (clearly a video game, not a film or book adaptation). Then fetch its infobox fields — this prints a JSON object:
+Pick the most relevant result (clearly a video game, not a film or book adaptation). If the searched title is an **enhanced edition or port** (e.g. "Persona 5 Royal", "Portal on Switch") with no dedicated article — it's covered inside the parent game's article — say so, use the parent page, and confirm the key data (system, edition) with the user before continuing. Then fetch its infobox fields — this prints a JSON object:
 
 ```bash
 python3 .claude/tools/wikipedia.py infobox "PAGE_TITLE"
@@ -98,6 +98,7 @@ The output looks like:
 ### Release date
 
 - Always use the **North America release date**. If no NA-specific date is available, use the worldwide date.
+- For a **port or enhanced edition**, use the game's **original NA release date**, not the port's (e.g. Portal on Switch keeps its 2007 date).
 - No need to ask the user about dates — just resolve it and move on.
 
 ### Genres
