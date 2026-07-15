@@ -240,7 +240,220 @@
   background-color: var(--system-fallback, #1a1a2e);
 }
 
+/* ── Currently Playing CRT ──
+   A wood-paneled CRT television that shows the currently-playing game's cover.
+   Bezel reuses the shelf walnut tones; grain runs vertically (0deg gradients)
+   so it reads as panel veneer rather than a shelf plank.
+   Layers inside .crt-screen, back to front:
+     cover art (cropped to fill) → scanlines → roll bar → glass glare → OSD text. */
+.crt-tv-body {
+  /* Grain/shadow tokens — overridden for dark mode in the media query below. */
+  --crt-grain: rgba(0, 0, 0, 0.1);
+  --crt-warm: rgba(255, 200, 120, 0.08);
+  --crt-sh-top: rgba(255, 255, 255, 0.1);
+  --crt-sh-bot: rgba(0, 0, 0, 0.15);
+
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  background-color: var(--shelf-plank);
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      var(--crt-grain) 0px,
+      transparent 1px,
+      transparent 2px,
+      var(--crt-grain) 3px,
+      transparent 4px,
+      transparent 9px
+    ),
+    linear-gradient(0deg, transparent 0%, var(--crt-warm) 30%, transparent 60%);
+  border-radius: 10px;
+  box-shadow:
+    inset 0 2px 3px var(--crt-sh-top),
+    inset 0 -3px 5px var(--crt-sh-bot),
+    0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Elliptical border-radius (horizontal / vertical) hints at curved CRT glass.
+   The inset shadow vignettes the corners; the ring is the inner plastic frame. */
+.crt-screen {
+  position: relative;
+  width: 168px;
+  height: 128px;
+  border-radius: 10px / 12px;
+  overflow: hidden;
+  background: #0c0c0c;
+  box-shadow:
+    inset 0 0 18px rgba(0, 0, 0, 0.9),
+    0 0 0 3px #1a1512;
+}
+
+/* Power-on: the picture snaps on from a thin over-bright horizontal line and
+   settles to normal brightness — a classic tube turn-on. Plays once per mount.
+   `both` fill keeps the collapsed 0% state during the initial delay, so the
+   screen reads as "off" for a beat before switching on. */
+.crt-picture {
+  position: absolute;
+  inset: 0;
+  animation: crt-power-on 0.6s ease-out 0.15s both;
+}
+
+@keyframes crt-power-on {
+  0% {
+    transform: scaleY(0.005);
+    filter: brightness(6);
+  }
+  60% {
+    transform: scaleY(1);
+    filter: brightness(1.8);
+  }
+  100% {
+    transform: scaleY(1);
+    filter: brightness(1);
+  }
+}
+
+.crt-scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.22) 0px,
+    rgba(0, 0, 0, 0.22) 1px,
+    transparent 2px,
+    transparent 3px
+  );
+  pointer-events: none;
+}
+
+.crt-glare {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 55% 38% at 28% 18%,
+    rgba(255, 255, 255, 0.22) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+/* Roll bar — the faint bright band that drifts down a CRT picture (the
+   artifact you see when filming a tube TV). The band is a fixed-height
+   gradient translated from above the screen to below it; linear timing keeps
+   the drift mechanical. Height/duration are the tuning knobs. */
+.crt-rollbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 48px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 40%,
+    rgba(255, 255, 255, 0.11) 50%,
+    rgba(255, 255, 255, 0.06) 60%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: crt-roll 8s linear infinite;
+}
+
+@keyframes crt-roll {
+  from {
+    transform: translateY(-48px);
+  }
+  to {
+    transform: translateY(128px);
+  }
+}
+
+/* VCR-style on-screen display. steps(2, jump-none) snaps between full and dim
+   with no tween — a digital blink, not a smooth pulse. */
+.crt-osd {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  font-family: var(--font-geist-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #6ee86e;
+  text-shadow: 0 0 6px rgba(110, 232, 110, 0.9);
+  /* Two animations: a one-shot fade-in after the power-on finishes (backwards
+     fill hides the OSD until its delay elapses), then the endless blink. */
+  animation:
+    crt-osd-in 0.2s 0.75s backwards,
+    crt-blink 2.4s 0.95s steps(2, jump-none) infinite;
+}
+
+@keyframes crt-osd-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes crt-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* "Live" indicator dot in the metadata eyebrow — smooth pulse, unlike the OSD.
+   currentColor inherits the amber from the parent's text color. */
+.crt-live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 6px;
+  vertical-align: 1px;
+  animation: crt-blink 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt-osd,
+  .crt-live-dot,
+  .crt-picture {
+    animation: none;
+  }
+
+  /* A frozen roll bar would just look like a smudge — hide it entirely. */
+  .crt-rollbar {
+    display: none;
+  }
+}
+
+.crt-knob {
+  background: radial-gradient(circle at 35% 30%, #6b5a49 0%, #2e2118 75%);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15);
+}
+
+/* Feet reuse the shelf edge gradient so the TV and the plank lip match. */
+.crt-foot {
+  background: linear-gradient(to bottom, var(--shelf-edge), var(--shelf-edge-bottom));
+  border-radius: 0 0 3px 3px;
+}
+
 @media (prefers-color-scheme: dark) {
+  .crt-tv-body {
+    --crt-grain: rgba(255, 255, 255, 0.06);
+    --crt-warm: rgba(255, 180, 80, 0.04);
+    --crt-sh-top: rgba(255, 255, 255, 0.04);
+    --crt-sh-bot: rgba(0, 0, 0, 0.3);
+  }
+
   .game-case-back-surface {
     --back-blur: 8px;
     --back-img-opacity: 0.55;

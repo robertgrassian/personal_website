@@ -37,4 +37,5 @@ export type Filters = {
 export interface Game extends BaseGame {
   rating: Rating | ""; // "" = no rating assigned yet
   lastPlayed: string; // ISO date string e.g. "2023-05-12", or "" if unknown
+  currentlyPlaying: boolean; // true when the CSV row's currently_playing column is "true"
 }

@@ -43,6 +43,7 @@ A showcase of every video game I've ever played, driven by `games.csv` at the pr
 - Group by: system, rating, genre, decade
 - Sort within shelves: name, release date, last played
 - Cover art fetched via `scripts/fetch-covers.ts` using the IGDB API
+- "Currently playing" CRT TV above the view tabs (`CurrentlyPlaying.tsx`), driven by the optional `currently_playing` CSV column — managed via the `now-playing` skill. Unrated games appear only on the CRT, not the shelves
 
 Remaining ideas are tracked in `TODO.md` (backlog).
 

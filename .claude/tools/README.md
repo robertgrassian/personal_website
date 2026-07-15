@@ -34,10 +34,29 @@ python3 .claude/tools/wikipedia.py infobox "Hollow Knight"
 
 `parse_infobox()` is a pure function (wikitext string in, dict out).
 
+### `now_playing.py` — used by the `now-playing` skill
+
+```bash
+python3 .claude/tools/now_playing.py list
+# -> {"currently_playing": ["Mixtape"]}
+
+python3 .claude/tools/now_playing.py set "Persona 5 Royal"
+# -> {"set": "Persona 5 Royal", "also_playing": ["Mixtape"]}
+#    or {"error": "not_found" | "ambiguous", ...} (exit 1)
+
+python3 .claude/tools/now_playing.py unset "Mixtape"
+# -> {"unset": "Mixtape", "still_playing": ["Persona 5 Royal"]}
+```
+
+Rewrites `games.csv` with the flag toggled; name matching is exact
+(case-insensitive) with substring fallback. `find_matches()`, `set_flag()`,
+and `flagged_names()` are pure functions.
+
 ## Tests
 
 ```bash
 python3 .claude/tools/test_wikipedia.py
+python3 .claude/tools/test_now_playing.py
 ```
 
 Fixture-based, no network. Exits non-zero on failure.

@@ -1,4 +1,4 @@
-name,system,rating,genre,release_date,last_played,image_url
+name,system,rating,genre,release_date,last_played,image_url,currently_playing
 The Legend of Zelda: A Link Between Worlds,Nintendo 3DS,Good,Action-Adventure,2013-11-22,2013-11-22,https://images.igdb.com/igdb/image/upload/t_cover_big/co3p0j.jpg
 Animal Crossing New Horizons,Nintendo Switch,Okay,Social Simulation,2020-03-20,2020-03-20,https://images.igdb.com/igdb/image/upload/t_cover_big/co3wls.jpg
 Animal Well,Nintendo Switch,Okay,Metroidvania|Puzzle,2024-05-09,2024-05-09,https://images.igdb.com/igdb/image/upload/t_cover_big/co4hdh.jpg
@@ -151,3 +151,4 @@ Plants vs. Zombies,Xbox 360,Good,Tower Defense|Strategy,2009-05-05,2009-05-05,ht
 Plants vs. Zombies Replanted,Nintendo Switch,Good,Tower Defense|Strategy,2025-10-23,2026-06-01,https://images.igdb.com/igdb/image/upload/t_cover_big/coa7ic.jpg
 Mina the Hollower,Nintendo Switch 2,Great,Action-Adventure,2026-05-29,2026-06-15,https://images.igdb.com/igdb/image/upload/t_cover_big/co4g15.jpg
 Mixtape,Nintendo Switch 2,Great,Adventure,2026-05-07,2026-06-30,https://images.igdb.com/igdb/image/upload/t_cover_big/coc2wi.jpg
+Persona 5 Royal,Nintendo Switch,,RPG|Social Simulation,2020-03-31,2026-07-14,https://images.igdb.com/igdb/image/upload/t_cover_big/cobaqh.jpg,true
