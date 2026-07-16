@@ -6,6 +6,9 @@ import { RATINGS } from "@/lib/games";
 
 type GameStatsProps = {
   games: Game[];
+  // In-progress games — may be unrated, so not present in `games`. Unioned into
+  // "Recently Played" so a game you're playing now still shows up there.
+  currentlyPlayingGames: Game[];
 };
 
 function BarRow({
@@ -35,7 +38,15 @@ function BarRow({
   );
 }
 
-function StatCard({ value, label, accent }: { value: number | string; label: string; accent?: boolean }) {
+function StatCard({
+  value,
+  label,
+  accent,
+}: {
+  value: number | string;
+  label: string;
+  accent?: boolean;
+}) {
   return (
     <div
       className={`flex flex-col items-center justify-center rounded-lg border px-3 py-4 text-center ${
@@ -59,7 +70,7 @@ function StatsSection({ title, children }: { title: string; children: React.Reac
   );
 }
 
-export function GameStats({ games }: GameStatsProps) {
+export function GameStats({ games, currentlyPlayingGames }: GameStatsProps) {
   const stats = useMemo(() => {
     const ratingMap = new Map<string, number>(RATINGS.map((r) => [r.name, 0]));
     ratingMap.set("Unrated", 0);
@@ -97,9 +108,22 @@ export function GameStats({ games }: GameStatsProps) {
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
-    const recentlyPlayed = [...games]
-      .filter((g) => g.lastPlayed)
-      .sort((a, b) => b.lastPlayed.localeCompare(a.lastPlayed))
+    // Currently-playing games rank first (active right now), ordered by most
+    // recent start; finished games follow, ordered by newest play date.
+    // currentlyPlayingGames leads the concat so the dedup keeps that instance
+    // even when the same game (a rated replay) also appears in `games`.
+    const seen = new Set<string>();
+    const recentlyPlayed = [...currentlyPlayingGames, ...games]
+      .filter((g) => {
+        if (seen.has(g.name)) return false;
+        seen.add(g.name);
+        return g.currentlyPlaying || g.lastPlayed !== "";
+      })
+      .sort((a, b) => {
+        if (a.currentlyPlaying !== b.currentlyPlaying) return a.currentlyPlaying ? -1 : 1;
+        if (a.currentlyPlaying) return b.playingSince.localeCompare(a.playingSince);
+        return b.lastPlayed.localeCompare(a.lastPlayed);
+      })
       .slice(0, 3);
 
     const decadeMap = new Map<string, number>();
@@ -125,7 +149,7 @@ export function GameStats({ games }: GameStatsProps) {
       recentlyPlayed,
       decades,
     };
-  }, [games]);
+  }, [games, currentlyPlayingGames]);
 
   const maxSystemCount = stats.systems[0]?.count ?? 1;
   const maxGenreCount = stats.genres[0]?.count ?? 1;

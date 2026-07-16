@@ -16,12 +16,12 @@ Check the first argument:
 **games.csv** columns:
 
 ```
-name,system,rating,genre,release_date,last_played,image_url,currently_playing
+name,system,rating,genre,release_date,image_url
 ```
 
-- `currently_playing` is optional and managed by the **now-playing** skill —
-  this skill always appends 7-field rows and never sets it. (The CSV parser
-  treats a missing trailing field as false.)
+- Play state (currently playing / last played) is **not** stored here — it
+  lives in `sessions.csv`, managed by the **now-playing** skill. This skill
+  appends 6-field rows and never touches sessions.
 
 **wishlist.csv** columns:
 
@@ -34,7 +34,7 @@ name,system,genre,release_date,image_url,starred,date_added,notes
 - `starred` (wishlist only) is `true` or empty
 - `date_added` (wishlist only) is today's date in ISO format: `YYYY-MM-DD` — get it with `date +%F`
 - `notes` (wishlist only) is free text or empty
-- `release_date` / `last_played` are ISO format: `YYYY-MM-DD`, or empty
+- `release_date` is ISO format: `YYYY-MM-DD`, or empty
 
 ---
 
@@ -116,10 +116,14 @@ After resolving all fields, **output a single summary message** to the user show
 
 ### If mode = games
 
-Use `AskUserQuestion` with exactly **two questions**:
+Use `AskUserQuestion` with **one question**:
 
 1. **Rating** — options: `Perfect`, `Great`, `Good`, `Okay`. "Other" is auto-appended; the user can note `Bad` or leave blank. If the user says they're **currently playing** the game (not finished), skip this question and leave the rating blank.
-2. **Last played date** — options: the game's NA release date as the first option (mark it "(Recommended)" if the user is likely unsure, i.e. it was released more than a year ago), then the first day of the current year and 2 prior years (e.g. `2026-01-01`, `2025-01-01`, `2024-01-01`). "Other" is auto-appended for anything else. All dates in `YYYY-MM-DD` format. Do NOT include today's date as an option. Note: `AskUserQuestion` allows a maximum of 4 options — the release date counts as one, leaving room for 3 year entries. Exception: if the rating question was skipped because the game is currently being played, skip this question too and use today's date (`date +%F`).
+
+Play state (currently playing / last played) is not collected here — it lives
+in `sessions.csv`. If the user is currently playing the game, mention they can
+run the **now-playing** skill afterward to mark it on the CRT (this skill does
+not touch `sessions.csv`).
 
 ### If mode = wishlist
 
@@ -185,7 +189,7 @@ date +%F
 **If mode = games**, append to `games.csv`:
 
 ```
-NAME,SYSTEM,RATING,GENRE,RELEASE_DATE,LAST_PLAYED,IMAGE_URL
+NAME,SYSTEM,RATING,GENRE,RELEASE_DATE,IMAGE_URL
 ```
 
 **If mode = wishlist**, append to `wishlist.csv`:

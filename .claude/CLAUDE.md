@@ -43,7 +43,8 @@ A showcase of every video game I've ever played, driven by `games.csv` at the pr
 - Group by: system, rating, genre, decade
 - Sort within shelves: name, release date, last played
 - Cover art fetched via `scripts/fetch-covers.ts` using the IGDB API
-- "Currently playing" CRT TV above the view tabs (`CurrentlyPlaying.tsx`), driven by the optional `currently_playing` CSV column — managed via the `now-playing` skill. Unrated games appear only on the CRT, not the shelves
+- Play state lives in `sessions.csv` (`game,start_date,end_date`), parsed via `src/lib/sessionsServer.ts`. An **open session** (empty `end_date`) is the source of truth for "currently playing"; the newest `end_date` is "last played". `getGames()` derives `currentlyPlaying`, `lastPlayed`, and `playingSince` onto each `Game` — there is no `currently_playing`/`last_played` column on `games.csv` anymore
+- "Currently playing" CRT TV above the view tabs (`CurrentlyPlaying.tsx`) shows the first game with an open session, labeled "playing since {start}" — managed via the `now-playing` skill (which opens/closes sessions and can rate a game on stop). Unrated games appear only on the CRT, not the shelves
 
 Remaining ideas are tracked in `TODO.md` (backlog).
 
