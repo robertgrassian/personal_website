@@ -36,21 +36,33 @@ python3 .claude/tools/wikipedia.py infobox "Hollow Knight"
 
 ### `now_playing.py` — used by the `now-playing` skill
 
+Manages play sessions in `sessions.csv` (one row per playthrough:
+`game,start_date,end_date`). An open session — empty `end_date` — means the
+game is being played now, which is the source of truth for "currently playing".
+
 ```bash
 python3 .claude/tools/now_playing.py list
-# -> {"currently_playing": ["Mixtape"]}
+# -> {"currently_playing": ["Persona 5 Royal"]}
 
-python3 .claude/tools/now_playing.py set "Persona 5 Royal"
-# -> {"set": "Persona 5 Royal", "also_playing": ["Mixtape"]}
-#    or {"error": "not_found" | "ambiguous", ...} (exit 1)
+python3 .claude/tools/now_playing.py set "Persona 5 Royal"   # open a session
+# -> {"set": "Persona 5 Royal", "since": "2026-07-15", "also_playing": ["Mixtape"]}
+#    or {"error": "already_playing" | "not_found" | "ambiguous", ...} (exit 1)
 
-python3 .claude/tools/now_playing.py unset "Mixtape"
-# -> {"unset": "Mixtape", "still_playing": ["Persona 5 Royal"]}
+python3 .claude/tools/now_playing.py stop "Mixtape"          # close its session
+# -> {"stopped": "Mixtape", "ended": "2026-07-15", "still_playing": ["Persona 5 Royal"]}
+#    or {"error": "not_playing" | "ambiguous", ...} (exit 1)
+
+python3 .claude/tools/now_playing.py rate "Mixtape" "Great"  # set games.csv rating
+# -> {"rated": "Mixtape", "rating": "Great"}
+#    or {"error": "invalid_rating" | "not_found" | "ambiguous", ...} (exit 1)
 ```
 
-Rewrites `games.csv` with the flag toggled; name matching is exact
-(case-insensitive) with substring fallback. `find_matches()`, `set_flag()`,
-and `flagged_names()` are pure functions.
+`set`/`stop` rewrite `sessions.csv`; `rate` rewrites the `rating` column in
+`games.csv`. `set` resolves the name against `games.csv` (won't open a session
+for a game that isn't in the library); `stop` resolves against currently-open
+sessions. Name matching is exact (case-insensitive) with substring fallback.
+`find_matches()`, `is_open()`, `open_session_names()`, `find_open_index()`, and
+`close_session()` are pure functions.
 
 ## Tests
 

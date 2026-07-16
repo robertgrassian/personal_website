@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { Game } from "@/lib/games";
 import { GameStats } from "./GameStats";
 import { SqlQueryPanel } from "./SqlQueryPanel";
@@ -8,14 +8,26 @@ import { CloseIcon } from "@/components/Icon";
 
 type StatsPanelProps = {
   games: Game[];
+  // In-progress games, forwarded to GameStats for the "Recently Played" list.
+  currentlyPlayingGames: Game[];
   isOpen: boolean;
   onClose: () => void;
 };
 
 type PanelTab = "overview" | "query";
 
-export function StatsPanel({ games, isOpen, onClose }: StatsPanelProps) {
+export function StatsPanel({ games, currentlyPlayingGames, isOpen, onClose }: StatsPanelProps) {
   const [activeTab, setActiveTab] = useState<PanelTab>("overview");
+
+  // The SQL table is rated games plus any in-progress game not already there
+  // (an unrated game being played now), so `currently_playing` is queryable.
+  // GameStats instead receives the two lists separately (below) because it needs
+  // currently-playing games ranked first in "Recently Played" — an order it
+  // can't recover from a pre-merged list.
+  const queryableGames = useMemo(() => {
+    const names = new Set(games.map((g) => g.name));
+    return [...games, ...currentlyPlayingGames.filter((g) => !names.has(g.name))];
+  }, [games, currentlyPlayingGames]);
 
   // "Latest ref" pattern: keeps onClose stable as a dep-free ref so the
   // scroll-lock effect doesn't re-run when the parent re-renders.
@@ -113,10 +125,10 @@ export function StatsPanel({ games, isOpen, onClose }: StatsPanelProps) {
         {/* Scrollable content — both panels stay mounted to preserve query state across tab switches */}
         <div className="overflow-y-auto flex-1 px-6 py-6">
           <div className={activeTab === "overview" ? "" : "hidden"}>
-            <GameStats games={games} />
+            <GameStats games={games} currentlyPlayingGames={currentlyPlayingGames} />
           </div>
           <div className={activeTab === "query" ? "" : "hidden"}>
-            <SqlQueryPanel games={games} />
+            <SqlQueryPanel games={queryableGames} />
           </div>
         </div>
       </aside>

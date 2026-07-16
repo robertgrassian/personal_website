@@ -21,9 +21,12 @@ import { useGameLibraryUrlState } from "./useGameLibraryUrlState";
 type GameLibraryProps = {
   games: Game[];
   wishlist: WishlistGame[];
+  // In-progress games (may be unrated, so not in `games`); forwarded to the
+  // stats panel so "Recently Played" can surface them.
+  currentlyPlayingGames: Game[];
 };
 
-export function GameLibrary({ games, wishlist }: GameLibraryProps) {
+export function GameLibrary({ games, wishlist, currentlyPlayingGames }: GameLibraryProps) {
   const [statsOpen, setStatsOpen] = useState(false);
 
   // URL-backed state lives in the hook; this component only renders.
@@ -221,7 +224,12 @@ export function GameLibrary({ games, wishlist }: GameLibraryProps) {
       )}
 
       {view === "played" && (
-        <StatsPanel games={games} isOpen={statsOpen} onClose={() => setStatsOpen(false)} />
+        <StatsPanel
+          games={games}
+          currentlyPlayingGames={currentlyPlayingGames}
+          isOpen={statsOpen}
+          onClose={() => setStatsOpen(false)}
+        />
       )}
     </div>
   );

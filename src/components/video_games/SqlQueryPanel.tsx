@@ -13,7 +13,9 @@ type GameRow = {
   genres: string; // comma-separated, e.g. "Platform, Fighting"
   release_date: string | null; // "YYYY-MM-DD"
   release_year: number | null;
-  last_played: string | null; // "YYYY-MM-DD"
+  last_played: string | null; // derived from sessions: newest end date, or NULL
+  currently_playing: boolean; // derived from sessions: has an open session
+  playing_since: string | null; // derived from sessions: open session start, or NULL
 };
 
 // Normalized join table: one row per game-genre pair.
@@ -35,6 +37,8 @@ function toGameRow(game: Game): GameRow {
     release_date: game.releaseDate || null,
     release_year: isNaN(y) ? null : y,
     last_played: game.lastPlayed || null,
+    currently_playing: game.currentlyPlaying,
+    playing_since: game.playingSince || null,
   };
 }
 
@@ -51,7 +55,9 @@ const GAMES_COLUMNS = [
   { name: "genres", desc: 'Comma-separated; e.g. "Platform, Fighting"' },
   { name: "release_date", desc: "ISO date (YYYY-MM-DD) or NULL" },
   { name: "release_year", desc: "Year as integer, e.g. 2024" },
-  { name: "last_played", desc: "ISO date or NULL" },
+  { name: "last_played", desc: "ISO date or NULL (derived from sessions)" },
+  { name: "currently_playing", desc: "true if the game has an open session" },
+  { name: "playing_since", desc: "ISO date the current session started, or NULL" },
 ];
 
 // game_genres is the exploded version of games.genres — one row per game-genre pair.

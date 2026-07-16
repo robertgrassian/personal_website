@@ -105,9 +105,9 @@ export function CurrentlyPlaying({ game }: CurrentlyPlayingProps) {
           {game.system}
           {game.genres.length > 0 && ` · ${game.genres.join(", ")}`}
         </p>
-        {game.lastPlayed && (
+        {game.playingSince && (
           <p className="text-shelf-label-muted mt-1.5 text-xs italic">
-            last played {formatDay(game.lastPlayed)}
+            playing since {formatDay(game.playingSince)}
           </p>
         )}
       </div>

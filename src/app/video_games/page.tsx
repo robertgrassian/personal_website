@@ -15,6 +15,10 @@ export default function VideoGamesPage() {
   // Found before the rating filter below, so an unrated in-progress game still
   // appears on the CRT.
   const nowPlaying = games.find((g) => g.currentlyPlaying);
+  // All in-progress games — passed to the stats panel so "Recently Played" can
+  // include a currently-playing game even when it's unrated (and thus absent
+  // from the rated shelves below).
+  const currentlyPlayingGames = games.filter((g) => g.currentlyPlaying);
   // Shelves hold finished, rated games only. A game with no rating yet (usually
   // the one currently being played) is excluded here; once it gets a rating it
   // shows up on the shelves — and in both places if it's still being played.
@@ -30,7 +34,11 @@ export default function VideoGamesPage() {
 
         {/* Suspense is required because GameLibrary uses useSearchParams() */}
         <Suspense fallback={null}>
-          <GameLibrary games={libraryGames} wishlist={wishlist} />
+          <GameLibrary
+            games={libraryGames}
+            wishlist={wishlist}
+            currentlyPlayingGames={currentlyPlayingGames}
+          />
         </Suspense>
       </div>
     </main>

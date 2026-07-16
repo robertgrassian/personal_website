@@ -5,8 +5,34 @@ import fs from "fs";
 import path from "path";
 import type { Game, Rating } from "./games";
 import { RATINGS } from "./games";
+import type { Session } from "./sessions";
+import { getSessions } from "./sessionsServer";
 
 const VALID_RATINGS = new Set<string>(["", ...RATINGS.map((r) => r.name)]);
+
+// Play state derived from a game's sessions. Replaces the old last_played /
+// currently_playing CSV columns — an open session (empty endDate) means the
+// game is being played now; the newest endDate is when it was last played.
+type PlayState = {
+  currentlyPlaying: boolean;
+  lastPlayed: string;
+  playingSince: string;
+};
+
+function derivePlayState(sessions: Session[]): PlayState {
+  const open = sessions.filter((s) => s.endDate === "");
+  // Newest end date across finished sessions. ISO dates sort lexically, so
+  // reduce with localeCompare rather than parsing to Date objects.
+  const lastPlayed = sessions
+    .filter((s) => s.endDate !== "")
+    .reduce((latest, s) => (s.endDate.localeCompare(latest) > 0 ? s.endDate : latest), "");
+  // If several open sessions exist (unusual), take the most recent start.
+  const playingSince = open.reduce(
+    (latest, s) => (s.startDate.localeCompare(latest) > 0 ? s.startDate : latest),
+    ""
+  );
+  return { currentlyPlaying: open.length > 0, lastPlayed, playingSince };
+}
 
 // Parses and validates a single CSV row. Logs warnings for fixable problems
 // (bad rating, missing system) and returns the best-effort Game object.
@@ -22,25 +48,14 @@ function parseRow(line: string, rowIndex: number): Game | null {
     return null;
   }
 
-  // The `= ""` defaults handle rows missing the trailing optional columns —
-  // most rows have no currently_playing value at all.
-  const [
-    rawName,
-    rawSystem,
-    rawRating,
-    rawGenre,
-    rawReleaseDate,
-    rawLastPlayed,
-    rawImageUrl = "",
-    rawCurrentlyPlaying = "",
-  ] = parts;
+  // The `= ""` default handles rows missing the trailing image_url column.
+  const [rawName, rawSystem, rawRating, rawGenre, rawReleaseDate, rawImageUrl = ""] = parts;
 
   const name = rawName?.trim() ?? "";
   const system = rawSystem?.trim() ?? "";
   let rating = rawRating?.trim() ?? "";
   const genres = rawGenre ? rawGenre.split("|").map((g) => g.trim()) : [];
   const releaseDate = rawReleaseDate?.trim() ?? "";
-  const lastPlayed = rawLastPlayed?.trim() ?? "";
   const imageUrl = rawImageUrl?.trim() ?? "";
 
   if (!name) {
@@ -59,17 +74,18 @@ function parseRow(line: string, rowIndex: number): Game | null {
     rating = "";
   }
 
+  // Play-state fields (lastPlayed / currentlyPlaying / playingSince) are filled
+  // in by getGames() from sessions.csv — parseRow only handles games.csv columns.
   return {
     name,
     system,
     rating: rating as Rating | "",
     genres,
     releaseDate,
-    lastPlayed,
     imageUrl,
-    // Strict equality with "true" — anything else (empty, typo) is just false,
-    // so a bad value degrades to "no featured game" rather than an error.
-    currentlyPlaying: rawCurrentlyPlaying.trim() === "true",
+    lastPlayed: "",
+    currentlyPlaying: false,
+    playingSince: "",
   };
 }
 
@@ -85,10 +101,33 @@ export function getGames(): Game[] {
   // The leading comma in `[, ...rows]` skips the header row via destructuring.
   const [, ...rows] = raw.trim().split("\n");
 
-  return rows
+  const games = rows
     .filter((line) => line.trim() !== "") // skip trailing blank lines
     .flatMap((line, i) => {
       const game = parseRow(line, i + 2); // +2: 1-indexed, skip header
       return game ? [game] : [];
     });
+
+  // Group sessions by game name so each game's play state is one Map lookup.
+  // Sessions join to games by exact name (the only unique handle we have).
+  const sessionsByGame = new Map<string, Session[]>();
+  for (const session of getSessions()) {
+    const list = sessionsByGame.get(session.game);
+    if (list) list.push(session);
+    else sessionsByGame.set(session.game, [session]);
+  }
+
+  // Merge the derived play state onto each game. Games with no sessions keep
+  // the parseRow defaults (not playing, no last-played date — honestly unknown).
+  for (const game of games) {
+    const sessions = sessionsByGame.get(game.name);
+    if (sessions) {
+      const { currentlyPlaying, lastPlayed, playingSince } = derivePlayState(sessions);
+      game.currentlyPlaying = currentlyPlaying;
+      game.lastPlayed = lastPlayed;
+      game.playingSince = playingSince;
+    }
+  }
+
+  return games;
 }

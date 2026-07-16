@@ -34,8 +34,14 @@ export type Filters = {
 
 // Game = BaseGame + played-only fields. Shared UI uses BaseGame so both this
 // and WishlistGame fit.
+//
+// `lastPlayed`, `currentlyPlaying`, and `playingSince` are all *derived* from
+// sessions.csv (see sessionsServer.ts) in getGames() — they are no longer CSV
+// columns on games.csv. An open session (empty end date) is the source of
+// truth for "currently playing"; the newest end date is "last played".
 export interface Game extends BaseGame {
   rating: Rating | ""; // "" = no rating assigned yet
-  lastPlayed: string; // ISO date string e.g. "2023-05-12", or "" if unknown
-  currentlyPlaying: boolean; // true when the CSV row's currently_playing column is "true"
+  lastPlayed: string; // derived: newest session end date, or "" if none/only open
+  currentlyPlaying: boolean; // derived: true when the game has an open session
+  playingSince: string; // derived: start date of the open session, or "" if not playing
 }
