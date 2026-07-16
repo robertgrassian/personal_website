@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { getGames } from "@/lib/gamesServer";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { CurrentlyPlaying } from "@/components/video_games/CurrentlyPlaying";
+import { LibraryCount } from "@/components/video_games/LibraryCount";
 import { getWishlist } from "@/lib/wishlistServer";
 
 export const metadata = {
@@ -23,12 +24,21 @@ export default function VideoGamesPage() {
   // the one currently being played) is excluded here; once it gets a rating it
   // shows up on the shelves — and in both places if it's still being played.
   const libraryGames = games.filter((g) => g.rating !== "");
+  // Headline counts. "Played" spans the whole collection you've engaged with:
+  // every rated game plus anything currently in progress. The `||` de-dupes a
+  // game that's both rated and currently playing — it's counted once.
+  const playedCount = games.filter((g) => g.rating !== "" || g.currentlyPlaying).length;
+  const wishlistCount = wishlist.length;
 
   return (
     <main className="min-h-screen bg-shelf-bg shelf-theme">
       <div className="max-w-7xl mx-auto px-6 py-12">
         <h1 className="text-4xl font-bold text-shelf-text">Video Game Library</h1>
-        <p className="mt-2 text-shelf-text-muted">{libraryGames.length} games</p>
+        {/* useSearchParams (inside LibraryCount) requires a Suspense boundary.
+            The fallback shows the default-view count so there's no flash. */}
+        <Suspense fallback={<p className="mt-2 text-shelf-text-muted">{playedCount} games</p>}>
+          <LibraryCount playedCount={playedCount} wishlistCount={wishlistCount} />
+        </Suspense>
 
         {nowPlaying && <CurrentlyPlaying game={nowPlaying} />}
 
