@@ -112,12 +112,16 @@ export function GameStats({ games, currentlyPlayingGames }: GameStatsProps) {
     // recent start; finished games follow, ordered by newest play date.
     // currentlyPlayingGames leads the concat so the dedup keeps that instance
     // even when the same game (a rated replay) also appears in `games`.
+    // Only games that have actually been played qualify; dedup by name after
+    // that test so a non-qualifying entry never marks a name as seen and blocks
+    // a later qualifying one with the same name.
     const seen = new Set<string>();
     const recentlyPlayed = [...currentlyPlayingGames, ...games]
       .filter((g) => {
+        if (!(g.currentlyPlaying || g.lastPlayed !== "")) return false;
         if (seen.has(g.name)) return false;
         seen.add(g.name);
-        return g.currentlyPlaying || g.lastPlayed !== "";
+        return true;
       })
       .sort((a, b) => {
         if (a.currentlyPlaying !== b.currentlyPlaying) return a.currentlyPlaying ? -1 : 1;

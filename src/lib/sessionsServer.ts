@@ -8,8 +8,9 @@ import type { Session } from "./sessions";
 // CSV schema (sessions.csv header):
 // game,start_date,end_date
 // Order matters — parseRow destructures by position. An empty end_date marks
-// an open session (the game is currently being played). No field may contain
-// a comma (game names with commas would need quoting, handled below).
+// an open session (the game is currently being played). Names containing a
+// comma are not supported (the naive split below would mis-parse a quoted
+// field) — same limitation as gamesServer.ts; no current data hits it.
 
 function parseRow(line: string, rowIndex: number): Session | null {
   // Split on comma and strip wrapping quotes — same approach as gamesServer.ts.

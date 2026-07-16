@@ -21,6 +21,9 @@ export function StatsPanel({ games, currentlyPlayingGames, isOpen, onClose }: St
 
   // The SQL table is rated games plus any in-progress game not already there
   // (an unrated game being played now), so `currently_playing` is queryable.
+  // GameStats instead receives the two lists separately (below) because it needs
+  // currently-playing games ranked first in "Recently Played" — an order it
+  // can't recover from a pre-merged list.
   const queryableGames = useMemo(() => {
     const names = new Set(games.map((g) => g.name));
     return [...games, ...currentlyPlayingGames.filter((g) => !names.has(g.name))];
