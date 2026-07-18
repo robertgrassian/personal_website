@@ -196,7 +196,6 @@ export function CrtTv({ games }: CrtTvProps) {
                     fill
                     className="object-cover [object-position:center_22%]"
                     sizes="(max-width: 520px) 88vw, 420px"
-                    priority
                   />
                 ) : hasGames ? (
                   // A playing game with no cover art: title as green OSD text on

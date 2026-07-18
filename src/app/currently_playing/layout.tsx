@@ -1,7 +1,9 @@
 // Route-scoped layout for /currently_playing — Next.js App Router convention.
-// CSS imported in a Server Component layout is bundled and applied only when this
-// route is active. The photorealistic CRT styles live in a file of their own
-// (rather than globals.css) so they never leak into other pages.
+// Importing the CSS here (rather than globals.css) keeps it out of the global
+// entry and loads it with this segment. Note: a plain (non-module) CSS import is
+// still global once loaded — nothing route-scopes the rules themselves. What
+// keeps these styles from colliding with other pages is the `pcrt-` class
+// namespace used throughout crt.css, not the import location.
 import "./crt.css";
 
 export default function CurrentlyPlayingLayout({ children }: { children: React.ReactNode }) {
