@@ -40,9 +40,22 @@
    jacks, label text, …) by hand would be tedious and easy to get out of
    proportion; scaling the finished cabinet uniformly guarantees it stays a
    miniature of the exact same TV. Outside compact mode this frame is an
-   unstyled no-op wrapper. */
+   unstyled no-op wrapper.
+
+   --pcrt-compact-ref-width and --pcrt-compact-scale are the single source of
+   truth for the shrink factor — both this frame's width and `.pcrt-tv--compact`'s
+   transform below read the same custom properties (inherited down to it),
+   instead of each hardcoding "500 × 0.4 = 200" independently and risking the
+   numbers drifting apart if the scale ever changes. */
 .pcrt-tv-frame--compact {
-  width: 200px;
+  --pcrt-compact-ref-width: 500px;
+  --pcrt-compact-scale: 0.4;
+  width: calc(var(--pcrt-compact-ref-width) * var(--pcrt-compact-scale));
+  /* The cabinet's internal padding/gaps are clamp()'d against the real
+     viewport width, not the pinned reference width above, so its rendered
+     height isn't derivable via calc() the way width is — this is a measured
+     approximation (it renders ~170-178px tall across viewport sizes),
+     rounded up slightly so the CRT never overflows this box. */
   height: 180px;
 }
 
@@ -68,12 +81,12 @@
 /* Compact mode fixes the cabinet at its normal reference width (the max end
    of the default clamp, i.e. the size it already renders at on any
    non-mobile viewport) and shrinks the whole rendered result with a single
-   transform. transform-origin: top left keeps it anchored to the frame's
-   corner so `.pcrt-tv-frame--compact`'s width/height above lines up with
-   what's actually painted. */
+   transform, reading the same --pcrt-compact-* custom properties that size
+   `.pcrt-tv-frame--compact` above. transform-origin: top left keeps it
+   anchored to the frame's corner so the two line up. */
 .pcrt-tv--compact {
-  width: 500px;
-  transform: scale(0.4);
+  width: var(--pcrt-compact-ref-width, 500px);
+  transform: scale(var(--pcrt-compact-scale, 0.4));
   transform-origin: top left;
 }
 
