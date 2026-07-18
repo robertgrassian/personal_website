@@ -20,7 +20,7 @@ name,system,rating,genre,release_date,image_url
 ```
 
 - Play state (currently playing / last played) is **not** stored here — it
-  lives in `sessions.csv`, managed by the **now-playing** skill. This skill
+  lives in `sessions.csv`, managed by the **session** skill. This skill
   appends 6-field rows and never touches sessions.
 
 **wishlist.csv** columns:
@@ -122,7 +122,7 @@ Use `AskUserQuestion` with **one question**:
 
 Play state (currently playing / last played) is not collected here — it lives
 in `sessions.csv`. If the user is currently playing the game, mention they can
-run the **now-playing** skill afterward to mark it on the CRT (this skill does
+run the **session** skill afterward to mark it on the CRT (this skill does
 not touch `sessions.csv`).
 
 ### If mode = wishlist
@@ -219,4 +219,4 @@ Print a confirmation showing the exact row appended.
 - If the user skips cover art, use empty string for `image_url`.
 - Do not run `fetch-covers.ts`.
 - Do not commit or push — only modify the target CSV.
-- If the game was added as currently being played, offer to run the `now-playing` skill next to flag it.
+- If the game was added as currently being played, offer to run the `session` skill next to flag it.

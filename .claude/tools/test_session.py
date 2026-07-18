@@ -1,16 +1,17 @@
-"""Tests for now_playing.py's pure functions. No file I/O — run directly:
+"""Tests for session.py's pure functions. No file I/O — run directly:
 
-    python3 .claude/tools/test_now_playing.py
+    python3 .claude/tools/test_session.py
 """
 
 import sys
 
-from now_playing import (
+from session import (
     close_session,
     find_matches,
     find_open_index,
     is_open,
     open_session_names,
+    parse_date,
 )
 
 
@@ -68,6 +69,18 @@ def test_close_session_sets_end_and_pads_short_rows() -> None:
     close_session(sessions, 2, "2026-07-15")
     assert sessions[2] == ["Borderlands 3", "2021-01-01", "2026-07-15"]
     assert open_session_names(sessions) == ["Persona 5 Royal"]
+
+
+def test_parse_date_accepts_valid_iso() -> None:
+    assert parse_date("2026-07-02") == "2026-07-02"
+    assert parse_date(" 2026-07-02 ") == "2026-07-02"  # trims whitespace
+
+
+def test_parse_date_rejects_bad_input() -> None:
+    assert parse_date("2026-13-40") is None  # month/day out of range
+    assert parse_date("07/02/2026") is None  # wrong format
+    assert parse_date("last week") is None
+    assert parse_date("") is None
 
 
 def main() -> None:

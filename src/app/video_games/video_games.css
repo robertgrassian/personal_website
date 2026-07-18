@@ -287,16 +287,26 @@
   box-shadow:
     inset 0 0 18px rgba(0, 0, 0, 0.9),
     0 0 0 3px #1a1512;
+  /* Force the rounded clip to rasterize into one layer. Without this, browsers
+     clip the animated children (roll bar / picture) against the border-radius on
+     a separate compositor layer, and sub-pixel rounding leaves a bright hairline
+     along the top/bottom edge — visible when zoomed and repainting (scroll/mouse
+     move). translateZ(0) + backface-visibility:hidden pin it to one surface. */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  isolation: isolate;
 }
 
 /* Power-on: the picture snaps on from a thin over-bright horizontal line and
    settles to normal brightness — a classic tube turn-on. Plays once per mount.
-   `both` fill keeps the collapsed 0% state during the initial delay, so the
-   screen reads as "off" for a beat before switching on. */
+   `backwards` fill keeps the collapsed 0% state during the initial delay (so the
+   screen reads as "off" for a beat) but drops the transform once it ends — the
+   end frame equals the default style, and not holding a transform avoids leaving
+   a lingering compositor layer inside the rounded clip. */
 .crt-picture {
   position: absolute;
   inset: 0;
-  animation: crt-power-on 0.6s ease-out 0.15s both;
+  animation: crt-power-on 0.6s ease-out 0.15s backwards;
 }
 
 @keyframes crt-power-on {
@@ -431,6 +441,12 @@
   .crt-rollbar {
     display: none;
   }
+
+  /* Channel switches happen instantly under reduced motion (see the component),
+     so there's no burst to show — hide the static overlay outright. */
+  .crt-static {
+    display: none;
+  }
 }
 
 .crt-knob {
@@ -438,6 +454,87 @@
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.5),
     inset 0 1px 1px rgba(255, 255, 255, 0.15);
+}
+
+/* Transparent full-screen click target: clicking anywhere on the picture
+   advances to the next channel. It sits above the picture/glare/OSD (which are
+   pointer-events:none) so every click lands here. Amber focus ring, inset so it
+   isn't clipped by the screen's overflow:hidden, reuses the shelf input-ring
+   token to stay correct in both light and dark. */
+.crt-screen-button {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 0;
+  padding: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.crt-screen-button:focus-visible {
+  outline: 2px solid var(--shelf-input-ring);
+  outline-offset: -3px;
+}
+
+/* TV snow shown during a channel change. The noise is a tiled SVG feTurbulence
+   image; grayscale + contrast makes it read as monochrome static. It flickers
+   via opacity only (no blend mode, no position jumps) — those combined with the
+   screen's rounded overflow occasionally left a bright horizontal seam.
+   Hidden until the screen gets .is-switching. */
+.crt-static {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+  filter: grayscale(1) contrast(1.5) brightness(1.1);
+}
+.crt-screen.is-switching .crt-static {
+  animation: crt-snow 0.12s steps(3) infinite;
+}
+
+/* Flicker the snow's opacity so it shimmers like a detuned channel. */
+@keyframes crt-snow {
+  0% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0.65;
+  }
+}
+
+/* Channel pips — one clickable dot per game beside the "Now playing" eyebrow.
+   Each jumps straight to its game; the active one is filled. currentColor
+   inherits the amber from the eyebrow's text-link, so both themes are covered. */
+.crt-channel-pip {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 0;
+  padding: 0;
+  appearance: none;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  cursor: pointer;
+  transition:
+    opacity 0.2s ease,
+    transform 0.15s ease;
+}
+.crt-channel-pip:hover {
+  opacity: 0.7;
+  transform: scale(1.15);
+}
+.crt-channel-pip.is-active {
+  opacity: 1;
+}
+.crt-channel-pip:focus-visible {
+  outline: 2px solid var(--shelf-input-ring);
+  outline-offset: 2px;
 }
 
 /* Feet reuse the shelf edge gradient so the TV and the plank lip match. */
