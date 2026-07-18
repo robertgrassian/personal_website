@@ -1,9 +1,10 @@
 /* ==========================================================================
-   Photorealistic '90s grey Panasonic-style CRT television — /currently_playing.
+   Photorealistic '90s grey Panasonic-style CRT television — shared by the
+   /video_games library page and the standalone /currently_playing route.
 
    Built entirely in CSS/SVG (no image assets). Everything is namespaced `pcrt-`
-   (photoreal CRT) so it can never collide with the stylized `crt-*` classes used
-   by the game library's TV.
+   (photoreal CRT) so it can never collide with the older, now-unused stylized
+   `crt-*` classes in video_games.css.
 
    Modeled on a real cool-grey Panasonic set: one continuous molded front panel
    with the curved, glossy tube recessed into it and a row of small labeled round

@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { getGames } from "@/lib/gamesServer";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
-import { CurrentlyPlaying } from "@/components/video_games/CurrentlyPlaying";
+import { CrtTv } from "@/components/crt/CrtTv";
 import { LibraryCount } from "@/components/video_games/LibraryCount";
 import { getWishlist } from "@/lib/wishlistServer";
 
@@ -38,7 +38,7 @@ export default function VideoGamesPage() {
           <LibraryCount playedCount={playedCount} wishlistCount={wishlistCount} />
         </Suspense>
 
-        {currentlyPlayingGames.length > 0 && <CurrentlyPlaying games={currentlyPlayingGames} />}
+        {currentlyPlayingGames.length > 0 && <CrtTv games={currentlyPlayingGames} />}
 
         {/* Suspense is required because GameLibrary uses useSearchParams() */}
         <Suspense fallback={null}>

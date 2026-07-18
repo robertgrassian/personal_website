@@ -1,5 +1,5 @@
 import { getGames } from "@/lib/gamesServer";
-import { CrtTv } from "@/components/currently_playing/CrtTv";
+import { CrtTv } from "@/components/crt/CrtTv";
 
 // Next.js convention: a `metadata` export sets the <title>/<meta> for this route.
 // (React would have no equivalent — this is App Router's replacement for

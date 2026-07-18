@@ -3,8 +3,9 @@
 // entry and loads it with this segment. Note: a plain (non-module) CSS import is
 // still global once loaded — nothing route-scopes the rules themselves. What
 // keeps these styles from colliding with other pages is the `pcrt-` class
-// namespace used throughout crt.css, not the import location.
-import "./crt.css";
+// namespace used throughout crt.css, not the import location. The CRT is shared
+// with /video_games, which imports the same stylesheet in its own layout.
+import "@/components/crt/crt.css";
 
 export default function CurrentlyPlayingLayout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
