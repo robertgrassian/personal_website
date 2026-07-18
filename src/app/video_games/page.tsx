@@ -38,7 +38,7 @@ export default function VideoGamesPage() {
           <LibraryCount playedCount={playedCount} wishlistCount={wishlistCount} />
         </Suspense>
 
-        {currentlyPlayingGames.length > 0 && <CrtTv games={currentlyPlayingGames} />}
+        {currentlyPlayingGames.length > 0 && <CrtTv games={currentlyPlayingGames} compact />}
 
         {/* Suspense is required because GameLibrary uses useSearchParams() */}
         <Suspense fallback={null}>

@@ -22,6 +22,30 @@
   align-items: center;
 }
 
+/* Compact variant — used on the game library page so the CRT doesn't push the
+   shelves below the fold. Lays the TV and its metadata out side by side,
+   bottom-aligned, instead of stacking the metadata below a full-size TV. */
+.pcrt-stage--compact {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1.25rem 1.75rem;
+}
+
+/* Sizing frame for the compact variant: reserves the CRT's shrunken layout
+   footprint in the flex row. `.pcrt-tv--compact` (below) does the actual
+   shrinking, by rendering the full-size cabinet at its normal fixed reference
+   width and scaling the whole thing down with a CSS transform. Re-deriving
+   compact versions of every clamp()'d size in this file (padding, buttons,
+   jacks, label text, …) by hand would be tedious and easy to get out of
+   proportion; scaling the finished cabinet uniformly guarantees it stays a
+   miniature of the exact same TV. Outside compact mode this frame is an
+   unstyled no-op wrapper. */
+.pcrt-tv-frame--compact {
+  width: 200px;
+  height: 180px;
+}
+
 /* ── Cabinet shell ──────────────────────────────────────────────────────────
    The outer molded lip of the set: a slightly darker cool grey that frames the
    lighter front face, plus the big soft drop shadow that grounds it. */
@@ -39,6 +63,18 @@
     0 4px 10px rgba(0, 0, 0, 0.4),
     0 36px 64px -20px rgba(0, 0, 0, 0.55);
   border: 1px solid rgba(0, 0, 0, 0.4);
+}
+
+/* Compact mode fixes the cabinet at its normal reference width (the max end
+   of the default clamp, i.e. the size it already renders at on any
+   non-mobile viewport) and shrinks the whole rendered result with a single
+   transform. transform-origin: top left keeps it anchored to the frame's
+   corner so `.pcrt-tv-frame--compact`'s width/height above lines up with
+   what's actually painted. */
+.pcrt-tv--compact {
+  width: 500px;
+  transform: scale(0.4);
+  transform-origin: top left;
 }
 
 /* ── Front panel ────────────────────────────────────────────────────────────
@@ -466,6 +502,16 @@
 }
 .pcrt-meta > div:first-child {
   justify-content: center;
+}
+
+/* Compact mode: metadata sits beside the TV instead of centered below it. */
+.pcrt-meta--compact {
+  margin-top: 0;
+  max-width: 20rem;
+  text-align: left;
+}
+.pcrt-meta--compact > div:first-child {
+  justify-content: flex-start;
 }
 
 /* "Live" dot in the eyebrow — smooth pulse when a channel is playing, static dot
