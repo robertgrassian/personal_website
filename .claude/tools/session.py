@@ -1,4 +1,4 @@
-"""Manage play sessions (sessions.csv) — used by the now-playing skill.
+"""Manage play sessions (sessions.csv) — used by the session skill.
 
 A session is one playthrough: it opens when you start a game and closes when
 you finish/drop it. An open session (empty end_date) means the game is being
@@ -6,14 +6,20 @@ played now — this is the source of truth for "currently playing", replacing th
 old currently_playing / last_played columns on games.csv.
 
 Usage (from the project root):
-    python3 .claude/tools/now_playing.py list
-    python3 .claude/tools/now_playing.py set "Game Name"      # open a session
-    python3 .claude/tools/now_playing.py stop "Game Name"     # close its session
-    python3 .claude/tools/now_playing.py rate "Game Name" "Great"  # set games.csv rating
+    python3 .claude/tools/session.py list
+    python3 .claude/tools/session.py set "Game Name"      # open a session (start today)
+    python3 .claude/tools/session.py stop "Game Name"     # close its session (end today)
+    python3 .claude/tools/session.py rate "Game Name" "Great"  # set games.csv rating
+    python3 .claude/tools/session.py log "Game Name" [START] [END]  # log an arbitrary session
+
+`log` is the general form: START defaults to today, END defaults to empty (an
+open/currently-playing session). Both dates are ISO (YYYY-MM-DD). `set` is just
+`log NAME` and `stop` closes an already-open session with today's date; `log`
+adds the missing case — a fully-past session, or one that started before today.
 
 Prints JSON to stdout. Hard errors (bad usage, missing file, no match, ambiguous
-match, already/not playing, invalid rating) print {"error": ...} and exit
-non-zero so callers can branch.
+match, already/not playing, invalid rating, invalid date) print {"error": ...}
+and exit non-zero so callers can branch.
 """
 
 import csv
@@ -81,6 +87,19 @@ def close_session(sessions: list[list[str]], index: int, end_date: str) -> None:
     while len(row) <= END:
         row.append("")
     row[END] = end_date
+
+
+def parse_date(value: str) -> str | None:
+    """Normalize an ISO date string, or None if it isn't a valid YYYY-MM-DD.
+
+    date.fromisoformat both validates and canonicalizes (e.g. rejects
+    2026-13-40 and month/day out of range), so the returned string is always a
+    real calendar date in YYYY-MM-DD form.
+    """
+    try:
+        return date.fromisoformat(value.strip()).isoformat()
+    except ValueError:
+        return None
 
 
 # --- I/O helpers ---
@@ -166,6 +185,53 @@ def cmd_set(query: str) -> None:
     print(json.dumps({"set": canonical, "since": today, "also_playing": others}))
 
 
+def cmd_log(query: str, start: str | None, end: str | None) -> None:
+    """Append an arbitrary session. START defaults to today; END empty = open.
+
+    This is the general form of `set`/`stop`: it can record a fully-past
+    playthrough (both dates given) or a session that started before today and is
+    still open (start given, end omitted).
+    """
+    # Resolve against games.csv so we store the canonical name and don't log a
+    # session for a game that isn't in the library (same rule as `set`).
+    _, games_rows = load_games()
+    game_names = [r[0] for r in games_rows]
+    canonical = game_names[resolve_single(game_names, query)]
+
+    start_norm = date.today().isoformat() if start is None else parse_date(start)
+    if start_norm is None:
+        fail({"error": "invalid_date", "field": "start", "value": start})
+
+    if end is None:
+        end_norm = ""
+    else:
+        end_norm = parse_date(end)
+        if end_norm is None:
+            fail({"error": "invalid_date", "field": "end", "value": end})
+        if end_norm < start_norm:
+            fail({"error": "end_before_start", "start": start_norm, "end": end_norm})
+
+    header, sessions = load_sessions()
+    # An open (end-less) log is "currently playing"; a second open session for
+    # the same game is meaningless, so guard it exactly like `set`.
+    if not end_norm:
+        existing = find_open_index(sessions, canonical)
+        if existing != -1:
+            fail({"error": "already_playing", "name": canonical, "since": sessions[existing][START]})
+
+    sessions.append([canonical, start_norm, end_norm])
+    save(SESSIONS_PATH, header, sessions)
+
+    others = [n for n in open_session_names(sessions) if n != canonical]
+    print(json.dumps({
+        "logged": canonical,
+        "start": start_norm,
+        "end": end_norm or None,
+        "open": not end_norm,
+        "also_playing": others,
+    }))
+
+
 def cmd_stop(query: str) -> None:
     header, sessions = load_sessions()
     open_names = open_session_names(sessions)
@@ -202,8 +268,8 @@ def cmd_rate(query: str, rating: str) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) < 2 or sys.argv[1] not in ("list", "set", "stop", "rate"):
-        fail({"error": "usage", "usage": "now_playing.py list | set NAME | stop NAME | rate NAME RATING"})
+    if len(sys.argv) < 2 or sys.argv[1] not in ("list", "set", "stop", "rate", "log"):
+        fail({"error": "usage", "usage": "session.py list | set NAME | stop NAME | rate NAME RATING | log NAME [START] [END]"})
     command = sys.argv[1]
 
     if command == "list":
@@ -211,7 +277,7 @@ def main() -> None:
         return
 
     if len(sys.argv) < 3 or not sys.argv[2].strip():
-        fail({"error": "usage", "usage": f"now_playing.py {command} NAME"})
+        fail({"error": "usage", "usage": f"session.py {command} NAME"})
     name = sys.argv[2]
 
     if command == "set":
@@ -220,8 +286,14 @@ def main() -> None:
         cmd_stop(name)
     elif command == "rate":
         if len(sys.argv) < 4 or not sys.argv[3].strip():
-            fail({"error": "usage", "usage": "now_playing.py rate NAME RATING"})
+            fail({"error": "usage", "usage": "session.py rate NAME RATING"})
         cmd_rate(name, sys.argv[3])
+    elif command == "log":
+        # Optional positional dates: log NAME [START] [END]. A missing or blank
+        # slot is None → start defaults to today, end to open.
+        start = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3].strip() else None
+        end = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4].strip() else None
+        cmd_log(name, start, end)
 
 
 if __name__ == "__main__":

@@ -12,13 +12,11 @@ export const metadata = {
 export default function VideoGamesPage() {
   const games = getGames();
   const wishlist = getWishlist();
-  // First flagged game wins; undefined (nothing flagged) hides the section entirely.
-  // Found before the rating filter below, so an unrated in-progress game still
+  // All in-progress games — the CRT cycles through them like TV channels, and
+  // the stats panel uses them so "Recently Played" can include a currently-playing
+  // game even when it's unrated (and thus absent from the rated shelves below).
+  // Filtered before the rating cut below, so an unrated in-progress game still
   // appears on the CRT.
-  const nowPlaying = games.find((g) => g.currentlyPlaying);
-  // All in-progress games — passed to the stats panel so "Recently Played" can
-  // include a currently-playing game even when it's unrated (and thus absent
-  // from the rated shelves below).
   const currentlyPlayingGames = games.filter((g) => g.currentlyPlaying);
   // Shelves hold finished, rated games only. A game with no rating yet (usually
   // the one currently being played) is excluded here; once it gets a rating it
@@ -40,7 +38,7 @@ export default function VideoGamesPage() {
           <LibraryCount playedCount={playedCount} wishlistCount={wishlistCount} />
         </Suspense>
 
-        {nowPlaying && <CurrentlyPlaying game={nowPlaying} />}
+        {currentlyPlayingGames.length > 0 && <CurrentlyPlaying games={currentlyPlayingGames} />}
 
         {/* Suspense is required because GameLibrary uses useSearchParams() */}
         <Suspense fallback={null}>

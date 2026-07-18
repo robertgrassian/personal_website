@@ -34,41 +34,48 @@ python3 .claude/tools/wikipedia.py infobox "Hollow Knight"
 
 `parse_infobox()` is a pure function (wikitext string in, dict out).
 
-### `now_playing.py` — used by the `now-playing` skill
+### `session.py` — used by the `session` skill
 
 Manages play sessions in `sessions.csv` (one row per playthrough:
 `game,start_date,end_date`). An open session — empty `end_date` — means the
 game is being played now, which is the source of truth for "currently playing".
 
 ```bash
-python3 .claude/tools/now_playing.py list
+python3 .claude/tools/session.py list
 # -> {"currently_playing": ["Persona 5 Royal"]}
 
-python3 .claude/tools/now_playing.py set "Persona 5 Royal"   # open a session
+python3 .claude/tools/session.py set "Persona 5 Royal"   # open a session (start today)
 # -> {"set": "Persona 5 Royal", "since": "2026-07-15", "also_playing": ["Mixtape"]}
 #    or {"error": "already_playing" | "not_found" | "ambiguous", ...} (exit 1)
 
-python3 .claude/tools/now_playing.py stop "Mixtape"          # close its session
+python3 .claude/tools/session.py stop "Mixtape"          # close its session (end today)
 # -> {"stopped": "Mixtape", "ended": "2026-07-15", "still_playing": ["Persona 5 Royal"]}
 #    or {"error": "not_playing" | "ambiguous", ...} (exit 1)
 
-python3 .claude/tools/now_playing.py rate "Mixtape" "Great"  # set games.csv rating
+python3 .claude/tools/session.py rate "Mixtape" "Great"  # set games.csv rating
 # -> {"rated": "Mixtape", "rating": "Great"}
 #    or {"error": "invalid_rating" | "not_found" | "ambiguous", ...} (exit 1)
+
+python3 .claude/tools/session.py log "Mixtape" 2026-06-20 2026-06-30  # arbitrary session
+# -> {"logged": "Mixtape", "start": "2026-06-20", "end": "2026-06-30", "open": false, "also_playing": [...]}
+#    START defaults to today, END defaults to open. Omit END for a backdated,
+#    still-playing session; give both for a fully-past playthrough.
+#    or {"error": "invalid_date" | "end_before_start" | "already_playing" | "not_found" | "ambiguous", ...} (exit 1)
 ```
 
-`set`/`stop` rewrite `sessions.csv`; `rate` rewrites the `rating` column in
-`games.csv`. `set` resolves the name against `games.csv` (won't open a session
-for a game that isn't in the library); `stop` resolves against currently-open
-sessions. Name matching is exact (case-insensitive) with substring fallback.
-`find_matches()`, `is_open()`, `open_session_names()`, `find_open_index()`, and
-`close_session()` are pure functions.
+`set`/`stop`/`log` rewrite `sessions.csv`; `rate` rewrites the `rating` column
+in `games.csv`. `set`/`log` resolve the name against `games.csv` (won't record a
+session for a game that isn't in the library); `stop` resolves against
+currently-open sessions. `log` with no end date is guarded like `set` (no
+duplicate open session). Name matching is exact (case-insensitive) with
+substring fallback. `find_matches()`, `is_open()`, `open_session_names()`,
+`find_open_index()`, `close_session()`, and `parse_date()` are pure functions.
 
 ## Tests
 
 ```bash
 python3 .claude/tools/test_wikipedia.py
-python3 .claude/tools/test_now_playing.py
+python3 .claude/tools/test_session.py
 ```
 
 Fixture-based, no network. Exits non-zero on failure.
