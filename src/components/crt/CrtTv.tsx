@@ -213,10 +213,15 @@ export function CrtTv({ games, compact = false }: CrtTvProps) {
                       fill
                       className="object-cover [object-position:center_22%]"
                       // The compact cabinet is pinned at a fixed CSS width and scaled
-                      // down (see .pcrt-tv--compact), so the picture always renders at
-                      // roughly the same ~190px CSS width regardless of viewport —
-                      // unlike the full-size cabinet, which is itself viewport-relative.
-                      sizes={compact ? "190px" : "(max-width: 520px) 88vw, 420px"}
+                      // down (see .pcrt-tv--compact), so the picture renders at a fixed
+                      // CSS width per breakpoint rather than being viewport-relative like
+                      // the full-size cabinet — ~140px under the sub-480px mobile scale
+                      // (crt.css), ~190px above it.
+                      sizes={
+                        compact
+                          ? "(max-width: 480px) 140px, 190px"
+                          : "(max-width: 520px) 88vw, 420px"
+                      }
                     />
                   ) : hasGames ? (
                     // A playing game with no cover art: title as green OSD text on

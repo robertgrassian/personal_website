@@ -59,6 +59,25 @@
   height: 180px;
 }
 
+/* Below ~480px, "TV beside text" doesn't fit at the desktop compact size —
+   .pcrt-stage--compact's flex-wrap: wrap was falling back to TV-above-text,
+   which costs nearly as much vertical space as the original full-size hero
+   did. Shrinking the TV further and forcing the row to stay side by side
+   keeps the shelves closer to the fold on phones. Only --pcrt-compact-scale
+   needs overriding here — .pcrt-tv-frame--compact's width and
+   .pcrt-tv--compact's transform both read it via var(), so they stay in
+   sync automatically (see the custom-property comment above). */
+@media (max-width: 480px) {
+  .pcrt-stage--compact {
+    flex-wrap: nowrap;
+    gap: 0.875rem;
+  }
+  .pcrt-tv-frame--compact {
+    --pcrt-compact-scale: 0.3;
+    height: 135px;
+  }
+}
+
 /* ── Cabinet shell ──────────────────────────────────────────────────────────
    The outer molded lip of the set: a slightly darker cool grey that frames the
    lighter front face, plus the big soft drop shadow that grounds it. */
