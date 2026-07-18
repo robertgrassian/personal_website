@@ -130,6 +130,51 @@ export function CrtTv({ games }: CrtTvProps) {
 
   return (
     <section aria-label="Now playing" className="pcrt-stage">
+      {/* Curved-glass filter. A "normal map" — red = a left→right ramp, green =
+          a top→bottom ramp — is built from two gradient feImages added together
+          with feComposite, then fed to feDisplacementMap, which pushes the
+          picture's edge pixels outward into a convex tube bulge. Hidden: it only
+          supplies the filter referenced by .pcrt-picture in CSS. */}
+      <svg aria-hidden width="0" height="0" style={{ position: "absolute" }}>
+        <filter id="pcrt-barrel" colorInterpolationFilters="sRGB">
+          <feImage
+            preserveAspectRatio="none"
+            x="0"
+            y="0"
+            width="100%"
+            height="100%"
+            href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%23000'/%3E%3Cstop offset='1' stop-color='%23f00'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' fill='url(%23g)'/%3E%3C/svg%3E"
+            result="rx"
+          />
+          <feImage
+            preserveAspectRatio="none"
+            x="0"
+            y="0"
+            width="100%"
+            height="100%"
+            href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23000'/%3E%3Cstop offset='1' stop-color='%230f0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' fill='url(%23g)'/%3E%3C/svg%3E"
+            result="gy"
+          />
+          <feComposite
+            in="rx"
+            in2="gy"
+            operator="arithmetic"
+            k1="0"
+            k2="1"
+            k3="1"
+            k4="0"
+            result="map"
+          />
+          <feDisplacementMap
+            in="SourceGraphic"
+            in2="map"
+            scale="16"
+            xChannelSelector="R"
+            yChannelSelector="G"
+          />
+        </filter>
+      </svg>
+
       {/* Molded light-grey plastic cabinet, Panasonic-style: one continuous
           front panel with the tube recessed into it and the controls on the wide
           lower bezel — modeled on the reference set. */}
@@ -197,9 +242,9 @@ export function CrtTv({ games }: CrtTvProps) {
           </div>
 
           {/* Lower bezel: a fine-mesh speaker grille on each side of a labeled
-              control cluster — small round buttons under silk-screened labels
-              (POWER · VOLUME · CHANNEL · ACTION · TV/VIDEO), like the reference.
-              All decorative — channels change by clicking the screen or pips. */}
+              control cluster — small round buttons plus the front composite A/V
+              inputs, matching the reference. Decorative — channels change by
+              clicking the screen or the pips below. */}
           <div className="pcrt-controls" aria-hidden>
             <span className="pcrt-grille" />
             <div className="pcrt-buttons">
@@ -225,26 +270,23 @@ export function CrtTv({ games }: CrtTvProps) {
                 </div>
               </div>
               <div className="pcrt-btn-group">
-                <span className="pcrt-label">ACTION</span>
-                <div className="pcrt-btn-row">
-                  <span className="pcrt-button" />
-                </div>
-              </div>
-              <div className="pcrt-btn-group">
                 <span className="pcrt-label">TV/VIDEO</span>
                 <div className="pcrt-btn-row">
                   <span className="pcrt-button" />
                 </div>
               </div>
+              {/* Front composite A/V inputs: yellow video, white + red audio. */}
+              <div className="pcrt-btn-group pcrt-av">
+                <span className="pcrt-label">VIDEO · L-AUDIO-R</span>
+                <div className="pcrt-btn-row">
+                  <span className="pcrt-jack pcrt-jack--yellow" />
+                  <span className="pcrt-jack pcrt-jack--white" />
+                  <span className="pcrt-jack pcrt-jack--red" />
+                </div>
+              </div>
             </div>
             <span className="pcrt-grille" />
           </div>
-        </div>
-
-        {/* Molded feet across the bottom of the cabinet. */}
-        <div className="pcrt-feet" aria-hidden>
-          <span className="pcrt-foot" />
-          <span className="pcrt-foot" />
         </div>
       </div>
 
