@@ -5,7 +5,7 @@ import { CrtTv } from "@/components/currently_playing/CrtTv";
 // (React would have no equivalent — this is App Router's replacement for
 // react-helmet / manually mutating document.title.)
 export const metadata = {
-  title: "Now Playing | Robert Grassian",
+  title: "Currently Playing | Robert Grassian",
 };
 
 // A Server Component (the App Router default — no "use client"). It runs only on
@@ -23,8 +23,7 @@ export default function CurrentlyPlayingPage() {
     // object that looks the same either way.
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex max-w-4xl flex-col items-center px-6 py-12">
-        <h1 className="self-start text-4xl font-bold">Now Playing</h1>
-        <p className="mt-2 self-start text-muted">What&rsquo;s on the tube right now.</p>
+        <h1 className="self-start text-4xl font-bold">Currently Playing</h1>
         <CrtTv games={games} />
       </div>
     </main>
