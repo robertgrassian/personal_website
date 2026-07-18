@@ -4,9 +4,9 @@
 
 ## Recently Completed
 
+- [x] Dedicated `/currently_playing` route rendering a photorealistic '90s black-plastic CRT (hand-built CSS/SVG: molded cabinet, phosphor RGB mask, scanlines, roll bar, glare, speaker grille, dials, power LED) with the `▶ PLAY`/`CH 0N` OSD and channel-flicking; permanent "NO SIGNAL" snow when nothing is playing. Unlinked for now (URL-only). New component `components/currently_playing/CrtTv.tsx`; existing library TV untouched
 - [x] Multiple currently-playing games on the CRT: channel-flicking — auto-cycle between in-progress games with a static/noise burst and `CH 0N` OSD, plus a clickable channel knob to advance manually and channel pips in the metadata (CurrentlyPlaying is now a client component)
 - [x] Fix `.claude/tools/wikipedia.py` truncating nested templates (platforms/released_raw cut off mid-`{{collapsible list}}`) + add-game guidance for enhanced editions/ports (original NA date wins)
-- [x] "Currently playing" CRT TV on the video games page — wood-paneled CRT showing the flagged game's cover, driven by a `currently_playing` column in games.csv
 
 ## Backlog / Ideas
 

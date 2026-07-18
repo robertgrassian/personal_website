@@ -1,0 +1,535 @@
+/* ==========================================================================
+   Photorealistic '90s grey Panasonic-style CRT television — /currently_playing.
+
+   Built entirely in CSS/SVG (no image assets). Everything is namespaced `pcrt-`
+   (photoreal CRT) so it can never collide with the stylized `crt-*` classes used
+   by the game library's TV.
+
+   Modeled on a real cool-grey Panasonic set: one continuous molded front panel
+   with the curved, glossy tube recessed into it and a row of small labeled round
+   buttons flanked by fine-mesh speaker grilles on the wide lower bezel.
+
+   The set is a self-contained object, so it reads the same in light and dark
+   mode; the page chrome and metadata below adapt via the site's base color
+   tokens (bg-background/text-foreground/…) applied in the component.
+   ========================================================================== */
+
+.pcrt-stage {
+  margin-top: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── Cabinet shell ──────────────────────────────────────────────────────────
+   The outer molded lip of the set: a slightly darker cool grey that frames the
+   lighter front face, plus the big soft drop shadow that grounds it. */
+.pcrt-tv {
+  position: relative;
+  width: clamp(300px, 88vw, 500px);
+  display: flex;
+  flex-direction: column;
+  padding: clamp(7px, 1.8vw, 11px);
+  border-radius: 26px;
+  background: linear-gradient(160deg, #6d7176 0%, #5c6065 55%, #4f5358 100%);
+  box-shadow:
+    inset 0 2px 2px rgba(255, 255, 255, 0.22),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.35),
+    0 4px 10px rgba(0, 0, 0, 0.4),
+    0 36px 64px -20px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.4);
+}
+
+/* ── Front panel ────────────────────────────────────────────────────────────
+   The big light cool-grey face. A top-lit vertical gradient gives the molded
+   sheen; the tube recess and the control strip both live inside it. */
+.pcrt-front {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(10px, 2.4vw, 15px);
+  /* Slightly less padding on the bottom so the lower bezel isn't chunky. */
+  padding: clamp(14px, 3.4vw, 20px) clamp(14px, 3.4vw, 20px) clamp(9px, 2.2vw, 13px);
+  border-radius: 20px;
+  background: linear-gradient(180deg, #7f8389 0%, #6f737a 38%, #60646a 78%, #565a60 100%);
+  box-shadow:
+    inset 0 2px 1px rgba(255, 255, 255, 0.28),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.3),
+    inset 3px 0 6px rgba(0, 0, 0, 0.16),
+    inset -3px 0 6px rgba(0, 0, 0, 0.16);
+}
+
+/* Faint injection-molded plastic grain over the front face. The SVG noise is a
+   data-URI (feTurbulence); overlay blend + very low opacity keeps it a texture,
+   not a pattern. */
+.pcrt-front::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.06;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+/* ── Tube mask ──────────────────────────────────────────────────────────────
+   The thin near-black frame the glass edge disappears into, sunk below the grey
+   face. */
+.pcrt-screen-recess {
+  padding: clamp(6px, 1.6vw, 10px);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #141516 0%, #0c0d0e 100%);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.8),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.05),
+    0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+/* ── Screen (the tube glass) ────────────────────────────────────────────────
+   4:3 aspect, generously rounded corners for the bulged-glass look. The dark
+   base is a desaturated green-grey (a tube reads greenish when off), not pure
+   black. translateZ(0)/backface-visibility/isolate force the rounded clip onto
+   one layer so animated children don't leave a bright hairline at the edges. */
+.pcrt-screen {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 26px / 20px;
+  overflow: hidden;
+  background: radial-gradient(120% 120% at 50% 42%, #1a231e 0%, #10160f 62%, #080b09 100%);
+  box-shadow:
+    inset 0 0 50px rgba(0, 0, 0, 0.9),
+    inset 0 2px 8px rgba(255, 255, 255, 0.06);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  isolation: isolate;
+}
+
+/* Picture + phosphor layers grouped so the power-on animation scales them as one
+   surface. A hair of scale hides the picture edges under the rounded clip. */
+.pcrt-picture {
+  position: absolute;
+  inset: 0;
+  /* Barrel-distortion filter bulges the picture into a convex tube face; the
+     extra scale overscans so the bulged edges still cover the rounded clip. */
+  filter: url(#pcrt-barrel);
+  transform: scale(1.06);
+  animation: pcrt-power-on 0.62s ease-out 0.12s backwards;
+}
+
+/* Classic tube turn-on: snaps on from an over-bright horizontal line, then
+   settles to normal brightness. Plays once per mount. Keeps the barrel filter
+   applied throughout so the glass stays curved during the flash. */
+@keyframes pcrt-power-on {
+  0% {
+    transform: scale(1.06) scaleY(0.004);
+    filter: url(#pcrt-barrel) brightness(6);
+  }
+  60% {
+    transform: scale(1.06) scaleY(1);
+    filter: url(#pcrt-barrel) brightness(1.9);
+  }
+  100% {
+    transform: scale(1.06) scaleY(1);
+    filter: url(#pcrt-barrel) brightness(1);
+  }
+}
+
+/* No-cover fallback text (green OSD phosphor). */
+.pcrt-noise-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #6ee86e;
+  text-shadow: 0 0 8px rgba(110, 232, 110, 0.9);
+}
+
+/* RGB aperture-grille mask — fine vertical red/green/blue stripes are what give a
+   CRT its phosphor shimmer. mix-blend-mode:overlay tints the picture beneath. */
+.pcrt-phosphor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.3;
+  mix-blend-mode: overlay;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(255, 0, 0, 0.5) 0px,
+    rgba(255, 0, 0, 0.5) 1px,
+    rgba(0, 255, 0, 0.5) 1px,
+    rgba(0, 255, 0, 0.5) 2px,
+    rgba(0, 0, 255, 0.5) 2px,
+    rgba(0, 0, 255, 0.5) 3px
+  );
+}
+
+/* Horizontal scanline gaps between the phosphor rows. */
+.pcrt-scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.28) 0px,
+    rgba(0, 0, 0, 0.28) 1px,
+    transparent 2px,
+    transparent 4px
+  );
+}
+
+/* The faint bright band that drifts down a filmed tube. Heights are percentages
+   so it scales with the screen; linear timing keeps the drift mechanical. */
+.pcrt-rollbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 30%;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 40%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 60%,
+    transparent 100%
+  );
+  animation: pcrt-roll 8s linear infinite;
+}
+
+@keyframes pcrt-roll {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(333%);
+  }
+}
+
+/* Snow/static. Hidden by default; a burst during channel switches, permanent on
+   NO SIGNAL. The noise is a tiled feTurbulence SVG; grayscale+contrast makes it
+   read as monochrome. It flickers via opacity only (position jumps + the rounded
+   overflow can leave a bright seam). */
+.pcrt-static {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+  filter: grayscale(1) contrast(1.6) brightness(1.1);
+}
+.pcrt-screen.is-switching .pcrt-static {
+  animation: pcrt-snow 0.12s steps(3) infinite;
+}
+.pcrt-screen.is-no-signal .pcrt-static {
+  opacity: 1;
+  animation: pcrt-snow 0.16s steps(3) infinite;
+}
+
+@keyframes pcrt-snow {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0.7;
+  }
+}
+
+/* Corner darkening — sells the tube curvature by falling off toward the edges. */
+.pcrt-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 100% 100% at 50% 50%,
+    transparent 48%,
+    rgba(0, 0, 0, 0.6) 100%
+  );
+}
+
+/* Glossy-glass reflection: a broad diagonal sheen sweeping across the glass, a
+   bright hotspot near the top-left, and a faint pale reflection welling up from
+   the bottom — the way a real convex CRT face mirrors the room. Kept translucent
+   so the picture still reads through it. */
+.pcrt-glare {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      146deg,
+      rgba(255, 255, 255, 0.18) 0%,
+      rgba(255, 255, 255, 0.06) 16%,
+      transparent 38%
+    ),
+    radial-gradient(ellipse 60% 42% at 30% 16%, rgba(255, 255, 255, 0.24) 0%, transparent 60%),
+    radial-gradient(ellipse 95% 55% at 55% 112%, rgba(200, 214, 206, 0.1) 0%, transparent 55%);
+}
+
+/* ── On-screen display ──────────────────────────────────────────────────────
+   VCR-green mono text with a phosphor glow. A one-shot fade-in after the power-on
+   settles, then an endless digital blink. */
+.pcrt-osd {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #6ee86e;
+  text-shadow: 0 0 6px rgba(110, 232, 110, 0.9);
+  z-index: 1;
+  animation:
+    pcrt-osd-in 0.2s 0.72s backwards,
+    pcrt-blink 2.4s 0.92s steps(2, jump-none) infinite;
+}
+
+/* Channel readout, pinned top-right. */
+.pcrt-osd--channel {
+  left: auto;
+  right: 14px;
+}
+
+@keyframes pcrt-osd-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pcrt-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Transparent full-screen click target — advances to the next channel. Sits
+   above the (pointer-events:none) picture/glare/OSD so every click lands here. */
+.pcrt-screen-button {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 0;
+  padding: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.pcrt-screen-button:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: -4px;
+}
+
+/* ── Control strip ──────────────────────────────────────────────────────────
+   On the lower bezel: a fine-mesh speaker grille on each side of a labeled
+   button cluster. */
+.pcrt-controls {
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 2.6vw, 16px);
+  min-height: clamp(30px, 7vw, 40px);
+}
+
+/* Speaker grille: a recessed panel drilled with a fine dot grid (radial-gradient
+   holes tiled by background-size). One on each side of the buttons; both grow to
+   fill the leftover width. */
+.pcrt-grille {
+  flex: 1 1 0;
+  align-self: stretch;
+  border-radius: 4px;
+  background-color: #4b4f55;
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.55) 32%, transparent 36%);
+  background-size: 5px 5px;
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Button cluster — fixed size, stays centered between the grilles. */
+.pcrt-buttons {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(6px, 1.6vw, 10px);
+}
+
+/* Each labeled group: a silk-screened label over its button(s). */
+.pcrt-btn-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Silk-screened control label — dark ink debossed into the grey plastic (dark
+   text with a light lower edge). */
+.pcrt-label {
+  font-family: var(--font-geist-sans);
+  font-size: clamp(4px, 1.05vw, 6px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  white-space: nowrap;
+  color: rgba(18, 20, 22, 0.72);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.pcrt-btn-row {
+  display: flex;
+  align-items: center;
+  gap: clamp(4px, 1.1vw, 6px);
+}
+
+/* A small round molded push button: domed radial-gradient body with a top
+   highlight and a pressed-in bottom shadow. */
+.pcrt-button {
+  width: clamp(8px, 2.1vw, 11px);
+  height: clamp(8px, 2.1vw, 11px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 32%, #565a60 0%, #34363a 68%, #232529 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.22),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.5),
+    0 1px 1px rgba(0, 0, 0, 0.4);
+}
+
+/* Power LED beside the POWER button: dead red when off, glowing when live. */
+.pcrt-led {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2a1210;
+  box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.8);
+}
+.pcrt-led.is-on {
+  background: #ff5a3c;
+  box-shadow:
+    0 0 6px 1px rgba(255, 90, 60, 0.85),
+    inset 0 0 2px rgba(255, 200, 180, 0.9);
+}
+
+/* ── Front A/V inputs ───────────────────────────────────────────────────────
+   Composite RCA jacks to the right of the buttons: yellow video, white + red
+   audio, like the reference set. A little extra space sets them off. */
+.pcrt-av {
+  margin-left: clamp(3px, 1.2vw, 7px);
+}
+
+/* An RCA jack: a recessed socket — dark center hole, a colored ring, dark rim. */
+.pcrt-jack {
+  width: clamp(9px, 2.4vw, 13px);
+  height: clamp(9px, 2.4vw, 13px);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.22),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.6),
+    0 1px 1px rgba(0, 0, 0, 0.4);
+}
+.pcrt-jack--yellow {
+  background: radial-gradient(circle at 50% 50%, #0a0a0a 0 26%, #e8c400 34% 66%, #1a1608 74%);
+}
+.pcrt-jack--white {
+  background: radial-gradient(circle at 50% 50%, #0a0a0a 0 26%, #e6e6e6 34% 66%, #141410 74%);
+}
+.pcrt-jack--red {
+  background: radial-gradient(circle at 50% 50%, #0a0a0a 0 26%, #d13b32 34% 66%, #1a0a08 74%);
+}
+
+/* ── Metadata block ─────────────────────────────────────────────────────────
+   Centered under the set. Text colors come from base tokens on the elements
+   themselves (light/dark aware). */
+.pcrt-meta {
+  margin-top: 1.75rem;
+  max-width: 32rem;
+  text-align: center;
+}
+.pcrt-meta > div:first-child {
+  justify-content: center;
+}
+
+/* "Live" dot in the eyebrow — smooth pulse when a channel is playing, static dot
+   otherwise. currentColor inherits the amber from text-link. */
+.pcrt-live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 6px;
+  vertical-align: 1px;
+  opacity: 0.4;
+}
+.pcrt-live-dot.is-live {
+  opacity: 1;
+  animation: pcrt-blink 2.2s ease-in-out infinite;
+}
+
+/* Channel pips — one clickable dot per game, active one filled. currentColor
+   inherits the amber, so both themes are covered. */
+.pcrt-channel-pip {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 0;
+  padding: 0;
+  appearance: none;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.pcrt-channel-pip:hover {
+  opacity: 0.7;
+}
+.pcrt-channel-pip.is-active {
+  opacity: 1;
+}
+.pcrt-channel-pip:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────────
+   Freeze the moving parts. NO SIGNAL keeps a still snow texture so the screen
+   still reads as dead; a frozen roll bar would just look like a smudge, so hide
+   it. (The component also swaps channels instantly under reduced motion, so no
+   switch burst is ever triggered.) */
+@media (prefers-reduced-motion: reduce) {
+  .pcrt-picture,
+  .pcrt-osd,
+  .pcrt-live-dot {
+    animation: none;
+  }
+  .pcrt-rollbar {
+    display: none;
+  }
+  .pcrt-screen.is-switching .pcrt-static {
+    animation: none;
+    opacity: 0;
+  }
+  .pcrt-screen.is-no-signal .pcrt-static {
+    animation: none;
+    opacity: 1;
+  }
+}
