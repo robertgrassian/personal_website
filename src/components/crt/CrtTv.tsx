@@ -142,7 +142,7 @@ export function CrtTv({ games, compact = false }: CrtTvProps) {
   const metaClass = `pcrt-meta${compact ? " pcrt-meta--compact" : ""}`;
 
   return (
-    <section aria-label="Now playing" className={stageClass}>
+    <section aria-label="Currently playing" className={stageClass}>
       {/* Curved-glass filter. A "normal map" — red = a left→right ramp, green =
           a top→bottom ramp — is built from two gradient feImages added together
           with feComposite, then fed to feDisplacementMap, which pushes the
@@ -311,8 +311,7 @@ export function CrtTv({ games, compact = false }: CrtTvProps) {
       <div className={metaClass}>
         <div className="flex items-center gap-3">
           <p className="text-link text-[11px] font-semibold uppercase tracking-[0.18em]">
-            <span className={`pcrt-live-dot${hasGames ? " is-live" : ""}`} aria-hidden />
-            {hasGames ? "Now playing" : "No signal"}
+            {hasGames ? "Currently playing" : "No signal"}
           </p>
           {/* Channel pips: one clickable dot per game, the active one filled. A
               plain button group (role="group", aria-pressed) conveys the selected

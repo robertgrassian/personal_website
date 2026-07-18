@@ -514,23 +514,6 @@
   justify-content: flex-start;
 }
 
-/* "Live" dot in the eyebrow — smooth pulse when a channel is playing, static dot
-   otherwise. currentColor inherits the amber from text-link. */
-.pcrt-live-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  margin-right: 6px;
-  vertical-align: 1px;
-  opacity: 0.4;
-}
-.pcrt-live-dot.is-live {
-  opacity: 1;
-  animation: pcrt-blink 2.2s ease-in-out infinite;
-}
-
 /* Channel pips — one clickable dot per game, active one filled. currentColor
    inherits the amber, so both themes are covered. */
 .pcrt-channel-pip {
@@ -564,8 +547,7 @@
    switch burst is ever triggered.) */
 @media (prefers-reduced-motion: reduce) {
   .pcrt-picture,
-  .pcrt-osd,
-  .pcrt-live-dot {
+  .pcrt-osd {
     animation: none;
   }
   .pcrt-rollbar {
