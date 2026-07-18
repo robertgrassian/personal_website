@@ -222,14 +222,18 @@ def cmd_log(query: str, start: str | None, end: str | None) -> None:
     sessions.append([canonical, start_norm, end_norm])
     save(SESSIONS_PATH, header, sessions)
 
-    others = [n for n in open_session_names(sessions) if n != canonical]
-    print(json.dumps({
+    result = {
         "logged": canonical,
         "start": start_norm,
         "end": end_norm or None,
         "open": not end_norm,
-        "also_playing": others,
-    }))
+    }
+    # `also_playing` only matters for an open log (treated like `set` — the skill
+    # uses it to resolve other in-progress games). A closed past session doesn't
+    # change what's currently playing, so the field would just be noise there.
+    if not end_norm:
+        result["also_playing"] = [n for n in open_session_names(sessions) if n != canonical]
+    print(json.dumps(result))
 
 
 def cmd_stop(query: str) -> None:

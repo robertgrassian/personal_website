@@ -57,7 +57,8 @@ python3 .claude/tools/session.py rate "Mixtape" "Great"  # set games.csv rating
 #    or {"error": "invalid_rating" | "not_found" | "ambiguous", ...} (exit 1)
 
 python3 .claude/tools/session.py log "Mixtape" 2026-06-20 2026-06-30  # arbitrary session
-# -> {"logged": "Mixtape", "start": "2026-06-20", "end": "2026-06-30", "open": false, "also_playing": [...]}
+# -> {"logged": "Mixtape", "start": "2026-06-20", "end": "2026-06-30", "open": false}
+#    (an open log — no END — adds "also_playing": [...], like `set`)
 #    START defaults to today, END defaults to open. Omit END for a backdated,
 #    still-playing session; give both for a fully-past playthrough.
 #    or {"error": "invalid_date" | "end_before_start" | "already_playing" | "not_found" | "ambiguous", ...} (exit 1)
