@@ -71,6 +71,13 @@ class TestParseGameRows:
         assert parsed["release_date"] is None
         assert parsed["image_url"] is None
 
+    def test_malformed_release_date_warns_and_stores_none(self):
+        warnings: list[str] = []
+        [parsed] = parse_game_rows([game_row(release_date="09/06/2024")], warnings)
+        assert parsed["release_date"] is None
+        assert len(warnings) == 1
+        assert "09/06/2024" in warnings[0]
+
 
 class TestResolveSessionRows:
     def test_resolves_by_exact_name(self):
@@ -100,6 +107,26 @@ class TestResolveSessionRows:
         assert len(errors) == 1
         assert "ambiguous" in errors[0]
 
+    def test_malformed_start_date_is_an_error_not_a_crash(self):
+        rows = [{"game": "Palworld", "start_date": "not-a-date", "end_date": ""}]
+        resolved, errors = resolve_session_rows(rows, {"Palworld": [42]})
+        assert resolved == []
+        assert len(errors) == 1
+        assert "not-a-date" in errors[0]
+
+    def test_missing_start_date_is_an_error(self):
+        rows = [{"game": "Palworld", "start_date": "", "end_date": ""}]
+        resolved, errors = resolve_session_rows(rows, {"Palworld": [42]})
+        assert resolved == []
+        assert errors == ['[sessions.csv] Row 2: "Palworld" has no start_date']
+
+    def test_all_problems_in_a_row_are_collected(self):
+        # An unknown name AND a bad date report together — one run, full report.
+        rows = [{"game": "Ghost", "start_date": "bad", "end_date": ""}]
+        resolved, errors = resolve_session_rows(rows, {"Palworld": [42]})
+        assert resolved == []
+        assert len(errors) == 2
+
 
 class TestParseWishlistRows:
     def wishlist_row(self, **overrides) -> dict:
@@ -116,13 +143,16 @@ class TestParseWishlistRows:
         row.update(overrides)
         return row
 
-    def test_starred_truthy_when_non_empty(self):
+    def test_starred_true_only_for_literal_true(self):
+        # Exact parity with wishlistServer.ts (=== "true", case-sensitive):
+        # only the literal lowercase "true" counts.
         [parsed] = parse_wishlist_rows([self.wishlist_row(starred="true")], [])
         assert parsed["starred"] is True
 
-    def test_starred_false_when_empty(self):
-        [parsed] = parse_wishlist_rows([self.wishlist_row(starred="")], [])
-        assert parsed["starred"] is False
+    def test_starred_false_when_empty_or_not_literal_true(self):
+        for raw in ("", "false", "TRUE", "yes"):
+            [parsed] = parse_wishlist_rows([self.wishlist_row(starred=raw)], [])
+            assert parsed["starred"] is False, f"starred={raw!r}"
 
     def test_missing_date_added_falls_back_to_today(self):
         [parsed] = parse_wishlist_rows([self.wishlist_row(date_added="")], [])

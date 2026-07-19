@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 # Make the app package importable when run as `python scripts/seed.py`.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.core.config import get_settings
 from app.core.db import get_sessionmaker
 from app.models import Game, PlaySession, Profile, WishlistItem
 
@@ -52,9 +53,18 @@ def split_genres(raw: str) -> list[str]:
     return [g.strip() for g in raw.split("|") if g.strip()]
 
 
-def parse_optional_date(raw: str) -> date | None:
+def parse_date_field(raw: str, context: str, problems: list[str]) -> date | None:
+    """ISO date, or None for blank. A malformed value appends to `problems`
+    and returns None, so every CSV problem surfaces through the same
+    warnings/errors report instead of crashing mid-parse."""
     raw = raw.strip()
-    return date.fromisoformat(raw) if raw else None
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        problems.append(f'{context} is not an ISO date: "{raw}"')
+        return None
 
 
 def parse_game_rows(rows: Iterable[dict], warnings: list[str]) -> list[dict]:
@@ -88,7 +98,11 @@ def parse_game_rows(rows: Iterable[dict], warnings: list[str]) -> list[dict]:
                 "system": system,
                 "rating": rating,
                 "genres": split_genres(row.get("genre") or ""),
-                "release_date": parse_optional_date(row.get("release_date") or ""),
+                "release_date": parse_date_field(
+                    row.get("release_date") or "",
+                    f'[games.csv] Row {i}: "{name}" release_date',
+                    warnings,
+                ),
                 "image_url": (row.get("image_url") or "").strip() or None,
             }
         )
@@ -101,24 +115,30 @@ def resolve_session_rows(
     """sessions.csv rows -> play_sessions column dicts via the name→id bridge.
 
     Returns (resolved rows, errors). Any error means the run must abort:
-    a session naming zero or multiple games cannot be resolved safely.
+    a session naming zero or multiple games, or carrying an unparseable or
+    missing start date, cannot be loaded safely. All of a row's problems are
+    collected before it is skipped, so one run reports everything.
     """
     resolved, errors = [], []
     for i, row in enumerate(rows, start=2):
         name = (row.get("game") or "").strip()
+        errors_before = len(errors)
+
         ids = name_to_game_ids.get(name, [])
         if len(ids) != 1:
             problem = "matches no game" if not ids else f"is ambiguous ({len(ids)} games)"
             errors.append(f'[sessions.csv] Row {i}: "{name}" {problem} in the library')
+
+        row_ctx = f'[sessions.csv] Row {i}: "{name}"'
+        start_date = parse_date_field(row.get("start_date") or "", f"{row_ctx} start_date", errors)
+        if start_date is None and not (row.get("start_date") or "").strip():
+            errors.append(f"{row_ctx} has no start_date")
+        # Empty end_date = open session = currently playing.
+        end_date = parse_date_field(row.get("end_date") or "", f"{row_ctx} end_date", errors)
+
+        if len(errors) > errors_before:
             continue
-        resolved.append(
-            {
-                "game_id": ids[0],
-                "start_date": date.fromisoformat((row.get("start_date") or "").strip()),
-                # Empty end_date = open session = currently playing.
-                "end_date": parse_optional_date(row.get("end_date") or ""),
-            }
-        )
+        resolved.append({"game_id": ids[0], "start_date": start_date, "end_date": end_date})
     return resolved, errors
 
 
@@ -135,11 +155,22 @@ def parse_wishlist_rows(rows: Iterable[dict], warnings: list[str]) -> list[dict]
                 "name": name,
                 "system": (row.get("system") or "").strip() or None,
                 "genres": split_genres(row.get("genre") or ""),
-                "release_date": parse_optional_date(row.get("release_date") or ""),
+                "release_date": parse_date_field(
+                    row.get("release_date") or "",
+                    f'[wishlist.csv] Row {i}: "{name}" release_date',
+                    warnings,
+                ),
                 "image_url": (row.get("image_url") or "").strip() or None,
-                # Any non-empty value counts as starred (CSV uses "true"/"").
-                "starred": bool((row.get("starred") or "").strip()),
-                "date_added": parse_optional_date(row.get("date_added") or "") or date.today(),
+                # Exactly the literal "true" counts — mirroring wishlistServer.ts
+                # (=== "true", case-sensitive) so the two parse paths agree for
+                # the Phase 3 parity comparison.
+                "starred": (row.get("starred") or "").strip() == "true",
+                "date_added": parse_date_field(
+                    row.get("date_added") or "",
+                    f'[wishlist.csv] Row {i}: "{name}" date_added',
+                    warnings,
+                )
+                or date.today(),
                 "notes": (row.get("notes") or "").strip(),
             }
         )
@@ -207,6 +238,18 @@ def seed(session: Session) -> dict[str, int]:
 
 
 def main() -> None:
+    # Environment guard: this script TRUNCATEs whatever DATABASE_URL points at.
+    # .env will eventually hold the prod pooler URL during debugging sessions
+    # (spec §7.6) — refusing outside dev makes "forgot to swap it back" a
+    # loud error instead of a wiped production database.
+    app_env = get_settings().app_env
+    if app_env != "dev":
+        print(
+            f"Refusing to seed: APP_ENV is '{app_env}', not 'dev'. "
+            "The seed truncates every table at DATABASE_URL — never prod.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     with get_sessionmaker()() as session:
         seed(session)
 

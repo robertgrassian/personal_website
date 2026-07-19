@@ -29,7 +29,9 @@ async function fetchFromApi<T>(origin: string, path: string, what: string): Prom
     // writes) only makes sense once writes exist to call revalidateTag (Phase 3).
     // Until then a cached read would just serve stale data after a local seed or
     // DB edit. This is a deliberate interim state; Phase 3 replaces it with tags.
-    res = await fetch(url, { cache: "no-store" });
+    // AbortSignal.timeout bounds a *hung* (vs. refused) API: without it the page
+    // render would stall indefinitely; with it the failure stays loud and fast.
+    res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(5000) });
   } catch (err) {
     // Network-level failure (connection refused, DNS, etc.) — the API is
     // configured but unreachable. Fail loudly rather than silently falling
@@ -55,10 +57,20 @@ async function fetchFromApi<T>(origin: string, path: string, what: string): Prom
   return (await res.json()) as T;
 }
 
+// encodeURIComponent: harmless for the current constant "robert", but Phase 4's
+// /u/[username] routes will pass user-shaped input into these URLs.
 export function fetchGamesFromApi(origin: string, username: string): Promise<Game[]> {
-  return fetchFromApi<Game[]>(origin, `/api/py/users/${username}/games`, "games");
+  return fetchFromApi<Game[]>(
+    origin,
+    `/api/py/users/${encodeURIComponent(username)}/games`,
+    "games"
+  );
 }
 
 export function fetchWishlistFromApi(origin: string, username: string): Promise<WishlistGame[]> {
-  return fetchFromApi<WishlistGame[]>(origin, `/api/py/users/${username}/wishlist`, "wishlist");
+  return fetchFromApi<WishlistGame[]>(
+    origin,
+    `/api/py/users/${encodeURIComponent(username)}/wishlist`,
+    "wishlist"
+  );
 }
