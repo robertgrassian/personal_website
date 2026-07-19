@@ -19,28 +19,28 @@ Turn the single, CSV-driven game library into a multi-user ("instanced") feature
   style, so nobody starts with an empty network.
 - **Entry experience**: the homepage "Game Library" tile shows visitors Robert's library
   read-only (the demo of what a full library looks like) with a sign-up/log-in CTA; once
-  logged in, the same tile takes users straight to *their own* library.
+  logged in, the same tile takes users straight to _their own_ library.
 
 ### Non-goals (for v1)
 
 - Deep social features (comments, likes, activity feeds, notifications, block/mute). The
-  follow graph above is in scope; everything built *on top of* it is not.
+  follow graph above is in scope; everything built _on top of_ it is not.
 - Importing libraries from Steam/PSN/backloggd/etc.
 - Migrating any other part of the site (about, resume, homepage stay static).
 
 ## 2. Current State (what we're replacing)
 
-| Concern | Today | Problem for multi-user |
-|---|---|---|
-| Game data | `games.csv` at repo root, parsed by `src/lib/gamesServer.ts` with `fs.readFileSync` | One file, one owner, edits require a deploy |
-| Play state | `sessions.csv`, joined to games **by exact name** in `getGames()` | Name is the only key; collides across users |
-| Wishlist | `wishlist.csv` via `wishlistServer.ts` | Same |
-| Writes | `add-game` / `session` Claude skills edit CSVs + commit | Only works for the repo owner, from a dev session |
-| Cover art | `scripts/fetch-covers.ts` hits IGDB at dev time; URLs stored in CSV | IGDB credentials live outside the site; other users can't trigger lookups |
-| Types | `Game`, `WishlistGame`, `RATINGS` in `src/lib/games.ts` / `baseGame.ts` / `wishlist.ts` | These survive mostly intact — they become the API's response shapes |
+| Concern    | Today                                                                                   | Problem for multi-user                                                    |
+| ---------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Game data  | `games.csv` at repo root, parsed by `src/lib/gamesServer.ts` with `fs.readFileSync`     | One file, one owner, edits require a deploy                               |
+| Play state | `sessions.csv`, joined to games **by exact name** in `getGames()`                       | Name is the only key; collides across users                               |
+| Wishlist   | `wishlist.csv` via `wishlistServer.ts`                                                  | Same                                                                      |
+| Writes     | `add-game` / `session` Claude skills edit CSVs + commit                                 | Only works for the repo owner, from a dev session                         |
+| Cover art  | `scripts/fetch-covers.ts` hits IGDB at dev time; URLs stored in CSV                     | IGDB credentials live outside the site; other users can't trigger lookups |
+| Types      | `Game`, `WishlistGame`, `RATINGS` in `src/lib/games.ts` / `baseGame.ts` / `wishlist.ts` | These survive mostly intact — they become the API's response shapes       |
 
 The FE rendering layer (`GameLibrary`, `ShelfSection`, `FilterBar`, the CRT, stats, the SQL
-panel) is already decoupled from *where* data comes from — components receive `Game[]` as
+panel) is already decoupled from _where_ data comes from — components receive `Game[]` as
 props from a server component. That boundary is the seam we'll cut along: **swap the data
 source under `getGames()`; the shelf UI barely changes.**
 
@@ -80,7 +80,7 @@ officially supported pattern (Vercel's own `nextjs-fastapi` template) is:
 **Serverless caveats to design around** (these shape several later decisions):
 
 - **Cold starts.** Python functions cold-start in roughly 0.5–2s. Fine for interactive CRUD;
-  we keep *read* paths for public pages out of the request path via caching (§7).
+  we keep _read_ paths for public pages out of the request path via caching (§7).
 - **No long-lived state.** No background jobs, no in-process caches that matter, no
   websockets. Nothing in this feature needs them.
 - **Connection pooling.** A serverless function per request means naive DB connections
@@ -101,12 +101,12 @@ reason to prefer FastAPI-with-rewrites over deeply Vercel-specific patterns.
 
 ### 3.2 Considered alternatives
 
-| Option | Verdict |
-|---|---|
+| Option                                                      | Verdict                                                                                                                                                                                                                                                               |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Next.js Route Handlers / Server Actions (TypeScript BE)** | The lowest-friction option on Vercel and what most Next apps do — but it drops the Python requirement. Kept here for honesty: if the Python function DX on Vercel turns out painful, this is the pragmatic retreat, and the DB/auth/schema design below is unchanged. |
-| **Separate Python service from day one (Railway/Fly)** | Clean, no serverless caveats, but a second deploy pipeline, second dashboard, second thing to keep alive. Start on Vercel; §3.1's portability keeps this open. |
-| **Keep CSVs, write via GitHub API commits** | Works for self-serve editing (the site commits to the repo) but fundamentally single-user and deploy-per-edit. Rejected. |
-| **SQLite/Turso** | Viable, but Postgres knowledge transfers better and Supabase bundles auth. |
+| **Separate Python service from day one (Railway/Fly)**      | Clean, no serverless caveats, but a second deploy pipeline, second dashboard, second thing to keep alive. Start on Vercel; §3.1's portability keeps this open.                                                                                                        |
+| **Keep CSVs, write via GitHub API commits**                 | Works for self-serve editing (the site commits to the repo) but fundamentally single-user and deploy-per-edit. Rejected.                                                                                                                                              |
+| **SQLite/Turso**                                            | Viable, but Postgres knowledge transfers better and Supabase bundles auth.                                                                                                                                                                                            |
 
 ## 4. Database
 
@@ -114,7 +114,7 @@ reason to prefer FastAPI-with-rewrites over deeply Vercel-specific patterns.
 
 Reasons over alternatives (Neon via Vercel Marketplace, PlanetScale):
 
-- **Bundled auth** that plays well with a *Python* backend (§5) — this is the deciding factor.
+- **Bundled auth** that plays well with a _Python_ backend (§5) — this is the deciding factor.
 - Plain Postgres: SQLAlchemy/Alembic, `psql`, everything you know from the backend world applies.
 - Connection pooler included (needed for serverless, §3.1).
 - Free tier comfortably covers a personal site (500 MB DB, 50k monthly active auth users).
@@ -240,7 +240,7 @@ so the FE doesn't care.
 ### 5.1 The Python interop problem (why this drives the DB choice)
 
 The idiomatic Next.js choice, **Auth.js (NextAuth v5)**, has a sharp edge for this stack: its
-JWT session cookies are *encrypted* (JWE, A256GCM with HKDF-derived keys), not merely signed.
+JWT session cookies are _encrypted_ (JWE, A256GCM with HKDF-derived keys), not merely signed.
 Verifying them from Python means reimplementing Auth.js's key-derivation — fragile and
 version-coupled. Workarounds exist (custom `encode`/`decode`, or a Next route that mints a
 second plain JWT for API calls) but they add moving parts exactly where auth bugs are most
@@ -249,7 +249,7 @@ expensive.
 Providers that issue **standard signed JWTs with a published JWKS endpoint** make the Python
 side trivial: FastAPI fetches the JWKS once, verifies `Authorization: Bearer <jwt>` on every
 request with `pyjwt`/`python-jose`, and reads the user id from the `sub` claim. This is
-exactly a Spring Security *resource server* (`spring-boot-starter-oauth2-resource-server`
+exactly a Spring Security _resource server_ (`spring-boot-starter-oauth2-resource-server`
 pointed at an issuer URI) — the mental model transfers 1:1.
 
 ### 5.2 Recommendation: Supabase Auth
@@ -264,13 +264,13 @@ pointed at an issuer URI) — the mental model transfers 1:1.
 - FE integration via `@supabase/ssr` — the session lives in cookies, readable in Next server
   components, and the access token is forwarded to FastAPI on each request.
 - **Enable Supabase's "JWT signing keys" feature at project setup** — asymmetric keys + a
-  JWKS endpoint are *opt-in*; the legacy default signs HS256 with a shared secret and no
+  JWKS endpoint are _opt-in_; the legacy default signs HS256 with a shared secret and no
   JWKS. The whole clean-verification story (§5.1) assumes the feature is on.
 - **Session refresh requires a Next `middleware.ts`** — `@supabase/ssr` relies on middleware
   to refresh the session cookie; without it, access tokens (1h lifetime) go stale and
   server actions start failing with 401s. Small file, load-bearing.
 - **The "authenticated but no profile yet" state is real**: OAuth completes (creating an
-  `auth.users` row) *before* the username picker creates the `profiles` row. The `/library`
+  `auth.users` row) _before_ the username picker creates the `profiles` row. The `/library`
   resolver and every `/me/*` endpoint must handle it — resolver redirects to onboarding;
   endpoints return a "complete onboarding" error.
 
@@ -358,8 +358,8 @@ who clicks it:
 
 1. **Visitor / logged out** → Robert's library, read-only, exactly as today — the demo
    shelf that shows what a full library looks like — with a banner up top:
-   *"Sign up / log in to build your own library."*
-2. **Logged in** → straight to *your own* library.
+   _"Sign up / log in to build your own library."_
+2. **Logged in** → straight to _your own_ library.
 
 **How the auto-routing works (the "store a cookie or something" question):** no new cookie
 is needed — Supabase Auth already keeps the session in an httpOnly cookie with long-lived
@@ -381,7 +381,7 @@ Routes:
 
 - `/u/[username]` — any user's library (public, dynamic route). Shelf UI + profile header
   (display name, follower/following counts, follow button). **Decided:** this URL renders
-  the library *directly* — no `/u/[username]/games` nesting; if movie/book libraries
+  the library _directly_ — no `/u/[username]/games` nesting; if movie/book libraries
   (TODO backlog) materialize later, `/u/[username]` evolves into a profile hub then.
 - `/video_games` — **decided: stays Robert's library** at its stable URL (existing
   links/SEO keep working, no redirect); doubles as the logged-out demo with the sign-up CTA.
@@ -396,7 +396,7 @@ Routes:
 same server-component call sites, new implementation. Caching strategy:
 
 - Library pages use Next's fetch cache with **tag-based revalidation**: reads opt in to
-  caching (in Next 15, `fetch()` is *uncached by default* — each read passes
+  caching (in Next 15, `fetch()` is _uncached by default_ — each read passes
   `next: { tags: ['library:username'] }` explicitly), and every successful write calls
   `revalidateTag(`library:${username}`)`. This keeps serverless-Python cold starts out of
   cache-hit page loads (the first visitor after a write still eats one — acceptable).
@@ -466,7 +466,7 @@ missed, a future skill can wrap the API — nothing forecloses that.)
   infrastructure, and Alembic runs against the local connection string (port 54322) exactly
   as it does against prod. One migration tool, no dual bookkeeping.
 - **Local auth without OAuth setup:** the checked-in `supabase/config.toml` enables
-  magic-link email auth *locally only* — Mailpit catches the emails, so you can log in as
+  magic-link email auth _locally only_ — Mailpit catches the emails, so you can log in as
   any made-up user with zero OAuth app registration. Production stays GitHub+Google-only.
 - **JWT config is env-driven in FastAPI:** local GoTrue signs HS256 with a fixed known
   secret; hosted Supabase uses asymmetric keys with a JWKS endpoint. FastAPI takes
@@ -477,7 +477,7 @@ missed, a future skill can wrap the API — nothing forecloses that.)
   `GRANT SELECT` only, `ALTER DEFAULT PRIVILEGES` revoked so future tables aren't
   writable, no `auth` schema access — because preview URLs are guessable and this is
   otherwise a latent write path into prod. Two accepted caveats, flagged deliberately:
-  previews still authenticate against *prod* Supabase Auth (real accounts), and since
+  previews still authenticate against _prod_ Supabase Auth (real accounts), and since
   writes run only locally and in prod, **there is no staging — the first time the full
   write path runs against hosted Supabase (pooler, JWKS, Admin API) is production.**
   Mitigation: the Phase 0 spike exercises exactly those integration points ahead of time.
@@ -488,22 +488,22 @@ missed, a future skill can wrap the API — nothing forecloses that.)
 
 Where every credential lives — **nothing sensitive is ever committed to the repo**:
 
-| Credential | Lives in | Notes |
-|---|---|---|
-| Twitch/IGDB client id + secret | Vercel env vars (server-side) | Read only by FastAPI. Today they're passed inline to `fetch-covers.ts` and stored nowhere; that script retires in Phase 3 |
-| Derived Twitch app access token | One-row Postgres table (§6) | Runtime data, never in the repo |
-| Supabase DB connection strings (contain the DB password) | Vercel env vars; locally in `.env` (gitignored) | Pooler URL for the app, direct URL for Alembic |
-| Supabase service-role key (Admin API) | Vercel env var, FastAPI only | **The most dangerous secret** — bypasses all authorization. Never `NEXT_PUBLIC_`, never sent to the browser |
-| Supabase anon/publishable key + project URL | `NEXT_PUBLIC_` env vars | Public **by design** (the browser needs them for the OAuth dance); safe to expose, not to be confused with the service-role key |
-| GitHub / Google OAuth client secrets | Supabase dashboard | Never touch the repo at all |
-| JWKS URL / issuer | Plain config | Public by definition — verification needs no secret |
-| Preview read-only role password | Vercel preview-scoped env var | The locked-down role from §7.5 |
-| `MAX_USERS`, `APP_ENV` | Env vars | Configuration, not secrets |
+| Credential                                               | Lives in                                        | Notes                                                                                                                           |
+| -------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Twitch/IGDB client id + secret                           | Vercel env vars (server-side)                   | Read only by FastAPI. Today they're passed inline to `fetch-covers.ts` and stored nowhere; that script retires in Phase 3       |
+| Derived Twitch app access token                          | One-row Postgres table (§6)                     | Runtime data, never in the repo                                                                                                 |
+| Supabase DB connection strings (contain the DB password) | Vercel env vars; locally in `.env` (gitignored) | Pooler URL for the app, direct URL for Alembic                                                                                  |
+| Supabase service-role key (Admin API)                    | Vercel env var, FastAPI only                    | **The most dangerous secret** — bypasses all authorization. Never `NEXT_PUBLIC_`, never sent to the browser                     |
+| Supabase anon/publishable key + project URL              | `NEXT_PUBLIC_` env vars                         | Public **by design** (the browser needs them for the OAuth dance); safe to expose, not to be confused with the service-role key |
+| GitHub / Google OAuth client secrets                     | Supabase dashboard                              | Never touch the repo at all                                                                                                     |
+| JWKS URL / issuer                                        | Plain config                                    | Public by definition — verification needs no secret                                                                             |
+| Preview read-only role password                          | Vercel preview-scoped env var                   | The locked-down role from §7.5                                                                                                  |
+| `MAX_USERS`, `APP_ENV`                                   | Env vars                                        | Configuration, not secrets                                                                                                      |
 
 Guardrails against accidental check-in:
 
 - `.gitignore` already covers `.env*` (Next.js default) — keep it that way; commit only a
-  `.env.example` listing variable *names* with placeholder values.
+  `.env.example` listing variable _names_ with placeholder values.
 - The checked-in `supabase/config.toml` references secrets only via `env(VAR_NAME)`
   substitution, never literal values. (The local stack's fixed HS256 JWT secret is a
   published public default — not sensitive.)
@@ -517,6 +517,7 @@ Guardrails against accidental check-in:
 Each phase ships independently and leaves the site working.
 
 ### Phase 0 — Spike & decisions (de-risk before building)
+
 - Deploy hello-world FastAPI in this repo on Vercel (the `nextjs-fastapi` rewrite pattern);
   measure cold start — including the worst-case stacked Node+Python cold start on the
   server-action write path (§7.2).
@@ -525,6 +526,7 @@ Each phase ships independently and leaves the site working.
 - Outcome: confirm the recommended stack or trigger a documented fallback (§3.1/§5.2).
 
 ### Phase 1 — DB + read path (still single-user, no auth)
+
 - Alembic baseline migration for the §4.2 schema, scoped to `public` (§4.2). Note:
   `games.user_id` is `NOT NULL`, so Phase 1 can't skip profiles entirely — seed a
   placeholder Robert profile row now; Phase 2 re-parents it to the real auth user.
@@ -532,20 +534,22 @@ Each phase ships independently and leaves the site working.
   validation rules from `gamesServer.ts` (rating whitelist, genre `|`-splitting). Idempotent
   (truncate-and-reload) so it can rerun during development. **Name→id bridge:**
   `sessions.csv` references games by name only, while `play_sessions` needs a `game_id` —
-  the script resolves by name and *fails loudly on ambiguity* (two library entries sharing
+  the script resolves by name and _fails loudly on ambiguity_ (two library entries sharing
   a name across systems) rather than guessing; ambiguous rows get resolved by hand in the CSV.
 - **Keep-alive**: a daily Vercel Cron hitting a `/api/py/health` endpoint (`SELECT 1`).
-  Needed because §7.2's caching keeps normal traffic *off* the DB, which makes Supabase's
+  Needed because §7.2's caching keeps normal traffic _off_ the DB, which makes Supabase's
   7-day inactivity pause (§9 #20) more likely, not less — passive traffic can't be relied on.
 - Read endpoints; switch `getGames()`/`getWishlist()` to fetch from them.
 - **CSV files stay in the repo untouched as fallback** until Phase 3 proves parity.
 
 ### Phase 2 — Auth
+
 - Supabase Auth (GitHub + Google), `profiles` table, username onboarding.
 - Robert signs up; seed data gets re-parented to that real user id.
 - FastAPI JWT middleware; still no write endpoints exposed in UI.
 
 ### Phase 3 — Owner editing (the "no more CSV commits" milestone)
+
 - Write endpoints + IGDB proxy + rate limiting.
 - Add-game flow, rating editor, session start/stop UI, wishlist management.
 - Cache revalidation wiring.
@@ -553,17 +557,20 @@ Each phase ships independently and leaves the site working.
   fs code, `scripts/fetch-covers.ts`, and the `add-game`/`session` skills (§7.4).
 
 ### Phase 4 — Multi-user
+
 - `/u/[username]` public routes, signup open, empty states, per-user rate limits.
 - The `/library` resolver route + sign-up CTA banner on `/video_games` (§7.1).
 - Light abuse guardrails (§9).
 
 ### Phase 5 — Social graph
+
 - `follows` table + follow/unfollow endpoints; auto-follow wiring in the signup flow.
 - Backfill: create follow edges between Robert and any users who signed up during Phase 4.
 - Profile headers with follower/following counts and lists; follow button; user search
   (pg_trgm index + `/users/search` endpoint + UI).
 
 ### Phase 6 — Hardening / polish (as needed)
+
 - Neon-style preview-DB story: Supabase branching or a shared dev project for Vercel
   preview deployments (spec decision).
 - Backups (Supabase does daily on free tier; document restore).
@@ -571,33 +578,33 @@ Each phase ships independently and leaves the site working.
 
 ## 9. Decision Log (all resolved 2026-07-19)
 
-| # | Item | Decision |
-|---|---|---|
-| 1 | **Vercel Python cold starts** | Risk accepted pending the Phase 0 spike; measure the read path *and* the stacked Node+Python write path (§7.2). Fallback hosts documented (§3.1). |
-| 2 | **Cover images** | **Hotlink IGDB's CDN** (exactly what the CSVs do). Zero egress/storage cost to us; revisit only if IGDB URLs break or ToS enforcement appears. |
-| 3 | **Abuse / spam guardrails** | OAuth-only signup, per-user rate limits, row caps (~2k games), IGDB-URLs-only for images, reserved-username list — plus the signup cap (#13). |
-| 4 | **Ratings taxonomy** | Global 5-tier S–F scale for all users in v1; per-user scales deferred indefinitely. |
-| 5 | **`/video_games` identity** | **Stays Robert's shelf** at its stable URL, doubling as the logged-out demo with the sign-up CTA. No redirect. |
-| 6 | **Private libraries** | **None in v1** — all libraries and follower lists are public. |
-| 7 | **Local dev** | **Supabase CLI local stack only** (§7.5): Alembic against local Postgres, magic-link auth via Mailpit. No second cloud project; previews hit prod via a locked-down read-only role with mutations disabled (`APP_ENV=preview`); no-staging caveat accepted (§7.5). |
-| 8 | **Two toolchains** | Python gets ruff + pytest and a CI job alongside ESLint/Prettier; husky/lint-staged covers both. |
-| 9 | **`/about` Current Hobbies** | Will fetch from the API like everything else — this migration unblocks it. |
-| 10 | **Unfollow the founder** | **Allowed** — founder edges behave like any other edge, no special-case code. Tom let you unfriend him. |
-| 11 | **Follower/following lists** | Public, consistent with #6. |
-| 12 | **Follow-graph abuse** | Follow/unfollow rate-limited like all writes; block/mute deferred (easy to add later since authz is centralized in FastAPI, §5.3). |
-| 13 | **Signup cap** | **`MAX_USERS` env var, initial value 100** (§6). Over cap → "at capacity" message; adjustable without a deploy. |
-| 14 | **Login methods** | **GitHub + Google OAuth only** in production; no passwords or magic links (local dev uses magic links via Mailpit, §7.5). |
-| 15 | **Edit UX** | **Edit-in-place** on your own public `/u/[username]` page via `isOwner` conditional rendering; no separate manage page. |
-| 16 | **Wishlist scope** | **All users get a wishlist in v1** — same schema, endpoints, and UI for everyone; Robert's CSV seeds his. |
-| 17 | **Route shape** | **`/u/[username]` renders the library directly** — no nesting; becomes a profile hub only if movie/book libraries materialize. |
-| 18 | **Write path** | **Server Actions proxy (Next as BFF → FastAPI)** with co-located `revalidateTag()` and `useOptimistic` toggles (§7.2). |
-| 19 | **Skills** | **Retire both** `add-game` and `session` when Phase 3 ships (§7.4). |
-| 20 | **Supabase free-tier pausing** | Prod project pauses after ~1 week of DB inactivity — and §7.2's caching keeps normal traffic *off* the DB, making this more likely, not less. **Built, not deferred:** daily Vercel Cron → `/api/py/health` keep-alive, shipped in Phase 1. |
-| 21 | **Per-viewer UI vs cache** | Cached payloads/pages contain **public data only**; all per-viewer state (`isOwner` controls, follow button, `am_i_following`, CTA banner) resolves client-side after hydration via uncached authenticated calls (§7.2). |
-| 22 | **Account deletion** | `DELETE /me/account`: `ON DELETE CASCADE` down from `profiles` (games, sessions, wishlist, follows) + `auth.users` removal via the Supabase Admin API (§4.2, §6). |
-| 23 | **Play-state derivation** | Computed in Python from two queries (§4.3), consistent with logic-in-app; SQL window functions only if profiling ever demands. |
-| 24 | **OpenAPI docs in prod** | Disabled outside dev (`docs_url=None` unless `APP_ENV=dev`). |
-| 25 | **Secrets** | All credentials live in Vercel env vars / the Supabase dashboard / gitignored local `.env` files — never the repo (§7.6). Runtime tokens (Twitch app token) live in Postgres. |
+| #   | Item                           | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **Vercel Python cold starts**  | **Spike run 2026-07-19: no red flags.** Function builds and serves on Vercel (after an entrypoint sys.path fix — bundle root is the repo root, not api/). Preview /api/py/health: ~80ms function response on first visit (~700ms total incl. SSO redirect chain); true idle-cold not yet isolated but even a several-fold multiple stays within budget. Fallback hosts (§3.1) remain documented, not needed on current evidence. Re-measure the stacked write path when server actions land (Phase 3). |
+| 2   | **Cover images**               | **Hotlink IGDB's CDN** (exactly what the CSVs do). Zero egress/storage cost to us; revisit only if IGDB URLs break or ToS enforcement appears.                                                                                                                                                                                                                                                                                                                                                         |
+| 3   | **Abuse / spam guardrails**    | OAuth-only signup, per-user rate limits, row caps (~2k games), IGDB-URLs-only for images, reserved-username list — plus the signup cap (#13).                                                                                                                                                                                                                                                                                                                                                          |
+| 4   | **Ratings taxonomy**           | Global 5-tier S–F scale for all users in v1; per-user scales deferred indefinitely.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 5   | **`/video_games` identity**    | **Stays Robert's shelf** at its stable URL, doubling as the logged-out demo with the sign-up CTA. No redirect.                                                                                                                                                                                                                                                                                                                                                                                         |
+| 6   | **Private libraries**          | **None in v1** — all libraries and follower lists are public.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 7   | **Local dev**                  | **Supabase CLI local stack only** (§7.5): Alembic against local Postgres, magic-link auth via Mailpit. No second cloud project; previews hit prod via a locked-down read-only role with mutations disabled (`APP_ENV=preview`); no-staging caveat accepted (§7.5).                                                                                                                                                                                                                                     |
+| 8   | **Two toolchains**             | Python gets ruff + pytest and a CI job alongside ESLint/Prettier; husky/lint-staged covers both.                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 9   | **`/about` Current Hobbies**   | Will fetch from the API like everything else — this migration unblocks it.                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 10  | **Unfollow the founder**       | **Allowed** — founder edges behave like any other edge, no special-case code. Tom let you unfriend him.                                                                                                                                                                                                                                                                                                                                                                                                |
+| 11  | **Follower/following lists**   | Public, consistent with #6.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 12  | **Follow-graph abuse**         | Follow/unfollow rate-limited like all writes; block/mute deferred (easy to add later since authz is centralized in FastAPI, §5.3).                                                                                                                                                                                                                                                                                                                                                                     |
+| 13  | **Signup cap**                 | **`MAX_USERS` env var, initial value 100** (§6). Over cap → "at capacity" message; adjustable without a deploy.                                                                                                                                                                                                                                                                                                                                                                                        |
+| 14  | **Login methods**              | **GitHub + Google OAuth only** in production; no passwords or magic links (local dev uses magic links via Mailpit, §7.5).                                                                                                                                                                                                                                                                                                                                                                              |
+| 15  | **Edit UX**                    | **Edit-in-place** on your own public `/u/[username]` page via `isOwner` conditional rendering; no separate manage page.                                                                                                                                                                                                                                                                                                                                                                                |
+| 16  | **Wishlist scope**             | **All users get a wishlist in v1** — same schema, endpoints, and UI for everyone; Robert's CSV seeds his.                                                                                                                                                                                                                                                                                                                                                                                              |
+| 17  | **Route shape**                | **`/u/[username]` renders the library directly** — no nesting; becomes a profile hub only if movie/book libraries materialize.                                                                                                                                                                                                                                                                                                                                                                         |
+| 18  | **Write path**                 | **Server Actions proxy (Next as BFF → FastAPI)** with co-located `revalidateTag()` and `useOptimistic` toggles (§7.2).                                                                                                                                                                                                                                                                                                                                                                                 |
+| 19  | **Skills**                     | **Retire both** `add-game` and `session` when Phase 3 ships (§7.4).                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 20  | **Supabase free-tier pausing** | Prod project pauses after ~1 week of DB inactivity — and §7.2's caching keeps normal traffic _off_ the DB, making this more likely, not less. **Built, not deferred:** daily Vercel Cron → `/api/py/health` keep-alive, shipped in Phase 1.                                                                                                                                                                                                                                                            |
+| 21  | **Per-viewer UI vs cache**     | Cached payloads/pages contain **public data only**; all per-viewer state (`isOwner` controls, follow button, `am_i_following`, CTA banner) resolves client-side after hydration via uncached authenticated calls (§7.2).                                                                                                                                                                                                                                                                               |
+| 22  | **Account deletion**           | `DELETE /me/account`: `ON DELETE CASCADE` down from `profiles` (games, sessions, wishlist, follows) + `auth.users` removal via the Supabase Admin API (§4.2, §6).                                                                                                                                                                                                                                                                                                                                      |
+| 23  | **Play-state derivation**      | Computed in Python from two queries (§4.3), consistent with logic-in-app; SQL window functions only if profiling ever demands.                                                                                                                                                                                                                                                                                                                                                                         |
+| 24  | **OpenAPI docs in prod**       | Disabled outside dev (`docs_url=None` unless `APP_ENV=dev`).                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 25  | **Secrets**                    | All credentials live in Vercel env vars / the Supabase dashboard / gitignored local `.env` files — never the repo (§7.6). Runtime tokens (Twitch app token) live in Postgres.                                                                                                                                                                                                                                                                                                                          |
 
 ## 10. What You'll Learn (per phase, mapped to backend knowledge)
 
