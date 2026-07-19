@@ -21,10 +21,17 @@ const CHANNEL_INTERVAL_MS = 7000;
 // Duration of the static/noise burst shown while switching channels (ms).
 const STATIC_BURST_MS = 220;
 
-// "2026-07-13" → "July 13". Uses UTC so the date never shifts by a timezone.
+// "2026-07-13" → "July 13" in the current year, "July 13, 2025" otherwise.
+// Uses UTC so the date never shifts by a timezone.
 function formatDay(iso: string): string {
   const date = new Date(iso + "T00:00:00Z");
-  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
+  const isCurrentYear = date.getUTCFullYear() === new Date().getUTCFullYear();
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: isCurrentYear ? undefined : "numeric",
+    timeZone: "UTC",
+  });
 }
 
 // Pad a 1-based channel index to two digits for the OSD readout: 1 → "01".
