@@ -84,9 +84,13 @@ officially supported pattern (Vercel's own `nextjs-fastapi` template) is:
 - **No long-lived state.** No background jobs, no in-process caches that matter, no
   websockets. Nothing in this feature needs them.
 - **Connection pooling.** A serverless function per request means naive DB connections
-  exhaust Postgres's connection limit. Solution: connect through Supabase's pooler
-  (Supavisor, PgBouncer-style) in transaction mode. This is the classic serverless-Postgres
-  gotcha — the tech spec should pin the exact connection string mode.
+  exhaust Postgres's connection limit. Pinned solution: connect through Supabase's
+  **transaction-mode pooler** (Supavisor, port 6543), with SQLAlchemy configured for
+  `NullPool` (Supavisor owns pooling — don't stack a client-side pool inside a serverless
+  function) and **prepared statements disabled** (psycopg `prepare_threshold=None`).
+  Transaction-mode pooling breaks session-level prepared statements, which SQLAlchemy/psycopg
+  use by default — the classic "works locally, fails on Vercel" trap; local dev against the
+  direct connection won't surface it.
 - **Bundle size limit (250 MB unzipped)** — FastAPI + SQLAlchemy + psycopg is far under it.
 
 **Fallback if Vercel Python disappoints** (cold starts too slow, runtime limitations): the
@@ -128,15 +132,17 @@ dev machine/CI — never from the serverless function).
 ```sql
 -- Supabase Auth owns auth.users; we keep an app-level profile row.
 profiles (
-  id           uuid PK REFERENCES auth.users(id),
+  id           uuid PK REFERENCES auth.users(id) ON DELETE CASCADE,
   username     citext UNIQUE NOT NULL,     -- URL handle: /u/{username}
+                                           -- CHECK: ^[a-z0-9][a-z0-9_-]{2,29}$ (URL-safe,
+                                           -- 3-30 chars) + app-level reserved list
   display_name text NOT NULL,
   created_at   timestamptz NOT NULL DEFAULT now()
 )
 
 games (                                   -- one row = one game in one user's library
   id           bigint PK GENERATED ALWAYS AS IDENTITY,
-  user_id      uuid NOT NULL REFERENCES profiles(id),
+  user_id      uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   name         text NOT NULL,
   system       text NOT NULL,
   rating       text CHECK (rating IN ('Perfect','Great','Good','Okay','Bad')),  -- NULL = unrated
@@ -157,7 +163,7 @@ play_sessions (
 
 wishlist_items (
   id           bigint PK GENERATED ALWAYS AS IDENTITY,
-  user_id      uuid NOT NULL REFERENCES profiles(id),
+  user_id      uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   name         text NOT NULL,
   system       text,
   genres       text[] NOT NULL DEFAULT '{}',
@@ -196,7 +202,19 @@ Design decisions worth reviewing:
   five values.
 - **`genres text[]`** rather than a join table: we only ever filter by "contains genre",
   which Postgres arrays + a GIN index handle fine, and it matches the `genres: string[]` FE type.
-- **`citext` username** so `/u/Robert` and `/u/robert` are the same person.
+- **`citext` username** so `/u/Robert` and `/u/robert` are the same person, plus a format
+  CHECK (URL-safe charset, 3–30 chars). The reserved-username list must include
+  **API-colliding tokens** — at minimum `me` and `search`, since `GET /users/search` shares
+  a namespace with `GET /users/{username}` — alongside the usual branding/abuse names.
+- **Account deletion is designed in, not bolted on.** Everything cascades down from
+  `profiles`: `DELETE /me/account` (§6) deletes the profile row (taking games, sessions,
+  wishlist, and follows with it via `ON DELETE CASCADE`) and removes the `auth.users` row
+  through the Supabase Admin API. OAuth signups will expect this to exist.
+- **Alembic must be scoped to the `public` schema.** The `auth` schema is owned and
+  migrated by GoTrue (Supabase), not us — Alembic autogenerate would otherwise see those
+  tables as undeclared and try to drop them. Configure an `include_object` filter excluding
+  `auth`; the `profiles → auth.users` FK is declared in a migration but the referenced
+  table is never managed by Alembic.
 - **Follows as a bare edge table** (classic many-to-many self-join on `profiles`).
   Follower/following counts are `COUNT(*)` queries — at this scale that's plenty;
   denormalized counter columns are a later optimization if ever needed. Add a
@@ -208,12 +226,14 @@ Design decisions worth reviewing:
   business logic visible, testable, and in one place — the same reasoning as §5.3's
   app-side authorization.
 
-### 4.3 Derived play state moves to SQL
+### 4.3 Derived play state
 
 `derivePlayState()` in `gamesServer.ts` (open session → currently playing; max closed
-`end_date` → last played) becomes a query concern — either a lateral join / window function in
-the games query or computed in Python after fetching sessions. The `Game` response shape keeps
-`currentlyPlaying` / `lastPlayed` / `playingSince` so the FE doesn't care.
+`end_date` → last played) is **computed in Python** after fetching a user's games and
+sessions (two queries, merged in the service layer) — consistent with the logic-in-app
+stance (§5.3); SQL window functions are a profiling-driven optimization only if ever
+needed. The `Game` response shape keeps `currentlyPlaying` / `lastPlayed` / `playingSince`
+so the FE doesn't care.
 
 ## 5. Auth
 
@@ -239,10 +259,20 @@ pointed at an issuer URI) — the mental model transfers 1:1.
   reference `auth.users`.
 - Social login out of the box; **no passwords stored by us**. **Decided: GitHub + Google
   OAuth only in production** — no email/password, no magic links. (The local dev stack
-  additionally enables magic-link auth because Inbucket captures the emails with zero
+  additionally enables magic-link auth because Mailpit captures the emails with zero
   external setup; see §7.5.)
 - FE integration via `@supabase/ssr` — the session lives in cookies, readable in Next server
   components, and the access token is forwarded to FastAPI on each request.
+- **Enable Supabase's "JWT signing keys" feature at project setup** — asymmetric keys + a
+  JWKS endpoint are *opt-in*; the legacy default signs HS256 with a shared secret and no
+  JWKS. The whole clean-verification story (§5.1) assumes the feature is on.
+- **Session refresh requires a Next `middleware.ts`** — `@supabase/ssr` relies on middleware
+  to refresh the session cookie; without it, access tokens (1h lifetime) go stale and
+  server actions start failing with 401s. Small file, load-bearing.
+- **The "authenticated but no profile yet" state is real**: OAuth completes (creating an
+  `auth.users` row) *before* the username picker creates the `profiles` row. The `/library`
+  resolver and every `/me/*` endpoint must handle it — resolver redirects to onboarding;
+  endpoints return a "complete onboarding" error.
 
 Runner-up: **Clerk** (nicest DX, prebuilt UI components, also standard JWTs) — pulls in a
 second vendor and its free tier caps at 10k MAU with branding. Fine choice if Supabase Auth
@@ -269,14 +299,19 @@ of Jackson + Bean Validation.
 GET  /users/{username}/games            → Game[]  (play state pre-derived, §4.3)
 GET  /users/{username}/wishlist         → WishlistGame[]
 GET  /users/{username}                  → profile + follower/following counts
-                                          (+ am_i_following when a JWT is present)
+                                          (public data only — cacheable; see §7.2)
 GET  /users/{username}/followers        → profile summaries (username, display name, counts)
 GET  /users/{username}/following        → profile summaries
 GET  /users/search?q=tom                → profile summaries (pg_trgm fuzzy match)
 
 # Social graph (authenticated)
+GET    /me/relationship/{username}      → { am_i_following } — deliberately separate from
+                                          the cacheable profile read so per-viewer state
+                                          never enters a shared cache entry
 POST   /me/following/{username}         follow
 DELETE /me/following/{username}         unfollow
+DELETE /me/account                      delete account: profile cascade (§4.2) + auth.users
+                                        removal via Supabase Admin API
 
 # Authenticated (owner-only writes), acting on "my" library
 POST   /me/games                        add a game (typically from an IGDB pick)
@@ -295,8 +330,11 @@ Notes:
 
 - **The IGDB proxy replaces `scripts/fetch-covers.ts` and the add-game skill's Wikipedia
   scraping** for the interactive flow. IGDB credentials (Twitch client id/secret) move to
-  Vercel env vars; the BE caches the OAuth app token. IGDB's rate limit (4 req/s) is fine
-  behind a per-user rate limit on the search endpoint.
+  Vercel env vars. **Serverless statelessness caveat (§3.1) applies here twice**: the
+  Twitch OAuth app token is cached in a one-row Postgres table, not in process memory
+  (which dies on every cold start); and per-user rate limits are backed by a Postgres
+  counter table, not an in-memory limiter — in-process state is quietly non-functional
+  across serverless instances. IGDB's 4 req/s limit is fine behind that.
 - **Session semantics match the current `session` skill**: open session = currently playing;
   closing one can attach a rating; multiple open sessions allowed. The skill's confirmation
   UX ("stop other in-progress games?") becomes FE UI.
@@ -304,9 +342,12 @@ Notes:
   (**initial value 100**) against the profile count; over the cap, signup returns an
   "at capacity" response the FE renders as a friendly closed-doors message. Adjustable in
   the Vercel dashboard without a deploy. The cap exists for abuse-bounding, not scale —
-  free-tier headroom (500 MB DB, 50k MAU) is far beyond real usage.
-- Errors as RFC 7807-ish JSON; FastAPI's automatic OpenAPI docs (`/api/py/docs`) come free
-  and are genuinely useful during FE work.
+  free-tier headroom (500 MB DB, 50k MAU) is far beyond real usage. **Ordering caveat:**
+  the check runs at profile creation, but OAuth has already minted an `auth.users` row by
+  then; over-cap signups leave an orphaned auth user consuming a MAU. The "at capacity"
+  handler deletes the fresh auth user via the Admin API to keep counts honest.
+- Errors as RFC 7807-ish JSON. FastAPI's automatic OpenAPI docs are useful during FE work
+  but **disabled in production** (`docs_url=None` unless `APP_ENV=dev`).
 
 ## 7. Frontend Changes
 
@@ -354,10 +395,20 @@ Routes:
 `getGames()` / `getWishlist()` change from `fs.readFileSync` to a `fetch` against the API —
 same server-component call sites, new implementation. Caching strategy:
 
-- Library pages use Next's fetch cache with **tag-based revalidation**: reads are cached
-  (fast, no Python cold start in the visitor path), and every successful write calls
-  `revalidateTag(`library:${username}`)`. This is the piece that keeps serverless-Python
-  cold starts out of public page loads.
+- Library pages use Next's fetch cache with **tag-based revalidation**: reads opt in to
+  caching (in Next 15, `fetch()` is *uncached by default* — each read passes
+  `next: { tags: ['library:username'] }` explicitly), and every successful write calls
+  `revalidateTag(`library:${username}`)`. This keeps serverless-Python cold starts out of
+  cache-hit page loads (the first visitor after a write still eats one — acceptable).
+- **The personalization rule (load-bearing):** cached payloads and server-rendered pages
+  contain **public data only**. All per-viewer state — `isOwner` edit affordances, the
+  follow button, `am_i_following`, the logged-out sign-up CTA — is resolved **client-side
+  after hydration** via small authenticated, uncached calls (e.g. `/me/relationship/…`,
+  §6). Two reasons this can't be server-rendered: a URL-keyed cache entry can't hold both
+  the owner variant and the anonymous variant (worse, it would leak one viewer's state to
+  everyone), and reading the auth cookie in the page would opt the whole route into dynamic
+  rendering — defeating the exact static-page strategy §7.1 built the `/library` resolver
+  to protect. Costs a brief flicker before edit controls appear on your own page; fine.
 - **Decided: mutations go through Next Server Actions that proxy to FastAPI** — the action
   reads the httpOnly session cookie, forwards the request with the JWT, then calls
   `revalidateTag()` so cached pages refresh. Next acts as a thin BFF (backend-for-frontend)
@@ -375,8 +426,9 @@ same server-component call sites, new implementation. Caching strategy:
    POST. Replaces the `add-game` skill for day-to-day use.
 2. **Edit affordances on `GameCase`/`GameCaseBack`** (owner only): set/change rating,
    start/stop session, delete. **Decided: edit-in-place** — your own public `/u/[username]`
-   page grows these controls via `isOwner` conditional rendering; no separate manage page,
-   so what you see while editing is exactly what visitors see.
+   page grows these controls via `isOwner` conditional rendering — resolved client-side
+   after hydration per the personalization rule (§7.2); no separate manage page, so what
+   you see while editing is exactly what visitors see.
 3. **Wishlist management** incl. the promote-to-library flow.
 4. **Auth UI**: sign-in, username picker, sign-out in nav.
 5. Empty states for brand-new libraries.
@@ -405,23 +457,30 @@ missed, a future skill can wrap the API — nothing forecloses that.)
 **Decided: Supabase CLI local stack, no second cloud project.**
 
 - **Local:** `supabase start` (Docker Compose under the hood) runs Postgres, GoTrue (auth),
-  Studio (dashboard), and Inbucket — a fake SMTP server that captures all outgoing email.
-  Think Testcontainers for the whole Supabase surface. `supabase db reset` + Alembic +
+  Studio (dashboard), and Mailpit — a fake SMTP server that captures all outgoing email
+  (older CLI versions shipped Inbucket; current ones ship Mailpit). Think Testcontainers
+  for the whole Supabase surface. `supabase db reset` + Alembic +
   seed script = a disposable, rebuild-from-scratch database.
 - **Alembic owns migrations everywhere.** The Supabase CLI has its own SQL-file migration
   system; we deliberately don't use it — `supabase start` is treated purely as
   infrastructure, and Alembic runs against the local connection string (port 54322) exactly
   as it does against prod. One migration tool, no dual bookkeeping.
 - **Local auth without OAuth setup:** the checked-in `supabase/config.toml` enables
-  magic-link email auth *locally only* — Inbucket catches the emails, so you can log in as
+  magic-link email auth *locally only* — Mailpit catches the emails, so you can log in as
   any made-up user with zero OAuth app registration. Production stays GitHub+Google-only.
 - **JWT config is env-driven in FastAPI:** local GoTrue signs HS256 with a fixed known
   secret; hosted Supabase uses asymmetric keys with a JWKS endpoint. FastAPI takes
   issuer + (shared secret | JWKS URL) from env vars per environment.
 - **Vercel preview deploys** can't reach a laptop's Docker, and there is no second cloud
   project. Previews point at prod through a **read-only Postgres role**, and FastAPI
-  refuses all mutations when `APP_ENV=preview`. Previews render real data; write paths are
-  exercised locally and in prod only.
+  refuses all mutations when `APP_ENV=preview`. That role must be locked down properly —
+  `GRANT SELECT` only, `ALTER DEFAULT PRIVILEGES` revoked so future tables aren't
+  writable, no `auth` schema access — because preview URLs are guessable and this is
+  otherwise a latent write path into prod. Two accepted caveats, flagged deliberately:
+  previews still authenticate against *prod* Supabase Auth (real accounts), and since
+  writes run only locally and in prod, **there is no staging — the first time the full
+  write path runs against hosted Supabase (pooler, JWKS, Admin API) is production.**
+  Mitigation: the Phase 0 spike exercises exactly those integration points ahead of time.
 - **Dev servers:** `uvicorn` and `next dev` run side by side (the §3.1 rewrite targets
   `127.0.0.1:8000` in dev); add a `concurrently`-based npm script so one command starts both.
 
@@ -438,10 +497,18 @@ Each phase ships independently and leaves the site working.
 - Outcome: confirm the recommended stack or trigger a documented fallback (§3.1/§5.2).
 
 ### Phase 1 — DB + read path (still single-user, no auth)
-- Alembic baseline migration for the §4.2 schema (minus profiles/auth wiring if desired).
+- Alembic baseline migration for the §4.2 schema, scoped to `public` (§4.2). Note:
+  `games.user_id` is `NOT NULL`, so Phase 1 can't skip profiles entirely — seed a
+  placeholder Robert profile row now; Phase 2 re-parents it to the real auth user.
 - **Seed script** (Python): parse the three CSVs → insert as Robert's rows. Reuse the
   validation rules from `gamesServer.ts` (rating whitelist, genre `|`-splitting). Idempotent
-  (truncate-and-reload) so it can rerun during development.
+  (truncate-and-reload) so it can rerun during development. **Name→id bridge:**
+  `sessions.csv` references games by name only, while `play_sessions` needs a `game_id` —
+  the script resolves by name and *fails loudly on ambiguity* (two library entries sharing
+  a name across systems) rather than guessing; ambiguous rows get resolved by hand in the CSV.
+- **Keep-alive**: a daily Vercel Cron hitting a `/api/py/health` endpoint (`SELECT 1`).
+  Needed because §7.2's caching keeps normal traffic *off* the DB, which makes Supabase's
+  7-day inactivity pause (§9 #20) more likely, not less — passive traffic can't be relied on.
 - Read endpoints; switch `getGames()`/`getWishlist()` to fetch from them.
 - **CSV files stay in the repo untouched as fallback** until Phase 3 proves parity.
 
@@ -484,20 +551,24 @@ Each phase ships independently and leaves the site working.
 | 4 | **Ratings taxonomy** | Global 5-tier S–F scale for all users in v1; per-user scales deferred indefinitely. |
 | 5 | **`/video_games` identity** | **Stays Robert's shelf** at its stable URL, doubling as the logged-out demo with the sign-up CTA. No redirect. |
 | 6 | **Private libraries** | **None in v1** — all libraries and follower lists are public. |
-| 7 | **Local dev** | **Supabase CLI local stack only** (§7.5): Alembic against local Postgres, magic-link auth via Inbucket. No second cloud project; previews hit prod via a read-only role with mutations disabled (`APP_ENV=preview`). |
+| 7 | **Local dev** | **Supabase CLI local stack only** (§7.5): Alembic against local Postgres, magic-link auth via Mailpit. No second cloud project; previews hit prod via a locked-down read-only role with mutations disabled (`APP_ENV=preview`); no-staging caveat accepted (§7.5). |
 | 8 | **Two toolchains** | Python gets ruff + pytest and a CI job alongside ESLint/Prettier; husky/lint-staged covers both. |
 | 9 | **`/about` Current Hobbies** | Will fetch from the API like everything else — this migration unblocks it. |
 | 10 | **Unfollow the founder** | **Allowed** — founder edges behave like any other edge, no special-case code. Tom let you unfriend him. |
 | 11 | **Follower/following lists** | Public, consistent with #6. |
 | 12 | **Follow-graph abuse** | Follow/unfollow rate-limited like all writes; block/mute deferred (easy to add later since authz is centralized in FastAPI, §5.3). |
 | 13 | **Signup cap** | **`MAX_USERS` env var, initial value 100** (§6). Over cap → "at capacity" message; adjustable without a deploy. |
-| 14 | **Login methods** | **GitHub + Google OAuth only** in production; no passwords or magic links (local dev uses magic links via Inbucket, §7.5). |
+| 14 | **Login methods** | **GitHub + Google OAuth only** in production; no passwords or magic links (local dev uses magic links via Mailpit, §7.5). |
 | 15 | **Edit UX** | **Edit-in-place** on your own public `/u/[username]` page via `isOwner` conditional rendering; no separate manage page. |
 | 16 | **Wishlist scope** | **All users get a wishlist in v1** — same schema, endpoints, and UI for everyone; Robert's CSV seeds his. |
 | 17 | **Route shape** | **`/u/[username]` renders the library directly** — no nesting; becomes a profile hub only if movie/book libraries materialize. |
 | 18 | **Write path** | **Server Actions proxy (Next as BFF → FastAPI)** with co-located `revalidateTag()` and `useOptimistic` toggles (§7.2). |
 | 19 | **Skills** | **Retire both** `add-game` and `session` when Phase 3 ships (§7.4). |
-| 20 | **Supabase free-tier pausing** | Prod project pauses after ~1 week of *zero* activity; normal site traffic should prevent it. If it ever triggers, add an uptime-style scheduled ping (or upgrade) — noted, not built preemptively. |
+| 20 | **Supabase free-tier pausing** | Prod project pauses after ~1 week of DB inactivity — and §7.2's caching keeps normal traffic *off* the DB, making this more likely, not less. **Built, not deferred:** daily Vercel Cron → `/api/py/health` keep-alive, shipped in Phase 1. |
+| 21 | **Per-viewer UI vs cache** | Cached payloads/pages contain **public data only**; all per-viewer state (`isOwner` controls, follow button, `am_i_following`, CTA banner) resolves client-side after hydration via uncached authenticated calls (§7.2). |
+| 22 | **Account deletion** | `DELETE /me/account`: `ON DELETE CASCADE` down from `profiles` (games, sessions, wishlist, follows) + `auth.users` removal via the Supabase Admin API (§4.2, §6). |
+| 23 | **Play-state derivation** | Computed in Python from two queries (§4.3), consistent with logic-in-app; SQL window functions only if profiling ever demands. |
+| 24 | **OpenAPI docs in prod** | Disabled outside dev (`docs_url=None` unless `APP_ENV=dev`). |
 
 ## 10. What You'll Learn (per phase, mapped to backend knowledge)
 

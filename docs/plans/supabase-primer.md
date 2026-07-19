@@ -151,7 +151,7 @@ Python runtime disappoints in the Phase 0 spike (main plan §3.1).
 | PostgREST Data API | ❌ | Disabled in project settings — removes an entire unauthenticated-ish surface area we'd otherwise have to secure with RLS |
 | RLS | ⚠️ Later, optional | With PostgREST disabled and FastAPI as sole client, not required. Worth enabling in a hardening phase as defense-in-depth (if the API has an authz bug, the DB backstops it) — classic belt-and-suspenders, adopted once the schema is stable |
 | Realtime | ❌ | No live-update requirements |
-| Storage | ❌ (revisit) | Candidate home for mirrored cover art if IGDB hotlinking becomes a concern (main plan §9.2) |
+| Storage | ❌ (revisit) | Candidate home for mirrored cover art if IGDB hotlinking becomes a concern (main plan §9, decision #2) |
 | Edge Functions | ❌ | FastAPI is our function runtime |
 
 **Net:** we are *not* using Supabase as a BaaS. We're using it as a Postgres host that
