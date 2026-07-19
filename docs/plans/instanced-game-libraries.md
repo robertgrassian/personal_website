@@ -1,6 +1,8 @@
 # Plan: Instanced Game Libraries
 
-**Status:** Draft for review — to be refined into a tech spec before implementation.
+**Status:** Decisions locked (2026-07-19) — this document now serves as the tech spec.
+All previously open questions are resolved in the decision log (§9); the only remaining
+unknowns are the measurements the Phase 0 spike exists to produce.
 
 ## 1. Goal
 
@@ -181,7 +183,7 @@ Design decisions worth reviewing:
 
 - **Sessions get a real FK.** Today sessions join to games by exact name — the plan's single
   most important correctness fix. `ON DELETE CASCADE` means deleting a game cleans up its
-  history (spec question: warn/confirm in UI?).
+  history; the delete UI shows a confirm dialog noting how many sessions go with it.
 - **Per-user game rows, not a shared canonical catalog.** The normalized alternative — a
   global `games` table keyed by IGDB id plus a `user_games` join table for rating/ownership —
   dedupes metadata and cover art. Rejected for v1: users may add games IGDB doesn't have,
@@ -235,8 +237,10 @@ pointed at an issuer URI) — the mental model transfers 1:1.
 - Standard JWTs + JWKS → clean FastAPI verification (§5.1).
 - Same vendor as the DB → one dashboard, one set of env vars, `user_id` FKs directly
   reference `auth.users`.
-- Social login (GitHub, Google) + email magic links out of the box; **no passwords stored by
-  us** (spec decision: which providers to enable — suggest GitHub + Google, no email/password).
+- Social login out of the box; **no passwords stored by us**. **Decided: GitHub + Google
+  OAuth only in production** — no email/password, no magic links. (The local dev stack
+  additionally enables magic-link auth because Inbucket captures the emails with zero
+  external setup; see §7.5.)
 - FE integration via `@supabase/ssr` — the session lives in cookies, readable in Next server
   components, and the access token is forwarded to FastAPI on each request.
 
@@ -246,9 +250,9 @@ feels clunky in the spike.
 
 ### 5.3 Authorization model
 
-- **Reads are public**: anyone (logged in or not) can view any user's library page. (Spec
-  question: do we want a private-library toggle in v1? Recommend no — keep v1 simple, all
-  libraries public, like the current site.)
+- **Reads are public**: anyone (logged in or not) can view any user's library page.
+  **Decided: no private-library toggle in v1** — all libraries and follower lists are
+  public, like the current site.
 - **Writes are owner-only**: every mutating endpoint checks `jwt.sub == row.user_id`.
   Enforced in FastAPI (the API is the only writer). Supabase Row-Level Security is available
   as a defense-in-depth layer but optional since clients never talk to the DB directly.
@@ -296,6 +300,11 @@ Notes:
 - **Session semantics match the current `session` skill**: open session = currently playing;
   closing one can attach a rating; multiple open sessions allowed. The skill's confirmation
   UX ("stop other in-progress games?") becomes FE UI.
+- **Signup cap (free-tier insurance):** profile creation checks a `MAX_USERS` env var
+  (**initial value 100**) against the profile count; over the cap, signup returns an
+  "at capacity" response the FE renders as a friendly closed-doors message. Adjustable in
+  the Vercel dashboard without a deploy. The cap exists for abuse-bounding, not scale —
+  free-tier headroom (500 MB DB, 50k MAU) is far beyond real usage.
 - Errors as RFC 7807-ish JSON; FastAPI's automatic OpenAPI docs (`/api/py/docs`) come free
   and are genuinely useful during FE work.
 
@@ -330,9 +339,11 @@ pattern is a tiny **resolver route**:
 Routes:
 
 - `/u/[username]` — any user's library (public, dynamic route). Shelf UI + profile header
-  (display name, follower/following counts, follow button).
-- `/video_games` — Robert's library at its stable URL (existing links/SEO keep working);
-  doubles as the logged-out demo with the sign-up CTA.
+  (display name, follower/following counts, follow button). **Decided:** this URL renders
+  the library *directly* — no `/u/[username]/games` nesting; if movie/book libraries
+  (TODO backlog) materialize later, `/u/[username]` evolves into a profile hub then.
+- `/video_games` — **decided: stays Robert's library** at its stable URL (existing
+  links/SEO keep working, no redirect); doubles as the logged-out demo with the sign-up CTA.
 - `/library` — the resolver redirect described above.
 - Login/account: a sign-in button in `Nav.tsx`; Supabase handles the OAuth dance.
 - New-user onboarding: pick a username → auto-follow edges created (§4.2) → empty shelf
@@ -347,17 +358,25 @@ same server-component call sites, new implementation. Caching strategy:
   (fast, no Python cold start in the visitor path), and every successful write calls
   `revalidateTag(`library:${username}`)`. This is the piece that keeps serverless-Python
   cold starts out of public page loads.
-- Mutations go through Next **Route Handlers or Server Actions that proxy to FastAPI**
-  (so the revalidation call and the JWT forwarding live server-side), or directly from
-  client components with the Supabase token — spec decision; recommend the proxy for
-  cache-invalidation cleanliness.
+- **Decided: mutations go through Next Server Actions that proxy to FastAPI** — the action
+  reads the httpOnly session cookie, forwards the request with the JWT, then calls
+  `revalidateTag()` so cached pages refresh. Next acts as a thin BFF (backend-for-frontend)
+  in front of the domain service; `useOptimistic` gives instant rating/follow toggles that
+  roll back on failure. The forcing function is that `revalidateTag()` can only execute on
+  the Next server — a direct browser→FastAPI call would need a separate Next revalidation
+  endpoint anyway, splitting cache logic in two. Accepted cost: an extra hop, worst-case a
+  stacked Node+Python cold start on the first write after idle (measured in Phase 0).
+  Rejected shortcut: server actions querying Postgres directly — that would split the write
+  path across two languages and break the single-writer authorization model (§5.3).
 
 ### 7.3 New UI surface (the real FE work)
 
 1. **Add game flow**: search box → IGDB results (cover thumbnails) → confirm system/genres →
    POST. Replaces the `add-game` skill for day-to-day use.
 2. **Edit affordances on `GameCase`/`GameCaseBack`** (owner only): set/change rating,
-   start/stop session, delete.
+   start/stop session, delete. **Decided: edit-in-place** — your own public `/u/[username]`
+   page grows these controls via `isOwner` conditional rendering; no separate manage page,
+   so what you see while editing is exactly what visitors see.
 3. **Wishlist management** incl. the promote-to-library flow.
 4. **Auth UI**: sign-in, username picker, sign-out in nav.
 5. Empty states for brand-new libraries.
@@ -367,8 +386,8 @@ same server-component call sites, new implementation. Caching strategy:
    navigation between libraries.
 8. **Follow/unfollow button** on other users' libraries (hidden on your own).
 9. **User search** — a "find people" input returning profile summaries that link to their
-   libraries. (Spec decision: where it lives — recommend alongside the follower lists and/or
-   in the nav next to sign-in, rather than a whole dedicated page, to start.)
+   libraries. **Decided:** lives inside the follower/following list modal plus a compact
+   input in the nav next to sign-in — no dedicated page for v1.
 
 Existing components (`GameLibrary`, `FilterBar`, shelves, CRT, stats, SQL panel) keep
 working on `Game[]` props unchanged. The alasql-powered `SqlQueryPanel` still queries the
@@ -376,10 +395,35 @@ in-memory array client-side — no change.
 
 ### 7.4 What happens to the skills
 
-`add-game` and `session` can be rewritten to call the API (curl with a service token)
-instead of editing CSVs — nice for keeping the Claude-driven workflow — or retired once the
-web UI exists. Recommend: retire `add-game`'s CSV logic, keep a thin `session` skill that
-hits the API, decide after the UI ships.
+**Decided: retire both.** Once Phase 3 ships, the web UI is the only write path — no
+service-token story for skills to maintain. `add-game`'s Wikipedia-scraping flow and
+`session`'s CSV editing are deleted alongside the CSVs. (If terminal-driven logging is ever
+missed, a future skill can wrap the API — nothing forecloses that.)
+
+### 7.5 Environments & local development
+
+**Decided: Supabase CLI local stack, no second cloud project.**
+
+- **Local:** `supabase start` (Docker Compose under the hood) runs Postgres, GoTrue (auth),
+  Studio (dashboard), and Inbucket — a fake SMTP server that captures all outgoing email.
+  Think Testcontainers for the whole Supabase surface. `supabase db reset` + Alembic +
+  seed script = a disposable, rebuild-from-scratch database.
+- **Alembic owns migrations everywhere.** The Supabase CLI has its own SQL-file migration
+  system; we deliberately don't use it — `supabase start` is treated purely as
+  infrastructure, and Alembic runs against the local connection string (port 54322) exactly
+  as it does against prod. One migration tool, no dual bookkeeping.
+- **Local auth without OAuth setup:** the checked-in `supabase/config.toml` enables
+  magic-link email auth *locally only* — Inbucket catches the emails, so you can log in as
+  any made-up user with zero OAuth app registration. Production stays GitHub+Google-only.
+- **JWT config is env-driven in FastAPI:** local GoTrue signs HS256 with a fixed known
+  secret; hosted Supabase uses asymmetric keys with a JWKS endpoint. FastAPI takes
+  issuer + (shared secret | JWKS URL) from env vars per environment.
+- **Vercel preview deploys** can't reach a laptop's Docker, and there is no second cloud
+  project. Previews point at prod through a **read-only Postgres role**, and FastAPI
+  refuses all mutations when `APP_ENV=preview`. Previews render real data; write paths are
+  exercised locally and in prod only.
+- **Dev servers:** `uvicorn` and `next dev` run side by side (the §3.1 rewrite targets
+  `127.0.0.1:8000` in dev); add a `concurrently`-based npm script so one command starts both.
 
 ## 8. Migration & Rollout Phases
 
@@ -387,7 +431,8 @@ Each phase ships independently and leaves the site working.
 
 ### Phase 0 — Spike & decisions (de-risk before building)
 - Deploy hello-world FastAPI in this repo on Vercel (the `nextjs-fastapi` rewrite pattern);
-  measure cold start.
+  measure cold start — including the worst-case stacked Node+Python cold start on the
+  server-action write path (§7.2).
 - Provision Supabase; connect from the deployed function via the pooler.
 - Verify Supabase JWT verification from FastAPI (JWKS).
 - Outcome: confirm the recommended stack or trigger a documented fallback (§3.1/§5.2).
@@ -410,7 +455,7 @@ Each phase ships independently and leaves the site working.
 - Add-game flow, rating editor, session start/stop UI, wishlist management.
 - Cache revalidation wiring.
 - After a parity week: delete CSVs, `gamesServer.ts`/`sessionsServer.ts`/`wishlistServer.ts`
-  fs code, `scripts/fetch-covers.ts`.
+  fs code, `scripts/fetch-covers.ts`, and the `add-game`/`session` skills (§7.4).
 
 ### Phase 4 — Multi-user
 - `/u/[username]` public routes, signup open, empty states, per-user rate limits.
@@ -429,22 +474,30 @@ Each phase ships independently and leaves the site working.
 - Backups (Supabase does daily on free tier; document restore).
 - Analytics on signups; sitemap entries for public libraries.
 
-## 9. Risks & Open Questions (for the tech spec)
+## 9. Decision Log (all resolved 2026-07-19)
 
-| # | Item | Notes / recommendation |
+| # | Item | Decision |
 |---|---|---|
-| 1 | **Vercel Python cold starts** | Measure in Phase 0. Mitigated by caching reads (§7.2); fallback host identified (§3.1). |
-| 2 | **IGDB image hotlinking** | We currently hotlink `images.igdb.com`. At multi-user scale, consider mirroring covers to Supabase Storage on add. Defer; note IGDB/Twitch ToS check in spec. |
-| 3 | **Abuse / spam accounts** | Public write surface = someone can create a library full of garbage names visible at a public URL. v1 guardrails: OAuth-only signup, per-user row caps (e.g. 2k games), rate limits, no user-supplied images (IGDB URLs only), reserved-username list. |
-| 4 | **Ratings taxonomy is global** | The 5-tier S–F scale is Robert's. Per-user scales are a rabbit hole — keep global for v1, revisit if anyone asks. |
-| 5 | **`/video_games` identity** | Keep as Robert's shelf (recommended) vs redirect to `/u/robert/video_games`. |
-| 6 | **Private libraries toggle** | Recommend out of v1 (all public). |
-| 7 | **Local dev DB** | Supabase CLI local stack (Docker) vs a shared cloud dev project. Recommend cloud dev project first (zero Docker setup), local stack later if needed. |
-| 8 | **Two toolchains in one repo** | Python needs its own lint/format/test setup (ruff, pytest) and CI job alongside ESLint/Prettier; husky hooks should cover both. |
-| 9 | **Where does "currently playing" on `/about` (TODO backlog) point?** | The planned Current Hobbies section would fetch from the API like everything else — this migration makes that easier, not harder. |
-| 10 | **Can users unfollow the founder?** | Recommend yes — auto-follow is a seed connection, not a shackle (Tom let you unfriend him). Robert's *follow of them* also removable by Robert. |
-| 11 | **Follower/following lists public?** | Recommend yes, consistent with the all-public v1 stance (#6). Revisit together with any future private-library toggle. |
-| 12 | **Follow-graph abuse** | Follow/unfollow needs the same per-user rate limits as writes; mass-follow spam is the classic vector. Block/mute stays out of v1 but gets easier to add because authorization is centralized in FastAPI (§5.3). |
+| 1 | **Vercel Python cold starts** | Risk accepted pending the Phase 0 spike; measure the read path *and* the stacked Node+Python write path (§7.2). Fallback hosts documented (§3.1). |
+| 2 | **Cover images** | **Hotlink IGDB's CDN** (exactly what the CSVs do). Zero egress/storage cost to us; revisit only if IGDB URLs break or ToS enforcement appears. |
+| 3 | **Abuse / spam guardrails** | OAuth-only signup, per-user rate limits, row caps (~2k games), IGDB-URLs-only for images, reserved-username list — plus the signup cap (#13). |
+| 4 | **Ratings taxonomy** | Global 5-tier S–F scale for all users in v1; per-user scales deferred indefinitely. |
+| 5 | **`/video_games` identity** | **Stays Robert's shelf** at its stable URL, doubling as the logged-out demo with the sign-up CTA. No redirect. |
+| 6 | **Private libraries** | **None in v1** — all libraries and follower lists are public. |
+| 7 | **Local dev** | **Supabase CLI local stack only** (§7.5): Alembic against local Postgres, magic-link auth via Inbucket. No second cloud project; previews hit prod via a read-only role with mutations disabled (`APP_ENV=preview`). |
+| 8 | **Two toolchains** | Python gets ruff + pytest and a CI job alongside ESLint/Prettier; husky/lint-staged covers both. |
+| 9 | **`/about` Current Hobbies** | Will fetch from the API like everything else — this migration unblocks it. |
+| 10 | **Unfollow the founder** | **Allowed** — founder edges behave like any other edge, no special-case code. Tom let you unfriend him. |
+| 11 | **Follower/following lists** | Public, consistent with #6. |
+| 12 | **Follow-graph abuse** | Follow/unfollow rate-limited like all writes; block/mute deferred (easy to add later since authz is centralized in FastAPI, §5.3). |
+| 13 | **Signup cap** | **`MAX_USERS` env var, initial value 100** (§6). Over cap → "at capacity" message; adjustable without a deploy. |
+| 14 | **Login methods** | **GitHub + Google OAuth only** in production; no passwords or magic links (local dev uses magic links via Inbucket, §7.5). |
+| 15 | **Edit UX** | **Edit-in-place** on your own public `/u/[username]` page via `isOwner` conditional rendering; no separate manage page. |
+| 16 | **Wishlist scope** | **All users get a wishlist in v1** — same schema, endpoints, and UI for everyone; Robert's CSV seeds his. |
+| 17 | **Route shape** | **`/u/[username]` renders the library directly** — no nesting; becomes a profile hub only if movie/book libraries materialize. |
+| 18 | **Write path** | **Server Actions proxy (Next as BFF → FastAPI)** with co-located `revalidateTag()` and `useOptimistic` toggles (§7.2). |
+| 19 | **Skills** | **Retire both** `add-game` and `session` when Phase 3 ships (§7.4). |
+| 20 | **Supabase free-tier pausing** | Prod project pauses after ~1 week of *zero* activity; normal site traffic should prevent it. If it ever triggers, add an uptime-style scheduled ping (or upgrade) — noted, not built preemptively. |
 
 ## 10. What You'll Learn (per phase, mapped to backend knowledge)
 
