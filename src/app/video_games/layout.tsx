@@ -2,6 +2,9 @@
 // CSS imports in Server Components (layouts and pages) are bundled by Next.js.
 // This is the right place to import styles that apply only to this route.
 import "./video_games.css";
+// The shared CRT component (also used by /currently_playing) needs its own
+// stylesheet loaded here too — see components/crt/crt.css for the pcrt- namespace.
+import "@/components/crt/crt.css";
 
 export default function VideoGamesLayout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;

@@ -1,9 +1,10 @@
 /* ==========================================================================
-   Photorealistic '90s grey Panasonic-style CRT television — /currently_playing.
+   Photorealistic '90s grey Panasonic-style CRT television — shared by the
+   /video_games library page and the standalone /currently_playing route.
 
    Built entirely in CSS/SVG (no image assets). Everything is namespaced `pcrt-`
-   (photoreal CRT) so it can never collide with the stylized `crt-*` classes used
-   by the game library's TV.
+   (photoreal CRT) so it can never collide with the older, now-unused stylized
+   `crt-*` classes in video_games.css.
 
    Modeled on a real cool-grey Panasonic set: one continuous molded front panel
    with the curved, glossy tube recessed into it and a row of small labeled round
@@ -19,6 +20,62 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+/* Compact variant — used on the game library page so the CRT doesn't push the
+   shelves below the fold. Lays the TV and its metadata out side by side,
+   bottom-aligned, instead of stacking the metadata below a full-size TV. */
+.pcrt-stage--compact {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1.25rem 1.75rem;
+}
+
+/* Sizing frame for the compact variant: reserves the CRT's shrunken layout
+   footprint in the flex row. `.pcrt-tv--compact` (below) does the actual
+   shrinking, by rendering the full-size cabinet at its normal fixed reference
+   width and scaling the whole thing down with a CSS transform. Re-deriving
+   compact versions of every clamp()'d size in this file (padding, buttons,
+   jacks, label text, …) by hand would be tedious and easy to get out of
+   proportion; scaling the finished cabinet uniformly guarantees it stays a
+   miniature of the exact same TV. Outside compact mode this frame is an
+   unstyled no-op wrapper.
+
+   --pcrt-compact-ref-width and --pcrt-compact-scale are the single source of
+   truth for the shrink factor — both this frame's width and `.pcrt-tv--compact`'s
+   transform below read the same custom properties (inherited down to it),
+   instead of each hardcoding "500 × 0.4 = 200" independently and risking the
+   numbers drifting apart if the scale ever changes. */
+.pcrt-tv-frame--compact {
+  --pcrt-compact-ref-width: 500px;
+  --pcrt-compact-scale: 0.4;
+  width: calc(var(--pcrt-compact-ref-width) * var(--pcrt-compact-scale));
+  /* The cabinet's internal padding/gaps are clamp()'d against the real
+     viewport width, not the pinned reference width above, so its rendered
+     height isn't derivable via calc() the way width is — this is a measured
+     approximation (it renders ~170-178px tall across viewport sizes),
+     rounded up slightly so the CRT never overflows this box. */
+  height: 180px;
+}
+
+/* Below ~480px, "TV beside text" doesn't fit at the desktop compact size —
+   .pcrt-stage--compact's flex-wrap: wrap was falling back to TV-above-text,
+   which costs nearly as much vertical space as the original full-size hero
+   did. Shrinking the TV further and forcing the row to stay side by side
+   keeps the shelves closer to the fold on phones. Only --pcrt-compact-scale
+   needs overriding here — .pcrt-tv-frame--compact's width and
+   .pcrt-tv--compact's transform both read it via var(), so they stay in
+   sync automatically (see the custom-property comment above). */
+@media (max-width: 480px) {
+  .pcrt-stage--compact {
+    flex-wrap: nowrap;
+    gap: 0.875rem;
+  }
+  .pcrt-tv-frame--compact {
+    --pcrt-compact-scale: 0.3;
+    height: 135px;
+  }
 }
 
 /* ── Cabinet shell ──────────────────────────────────────────────────────────
@@ -38,6 +95,18 @@
     0 4px 10px rgba(0, 0, 0, 0.4),
     0 36px 64px -20px rgba(0, 0, 0, 0.55);
   border: 1px solid rgba(0, 0, 0, 0.4);
+}
+
+/* Compact mode fixes the cabinet at its normal reference width (the max end
+   of the default clamp, i.e. the size it already renders at on any
+   non-mobile viewport) and shrinks the whole rendered result with a single
+   transform, reading the same --pcrt-compact-* custom properties that size
+   `.pcrt-tv-frame--compact` above. transform-origin: top left keeps it
+   anchored to the frame's corner so the two line up. */
+.pcrt-tv--compact {
+  width: var(--pcrt-compact-ref-width, 500px);
+  transform: scale(var(--pcrt-compact-scale, 0.4));
+  transform-origin: top left;
 }
 
 /* ── Front panel ────────────────────────────────────────────────────────────
@@ -467,21 +536,14 @@
   justify-content: center;
 }
 
-/* "Live" dot in the eyebrow — smooth pulse when a channel is playing, static dot
-   otherwise. currentColor inherits the amber from text-link. */
-.pcrt-live-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  margin-right: 6px;
-  vertical-align: 1px;
-  opacity: 0.4;
+/* Compact mode: metadata sits beside the TV instead of centered below it. */
+.pcrt-meta--compact {
+  margin-top: 0;
+  max-width: 20rem;
+  text-align: left;
 }
-.pcrt-live-dot.is-live {
-  opacity: 1;
-  animation: pcrt-blink 2.2s ease-in-out infinite;
+.pcrt-meta--compact > div:first-child {
+  justify-content: flex-start;
 }
 
 /* Channel pips — one clickable dot per game, active one filled. currentColor
@@ -517,8 +579,7 @@
    switch burst is ever triggered.) */
 @media (prefers-reduced-motion: reduce) {
   .pcrt-picture,
-  .pcrt-osd,
-  .pcrt-live-dot {
+  .pcrt-osd {
     animation: none;
   }
   .pcrt-rollbar {

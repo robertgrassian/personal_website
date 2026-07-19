@@ -1,9 +1,10 @@
-// A from-scratch, photorealistic CRT television for the /currently_playing route.
-// Unlike the stylized wood-cabinet TV on the game library page
-// (components/video_games/CurrentlyPlaying.tsx), this is a '90s black-plastic set
-// rendered entirely in CSS/SVG (see app/currently_playing/crt.css). It cycles
-// through the currently-playing games like TV channels and, when nothing is
-// playing, sits on a permanent "NO SIGNAL" snow screen so the page is never blank.
+// A from-scratch, photorealistic CRT television, shared by the /video_games
+// library page and the standalone /currently_playing route. Unlike the older
+// stylized wood-cabinet TV (components/video_games/CurrentlyPlaying.tsx, now
+// unused), this is a '90s black-plastic set rendered entirely in CSS/SVG (see
+// ./crt.css). It cycles through the currently-playing games like TV channels
+// and, when nothing is playing, sits on a permanent "NO SIGNAL" snow screen so
+// the page is never blank.
 //
 // Client Component ("use client"): the auto-cycle timer, click handlers, and the
 // switching state that drives the static burst all need browser-only React state
@@ -33,9 +34,16 @@ function channelLabel(index: number): string {
 
 type CrtTvProps = {
   games: Game[];
+  // Renders a smaller cabinet with the metadata beside it instead of below —
+  // used on the game library page so the shelves aren't pushed below the
+  // fold. The full-size cabinet is scaled down uniformly via CSS transform
+  // (see .pcrt-tv--compact in crt.css) rather than re-tuned rule by rule, so
+  // it reads as a miniature of the same TV. Omitted (false) on the standalone
+  // /currently_playing route, which keeps the full-size hero treatment.
+  compact?: boolean;
 };
 
-export function CrtTv({ games }: CrtTvProps) {
+export function CrtTv({ games, compact = false }: CrtTvProps) {
   // Which channel (game) is on screen.
   const [activeIndex, setActiveIndex] = useState(0);
   // True during the static burst between channels — drives the `.is-switching` class.
@@ -128,8 +136,13 @@ export function CrtTv({ games }: CrtTvProps) {
 
   const hasImage = active !== undefined && active.imageUrl !== "";
 
+  const stageClass = `pcrt-stage${compact ? " pcrt-stage--compact" : ""}`;
+  const tvFrameClass = `pcrt-tv-frame${compact ? " pcrt-tv-frame--compact" : ""}`;
+  const tvClass = `pcrt-tv${compact ? " pcrt-tv--compact" : ""}`;
+  const metaClass = `pcrt-meta${compact ? " pcrt-meta--compact" : ""}`;
+
   return (
-    <section aria-label="Now playing" className="pcrt-stage">
+    <section aria-label="Currently playing" className={stageClass}>
       {/* Curved-glass filter. A "normal map" — red = a left→right ramp, green =
           a top→bottom ramp — is built from two gradient feImages added together
           with feComposite, then fed to feDisplacementMap, which pushes the
@@ -177,124 +190,137 @@ export function CrtTv({ games }: CrtTvProps) {
 
       {/* Molded light-grey plastic cabinet, Panasonic-style: one continuous
           front panel with the tube recessed into it and the controls on the wide
-          lower bezel — modeled on the reference set. */}
-      <div className="pcrt-tv">
-        <div className="pcrt-front">
-          {/* Thin near-black tube mask around the curved glass. */}
-          <div className="pcrt-screen-recess">
-            <div className={screenClass}>
-              {/* .pcrt-picture holds the image + phosphor layers so the power-on
-                  animation and screen curvature transform them as one surface. */}
-              <div className="pcrt-picture">
-                {hasImage ? (
-                  // Cover crops to fill the 4:3 tube like live footage. center 22%
-                  // keeps the focus near the top of the portrait cover, where key
-                  // art and titles usually sit.
-                  <Image
-                    src={active!.imageUrl}
-                    alt={`${active!.name} cover art`}
-                    fill
-                    className="object-cover [object-position:center_22%]"
-                    sizes="(max-width: 520px) 88vw, 420px"
-                  />
-                ) : hasGames ? (
-                  // A playing game with no cover art: title as green OSD text on
-                  // the dark tube. (NO SIGNAL shows nothing here — the snow overlay
-                  // and the OSD badge carry the message.)
-                  <p className="pcrt-noise-text">{active!.name}</p>
-                ) : null}
-                {/* RGB aperture-grille mask — the phosphor stripe look. */}
-                <div className="pcrt-phosphor" aria-hidden />
-                <div className="pcrt-scanlines" aria-hidden />
-                <div className="pcrt-rollbar" aria-hidden />
-              </div>
-              {/* Snow overlay — permanent when NO SIGNAL, a burst while switching. */}
-              <div className="pcrt-static" aria-hidden />
-              {/* Corner darkening + curved-glass reflection sit on the glass, above
-                  the picture, so they show even mid-power-on. */}
-              <div className="pcrt-vignette" aria-hidden />
-              <div className="pcrt-glare" aria-hidden />
+          lower bezel — modeled on the reference set. The frame div reserves the
+          (possibly scaled-down) layout footprint; .pcrt-tv--compact does the
+          actual visual scaling via CSS transform, so this wrapper is a no-op
+          outside compact mode. */}
+      <div className={tvFrameClass}>
+        <div className={tvClass}>
+          <div className="pcrt-front">
+            {/* Thin near-black tube mask around the curved glass. */}
+            <div className="pcrt-screen-recess">
+              <div className={screenClass}>
+                {/* .pcrt-picture holds the image + phosphor layers so the power-on
+                    animation and screen curvature transform them as one surface. */}
+                <div className="pcrt-picture">
+                  {hasImage ? (
+                    // Cover crops to fill the 4:3 tube like live footage. center 22%
+                    // keeps the focus near the top of the portrait cover, where key
+                    // art and titles usually sit.
+                    <Image
+                      src={active!.imageUrl}
+                      alt={`${active!.name} cover art`}
+                      fill
+                      className="object-cover [object-position:center_22%]"
+                      // The compact cabinet is pinned at a fixed CSS width and scaled
+                      // down (see .pcrt-tv--compact), so the picture renders at a fixed
+                      // CSS width per breakpoint rather than being viewport-relative like
+                      // the full-size cabinet — ~140px under the sub-480px mobile scale
+                      // (crt.css), ~190px above it.
+                      sizes={
+                        compact
+                          ? "(max-width: 480px) 140px, 190px"
+                          : "(max-width: 520px) 88vw, 420px"
+                      }
+                    />
+                  ) : hasGames ? (
+                    // A playing game with no cover art: title as green OSD text on
+                    // the dark tube. (NO SIGNAL shows nothing here — the snow overlay
+                    // and the OSD badge carry the message.)
+                    <p className="pcrt-noise-text">{active!.name}</p>
+                  ) : null}
+                  {/* RGB aperture-grille mask — the phosphor stripe look. */}
+                  <div className="pcrt-phosphor" aria-hidden />
+                  <div className="pcrt-scanlines" aria-hidden />
+                  <div className="pcrt-rollbar" aria-hidden />
+                </div>
+                {/* Snow overlay — permanent when NO SIGNAL, a burst while switching. */}
+                <div className="pcrt-static" aria-hidden />
+                {/* Corner darkening + curved-glass reflection sit on the glass, above
+                    the picture, so they show even mid-power-on. */}
+                <div className="pcrt-vignette" aria-hidden />
+                <div className="pcrt-glare" aria-hidden />
 
-              {/* On-screen display: play state (top-left) + channel (top-right). */}
-              <span className="pcrt-osd" aria-hidden>
-                {hasGames ? "▶ PLAY" : "■ NO SIGNAL"}
-              </span>
-              {hasMultiple && (
-                <span className="pcrt-osd pcrt-osd--channel" aria-hidden>
-                  CH {channelLabel(activeIndex)}
+                {/* On-screen display: play state (top-left) + channel (top-right). */}
+                <span className="pcrt-osd" aria-hidden>
+                  {hasGames ? "▶ PLAY" : "■ NO SIGNAL"}
                 </span>
-              )}
+                {hasMultiple && (
+                  <span className="pcrt-osd pcrt-osd--channel" aria-hidden>
+                    CH {channelLabel(activeIndex)}
+                  </span>
+                )}
 
-              {/* Transparent full-screen click target — advances to the next
-                  channel. Rendered last so it sits above the (pointer-events:none)
-                  picture/glare/OSD and catches every click. Only when >1 game. */}
-              {hasMultiple && (
-                <button
-                  type="button"
-                  onClick={handleScreenClick}
-                  aria-label="Next game"
-                  title="Next game"
-                  className="pcrt-screen-button"
-                />
-              )}
-            </div>
-          </div>
-
-          {/* Lower bezel: a fine-mesh speaker grille on each side of a labeled
-              control cluster — small round buttons plus the front composite A/V
-              inputs, matching the reference. Decorative — channels change by
-              clicking the screen or the pips below. */}
-          <div className="pcrt-controls" aria-hidden>
-            <span className="pcrt-grille" />
-            <div className="pcrt-buttons">
-              <div className="pcrt-btn-group">
-                <span className="pcrt-label">POWER</span>
-                <div className="pcrt-btn-row">
-                  <span className={`pcrt-led${hasGames ? " is-on" : ""}`} />
-                  <span className="pcrt-button" />
-                </div>
-              </div>
-              <div className="pcrt-btn-group">
-                <span className="pcrt-label">VOLUME</span>
-                <div className="pcrt-btn-row">
-                  <span className="pcrt-button" />
-                  <span className="pcrt-button" />
-                </div>
-              </div>
-              <div className="pcrt-btn-group">
-                <span className="pcrt-label">CHANNEL</span>
-                <div className="pcrt-btn-row">
-                  <span className="pcrt-button" />
-                  <span className="pcrt-button" />
-                </div>
-              </div>
-              <div className="pcrt-btn-group">
-                <span className="pcrt-label">TV/VIDEO</span>
-                <div className="pcrt-btn-row">
-                  <span className="pcrt-button" />
-                </div>
-              </div>
-              {/* Front composite A/V inputs: yellow video, white + red audio. */}
-              <div className="pcrt-btn-group pcrt-av">
-                <span className="pcrt-label">VIDEO · L-AUDIO-R</span>
-                <div className="pcrt-btn-row">
-                  <span className="pcrt-jack pcrt-jack--yellow" />
-                  <span className="pcrt-jack pcrt-jack--white" />
-                  <span className="pcrt-jack pcrt-jack--red" />
-                </div>
+                {/* Transparent full-screen click target — advances to the next
+                    channel. Rendered last so it sits above the (pointer-events:none)
+                    picture/glare/OSD and catches every click. Only when >1 game. */}
+                {hasMultiple && (
+                  <button
+                    type="button"
+                    onClick={handleScreenClick}
+                    aria-label="Next game"
+                    title="Next game"
+                    className="pcrt-screen-button"
+                  />
+                )}
               </div>
             </div>
-            <span className="pcrt-grille" />
+
+            {/* Lower bezel: a fine-mesh speaker grille on each side of a labeled
+                control cluster — small round buttons plus the front composite A/V
+                inputs, matching the reference. Decorative — channels change by
+                clicking the screen or the pips below. */}
+            <div className="pcrt-controls" aria-hidden>
+              <span className="pcrt-grille" />
+              <div className="pcrt-buttons">
+                <div className="pcrt-btn-group">
+                  <span className="pcrt-label">POWER</span>
+                  <div className="pcrt-btn-row">
+                    <span className={`pcrt-led${hasGames ? " is-on" : ""}`} />
+                    <span className="pcrt-button" />
+                  </div>
+                </div>
+                <div className="pcrt-btn-group">
+                  <span className="pcrt-label">VOLUME</span>
+                  <div className="pcrt-btn-row">
+                    <span className="pcrt-button" />
+                    <span className="pcrt-button" />
+                  </div>
+                </div>
+                <div className="pcrt-btn-group">
+                  <span className="pcrt-label">CHANNEL</span>
+                  <div className="pcrt-btn-row">
+                    <span className="pcrt-button" />
+                    <span className="pcrt-button" />
+                  </div>
+                </div>
+                <div className="pcrt-btn-group">
+                  <span className="pcrt-label">TV/VIDEO</span>
+                  <div className="pcrt-btn-row">
+                    <span className="pcrt-button" />
+                  </div>
+                </div>
+                {/* Front composite A/V inputs: yellow video, white + red audio. */}
+                <div className="pcrt-btn-group pcrt-av">
+                  <span className="pcrt-label">VIDEO · L-AUDIO-R</span>
+                  <div className="pcrt-btn-row">
+                    <span className="pcrt-jack pcrt-jack--yellow" />
+                    <span className="pcrt-jack pcrt-jack--white" />
+                    <span className="pcrt-jack pcrt-jack--red" />
+                  </div>
+                </div>
+              </div>
+              <span className="pcrt-grille" />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Metadata below the set. */}
-      <div className="pcrt-meta">
+      {/* Metadata beside (compact) or below (full-size) the set. */}
+      <div className={metaClass}>
         <div className="flex items-center gap-3">
           <p className="text-link text-[11px] font-semibold uppercase tracking-[0.18em]">
-            <span className={`pcrt-live-dot${hasGames ? " is-live" : ""}`} aria-hidden />
-            {hasGames ? "Now playing" : "No signal"}
+            {hasGames ? "Currently playing" : "No signal"}
           </p>
           {/* Channel pips: one clickable dot per game, the active one filled. A
               plain button group (role="group", aria-pressed) conveys the selected
