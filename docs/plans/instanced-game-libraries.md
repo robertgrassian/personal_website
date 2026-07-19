@@ -484,6 +484,34 @@ missed, a future skill can wrap the API — nothing forecloses that.)
 - **Dev servers:** `uvicorn` and `next dev` run side by side (the §3.1 rewrite targets
   `127.0.0.1:8000` in dev); add a `concurrently`-based npm script so one command starts both.
 
+### 7.6 Secrets & configuration
+
+Where every credential lives — **nothing sensitive is ever committed to the repo**:
+
+| Credential | Lives in | Notes |
+|---|---|---|
+| Twitch/IGDB client id + secret | Vercel env vars (server-side) | Read only by FastAPI. Today they're passed inline to `fetch-covers.ts` and stored nowhere; that script retires in Phase 3 |
+| Derived Twitch app access token | One-row Postgres table (§6) | Runtime data, never in the repo |
+| Supabase DB connection strings (contain the DB password) | Vercel env vars; locally in `.env` (gitignored) | Pooler URL for the app, direct URL for Alembic |
+| Supabase service-role key (Admin API) | Vercel env var, FastAPI only | **The most dangerous secret** — bypasses all authorization. Never `NEXT_PUBLIC_`, never sent to the browser |
+| Supabase anon/publishable key + project URL | `NEXT_PUBLIC_` env vars | Public **by design** (the browser needs them for the OAuth dance); safe to expose, not to be confused with the service-role key |
+| GitHub / Google OAuth client secrets | Supabase dashboard | Never touch the repo at all |
+| JWKS URL / issuer | Plain config | Public by definition — verification needs no secret |
+| Preview read-only role password | Vercel preview-scoped env var | The locked-down role from §7.5 |
+| `MAX_USERS`, `APP_ENV` | Env vars | Configuration, not secrets |
+
+Guardrails against accidental check-in:
+
+- `.gitignore` already covers `.env*` (Next.js default) — keep it that way; commit only a
+  `.env.example` listing variable *names* with placeholder values.
+- The checked-in `supabase/config.toml` references secrets only via `env(VAR_NAME)`
+  substitution, never literal values. (The local stack's fixed HS256 JWT secret is a
+  published public default — not sensitive.)
+- **The `NEXT_PUBLIC_` prefix is the sharp edge to respect**: Next.js inlines any
+  `NEXT_PUBLIC_*` var into the client JavaScript bundle at build time. The prefix is an
+  explicit opt-in to "this ships to every browser" — no server-side secret ever gets it.
+- GitHub push protection / secret scanning stays enabled on the repo as a backstop.
+
 ## 8. Migration & Rollout Phases
 
 Each phase ships independently and leaves the site working.
@@ -569,6 +597,7 @@ Each phase ships independently and leaves the site working.
 | 22 | **Account deletion** | `DELETE /me/account`: `ON DELETE CASCADE` down from `profiles` (games, sessions, wishlist, follows) + `auth.users` removal via the Supabase Admin API (§4.2, §6). |
 | 23 | **Play-state derivation** | Computed in Python from two queries (§4.3), consistent with logic-in-app; SQL window functions only if profiling ever demands. |
 | 24 | **OpenAPI docs in prod** | Disabled outside dev (`docs_url=None` unless `APP_ENV=dev`). |
+| 25 | **Secrets** | All credentials live in Vercel env vars / the Supabase dashboard / gitignored local `.env` files — never the repo (§7.6). Runtime tokens (Twitch app token) live in Postgres. |
 
 ## 10. What You'll Learn (per phase, mapped to backend knowledge)
 
