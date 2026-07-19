@@ -43,5 +43,31 @@ cd api && uv run pytest                 # Python tests
 
 ## Database
 
-Not wired up yet — `DATABASE_URL` is read but unused. `supabase start` /
-migration / seed instructions land with the DB workstream.
+The local database is the Supabase CLI stack; migrations are Alembic's (the
+Supabase CLI's own migration system is deliberately unused — `supabase start`
+is infrastructure only). All commands below run from `api/`.
+
+```sh
+supabase start                       # once: local Postgres on :54322 (+ auth, Studio)
+uv run alembic upgrade head          # apply migrations
+uv run python scripts/seed.py        # load games.csv / sessions.csv / wishlist.csv
+```
+
+`DATABASE_URL` in the repo-root `.env` points at the local stack
+(`postgresql://postgres:postgres@127.0.0.1:54322/postgres`).
+
+The seed script is idempotent (truncate-and-reload) — rerun it whenever the
+CSVs change. It fails loudly if a `sessions.csv` game name doesn't resolve to
+exactly one library game; fix the CSV and rerun.
+
+**Resetting:** the simplest reset is through Alembic:
+
+```sh
+uv run alembic downgrade base && uv run alembic upgrade head && uv run python scripts/seed.py
+```
+
+`supabase db reset` also works but rebuilds the _entire_ database from the
+Supabase CLI's point of view — which knows nothing about Alembic — so it wipes
+the `alembic_version` table along with the schema. After a `supabase db reset`
+you must rerun `alembic upgrade head` + the seed anyway; prefer the Alembic
+roundtrip above unless the stack itself is wedged.

@@ -17,12 +17,15 @@ app/
   services/         business logic — orchestrate repositories, derive domain state
   repositories/     all DB access — nothing else touches the database
   schemas/          Pydantic request/response DTOs (mirror the FE TS types)
-  models/           SQLAlchemy entities (Postgres schema)
-tests/              pytest + FastAPI TestClient
+  models/           SQLAlchemy 2.0 entities (spec §4.2 schema); core/db.py has engine + get_db dependency
+alembic/            migrations (env.py scoped to the public schema — auth etc. are Supabase's)
+scripts/seed.py     CSV → DB seed (idempotent truncate-and-reload)
+tests/              pytest + FastAPI TestClient; DB tests skip without DATABASE_URL
 ```
 
-`services/`, `repositories/`, `schemas/`, `models/` are empty skeletons until
-the DB workstream lands.
+`services/`, `repositories/`, `schemas/` are empty skeletons until the read
+endpoints land. Routers get a DB session via the `get_db` dependency in
+`app/core/db.py` (`db: Annotated[Session, Depends(get_db)]`).
 
 ## Adding a new endpoint
 
@@ -38,10 +41,13 @@ the DB workstream lands.
 ## Commands (from `api/`)
 
 ```
-uv sync                 # create .venv on Python 3.12 + install deps (incl. dev group)
-uv run pytest           # tests
-uv run ruff check .     # lint (ruff also handles import sorting)
-uv run ruff format .    # format
+uv sync                          # create .venv on Python 3.12 + install deps (incl. dev group)
+uv run pytest                    # tests (DB tests need DATABASE_URL + migrated DB)
+uv run ruff check .              # lint (ruff also handles import sorting)
+uv run ruff format .             # format
+uv run alembic upgrade head      # apply migrations (URL comes from Settings, not alembic.ini)
+uv run alembic revision --autogenerate -m "..."   # new migration (hand-review the output)
+uv run python scripts/seed.py    # seed from the repo-root CSVs
 ```
 
 Run the dev server from the repo root with `npm run dev:api` (uvicorn on :8000),

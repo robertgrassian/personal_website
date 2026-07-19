@@ -1,0 +1,215 @@
+"""Seed the database from the repo-root CSVs (spec §8, Phase 1).
+
+Run from api/:  uv run python scripts/seed.py
+
+Idempotent truncate-and-reload: every run wipes the five tables and reinserts
+everything, so it can rerun freely during development. All rows belong to a
+placeholder Robert profile with a fixed UUID and no auth.users row — Phase 2
+re-parents the data to the real auth user.
+
+Validation ports the rules from src/lib/gamesServer.ts: warn-don't-drop for
+fixable problems (unknown rating, missing system), skip only nameless rows.
+The one hard failure is session-name resolution — sessions.csv references
+games by name, and a name matching zero or several games aborts the run
+(nonzero exit) rather than guessing; fix the CSV and rerun.
+"""
+
+import csv
+import sys
+import uuid
+from collections.abc import Iterable
+from datetime import date
+from pathlib import Path
+
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+# Make the app package importable when run as `python scripts/seed.py`.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.core.db import get_sessionmaker
+from app.models import Game, PlaySession, Profile, WishlistItem
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# Placeholder profile until Phase 2 re-parents to the real auth.users id.
+# Fixed (not random) so reruns and other tooling can reference it.
+ROBERT_PROFILE_ID = uuid.UUID("00000000-0000-4000-8000-000000000001")
+ROBERT_USERNAME = "robert"
+ROBERT_DISPLAY_NAME = "Robert"
+
+# Mirrors RATINGS in src/lib/games.ts; the DB CHECK backstops it.
+VALID_RATINGS = frozenset({"Perfect", "Great", "Good", "Okay", "Bad"})
+
+TABLES = ["profiles", "games", "play_sessions", "wishlist_items", "follows"]
+
+
+# --- pure parsing/validation (unit-tested in tests/test_seed_parsing.py) ---
+
+
+def split_genres(raw: str) -> list[str]:
+    """'Metroidvania|Puzzle' -> ['Metroidvania', 'Puzzle']; blanks dropped."""
+    return [g.strip() for g in raw.split("|") if g.strip()]
+
+
+def parse_optional_date(raw: str) -> date | None:
+    raw = raw.strip()
+    return date.fromisoformat(raw) if raw else None
+
+
+def parse_game_rows(rows: Iterable[dict], warnings: list[str]) -> list[dict]:
+    """games.csv rows -> games column dicts (sans user_id).
+
+    Same rules as gamesServer.ts parseRow: no name -> skip with warning;
+    missing system -> warn but keep; unknown rating -> warn and store NULL.
+    """
+    out = []
+    for i, row in enumerate(rows, start=2):  # start=2: 1-indexed + header
+        name = (row.get("name") or "").strip()
+        if not name:
+            warnings.append(f"[games.csv] Row {i}: skipping row with no game name")
+            continue
+
+        system = (row.get("system") or "").strip()
+        if not system:
+            warnings.append(f'[games.csv] Row {i}: "{name}" has no system')
+
+        rating: str | None = (row.get("rating") or "").strip() or None
+        if rating is not None and rating not in VALID_RATINGS:
+            warnings.append(
+                f'[games.csv] Row {i}: "{name}" has unrecognized rating '
+                f'"{rating}" — treating as unrated'
+            )
+            rating = None
+
+        out.append(
+            {
+                "name": name,
+                "system": system,
+                "rating": rating,
+                "genres": split_genres(row.get("genre") or ""),
+                "release_date": parse_optional_date(row.get("release_date") or ""),
+                "image_url": (row.get("image_url") or "").strip() or None,
+            }
+        )
+    return out
+
+
+def resolve_session_rows(
+    rows: Iterable[dict], name_to_game_ids: dict[str, list[int]]
+) -> tuple[list[dict], list[str]]:
+    """sessions.csv rows -> play_sessions column dicts via the name→id bridge.
+
+    Returns (resolved rows, errors). Any error means the run must abort:
+    a session naming zero or multiple games cannot be resolved safely.
+    """
+    resolved, errors = [], []
+    for i, row in enumerate(rows, start=2):
+        name = (row.get("game") or "").strip()
+        ids = name_to_game_ids.get(name, [])
+        if len(ids) != 1:
+            problem = "matches no game" if not ids else f"is ambiguous ({len(ids)} games)"
+            errors.append(f'[sessions.csv] Row {i}: "{name}" {problem} in the library')
+            continue
+        resolved.append(
+            {
+                "game_id": ids[0],
+                "start_date": date.fromisoformat((row.get("start_date") or "").strip()),
+                # Empty end_date = open session = currently playing.
+                "end_date": parse_optional_date(row.get("end_date") or ""),
+            }
+        )
+    return resolved, errors
+
+
+def parse_wishlist_rows(rows: Iterable[dict], warnings: list[str]) -> list[dict]:
+    """wishlist.csv rows -> wishlist_items column dicts (sans user_id)."""
+    out = []
+    for i, row in enumerate(rows, start=2):
+        name = (row.get("name") or "").strip()
+        if not name:
+            warnings.append(f"[wishlist.csv] Row {i}: skipping row with no game name")
+            continue
+        out.append(
+            {
+                "name": name,
+                "system": (row.get("system") or "").strip() or None,
+                "genres": split_genres(row.get("genre") or ""),
+                "release_date": parse_optional_date(row.get("release_date") or ""),
+                "image_url": (row.get("image_url") or "").strip() or None,
+                # Any non-empty value counts as starred (CSV uses "true"/"").
+                "starred": bool((row.get("starred") or "").strip()),
+                "date_added": parse_optional_date(row.get("date_added") or "") or date.today(),
+                "notes": (row.get("notes") or "").strip(),
+            }
+        )
+    return out
+
+
+# --- IO ---
+
+
+def read_csv(filename: str) -> list[dict]:
+    with (REPO_ROOT / filename).open(newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def seed(session: Session) -> dict[str, int]:
+    warnings: list[str] = []
+
+    game_rows = parse_game_rows(read_csv("games.csv"), warnings)
+    wishlist_rows = parse_wishlist_rows(read_csv("wishlist.csv"), warnings)
+
+    # Truncate-and-reload keeps the script idempotent; RESTART IDENTITY so
+    # game ids don't grow across reruns, CASCADE for the FK chains.
+    session.execute(text(f"TRUNCATE {', '.join(TABLES)} RESTART IDENTITY CASCADE"))
+
+    session.add(
+        Profile(id=ROBERT_PROFILE_ID, username=ROBERT_USERNAME, display_name=ROBERT_DISPLAY_NAME)
+    )
+    # Flush the profile before the games: the models declare no ORM
+    # relationship() (FKs only), so the unit of work won't order the
+    # inserts across tables on its own.
+    session.flush()
+
+    games = [Game(user_id=ROBERT_PROFILE_ID, **row) for row in game_rows]
+    session.add_all(games)
+    session.flush()  # assigns game ids for the name→id bridge
+
+    name_to_game_ids: dict[str, list[int]] = {}
+    for game in games:
+        name_to_game_ids.setdefault(game.name, []).append(game.id)
+
+    session_rows, errors = resolve_session_rows(read_csv("sessions.csv"), name_to_game_ids)
+    if errors:
+        print("Unresolvable sessions.csv rows — fix the CSV and rerun:", file=sys.stderr)
+        for error in errors:
+            print(f"  {error}", file=sys.stderr)
+        session.rollback()
+        sys.exit(1)
+
+    session.add_all(PlaySession(**row) for row in session_rows)
+    session.add_all(WishlistItem(user_id=ROBERT_PROFILE_ID, **row) for row in wishlist_rows)
+    session.commit()
+
+    for warning in warnings:
+        print(warning)
+
+    counts = {
+        table: session.execute(text(f"SELECT count(*) FROM {table}")).scalar_one()
+        for table in TABLES
+    }
+    print("Seeded:")
+    for table, count in counts.items():
+        print(f"  {table}: {count}")
+    print(f"Warnings: {len(warnings)}")
+    return counts
+
+
+def main() -> None:
+    with get_sessionmaker()() as session:
+        seed(session)
+
+
+if __name__ == "__main__":
+    main()
