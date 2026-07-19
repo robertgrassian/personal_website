@@ -11,10 +11,18 @@ Turn the single, CSV-driven game library into a multi-user ("instanced") feature
 - Robert's own library becomes just one instance — editable through the website (add a game,
   rate it, start/stop a session) instead of through CSV edits, commits, and deploys.
 - Data moves from `games.csv` / `sessions.csv` / `wishlist.csv` into a real database.
+- A **light social graph**: users can visit each other's libraries, follow each other
+  (followers/following lists double as quick navigation to other libraries), and search for
+  users. Every new user automatically follows — and is followed by — Robert, MySpace-Tom
+  style, so nobody starts with an empty network.
+- **Entry experience**: the homepage "Game Library" tile shows visitors Robert's library
+  read-only (the demo of what a full library looks like) with a sign-up/log-in CTA; once
+  logged in, the same tile takes users straight to *their own* library.
 
 ### Non-goals (for v1)
 
-- Social features (following, comments, likes, shared shelves).
+- Deep social features (comments, likes, activity feeds, notifications, block/mute). The
+  follow graph above is in scope; everything built *on top of* it is not.
 - Importing libraries from Steam/PSN/backloggd/etc.
 - Migrating any other part of the site (about, resume, homepage stay static).
 
@@ -159,6 +167,14 @@ wishlist_items (
   notes        text NOT NULL DEFAULT '',
   UNIQUE (user_id, name)
 )
+
+follows (                                 -- directed edge: follower → followee
+  follower_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  followee_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (follower_id, followee_id), -- one edge per pair; dup follows impossible
+  CHECK (follower_id <> followee_id)      -- no self-follows
+)
 ```
 
 Design decisions worth reviewing:
@@ -179,6 +195,16 @@ Design decisions worth reviewing:
 - **`genres text[]`** rather than a join table: we only ever filter by "contains genre",
   which Postgres arrays + a GIN index handle fine, and it matches the `genres: string[]` FE type.
 - **`citext` username** so `/u/Robert` and `/u/robert` are the same person.
+- **Follows as a bare edge table** (classic many-to-many self-join on `profiles`).
+  Follower/following counts are `COUNT(*)` queries — at this scale that's plenty;
+  denormalized counter columns are a later optimization if ever needed. Add a
+  **pg_trgm GIN index** on `profiles.username` / `display_name` for fuzzy user search.
+- **Auto-follow ("MySpace Tom") lives in application code, not a DB trigger**: the
+  FastAPI signup flow inserts the profile row plus the two follow edges
+  (new-user → founder, founder → new-user) in one transaction, with the founder's user id
+  read from an env var. A trigger would work too, but keeping the rule in Python keeps
+  business logic visible, testable, and in one place — the same reasoning as §5.3's
+  app-side authorization.
 
 ### 4.3 Derived play state moves to SQL
 
@@ -238,6 +264,15 @@ of Jackson + Bean Validation.
 # Public reads
 GET  /users/{username}/games            → Game[]  (play state pre-derived, §4.3)
 GET  /users/{username}/wishlist         → WishlistGame[]
+GET  /users/{username}                  → profile + follower/following counts
+                                          (+ am_i_following when a JWT is present)
+GET  /users/{username}/followers        → profile summaries (username, display name, counts)
+GET  /users/{username}/following        → profile summaries
+GET  /users/search?q=tom                → profile summaries (pg_trgm fuzzy match)
+
+# Social graph (authenticated)
+POST   /me/following/{username}         follow
+DELETE /me/following/{username}         unfollow
 
 # Authenticated (owner-only writes), acting on "my" library
 POST   /me/games                        add a game (typically from an IGDB pick)
@@ -266,16 +301,42 @@ Notes:
 
 ## 7. Frontend Changes
 
-### 7.1 Routing
+### 7.1 Routing & entry experience
 
-- `/u/[username]/video_games` — any user's library (dynamic route).
-- `/video_games` — stays Robert's library (same component, hardcoded username) so existing
-  links/SEO don't break. It's the "demo" that shows visitors what they'd get.
-- `/library` (auth'd) — *your* library with edit affordances, or redirect
-  `/u/you` with an "edit mode". (Spec decision; recommend edit-in-place on your own
-  `/u/[username]` page — one page, conditional controls.)
-- Login/account: a small sign-in button in `Nav.tsx`; Supabase handles the OAuth dance.
-- New-user onboarding: pick a username → empty shelf state ("Add your first game").
+The homepage "Game Library" tile is the front door, and it behaves differently depending on
+who clicks it:
+
+1. **Visitor / logged out** → Robert's library, read-only, exactly as today — the demo
+   shelf that shows what a full library looks like — with a banner up top:
+   *"Sign up / log in to build your own library."*
+2. **Logged in** → straight to *your own* library.
+
+**How the auto-routing works (the "store a cookie or something" question):** no new cookie
+is needed — Supabase Auth already keeps the session in an httpOnly cookie with long-lived
+refresh tokens, so a returning user stays "remembered" for months. The clean Next.js
+pattern is a tiny **resolver route**:
+
+- The homepage tile (and the nav link) point at `/library`.
+- `/library` is a page that renders nothing: its server component reads the session cookie
+  and immediately issues a `redirect()` — logged in → `/u/{your-username}`, logged out →
+  `/video_games`.
+- Why the extra hop instead of checking the cookie on the homepage itself: reading cookies
+  in a Next.js page opts that page into **dynamic rendering** (rebuilt per-request instead
+  of served static from the CDN). Quarantining the cookie read into a redirect-only route
+  keeps `/` and `/video_games` fully static and fast, and only the invisible `/library` hop
+  is dynamic. (The alternative — conditionally rendering the tile's href server-side — works
+  but makes the whole homepage dynamic for one link.)
+
+Routes:
+
+- `/u/[username]` — any user's library (public, dynamic route). Shelf UI + profile header
+  (display name, follower/following counts, follow button).
+- `/video_games` — Robert's library at its stable URL (existing links/SEO keep working);
+  doubles as the logged-out demo with the sign-up CTA.
+- `/library` — the resolver redirect described above.
+- Login/account: a sign-in button in `Nav.tsx`; Supabase handles the OAuth dance.
+- New-user onboarding: pick a username → auto-follow edges created (§4.2) → empty shelf
+  state ("Add your first game") — and one follower already waiting.
 
 ### 7.2 Data fetching
 
@@ -300,6 +361,14 @@ same server-component call sites, new implementation. Caching strategy:
 3. **Wishlist management** incl. the promote-to-library flow.
 4. **Auth UI**: sign-in, username picker, sign-out in nav.
 5. Empty states for brand-new libraries.
+6. **Sign-up CTA banner** on Robert's library for logged-out visitors (§7.1).
+7. **Profile header on library pages**: display name + follower/following counts; counts
+   open a list where each row links straight to that user's library — the "quick click-over"
+   navigation between libraries.
+8. **Follow/unfollow button** on other users' libraries (hidden on your own).
+9. **User search** — a "find people" input returning profile summaries that link to their
+   libraries. (Spec decision: where it lives — recommend alongside the follower lists and/or
+   in the nav next to sign-in, rather than a whole dedicated page, to start.)
 
 Existing components (`GameLibrary`, `FilterBar`, shelves, CRT, stats, SQL panel) keep
 working on `Game[]` props unchanged. The alasql-powered `SqlQueryPanel` still queries the
@@ -345,9 +414,16 @@ Each phase ships independently and leaves the site working.
 
 ### Phase 4 — Multi-user
 - `/u/[username]` public routes, signup open, empty states, per-user rate limits.
+- The `/library` resolver route + sign-up CTA banner on `/video_games` (§7.1).
 - Light abuse guardrails (§9).
 
-### Phase 5 — Hardening / polish (as needed)
+### Phase 5 — Social graph
+- `follows` table + follow/unfollow endpoints; auto-follow wiring in the signup flow.
+- Backfill: create follow edges between Robert and any users who signed up during Phase 4.
+- Profile headers with follower/following counts and lists; follow button; user search
+  (pg_trgm index + `/users/search` endpoint + UI).
+
+### Phase 6 — Hardening / polish (as needed)
 - Neon-style preview-DB story: Supabase branching or a shared dev project for Vercel
   preview deployments (spec decision).
 - Backups (Supabase does daily on free tier; document restore).
@@ -366,6 +442,9 @@ Each phase ships independently and leaves the site working.
 | 7 | **Local dev DB** | Supabase CLI local stack (Docker) vs a shared cloud dev project. Recommend cloud dev project first (zero Docker setup), local stack later if needed. |
 | 8 | **Two toolchains in one repo** | Python needs its own lint/format/test setup (ruff, pytest) and CI job alongside ESLint/Prettier; husky hooks should cover both. |
 | 9 | **Where does "currently playing" on `/about` (TODO backlog) point?** | The planned Current Hobbies section would fetch from the API like everything else — this migration makes that easier, not harder. |
+| 10 | **Can users unfollow the founder?** | Recommend yes — auto-follow is a seed connection, not a shackle (Tom let you unfriend him). Robert's *follow of them* also removable by Robert. |
+| 11 | **Follower/following lists public?** | Recommend yes, consistent with the all-public v1 stance (#6). Revisit together with any future private-library toggle. |
+| 12 | **Follow-graph abuse** | Follow/unfollow needs the same per-user rate limits as writes; mass-follow spam is the classic vector. Block/mute stays out of v1 but gets easier to add because authorization is centralized in FastAPI (§5.3). |
 
 ## 10. What You'll Learn (per phase, mapped to backend knowledge)
 
@@ -377,4 +456,8 @@ Each phase ships independently and leaves the site working.
 - **Phase 3:** Next.js caching layers (fetch cache, tags, ISR) — the part of Next with no
   clean backend analogy and the most "framework magic" to demystify; optimistic UI updates;
   forms and mutations in React 19 (Server Actions, `useActionState`).
-- **Phase 4:** Dynamic routes + `generateStaticParams`; multi-tenant authorization patterns.
+- **Phase 4:** Dynamic routes + `generateStaticParams`; multi-tenant authorization
+  patterns; static vs dynamic rendering and why the `/library` resolver-redirect pattern
+  exists (§7.1) — Next's server-side `redirect()` and cookie access.
+- **Phase 5:** Modeling a social graph as a self-referential many-to-many (familiar SQL,
+  new UI patterns); optimistic follow/unfollow toggles in React.
