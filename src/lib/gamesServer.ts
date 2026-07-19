@@ -7,6 +7,12 @@ import type { Game, Rating } from "./games";
 import { RATINGS } from "./games";
 import type { Session } from "./sessions";
 import { getSessions } from "./sessionsServer";
+import { fetchGamesFromApi, getLibraryApiOrigin } from "./libraryApi";
+
+// /video_games is Robert's shelf at its stable URL (spec decision #5) — the
+// read path always asks the API for this fixed user until multi-user routes
+// (/u/[username], Phase 4) exist.
+const LIBRARY_USERNAME = "robert";
 
 const VALID_RATINGS = new Set<string>(["", ...RATINGS.map((r) => r.name)]);
 
@@ -89,7 +95,20 @@ function parseRow(line: string, rowIndex: number): Game | null {
   };
 }
 
-export function getGames(): Game[] {
+// Async because the API branch awaits a fetch. The CSV branch is synchronous
+// under the hood, but an async function wraps its return in a promise either
+// way, so call sites `await` uniformly regardless of which branch ran.
+export async function getGames(): Promise<Game[]> {
+  // Env-gated branch (spec §8 Phase 1): LIBRARY_API_ORIGIN set → read from the
+  // FastAPI/Postgres path; unset → the original CSV path below, kept intact as
+  // the fallback until Phase 3 proves parity. The API returns play state
+  // (currentlyPlaying / lastPlayed / playingSince) already derived, so the
+  // sessions merge below is CSV-branch-only.
+  const apiOrigin = getLibraryApiOrigin();
+  if (apiOrigin) {
+    return fetchGamesFromApi(apiOrigin, LIBRARY_USERNAME);
+  }
+
   const csvPath = path.join(process.cwd(), "games.csv");
   let raw: string;
   try {

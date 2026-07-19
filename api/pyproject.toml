@@ -1,0 +1,48 @@
+[project]
+name = "personal-website-api"
+version = "0.1.0"
+description = "FastAPI backend for the personal website (instanced game libraries)"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.18.5",
+    "fastapi>=0.116",
+    "psycopg[binary]>=3.3.4",
+    "pydantic-settings>=2.10",
+    "sqlalchemy>=2.0.51",
+]
+
+# uvicorn is dev-only on purpose: Vercel's Python runtime provides the ASGI
+# server in production, so shipping uvicorn would only bloat the bundle.
+[dependency-groups]
+dev = [
+    "uvicorn>=0.35",
+    "ruff>=0.12",
+    "pytest>=8.4",
+    "httpx>=0.28",
+]
+
+[tool.uv]
+# Not an installable package — a deployable app. Keeps `uv export` from
+# emitting the project itself as a requirement.
+package = false
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "C4",  # flake8-comprehensions
+    "RUF", # ruff-specific
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Make the `app` package importable when pytest runs from api/.
+pythonpath = ["."]
