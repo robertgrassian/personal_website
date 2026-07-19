@@ -48,3 +48,11 @@ __pycache__/
 *.pyc
 
 .vscode/
+
+# python api backend (uv-managed; __pycache__/*.pyc covered above)
+api/.venv/
+.ruff_cache/
+.pytest_cache/
+
+# committed env template — names + placeholders only (.env* above ignores the rest)
+!.env.example

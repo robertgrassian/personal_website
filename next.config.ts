@@ -18,6 +18,22 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async rewrites() {
+    return [
+      {
+        // FastAPI backend (api/index.py), served under /api/py.
+        // Dev: `next dev` proxies to the uvicorn process on :8000 (started by
+        // `npm run dev:api` / `dev:full`), preserving the full /api/py path —
+        // FastAPI routes on that literal prefix.
+        // Prod: Vercel has no local uvicorn; "/api/" targets the Python
+        // serverless function, which receives the original request path.
+        // Pattern taken from Vercel's official nextjs-fastapi template.
+        source: "/api/py/:path*",
+        destination:
+          process.env.NODE_ENV === "development" ? "http://127.0.0.1:8000/api/py/:path*" : "/api/",
+      },
+    ];
+  },
   webpack(config) {
     // AlaSQL's package.json `main` field points to alasql.fs.js (Node build),
     // which transitively imports react-native-fs — a TypeScript file that
