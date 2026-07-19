@@ -56,6 +56,13 @@ uv run python scripts/seed.py        # load games.csv / sessions.csv / wishlist.
 `DATABASE_URL` in the repo-root `.env` points at the local stack
 (`postgresql://postgres:postgres@127.0.0.1:54322/postgres`).
 
+**Data source toggle:** with `LIBRARY_API_ORIGIN=http://127.0.0.1:8000` in
+`.env`, the site's `getGames()`/`getWishlist()` read from the local DB through
+the FastAPI read endpoints (so `npm run dev:full` + a seeded DB is the normal
+setup). Unset it (or comment it out) to fall back to the repo-root CSV files —
+no API or DB needed. If it's set but uvicorn isn't running, pages fail loudly
+on purpose rather than silently serving CSV data.
+
 The seed script is idempotent (truncate-and-reload) — rerun it whenever the
 CSVs change. It fails loudly if a `sessions.csv` game name doesn't resolve to
 exactly one library game; fix the CSV and rerun.

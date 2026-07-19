@@ -45,8 +45,10 @@ const PLANK_BACKGROUND = [
   `linear-gradient(${OG.shelfPlank}, ${OG.shelfPlank})`,
 ].join(", ");
 
-export default function OGImage() {
-  const games = getGames();
+// Async is fine here — Next.js awaits metadata image route handlers, and
+// getGames() is now async (it may fetch from the library API).
+export default async function OGImage() {
+  const games = await getGames();
   const totalCount = games.length;
   // Build a name→game map for fast lookup, then pull featured games in order.
   const byName = new Map(games.map((g) => [g.name, g]));

@@ -10,12 +10,12 @@ export const metadata = {
 
 // A Server Component (the App Router default — no "use client"). It runs only on
 // the server, so it can call the server-only data layer directly and pass plain
-// data to the client CRT. `getGames()` reads CSVs from disk synchronously, so no
-// async/await is needed.
-export default function CurrentlyPlayingPage() {
+// data to the client CRT. Async because getGames() may now fetch from the
+// library API — App Router server components can be async and await data.
+export default async function CurrentlyPlayingPage() {
   // Same filter the game library uses (video_games/page.tsx): a game is
   // "currently playing" when it has an open session (empty end_date).
-  const games = getGames().filter((g) => g.currentlyPlaying);
+  const games = (await getGames()).filter((g) => g.currentlyPlaying);
 
   return (
     // Base site tokens (bg-background/text-foreground) keep the page chrome

@@ -9,9 +9,13 @@ export const metadata = {
   title: "Video Game Library | Robert Grassian",
 };
 
-export default function VideoGamesPage() {
-  const games = getGames();
-  const wishlist = getWishlist();
+// Async Server Component — a Next.js App Router convention: server components
+// may be async functions and `await` data before rendering. getGames() /
+// getWishlist() are now async (they may fetch from the library API). The two
+// awaits are independent, so Promise.all runs them concurrently instead of
+// serializing two API round-trips.
+export default async function VideoGamesPage() {
+  const [games, wishlist] = await Promise.all([getGames(), getWishlist()]);
   // All in-progress games — the CRT cycles through them like TV channels, and
   // the stats panel uses them so "Recently Played" can include a currently-playing
   // game even when it's unrated (and thus absent from the rated shelves below).
