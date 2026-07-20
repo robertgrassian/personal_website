@@ -6,6 +6,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
     },
-    sitemap: "https://robertgrassian.com/sitemap.xml",
+    sitemap: "https://rgrassian.com/sitemap.xml",
   };
 }
