@@ -12,6 +12,7 @@ exception style as services/users.py.
 
 import re
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.auth import AuthenticatedUser
@@ -122,8 +123,9 @@ def create_my_profile(
        auth user, an over-cap signup leaves an orphan consuming a MAU (spec
        §6); we delete it via the Admin API before raising so counts stay
        honest.
-    4. Taken → UsernameError("taken"). Checked explicitly for a clean 409, and
-       the DB unique index backstops the race.
+    4. Taken → UsernameError("taken"). The explicit check gives a clean 409 in
+       the common case; the DB unique index is the real backstop for the race
+       between the check and the commit (handled below).
     """
     if me_repo.get_profile_by_id(db, user.id) is not None:
         raise ProfileExistsError("Profile already exists for this account.")
@@ -131,6 +133,11 @@ def create_my_profile(
     username = _validate_username(payload.username)
 
     settings = get_settings()
+    # TOCTOU note: this count-then-insert can overshoot MAX_USERS if several
+    # signups race at the boundary (serverless functions are stateless — no
+    # shared in-process counter, spec §3.1). Accepted for a personal-scale cap:
+    # the blast radius is "a few users over 100", not a correctness or security
+    # problem, and a DB-level guard on a COUNT isn't worth the complexity.
     if me_repo.count_profiles(db) >= settings.max_users:
         # Clean up the orphaned auth user before refusing (best-effort; the
         # admin client logs and returns False if unconfigured).
@@ -143,7 +150,21 @@ def create_my_profile(
         raise UsernameError("taken", f"The username '{username}' is already taken.")
 
     display_name = payload.display_name.strip() or username
-    profile: Profile = me_repo.create_profile(
-        db, user_id=user.id, username=username, display_name=display_name
-    )
+    try:
+        profile: Profile = me_repo.create_profile(
+            db, user_id=user.id, username=username, display_name=display_name
+        )
+    except IntegrityError as exc:
+        # A concurrent onboarding POST committed between our checks above and
+        # this insert, violating either the username unique index or the
+        # profiles PK. Roll back the poisoned transaction, then re-derive which
+        # collision it was so the caller still gets the intended 409 (not a
+        # 500): if this user now has a profile, it was a double-submit; else
+        # someone else took the handle first.
+        db.rollback()
+        if me_repo.get_profile_by_id(db, user.id) is not None:
+            raise ProfileExistsError("Profile already exists for this account.") from exc
+        raise UsernameError(
+            "taken", f"The username '{username}' is already taken."
+        ) from exc
     return MyProfileRead(username=profile.username, display_name=profile.display_name)

@@ -468,9 +468,16 @@ missed, a future skill can wrap the API — nothing forecloses that.)
 - **Local auth without OAuth setup:** the checked-in `supabase/config.toml` enables
   magic-link email auth _locally only_ — Mailpit catches the emails, so you can log in as
   any made-up user with zero OAuth app registration. Production stays GitHub+Google-only.
-- **JWT config is env-driven in FastAPI:** local GoTrue signs HS256 with a fixed known
-  secret; hosted Supabase uses asymmetric keys with a JWKS endpoint. FastAPI takes
-  issuer + (shared secret | JWKS URL) from env vars per environment.
+- **JWT config is env-driven in FastAPI:** FastAPI takes issuer + (JWKS URL | shared
+  secret) from env vars per environment. **Updated during Phase 2a implementation
+  (2026-07-20):** the current Supabase CLI local stack signs access tokens with
+  **asymmetric keys (ES256) and publishes a JWKS endpoint** — the same model as hosted
+  Supabase, not the HS256 shared secret this section originally assumed. So **both local
+  and prod use the JWKS path** (`SUPABASE_JWKS_URL` + `SUPABASE_AUTH_ISSUER`); this is
+  strictly better because it exercises the exact production verification path locally,
+  mitigating the no-staging risk called out below. The HS256 shared-secret path is
+  retained in `app/core/auth.py` only as a legacy fallback. (PyJWT needs the
+  `cryptography` extra for ES256 — pinned as `pyjwt[crypto]`.)
 - **Vercel preview deploys** can't reach a laptop's Docker, and there is no second cloud
   project. Previews point at prod through a **read-only Postgres role**, and FastAPI
   refuses all mutations when `APP_ENV=preview`. That role must be locked down properly —

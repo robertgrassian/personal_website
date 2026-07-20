@@ -170,3 +170,24 @@ def test_create_profile_over_cap_is_403(fresh_auth_user, monkeypatch: pytest.Mon
         assert "capacity" in response.json()["detail"].lower()
     finally:
         get_settings.cache_clear()
+
+
+@requires_db
+def test_username_race_returns_409_not_500(
+    fresh_auth_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A handle claimed between the service's username_exists() check and its
+    # commit must surface as a clean 409, not a 500 from the unhandled
+    # IntegrityError. Simulate the race by forcing the pre-check to miss, so
+    # the DB unique index is what rejects the insert.
+    first_id, _ = fresh_auth_user
+    created = client_as(first_id).post("/api/py/me/profile", json={"username": "raced"})
+    assert created.status_code == 201
+
+    second_id = _make_auth_user()
+    monkeypatch.setattr("app.repositories.me.username_exists", lambda *a, **k: False)
+    try:
+        response = client_as(second_id).post("/api/py/me/profile", json={"username": "raced"})
+        assert response.status_code == 409
+    finally:
+        _delete_auth_user(second_id)

@@ -5,9 +5,11 @@ production, the gitignored repo-root ``.env`` locally). No secrets are ever
 committed; ``.env.example`` at the repo root documents the variable names.
 """
 
+import logging
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Every route is registered under this literal prefix. In production Vercel
@@ -56,6 +58,21 @@ class Settings(BaseSettings):
     # Signup cap (spec decision #13): profile creation refuses once this many
     # profiles exist. Free-tier abuse insurance, adjustable without a deploy.
     max_users: int = 100
+
+    @model_validator(mode="after")
+    def _warn_ambiguous_auth_config(self) -> "Settings":
+        # If both verification modes are configured, decode_token uses the
+        # HS256 secret and ignores JWKS — a leftover/weak secret would silently
+        # downgrade verification. Warn once (Settings is constructed once, via
+        # the lru_cache below) rather than failing, since a valid single-mode
+        # setup is the norm and this is a footgun guard, not a hard error.
+        if self.supabase_jwt_secret and self.supabase_jwks_url:
+            logging.getLogger(__name__).warning(
+                "Both SUPABASE_JWT_SECRET and SUPABASE_JWKS_URL are set; HS256 "
+                "(the shared secret) takes precedence and JWKS is ignored. "
+                "Configure exactly one."
+            )
+        return self
 
 
 @lru_cache

@@ -118,3 +118,87 @@ def test_unconfigured_auth_raises_loudly(monkeypatch: pytest.MonkeyPatch) -> Non
 
     with pytest.raises(RuntimeError, match="Auth is not configured"):
         decode_token(mint())
+
+
+def test_unconfigured_dependency_propagates_not_401(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Through the full dependency path: a misconfigured server must surface as
+    # a server error (RuntimeError → 500 in a real deploy), NEVER be swallowed
+    # into a 401. A 401 here would be an auth bypass waiting to happen — the
+    # request would look "merely unauthenticated" instead of "server broken".
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", "")
+    monkeypatch.setenv("SUPABASE_JWKS_URL", "")
+    get_settings.cache_clear()
+    # TestClient re-raises unhandled server exceptions into the test, so a
+    # propagating RuntimeError (not a 401 response) is the assertion.
+    with pytest.raises(RuntimeError, match="Auth is not configured"):
+        get(client, mint())
+
+
+def _es256_token(private_key, *, sub: str = TEST_SUB, iss: str | None = TEST_ISSUER) -> str:
+    now = int(time.time())
+    claims: dict = {
+        "sub": sub,
+        "aud": "authenticated",
+        "iat": now,
+        "exp": now + 3600,
+        "email": "es256@example.com",
+    }
+    if iss is not None:
+        claims["iss"] = iss
+    return jwt.encode(claims, private_key, algorithm="ES256")
+
+
+def test_jwks_es256_path_verifies(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The PRODUCTION verification path: hosted Supabase (and the local CLI
+    # stack) sign access tokens with ES256 and publish JWKS. Stub only the
+    # network key-fetch; the ES256 signature check itself is real crypto.
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    import app.core.auth as auth_mod
+
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    token = _es256_token(private_key)
+
+    class _StubKey:
+        key = private_key.public_key()
+
+    class _StubClient:
+        def get_signing_key_from_jwt(self, _token: str) -> "_StubKey":
+            return _StubKey()
+
+    monkeypatch.setattr(auth_mod, "_jwks_client", lambda _url: _StubClient())
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", "")
+    monkeypatch.setenv("SUPABASE_JWKS_URL", "https://example.test/.well-known/jwks.json")
+    monkeypatch.setenv("SUPABASE_AUTH_ISSUER", TEST_ISSUER)
+    get_settings.cache_clear()
+
+    claims = decode_token(token)
+    assert claims["sub"] == TEST_SUB
+    assert claims["email"] == "es256@example.com"
+
+
+def test_jwks_es256_rejects_token_signed_by_other_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    # An ES256 token signed by a key the JWKS doesn't serve must fail — proves
+    # the signature is actually verified, not just decoded.
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    import app.core.auth as auth_mod
+
+    served_key = ec.generate_private_key(ec.SECP256R1())
+    attacker_key = ec.generate_private_key(ec.SECP256R1())
+    token = _es256_token(attacker_key)
+
+    class _StubClient:
+        def get_signing_key_from_jwt(self, _token: str):
+            return type("K", (), {"key": served_key.public_key()})()
+
+    monkeypatch.setattr(auth_mod, "_jwks_client", lambda _url: _StubClient())
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", "")
+    monkeypatch.setenv("SUPABASE_JWKS_URL", "https://example.test/.well-known/jwks.json")
+    monkeypatch.setenv("SUPABASE_AUTH_ISSUER", TEST_ISSUER)
+    get_settings.cache_clear()
+
+    with pytest.raises(jwt.InvalidTokenError):
+        decode_token(token)

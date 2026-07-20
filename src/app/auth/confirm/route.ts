@@ -16,7 +16,16 @@ export async function GET(request: NextRequest) {
   // /onboarding, which self-resolves: it shows the username picker for a new
   // account and redirects an already-onboarded user onward. (The dedicated
   // /library resolver from spec §7.1 arrives in Phase 4.)
-  const next = searchParams.get("next") ?? "/onboarding";
+  //
+  // Open-redirect guard: only accept a local path. Without it, `next=@evil.com`
+  // would make `${origin}${next}` resolve to another host, and `//evil.com`
+  // is a protocol-relative URL to another host — both must be rejected. The
+  // shipped email template never sets `next`, so this is defense-in-depth.
+  const nextParam = searchParams.get("next");
+  const next =
+    nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")
+      ? nextParam
+      : "/onboarding";
 
   if (token_hash && type) {
     const supabase = await createClient();
