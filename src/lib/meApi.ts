@@ -8,7 +8,6 @@
 // JS) is the whole point of the httpOnly session.
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import { getLibraryApiOrigin } from "@/lib/libraryApi";
 
 export type MyProfile = {
   username: string;
@@ -33,16 +32,24 @@ async function accessToken(): Promise<string | null> {
 }
 
 function apiOrigin(): string {
-  const origin = getLibraryApiOrigin();
-  if (!origin) {
-    // Same loud-failure stance as libraryApi.ts: a configured-but-missing
-    // origin should be obvious in dev, never a silent no-op.
-    throw new Error(
-      "LIBRARY_API_ORIGIN is not set — the authenticated API path needs it. " +
-        "Set it in .env (local: http://127.0.0.1:8000)."
-    );
-  }
-  return origin;
+  // The authenticated /me/* path always needs an absolute origin for the
+  // server-side fetch to FastAPI. It is DELIBERATELY resolved separately from
+  // the public read path's LIBRARY_API_ORIGIN: reads stay on CSV in prod (that
+  // var unset) until Phase 3, but the write path must reach the API regardless.
+  //   - Dev: LIBRARY_API_ORIGIN points at the separate uvicorn process (:8000).
+  //   - Prod: no separate process — FastAPI is a serverless function on the same
+  //     deployment, reached via Vercel's per-deployment VERCEL_URL (self-call).
+  //     VERCEL_URL is the exact deployment handling the request, so it stays
+  //     correct across rollouts (unlike a fixed production alias).
+  const explicit = process.env.LIBRARY_API_ORIGIN?.trim();
+  if (explicit) return explicit;
+  const vercelUrl = process.env.VERCEL_URL?.trim();
+  if (vercelUrl) return `https://${vercelUrl}`;
+  // Neither available: a real misconfiguration — fail loudly, never silently.
+  throw new Error(
+    "No API origin for the authenticated write path: set LIBRARY_API_ORIGIN " +
+      "(local: http://127.0.0.1:8000) or rely on VERCEL_URL in a Vercel deploy."
+  );
 }
 
 /** The caller's profile, or null when they're authenticated but haven't
