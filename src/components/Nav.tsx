@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { caveat } from "../lib/fonts";
+import { AuthButton } from "./AuthButton";
 
 const links = [
   { href: "/about", label: "About" },
@@ -51,6 +52,10 @@ export function Nav() {
               </Link>
             </li>
           ))}
+          {/* Auth state is client-resolved (per-viewer, never server-cached) */}
+          <li>
+            <AuthButton />
+          </li>
         </ul>
       </div>
     </nav>

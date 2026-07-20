@@ -260,6 +260,15 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
+# Magic-link template override (spec §7.5): local dev signs in via magic link
+# captured by Mailpit. The custom template sends a {{ .TokenHash }} pointing at
+# the app's /auth/confirm route handler (the SSR/PKCE flow) instead of GoTrue's
+# default fragment-based ConfirmationURL, so the session lands in server-
+# readable httpOnly cookies. Production is OAuth-only and never uses this.
+[auth.email.template.magic_link]
+subject = "Your sign-in link"
+content_path = "./supabase/templates/magic_link.html"
+
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true

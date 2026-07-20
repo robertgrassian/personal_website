@@ -12,6 +12,8 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.3",
+    "@supabase/supabase-js": "^2.110.7",
     "alasql": "^4.17.0",
     "fast-average-color": "^9.5.0",
     "next": "^15.5.14",
