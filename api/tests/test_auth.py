@@ -202,3 +202,29 @@ def test_jwks_es256_rejects_token_signed_by_other_key(monkeypatch: pytest.Monkey
 
     with pytest.raises(jwt.InvalidTokenError):
         decode_token(token)
+
+
+def test_jwks_path_rejects_hs256_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Alg-confusion defense: on the asymmetric (JWKS) path, an HS256 token must
+    # be rejected outright because `algorithms` is pinned to ES256/RS256. The
+    # classic attack forges an HS256 token using the *public* key bytes as the
+    # HMAC secret; pinning the algorithms defeats it before verification.
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    import app.core.auth as auth_mod
+
+    served = ec.generate_private_key(ec.SECP256R1())
+
+    class _StubClient:
+        def get_signing_key_from_jwt(self, _token: str):
+            return type("K", (), {"key": served.public_key()})()
+
+    monkeypatch.setattr(auth_mod, "_jwks_client", lambda _url: _StubClient())
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", "")
+    monkeypatch.setenv("SUPABASE_JWKS_URL", "https://example.test/.well-known/jwks.json")
+    monkeypatch.setenv("SUPABASE_AUTH_ISSUER", TEST_ISSUER)
+    get_settings.cache_clear()
+
+    # mint() produces an HS256 token; it must not verify on the JWKS path.
+    with pytest.raises(jwt.InvalidTokenError):
+        decode_token(mint())

@@ -173,6 +173,22 @@ def test_create_profile_over_cap_is_403(fresh_auth_user, monkeypatch: pytest.Mon
 
 
 @requires_db
+def test_create_profile_forbidden_in_preview(
+    fresh_auth_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Spec §7.5: mutations are refused on preview deploys (cleanly, as 503 —
+    # not an ugly read-only-role 500).
+    monkeypatch.setenv("APP_ENV", "preview")
+    get_settings.cache_clear()
+    try:
+        user_id, _ = fresh_auth_user
+        response = client_as(user_id).post("/api/py/me/profile", json={"username": "previewuser"})
+        assert response.status_code == 503
+    finally:
+        get_settings.cache_clear()
+
+
+@requires_db
 def test_username_race_returns_409_not_500(
     fresh_auth_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:

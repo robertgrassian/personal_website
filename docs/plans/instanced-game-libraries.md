@@ -257,10 +257,10 @@ pointed at an issuer URI) — the mental model transfers 1:1.
 - Standard JWTs + JWKS → clean FastAPI verification (§5.1).
 - Same vendor as the DB → one dashboard, one set of env vars, `user_id` FKs directly
   reference `auth.users`.
-- Social login out of the box; **no passwords stored by us**. **Decided: GitHub + Google
-  OAuth only in production** — no email/password, no magic links. (The local dev stack
-  additionally enables magic-link auth because Mailpit captures the emails with zero
-  external setup; see §7.5.)
+- Social login out of the box; **no passwords stored by us**. **Decided: Google OAuth only
+  in production** (originally GitHub + Google; GitHub dropped during Phase 2b to keep it
+  simple) — no email/password, no magic links. (The local dev stack additionally enables
+  magic-link auth because Mailpit captures the emails with zero external setup; see §7.5.)
 - FE integration via `@supabase/ssr` — the session lives in cookies, readable in Next server
   components, and the access token is forwarded to FastAPI on each request.
 - **Enable Supabase's "JWT signing keys" feature at project setup** — asymmetric keys + a
@@ -467,7 +467,7 @@ missed, a future skill can wrap the API — nothing forecloses that.)
   as it does against prod. One migration tool, no dual bookkeeping.
 - **Local auth without OAuth setup:** the checked-in `supabase/config.toml` enables
   magic-link email auth _locally only_ — Mailpit catches the emails, so you can log in as
-  any made-up user with zero OAuth app registration. Production stays GitHub+Google-only.
+  any made-up user with zero OAuth app registration. Production stays Google-only.
 - **JWT config is env-driven in FastAPI:** FastAPI takes issuer + (JWKS URL | shared
   secret) from env vars per environment. **Updated during Phase 2a implementation
   (2026-07-20):** the current Supabase CLI local stack signs access tokens with
@@ -502,7 +502,7 @@ Where every credential lives — **nothing sensitive is ever committed to the re
 | Supabase DB connection strings (contain the DB password) | Vercel env vars; locally in `.env` (gitignored) | Pooler URL for the app, direct URL for Alembic                                                                                  |
 | Supabase service-role key (Admin API)                    | Vercel env var, FastAPI only                    | **The most dangerous secret** — bypasses all authorization. Never `NEXT_PUBLIC_`, never sent to the browser                     |
 | Supabase anon/publishable key + project URL              | `NEXT_PUBLIC_` env vars                         | Public **by design** (the browser needs them for the OAuth dance); safe to expose, not to be confused with the service-role key |
-| GitHub / Google OAuth client secrets                     | Supabase dashboard                              | Never touch the repo at all                                                                                                     |
+| Google OAuth client secret                               | Supabase dashboard                              | Never touch the repo at all                                                                                                     |
 | JWKS URL / issuer                                        | Plain config                                    | Public by definition — verification needs no secret                                                                             |
 | Preview read-only role password                          | Vercel preview-scoped env var                   | The locked-down role from §7.5                                                                                                  |
 | `MAX_USERS`, `APP_ENV`                                   | Env vars                                        | Configuration, not secrets                                                                                                      |
@@ -551,7 +551,7 @@ Each phase ships independently and leaves the site working.
 
 ### Phase 2 — Auth
 
-- Supabase Auth (GitHub + Google), `profiles` table, username onboarding.
+- Supabase Auth (Google OAuth; GitHub dropped in 2b), `profiles` table, username onboarding.
 - Robert signs up; seed data gets re-parented to that real user id.
 - FastAPI JWT middleware; still no write endpoints exposed in UI.
 
@@ -600,7 +600,7 @@ Each phase ships independently and leaves the site working.
 | 11  | **Follower/following lists**   | Public, consistent with #6.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | 12  | **Follow-graph abuse**         | Follow/unfollow rate-limited like all writes; block/mute deferred (easy to add later since authz is centralized in FastAPI, §5.3).                                                                                                                                                                                                                                                                                                                                                                     |
 | 13  | **Signup cap**                 | **`MAX_USERS` env var, initial value 100** (§6). Over cap → "at capacity" message; adjustable without a deploy.                                                                                                                                                                                                                                                                                                                                                                                        |
-| 14  | **Login methods**              | **GitHub + Google OAuth only** in production; no passwords or magic links (local dev uses magic links via Mailpit, §7.5).                                                                                                                                                                                                                                                                                                                                                                              |
+| 14  | **Login methods**              | **Google OAuth only** in production (updated 2026-07: GitHub dropped for simplicity); no passwords or magic links (local dev uses magic links via Mailpit, §7.5).                                                                                                                                                                                                                                                                                                                                      |
 | 15  | **Edit UX**                    | **Edit-in-place** on your own public `/u/[username]` page via `isOwner` conditional rendering; no separate manage page.                                                                                                                                                                                                                                                                                                                                                                                |
 | 16  | **Wishlist scope**             | **All users get a wishlist in v1** — same schema, endpoints, and UI for everyone; Robert's CSV seeds his.                                                                                                                                                                                                                                                                                                                                                                                              |
 | 17  | **Route shape**                | **`/u/[username]` renders the library directly** — no nesting; becomes a profile hub only if movie/book libraries materialize.                                                                                                                                                                                                                                                                                                                                                                         |

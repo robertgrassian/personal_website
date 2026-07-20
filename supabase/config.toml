@@ -3,7 +3,7 @@
 #
 # Deliberate differences from production:
 #   - Email/magic-link auth is enabled here for local login via Mailpit
-#     (http://127.0.0.1:54324); production is GitHub + Google OAuth only.
+#     (http://127.0.0.1:54324); production is Google OAuth only.
 #   - The PostgREST Data API ([api]) stays enabled locally for Studio
 #     convenience; in production it is disabled in the project dashboard
 #     (spec §5 — FastAPI is the only DB client).

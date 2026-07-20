@@ -5,8 +5,11 @@
 //     real sign-in method for users.
 //   - Local dev: a magic-link form, because the local Supabase stack has no
 //     Google provider configured and Mailpit captures the email (spec §7.5).
-// process.env.NODE_ENV is inlined by Next at build time, so this gating costs
-// nothing at runtime and the dev-only form never ships in the prod bundle.
+// process.env.NODE_ENV is inlined by Next at build time, so IS_DEV is a
+// constant `false` in prod: the magic-link form is never rendered and there is
+// no runtime path to invoke it against prod Supabase. (The component
+// definition may still survive tree-shaking into the bundle — the guarantee is
+// behavioral, not that the code is stripped.)
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -140,7 +143,7 @@ function LoginContent() {
         <GoogleSignIn />
       </div>
 
-      {/* Dev-only escape hatch; never rendered in the production bundle. */}
+      {/* Dev-only escape hatch; never rendered (and never invocable) in prod. */}
       {IS_DEV && <MagicLinkForm />}
     </div>
   );

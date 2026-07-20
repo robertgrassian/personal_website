@@ -37,18 +37,22 @@ function apiOrigin(): string {
   // the public read path's LIBRARY_API_ORIGIN: reads stay on CSV in prod (that
   // var unset) until Phase 3, but the write path must reach the API regardless.
   //   - Dev: LIBRARY_API_ORIGIN points at the separate uvicorn process (:8000).
-  //   - Prod: no separate process — FastAPI is a serverless function on the same
-  //     deployment, reached via Vercel's per-deployment VERCEL_URL (self-call).
-  //     VERCEL_URL is the exact deployment handling the request, so it stays
-  //     correct across rollouts (unlike a fixed production alias).
+  //   - Prod: no separate process — FastAPI is a serverless function on the
+  //     same deployment. We target VERCEL_PROJECT_PRODUCTION_URL (the public
+  //     production domain, e.g. rgrassian.com) rather than VERCEL_URL. This is
+  //     load-bearing: VERCEL_URL is the per-deployment *.vercel.app hostname,
+  //     which Vercel Deployment Protection gates *even when the custom domain
+  //     is public* — so a self-call to VERCEL_URL would get the SSO wall (HTML)
+  //     instead of our JSON and every signup's onboarding would break.
   const explicit = process.env.LIBRARY_API_ORIGIN?.trim();
   if (explicit) return explicit;
-  const vercelUrl = process.env.VERCEL_URL?.trim();
-  if (vercelUrl) return `https://${vercelUrl}`;
+  const prodDomain = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (prodDomain) return `https://${prodDomain}`;
   // Neither available: a real misconfiguration — fail loudly, never silently.
   throw new Error(
     "No API origin for the authenticated write path: set LIBRARY_API_ORIGIN " +
-      "(local: http://127.0.0.1:8000) or rely on VERCEL_URL in a Vercel deploy."
+      "(local: http://127.0.0.1:8000), or rely on VERCEL_PROJECT_PRODUCTION_URL " +
+      "in a Vercel deploy."
   );
 }
 
@@ -61,6 +65,9 @@ export async function fetchMyProfile(): Promise<MyProfile | null> {
   const res = await fetch(`${apiOrigin()}/api/py/me/profile`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store", // per-viewer, never cached (spec §7.2)
+    // Bound the Node→Python self-call so a hung hop fails fast instead of
+    // stalling the render until the function timeout.
+    signal: AbortSignal.timeout(5000),
   });
   if (res.status === 404) return null; // no profile yet → onboarding
   if (!res.ok) {
@@ -88,6 +95,7 @@ export async function createMyProfile(
     },
     body: JSON.stringify({ username, displayName }),
     cache: "no-store",
+    signal: AbortSignal.timeout(5000),
   });
 
   if (res.ok) {

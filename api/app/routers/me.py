@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import CurrentUser
 from app.core.config import API_PREFIX
 from app.core.db import get_db
+from app.core.guards import forbid_in_preview
 from app.schemas.me import MyProfileRead, ProfileCreate
 from app.services import me as me_service
 from app.services.me import ProfileExistsError, SignupCapReachedError, UsernameError
@@ -36,7 +37,12 @@ def read_my_profile(user: CurrentUser, db: DbSession) -> MyProfileRead:
     return profile
 
 
-@router.post("/me/profile", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/me/profile",
+    status_code=status.HTTP_201_CREATED,
+    # First mutating endpoint: refuse writes on preview deploys (spec §7.5).
+    dependencies=[Depends(forbid_in_preview)],
+)
 def create_my_profile(user: CurrentUser, db: DbSession, payload: ProfileCreate) -> MyProfileRead:
     """Complete onboarding by creating the caller's profile.
 
