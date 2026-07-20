@@ -80,7 +80,7 @@ def fresh_auth_user():
 def test_get_my_profile_returns_seeded_owner() -> None:
     response = client_as(ROBERT_PROFILE_ID).get("/api/py/me/profile")
     assert response.status_code == 200
-    assert response.json() == {"username": "robert", "displayName": "Robert"}
+    assert response.json() == {"username": "rgrassian", "displayName": "Robert"}
 
 
 @requires_db

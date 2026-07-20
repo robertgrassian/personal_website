@@ -8,7 +8,7 @@ import { fetchWishlistFromApi, getLibraryApiOrigin } from "./libraryApi";
 
 // /video_games is Robert's shelf at its stable URL (spec decision #5); same
 // fixed-user constant as gamesServer.ts until multi-user routes (Phase 4).
-const LIBRARY_USERNAME = "robert";
+const LIBRARY_USERNAME = "rgrassian";
 
 // CSV schema (wishlist.csv header):
 // name,system,genre,release_date,image_url,starred,date_added,notes

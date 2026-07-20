@@ -56,7 +56,8 @@ RESERVED_USERNAMES = frozenset(
         "settings",
         "account",
         # branding / impersonation
-        "robert",  # the founder handle is seeded; keep it un-claimable
+        "rgrassian",  # the founder handle (seeded); un-claimable by others
+        "robert",  # kept reserved too (former founder-handle candidate)
         "grassian",
         "official",
         "support",

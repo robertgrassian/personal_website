@@ -67,7 +67,7 @@ def client() -> TestClient:
 
 @requires_db
 def test_games_returns_full_library_with_camel_case_keys(client: TestClient) -> None:
-    response = client.get("/api/py/users/robert/games")
+    response = client.get("/api/py/users/rgrassian/games")
     assert response.status_code == 200
     games = response.json()
     expected = expected_games()
@@ -83,7 +83,7 @@ def test_open_session_games_are_currently_playing(client: TestClient) -> None:
     open_names = session_names(open_only=True)
     if not open_names:
         pytest.skip("sessions.csv currently has no open session")
-    games = client.get("/api/py/users/robert/games").json()
+    games = client.get("/api/py/users/rgrassian/games").json()
     by_name = {g["name"]: g for g in games}
     for name in open_names:
         game = by_name[name]
@@ -101,7 +101,7 @@ def test_closed_session_games_have_last_played(client: TestClient) -> None:
     closed_names = session_names(open_only=False)
     if not closed_names:
         pytest.skip("sessions.csv currently has no closed session")
-    games = client.get("/api/py/users/robert/games").json()
+    games = client.get("/api/py/users/rgrassian/games").json()
     by_name = {g["name"]: g for g in games}
     for name in closed_names:
         assert by_name[name]["lastPlayed"] != "", name
@@ -111,7 +111,7 @@ def test_closed_session_games_have_last_played(client: TestClient) -> None:
 def test_game_without_sessions_has_empty_play_state(client: TestClient) -> None:
     in_sessions = session_names(open_only=True) | session_names(open_only=False)
     expected = next(g for g in expected_games() if g["name"] not in in_sessions)
-    games = client.get("/api/py/users/robert/games").json()
+    games = client.get("/api/py/users/rgrassian/games").json()
     game = next(g for g in games if g["name"] == expected["name"])
     assert game["currentlyPlaying"] is False
     assert game["lastPlayed"] == ""
@@ -125,15 +125,15 @@ def test_game_without_sessions_has_empty_play_state(client: TestClient) -> None:
 
 @requires_db
 def test_username_lookup_is_case_insensitive(client: TestClient) -> None:
-    # citext username: /users/Robert resolves to the same profile.
-    response = client.get("/api/py/users/Robert/games")
+    # citext username: /users/Rgrassian resolves to the same profile.
+    response = client.get("/api/py/users/Rgrassian/games")
     assert response.status_code == 200
     assert len(response.json()) == len(expected_games())
 
 
 @requires_db
 def test_wishlist_returns_all_items_with_camel_case_keys(client: TestClient) -> None:
-    response = client.get("/api/py/users/robert/wishlist")
+    response = client.get("/api/py/users/rgrassian/wishlist")
     assert response.status_code == 200
     items = response.json()
     expected = expected_wishlist()
@@ -149,11 +149,11 @@ def test_wishlist_returns_all_items_with_camel_case_keys(client: TestClient) -> 
 
 @requires_db
 def test_profile_returns_public_fields_and_counts(client: TestClient) -> None:
-    response = client.get("/api/py/users/robert")
+    response = client.get("/api/py/users/rgrassian")
     assert response.status_code == 200
     # Exact payload: public data only, no per-viewer fields (spec §7.2).
     assert response.json() == {
-        "username": "robert",
+        "username": "rgrassian",
         "displayName": "Robert",
         "followerCount": 0,
         "followingCount": 0,

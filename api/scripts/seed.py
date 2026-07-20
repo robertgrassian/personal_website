@@ -41,7 +41,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # UUID is used for the auth.users row, keeping profile id == auth id exactly
 # as real signups will.
 ROBERT_PROFILE_ID = uuid.UUID("00000000-0000-4000-8000-000000000001")
-ROBERT_USERNAME = "robert"
+ROBERT_USERNAME = "rgrassian"  # founder handle (display name stays "Robert")
 ROBERT_DISPLAY_NAME = "Robert"
 # Log in locally as this address (magic link lands in Mailpit, :54324) to act
 # as Robert. Local-only — the guard in main() keeps this off prod, where

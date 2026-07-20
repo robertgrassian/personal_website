@@ -12,7 +12,7 @@ import { fetchGamesFromApi, getLibraryApiOrigin } from "./libraryApi";
 // /video_games is Robert's shelf at its stable URL (spec decision #5) — the
 // read path always asks the API for this fixed user until multi-user routes
 // (/u/[username], Phase 4) exist.
-const LIBRARY_USERNAME = "robert";
+const LIBRARY_USERNAME = "rgrassian";
 
 const VALID_RATINGS = new Set<string>(["", ...RATINGS.map((r) => r.name)]);
 

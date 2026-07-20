@@ -37,11 +37,11 @@ class TestValidateUsername:
             assert exc.value.reason == "format", bad
 
     def test_reserved_username_is_rejected(self):
-        # "search" collides with the /users/search route (spec §4.2); "robert"
-        # is the seeded founder handle. (Shorter reserved names like "me" can
-        # never be reached — they fail the 3-char minimum first — which is
-        # fine: they're un-creatable either way.)
-        for reserved in ("search", "robert", "admin", "library"):
+        # "search" collides with the /users/search route (spec §4.2);
+        # "rgrassian" is the seeded founder handle. (Shorter reserved names like
+        # "me" can never be reached — they fail the 3-char minimum first — which
+        # is fine: they're un-creatable either way.)
+        for reserved in ("search", "rgrassian", "robert", "admin", "library"):
             with pytest.raises(UsernameError) as exc:
                 _validate_username(reserved)
             assert exc.value.reason == "reserved", reserved
