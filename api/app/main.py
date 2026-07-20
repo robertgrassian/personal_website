@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 
 from app.core.config import API_PREFIX, get_settings
-from app.routers import health, users
+from app.routers import health, me, users
 
 
 def create_app() -> FastAPI:
@@ -21,4 +21,5 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(users.router)
+    app.include_router(me.router)
     return app

@@ -40,7 +40,15 @@ def include_name(name, type_, parent_names):
 
 def include_object(obj, name, type_, reflected, compare_to):
     """Object filter (second line of defense): skip anything that reflects
-    with an explicit non-public schema."""
+    with an explicit non-public schema, plus foreign keys that point INTO
+    such a schema — migration f985740c0df9 adds profiles.id → auth.users,
+    which exists in the DB but deliberately not in the model metadata
+    (auth belongs to GoTrue); without this, autogenerate would propose
+    dropping it on every run."""
+    if type_ == "foreign_key_constraint":
+        referred = obj.referred_table
+        if referred is not None and referred.schema not in (None, "public"):
+            return False
     schema = getattr(obj, "schema", None)
     return schema in (None, "public")
 

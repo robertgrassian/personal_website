@@ -19,11 +19,11 @@ USERNAME_CHECK_SQL = r"username::text ~ '^[a-z0-9][a-z0-9_-]{2,29}$'"
 class Profile(Base):
     __tablename__ = "profiles"
 
-    # Spec declares this as REFERENCES auth.users(id) ON DELETE CASCADE, but
-    # the FK is deliberately NOT declared in this phase: Phase 1 seeds a
-    # placeholder Robert profile with no corresponding auth user, which the
-    # FK would reject. A Phase 2 migration adds the constraint after the seed
-    # data is re-parented to Robert's real auth.users row.
+    # REFERENCES auth.users(id) ON DELETE CASCADE — the constraint exists in
+    # the database (migration f985740c0df9) but is deliberately not declared
+    # here: auth.users belongs to GoTrue and stays out of this metadata (spec
+    # §4.2). env.py's include_object filter stops autogenerate from proposing
+    # to drop the DB-side FK it can see but this model doesn't claim.
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
     # citext: /u/Robert and /u/robert resolve to the same row (unique
     # comparisons are case-insensitive).

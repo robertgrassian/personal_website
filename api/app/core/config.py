@@ -30,6 +30,33 @@ class Settings(BaseSettings):
     # SQLAlchemy session wiring.
     database_url: str | None = None
 
+    # --- Auth (spec §5, §7.5) -------------------------------------------------
+    # Token verification. The current Supabase CLI stack signs access tokens
+    # with asymmetric keys (ES256) and publishes a JWKS endpoint — identical to
+    # hosted Supabase — so BOTH local and prod use the JWKS path: set
+    # SUPABASE_JWKS_URL (local: http://127.0.0.1:54321/auth/v1/.well-known/jwks.json).
+    # (This corrects the spec's §7.5 assumption that local dev would use an
+    # HS256 shared secret; newer CLI versions enabled signing keys by default.)
+    # SUPABASE_JWT_SECRET remains supported for a legacy HS256 project; when
+    # both are set the secret wins. Exactly one should be configured.
+    supabase_jwt_secret: str | None = None
+    supabase_jwks_url: str | None = None
+    # Expected `iss` claim, e.g. http://127.0.0.1:54321/auth/v1 locally.
+    # Verified when set; leaving it unset skips the issuer check (dev nicety,
+    # not for prod).
+    supabase_auth_issuer: str | None = None
+
+    # Base URL of the Supabase stack (http://127.0.0.1:54321 locally) plus the
+    # service-role key, used server-side only for the GoTrue Admin API (the
+    # over-cap auth-user cleanup, §6; account deletion in Phase 3+). The
+    # service-role key bypasses all authorization — never exposed to clients.
+    supabase_url: str | None = None
+    supabase_service_role_key: str | None = None
+
+    # Signup cap (spec decision #13): profile creation refuses once this many
+    # profiles exist. Free-tier abuse insurance, adjustable without a deploy.
+    max_users: int = 100
+
 
 @lru_cache
 def get_settings() -> Settings:
