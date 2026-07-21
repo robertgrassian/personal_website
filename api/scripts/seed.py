@@ -46,7 +46,7 @@ ROBERT_DISPLAY_NAME = "Robert"
 # Log in locally as this address (magic link lands in Mailpit, :54324) to act
 # as Robert. Local-only — the guard in main() keeps this off prod, where
 # Robert signs up through real OAuth (Phase 2b).
-ROBERT_EMAIL = "robert@example.com"
+ROBERT_EMAIL = "rgrassian@example.com"
 
 # Mirrors RATINGS in src/lib/games.ts; the DB CHECK backstops it.
 VALID_RATINGS = frozenset({"Perfect", "Great", "Good", "Okay", "Bad"})
