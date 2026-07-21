@@ -9,10 +9,14 @@
 // exchange call, same "establish the session server-side, then redirect" shape.
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requestOrigin } from "@/lib/requestOrigin";
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
+  // Redirect to the host the request came in on, so the session cookie stays
+  // valid (see requestOrigin). In prod this resolves to the real domain.
+  const origin = requestOrigin(request);
 
   // Open-redirect guard, identical to /auth/confirm: only a local path is
   // accepted for post-login navigation.

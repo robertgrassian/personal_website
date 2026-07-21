@@ -7,11 +7,15 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requestOrigin } from "@/lib/requestOrigin";
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
+  // Redirect to the host the request came in on (not request.url's normalized
+  // origin), so the session cookie just set by verifyOtp stays valid.
+  const origin = requestOrigin(request);
   // Where to send the user after a successful sign-in. Defaults to
   // /onboarding, which self-resolves: it shows the username picker for a new
   // account and redirects an already-onboarded user onward.
