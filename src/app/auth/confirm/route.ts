@@ -14,8 +14,7 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type") as EmailOtpType | null;
   // Where to send the user after a successful sign-in. Defaults to
   // /onboarding, which self-resolves: it shows the username picker for a new
-  // account and redirects an already-onboarded user onward. (The dedicated
-  // /library resolver from spec §7.1 arrives in Phase 4.)
+  // account and redirects an already-onboarded user onward.
   //
   // Open-redirect guard: only accept a local path. Without it, `next=@evil.com`
   // would make `${origin}${next}` resolve to another host, and `//evil.com`

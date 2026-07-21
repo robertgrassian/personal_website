@@ -1,4 +1,4 @@
-"""App-level user profile (spec §4.2)."""
+"""App-level user profile."""
 
 import uuid
 from datetime import datetime
@@ -21,9 +21,9 @@ class Profile(Base):
 
     # REFERENCES auth.users(id) ON DELETE CASCADE — the constraint exists in
     # the database (migration f985740c0df9) but is deliberately not declared
-    # here: auth.users belongs to GoTrue and stays out of this metadata (spec
-    # §4.2). env.py's include_object filter stops autogenerate from proposing
-    # to drop the DB-side FK it can see but this model doesn't claim.
+    # here: auth.users belongs to GoTrue and stays out of this metadata.
+    # env.py's include_object filter stops autogenerate from proposing to drop
+    # the DB-side FK it can see but this model doesn't claim.
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
     # citext: /u/Robert and /u/robert resolve to the same row (unique
     # comparisons are case-insensitive).
@@ -36,8 +36,8 @@ class Profile(Base):
     __table_args__ = (
         # Final name via the metadata naming convention: ck_profiles_username_format.
         CheckConstraint(USERNAME_CHECK_SQL, name="username_format"),
-        # pg_trgm GIN indexes back the fuzzy /users/search endpoint (spec
-        # §4.2). gin_trgm_ops accepts the citext column directly (citext is
+        # pg_trgm GIN indexes back the fuzzy /users/search endpoint.
+        # gin_trgm_ops accepts the citext column directly (citext is
         # binary-coercible to text).
         Index(
             "ix_profiles_username_trgm",

@@ -1,7 +1,7 @@
 // Server-only client for the authenticated /me/* FastAPI endpoints.
 //
-// The "Next as BFF" boundary (spec §7.2, decision #18): the browser never
-// calls FastAPI directly for authenticated actions. Instead a Server Component
+// The "Next as BFF" boundary: the browser never calls FastAPI directly for
+// authenticated actions. Instead a Server Component
 // or Server Action reads the httpOnly session cookie here, forwards the
 // request to FastAPI with the access token as a Bearer header, and FastAPI
 // verifies it via JWKS. Keeping the token server-side (never handed to client
@@ -57,14 +57,14 @@ function apiOrigin(): string {
 }
 
 /** The caller's profile, or null when they're authenticated but haven't
- *  completed onboarding yet (the API returns 404 for that state, spec §5.2). */
+ *  completed onboarding yet (the API returns 404 for that state). */
 export async function fetchMyProfile(): Promise<MyProfile | null> {
   const token = await accessToken();
   if (!token) return null;
 
   const res = await fetch(`${apiOrigin()}/api/py/me/profile`, {
     headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store", // per-viewer, never cached (spec §7.2)
+    cache: "no-store", // per-viewer, never cached
     // Bound the Node→Python self-call so a hung hop fails fast instead of
     // stalling the render until the function timeout.
     signal: AbortSignal.timeout(5000),

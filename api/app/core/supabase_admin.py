@@ -1,13 +1,13 @@
-"""Minimal GoTrue Admin API client (spec §6).
+"""Minimal GoTrue Admin API client.
 
-Only what Phase 2 needs: deleting an auth user, used to clean up the orphaned
-``auth.users`` row when signup hits the MAX_USERS cap (OAuth mints the auth
-user *before* profile creation runs the cap check, so an over-cap signup would
-otherwise leave a phantom account consuming a monthly-active-user slot).
+Only what auth needs so far: deleting an auth user, used to clean up the
+orphaned ``auth.users`` row when signup hits the MAX_USERS cap (OAuth mints the
+auth user *before* profile creation runs the cap check, so an over-cap signup
+would otherwise leave a phantom account consuming a monthly-active-user slot).
 
 Uses the service-role key — the credential that bypasses all authorization —
 so this module must only ever run server-side with the key from env
-(SUPABASE_SERVICE_ROLE_KEY, never NEXT_PUBLIC_, spec §7.6).
+(SUPABASE_SERVICE_ROLE_KEY, never NEXT_PUBLIC_).
 """
 
 import logging

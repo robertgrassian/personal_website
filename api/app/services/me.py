@@ -1,12 +1,12 @@
-"""Business logic for the authenticated /me endpoints (spec §5, §6).
+"""Business logic for the authenticated /me endpoints.
 
-Onboarding is the "authenticated but no profile yet" transition (spec §5.2):
-OAuth/magic-link creates the auth.users row, then the user picks a username
-and this service creates the matching profiles row (id == auth id, §4.2).
+Onboarding is the "authenticated but no profile yet" transition: OAuth/magic-
+link creates the auth.users row, then the user picks a username and this
+service creates the matching profiles row (id == auth id).
 
 Domain exceptions (no HTTP knowledge) that the router maps to status codes:
 ``ProfileExistsError`` (already onboarded), ``UsernameError`` (format /
-reserved / taken), ``SignupCapReachedError`` (MAX_USERS). Same not-found-as-
+reserved / taken), ``SignupCapReachedError`` (signup cap). Same not-found-as-
 exception style as services/users.py.
 """
 
@@ -30,7 +30,7 @@ USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{2,29}$")
 
 # Reserved handles rejected regardless of format. Two categories:
 #   1. API-colliding tokens — /users/{username} shares its namespace with
-#      /users/search and the /me alias, so those MUST be reserved (spec §4.2).
+#      /users/search and the /me alias, so those MUST be reserved.
 #   2. Route/branding/abuse names that shouldn't become public library URLs.
 RESERVED_USERNAMES = frozenset(
     {
@@ -84,7 +84,7 @@ class UsernameError(Exception):
 
 
 class SignupCapReachedError(Exception):
-    """MAX_USERS reached (spec decision #13) — signup is closed."""
+    """MAX_USERS reached — signup is closed."""
 
 
 def get_my_profile(db: Session, user: AuthenticatedUser) -> MyProfileRead | None:
@@ -121,9 +121,9 @@ def create_my_profile(
        second profile for one auth user).
     2. Username format / reserved → UsernameError before touching the DB.
     3. Signup cap → SignupCapReachedError. Because OAuth already minted this
-       auth user, an over-cap signup leaves an orphan consuming a MAU (spec
-       §6); we delete it via the Admin API before raising so counts stay
-       honest.
+       auth user, an over-cap signup leaves an orphan consuming a monthly-
+       active-user slot; we delete it via the Admin API before raising so
+       counts stay honest.
     4. Taken → UsernameError("taken"). The explicit check gives a clean 409 in
        the common case; the DB unique index is the real backstop for the race
        between the check and the commit (handled below).
@@ -136,9 +136,9 @@ def create_my_profile(
     settings = get_settings()
     # TOCTOU note: this count-then-insert can overshoot MAX_USERS if several
     # signups race at the boundary (serverless functions are stateless — no
-    # shared in-process counter, spec §3.1). Accepted for a personal-scale cap:
-    # the blast radius is "a few users over 100", not a correctness or security
-    # problem, and a DB-level guard on a COUNT isn't worth the complexity.
+    # shared in-process counter). Accepted for a personal-scale cap: the blast
+    # radius is "a few users over 100", not a correctness or security problem,
+    # and a DB-level guard on a COUNT isn't worth the complexity.
     if me_repo.count_profiles(db) >= settings.max_users:
         # Clean up the orphaned auth user before refusing (best-effort; the
         # admin client logs and returns False if unconfigured).

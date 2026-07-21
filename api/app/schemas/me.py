@@ -1,9 +1,9 @@
-"""DTOs for the authenticated /me endpoints (spec §6).
+"""DTOs for the authenticated /me endpoints.
 
 Same wire conventions as schemas/users.py (camelCase via CamelModel), but
-these payloads are per-viewer by definition — they are never cached or shared
-(spec §7.2), which is exactly why they live on /me/* routes instead of the
-public /users/* ones.
+these payloads are per-viewer by definition — they are never cached or shared,
+which is exactly why they live on /me/* routes instead of the public /users/*
+ones.
 """
 
 from pydantic import Field

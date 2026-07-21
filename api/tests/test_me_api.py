@@ -160,7 +160,7 @@ def test_create_profile_bad_format_is_422(fresh_auth_user) -> None:
 
 @requires_db
 def test_create_profile_over_cap_is_403(fresh_auth_user, monkeypatch: pytest.MonkeyPatch) -> None:
-    # MAX_USERS=1 with Robert already seeded → cap reached (spec decision #13).
+    # MAX_USERS=1 with the founder already seeded → cap reached.
     monkeypatch.setenv("MAX_USERS", "1")
     get_settings.cache_clear()
     try:
@@ -176,8 +176,8 @@ def test_create_profile_over_cap_is_403(fresh_auth_user, monkeypatch: pytest.Mon
 def test_create_profile_forbidden_in_preview(
     fresh_auth_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Spec §7.5: mutations are refused on preview deploys (cleanly, as 503 —
-    # not an ugly read-only-role 500).
+    # Mutations are refused on preview deploys (cleanly, as 503 — not an ugly
+    # read-only-role 500).
     monkeypatch.setenv("APP_ENV", "preview")
     get_settings.cache_clear()
     try:

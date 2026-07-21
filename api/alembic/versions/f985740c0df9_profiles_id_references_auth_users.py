@@ -1,9 +1,9 @@
 """profiles id references auth users
 
-Adds the spec §4.2 constraint deferred out of the baseline: ``profiles.id``
-REFERENCES ``auth.users(id)`` ON DELETE CASCADE, so deleting an auth account
-(GoTrue Admin API) takes the profile — and, via the existing cascades, the
-whole library — with it.
+Adds the constraint deferred out of the baseline: ``profiles.id`` REFERENCES
+``auth.users(id)`` ON DELETE CASCADE, so deleting an auth account (GoTrue Admin
+API) takes the profile — and, via the existing cascades, the whole library —
+with it.
 
 Deferred because Phase 1 seeded a placeholder Robert profile with no
 ``auth.users`` row. From this revision on, every profile must be backed by an
@@ -16,8 +16,8 @@ upgrading and Robert comes back auth-backed. Production never has orphans:
 the schema arrives there with both migrations applied before any data exists.
 
 The FK is deliberately NOT declared on the SQLAlchemy model: ``auth.users``
-belongs to GoTrue and stays out of our metadata (spec §4.2). env.py's
-``include_object`` filter keeps autogenerate from proposing to drop it.
+belongs to GoTrue and stays out of our metadata. env.py's ``include_object``
+filter keeps autogenerate from proposing to drop it.
 
 Revision ID: f985740c0df9
 Revises: fe5fe4c238ae

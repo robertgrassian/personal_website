@@ -1,4 +1,4 @@
-"""Authenticated endpoints acting on the caller's own account (spec §6).
+"""Authenticated endpoints acting on the caller's own account.
 
 Every route here depends on ``CurrentUser`` — the JWT verification dependency
 (app/core/auth.py) — so an absent or invalid token is a 401 before any handler
@@ -26,8 +26,8 @@ DbSession = Annotated[Session, Depends(get_db)]
 @router.get("/me/profile")
 def read_my_profile(user: CurrentUser, db: DbSession) -> MyProfileRead:
     """The caller's profile. 404 when onboarding isn't complete (authenticated
-    but no profile yet, spec §5.2) — the FE reads that as "go to onboarding",
-    distinct from a 401 (not logged in at all)."""
+    but no profile yet) — the FE reads that as "go to onboarding", distinct
+    from a 401 (not logged in at all)."""
     profile = me_service.get_my_profile(db, user)
     if profile is None:
         raise HTTPException(
@@ -40,7 +40,7 @@ def read_my_profile(user: CurrentUser, db: DbSession) -> MyProfileRead:
 @router.post(
     "/me/profile",
     status_code=status.HTTP_201_CREATED,
-    # First mutating endpoint: refuse writes on preview deploys (spec §7.5).
+    # First mutating endpoint: refuse writes on preview deploys.
     dependencies=[Depends(forbid_in_preview)],
 )
 def create_my_profile(user: CurrentUser, db: DbSession, payload: ProfileCreate) -> MyProfileRead:
@@ -50,7 +50,7 @@ def create_my_profile(user: CurrentUser, db: DbSession, payload: ProfileCreate) 
     - 409 profile already exists (onboarding is one-time)
     - 409 username taken
     - 422 username bad format / reserved (client must change it)
-    - 403 signup cap reached (spec decision #13 — "at capacity")
+    - 403 signup cap reached ("at capacity")
     """
     try:
         return me_service.create_my_profile(db, user, payload)

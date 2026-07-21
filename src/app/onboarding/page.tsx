@@ -1,7 +1,7 @@
 // Onboarding resolver + username picker (Server Component).
 //
-// Self-resolving so /auth/confirm can always land here (spec §5.2, the
-// "authenticated but no profile yet" state):
+// Self-resolving so /auth/confirm can always land here (the "authenticated but
+// no profile yet" state):
 //   - not signed in        → /login
 //   - signed in, onboarded → / (nothing to do here)
 //   - signed in, no profile→ render the username picker

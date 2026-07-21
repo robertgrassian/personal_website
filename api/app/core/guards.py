@@ -8,7 +8,7 @@ from app.core.config import Settings, get_settings
 
 
 def forbid_in_preview(settings: Annotated[Settings, Depends(get_settings)]) -> None:
-    """Refuse mutations when APP_ENV=preview (spec §7.5).
+    """Refuse mutations when APP_ENV=preview.
 
     Vercel preview deploys point at production through a read-only Postgres
     role and must never write. Without this, a write on a preview URL would

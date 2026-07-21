@@ -1,10 +1,10 @@
 "use client";
 
 // Sign-in page. Two paths, gated by environment:
-//   - Production: "Continue with Google" (OAuth, spec decision #14). The only
-//     real sign-in method for users.
+//   - Production: "Continue with Google" (OAuth) — the only sign-in method for
+//     real users.
 //   - Local dev: a magic-link form, because the local Supabase stack has no
-//     Google provider configured and Mailpit captures the email (spec §7.5).
+//     Google provider configured and Mailpit captures the email.
 // process.env.NODE_ENV is inlined by Next at build time, so IS_DEV is a
 // constant `false` in prod: the magic-link form is never rendered and there is
 // no runtime path to invoke it against prod Supabase. (The component
@@ -67,7 +67,7 @@ function MagicLinkForm() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       // Local dev signs up brand-new emails on the spot. The MAX_USERS cap is
-      // enforced later, at profile creation (spec §6), not here.
+      // enforced later, at profile creation, not here.
       email,
       options: { shouldCreateUser: true },
     });

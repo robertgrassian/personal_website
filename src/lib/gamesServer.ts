@@ -9,9 +9,8 @@ import type { Session } from "./sessions";
 import { getSessions } from "./sessionsServer";
 import { fetchGamesFromApi, getLibraryApiOrigin } from "./libraryApi";
 
-// /video_games is Robert's shelf at its stable URL (spec decision #5) — the
-// read path always asks the API for this fixed user until multi-user routes
-// (/u/[username], Phase 4) exist.
+// /video_games is Robert's shelf at its stable URL — the read path always asks
+// the API for this fixed user until per-user routes (/u/[username]) exist.
 const LIBRARY_USERNAME = "rgrassian";
 
 const VALID_RATINGS = new Set<string>(["", ...RATINGS.map((r) => r.name)]);
@@ -99,9 +98,9 @@ function parseRow(line: string, rowIndex: number): Game | null {
 // under the hood, but an async function wraps its return in a promise either
 // way, so call sites `await` uniformly regardless of which branch ran.
 export async function getGames(): Promise<Game[]> {
-  // Env-gated branch (spec §8 Phase 1): LIBRARY_API_ORIGIN set → read from the
-  // FastAPI/Postgres path; unset → the original CSV path below, kept intact as
-  // the fallback until Phase 3 proves parity. The API returns play state
+  // Env-gated branch: LIBRARY_API_ORIGIN set → read from the FastAPI/Postgres
+  // path; unset → the original CSV path below, kept intact as the fallback
+  // until the DB read path proves parity. The API returns play state
   // (currentlyPlaying / lastPlayed / playingSince) already derived, so the
   // sessions merge below is CSV-branch-only.
   const apiOrigin = getLibraryApiOrigin();

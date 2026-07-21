@@ -19,7 +19,7 @@ app/
   services/         business logic — orchestrate repositories, derive domain state
   repositories/     all DB access — nothing else touches the database
   schemas/          Pydantic request/response DTOs (mirror the FE TS types)
-  models/           SQLAlchemy 2.0 entities (spec §4.2 schema); core/db.py has engine + get_db dependency
+  models/           SQLAlchemy 2.0 entities; core/db.py has engine + get_db dependency
 alembic/            migrations (env.py scoped to the public schema — auth etc. are Supabase's)
 scripts/seed.py     CSV → DB seed (idempotent truncate-and-reload); also seeds Robert's auth.users row
 tests/              pytest + FastAPI TestClient; DB tests skip without DATABASE_URL

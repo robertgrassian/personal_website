@@ -1,4 +1,4 @@
-"""Seed the database from the repo-root CSVs (spec §8, Phase 1).
+"""Seed the local database from the repo-root CSVs.
 
 Run from api/:  uv run python scripts/seed.py
 
@@ -306,9 +306,9 @@ def seed(session: Session) -> dict[str, int]:
 
 def main() -> None:
     # Environment guard: this script TRUNCATEs whatever DATABASE_URL points at.
-    # .env will eventually hold the prod pooler URL during debugging sessions
-    # (spec §7.6) — refusing outside dev makes "forgot to swap it back" a
-    # loud error instead of a wiped production database.
+    # .env may hold a prod pooler URL during a debugging session — refusing
+    # outside dev makes "forgot to swap it back" a loud error instead of a
+    # wiped production database.
     app_env = get_settings().app_env
     if app_env != "dev":
         print(

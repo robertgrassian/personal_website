@@ -151,7 +151,7 @@ def test_wishlist_returns_all_items_with_camel_case_keys(client: TestClient) -> 
 def test_profile_returns_public_fields_and_counts(client: TestClient) -> None:
     response = client.get("/api/py/users/rgrassian")
     assert response.status_code == 200
-    # Exact payload: public data only, no per-viewer fields (spec §7.2).
+    # Exact payload: public data only, no per-viewer fields.
     assert response.json() == {
         "username": "rgrassian",
         "displayName": "Robert",

@@ -1,10 +1,9 @@
-"""JWT verification for authenticated endpoints (spec §5).
+"""JWT verification for authenticated endpoints.
 
-FastAPI plays the OAuth2 *resource server* role here (the Spring analogy is
-``spring-boot-starter-oauth2-resource-server`` pointed at an issuer): Supabase
-Auth (GoTrue) issues the tokens, this module only verifies them. No session
-state, no DB lookup — a valid signature plus the standard claim checks is the
-whole authentication story, which is what makes it serverless-safe.
+This module is the OAuth2 resource-server side of auth: Supabase Auth (GoTrue)
+issues the tokens, and this module only verifies them. No session state, no DB
+lookup — a valid signature plus the standard claim checks is the whole
+authentication story, which is what makes it serverless-safe.
 
 Verification mode is env-driven. The current Supabase CLI stack and hosted
 Supabase both sign access tokens with asymmetric keys (ES256) and publish a
@@ -44,7 +43,7 @@ class AuthenticatedUser:
 
     ``id`` is the auth.users UUID (the ``sub`` claim). Whether a profiles row
     exists for it is a separate question — the "authenticated but no profile
-    yet" state (spec §5.2) — answered by the service layer, not here.
+    yet" state — answered by the service layer, not here.
     """
 
     id: uuid.UUID

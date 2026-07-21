@@ -7,7 +7,7 @@
 //
 // This reflects the session for DISPLAY only. It is never a security boundary
 // — every protected read/write is authorized server-side by FastAPI verifying
-// the JWT (spec §5.3). A spoofed client state here changes nothing real.
+// the JWT. A spoofed client state here changes nothing real.
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";

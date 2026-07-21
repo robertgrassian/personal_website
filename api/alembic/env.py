@@ -1,10 +1,10 @@
 """Alembic environment, wired to the app's Settings and model metadata.
 
-Scoped to the ``public`` schema only (spec §7.5): the local/hosted Supabase
-database also contains schemas owned and migrated by other services — GoTrue
-owns ``auth``, plus ``storage``, ``realtime``, ``graphql_public``, ``vault``,
-``extensions``, and friends. Without the filters below, autogenerate would
-see those tables as undeclared and emit drops for them.
+Scoped to the ``public`` schema only: the local/hosted Supabase database also
+contains schemas owned and migrated by other services — GoTrue owns ``auth``,
+plus ``storage``, ``realtime``, ``graphql_public``, ``vault``, ``extensions``,
+and friends. Without the filters below, autogenerate would see those tables as
+undeclared and emit drops for them.
 """
 
 from sqlalchemy import create_engine
@@ -70,7 +70,7 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     # NullPool: migrations are a one-shot process; also correct if ever run
-    # against a pooled connection string (spec §3.1).
+    # against a pooled connection string.
     engine = create_engine(_database_url(), poolclass=NullPool)
 
     with engine.connect() as connection:

@@ -6,8 +6,8 @@ import path from "path";
 import type { WishlistGame } from "./wishlist";
 import { fetchWishlistFromApi, getLibraryApiOrigin } from "./libraryApi";
 
-// /video_games is Robert's shelf at its stable URL (spec decision #5); same
-// fixed-user constant as gamesServer.ts until multi-user routes (Phase 4).
+// /video_games is Robert's shelf at its stable URL; same fixed-user constant
+// as gamesServer.ts until per-user routes (/u/[username]) exist.
 const LIBRARY_USERNAME = "rgrassian";
 
 // CSV schema (wishlist.csv header):
@@ -72,8 +72,9 @@ function parseRow(line: string, rowIndex: number): WishlistGame | null {
 // Async for the same reason as getGames() — the API branch awaits a fetch,
 // and call sites `await` uniformly regardless of which branch ran.
 export async function getWishlist(): Promise<WishlistGame[]> {
-  // Env-gated branch (spec §8 Phase 1): API when LIBRARY_API_ORIGIN is set,
-  // otherwise the original CSV path below (kept as fallback until Phase 3).
+  // Env-gated branch: API when LIBRARY_API_ORIGIN is set, otherwise the
+  // original CSV path below (kept as the fallback until the DB read path
+  // proves parity).
   const apiOrigin = getLibraryApiOrigin();
   if (apiOrigin) {
     return fetchWishlistFromApi(apiOrigin, LIBRARY_USERNAME);

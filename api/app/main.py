@@ -9,8 +9,8 @@ from app.routers import health, me, users
 def create_app() -> FastAPI:
     settings = get_settings()
 
-    # OpenAPI/docs routes exist only when APP_ENV=dev (spec decision #24);
-    # setting the URLs to None removes them entirely in preview/prod.
+    # OpenAPI/docs routes exist only when APP_ENV=dev; setting the URLs to None
+    # removes them entirely in preview/prod.
     dev = settings.app_env == "dev"
     app = FastAPI(
         title="personal-website-api",

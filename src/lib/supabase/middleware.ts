@@ -1,8 +1,8 @@
 // Session-refresh helper invoked from src/middleware.ts on every matched
 // request. @supabase/ssr relies on middleware to keep the session alive:
 // access tokens are short-lived (~1h), and without this refresh they go stale
-// and server-side reads start seeing a logged-out user (spec §5.2). Small
-// file, load-bearing.
+// and server-side reads start seeing a logged-out user. Small file,
+// load-bearing.
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
