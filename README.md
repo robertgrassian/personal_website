@@ -26,21 +26,48 @@ Authorization is handled by a **FastAPI (Python) backend**, not by Supabase. On 
 
 ## Getting Started
 
+### Frontend only (quick)
+
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000). In this mode the game library renders from the CSV files; auth and the database-backed library need the full stack below.
+
+### Full stack (frontend + backend + database)
+
+The backend is a FastAPI (Python) app talking to a local [Supabase](https://supabase.com) stack (Postgres + Auth). Prerequisites: [Docker](https://www.docker.com), [uv](https://docs.astral.sh/uv), and the [Supabase CLI](https://supabase.com/docs/guides/cli).
+
+```bash
+# 1. Bring up the local Supabase stack (Postgres, Auth, Studio, Mailpit)
+supabase start
+
+# 2. Configure the environment: copy the template, then fill in local values
+cp .env.example .env        # values come from `supabase status -o env`
+
+# 3. Migrate and seed the database (from api/)
+cd api
+uv run alembic upgrade head
+uv run python scripts/seed.py
+cd ..
+
+# 4. Start Next.js and FastAPI together
+npm run dev:full
+```
+
+Open [http://localhost:3000](http://localhost:3000). Local sign-in uses **magic links** (production uses Google) — the email is captured by [Mailpit](http://127.0.0.1:54324); click the link to finish signing in. The database UI (Supabase Studio) is at [http://127.0.0.1:54323](http://127.0.0.1:54323). See [`api/README.md`](api/README.md) for backend details (migrations, tests, adding endpoints).
 
 ## Scripts
 
-| Command         | Description                     |
-| --------------- | ------------------------------- |
-| `npm run dev`   | Start dev server with Turbopack |
-| `npm run build` | Production build                |
-| `npm run start` | Run production server           |
-| `npm run lint`  | Run ESLint                      |
+| Command            | Description                                  |
+| ------------------ | -------------------------------------------- |
+| `npm run dev`      | Start the Next.js dev server (frontend only) |
+| `npm run dev:api`  | Start the FastAPI backend (uvicorn on :8000) |
+| `npm run dev:full` | Start the frontend and backend together      |
+| `npm run build`    | Production build                             |
+| `npm run start`    | Run the production server                    |
+| `npm run lint`     | Run ESLint                                   |
 
 ## Game Library Data
 
