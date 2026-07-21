@@ -1,10 +1,10 @@
 """Alembic environment, wired to the app's Settings and model metadata.
 
-Scoped to the ``public`` schema only (spec §7.5): the local/hosted Supabase
-database also contains schemas owned and migrated by other services — GoTrue
-owns ``auth``, plus ``storage``, ``realtime``, ``graphql_public``, ``vault``,
-``extensions``, and friends. Without the filters below, autogenerate would
-see those tables as undeclared and emit drops for them.
+Scoped to the ``public`` schema only: the local/hosted Supabase database also
+contains schemas owned and migrated by other services — GoTrue owns ``auth``,
+plus ``storage``, ``realtime``, ``graphql_public``, ``vault``, ``extensions``,
+and friends. Without the filters below, autogenerate would see those tables as
+undeclared and emit drops for them.
 """
 
 from sqlalchemy import create_engine
@@ -40,7 +40,15 @@ def include_name(name, type_, parent_names):
 
 def include_object(obj, name, type_, reflected, compare_to):
     """Object filter (second line of defense): skip anything that reflects
-    with an explicit non-public schema."""
+    with an explicit non-public schema, plus foreign keys that point INTO
+    such a schema — migration f985740c0df9 adds profiles.id → auth.users,
+    which exists in the DB but deliberately not in the model metadata
+    (auth belongs to GoTrue); without this, autogenerate would propose
+    dropping it on every run."""
+    if type_ == "foreign_key_constraint":
+        referred = obj.referred_table
+        if referred is not None and referred.schema not in (None, "public"):
+            return False
     schema = getattr(obj, "schema", None)
     return schema in (None, "public")
 
@@ -62,7 +70,7 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     # NullPool: migrations are a one-shot process; also correct if ever run
-    # against a pooled connection string (spec §3.1).
+    # against a pooled connection string.
     engine = create_engine(_database_url(), poolclass=NullPool)
 
     with engine.connect() as connection:

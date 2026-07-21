@@ -1,11 +1,15 @@
-"""Seed the database from the repo-root CSVs (spec §8, Phase 1).
+"""Seed the local database from the repo-root CSVs.
 
 Run from api/:  uv run python scripts/seed.py
 
 Idempotent truncate-and-reload: every run wipes the five tables and reinserts
 everything, so it can rerun freely during development. All rows belong to a
-placeholder Robert profile with a fixed UUID and no auth.users row — Phase 2
-re-parents the data to the real auth user.
+Robert profile with a fixed UUID, backed by a real local auth.users row this
+script also creates (required by the profiles → auth.users FK, migration
+f985740c0df9) — so local magic-link login as ROBERT_EMAIL signs you in as the
+owner of the seeded library. Auth users created by other local signups are
+left alone, but their profiles ARE truncated: after a reseed those accounts
+are back in the "authenticated but no profile" onboarding state.
 
 Validation ports the rules from src/lib/gamesServer.ts: warn-don't-drop for
 fixable problems (unknown rating, missing system), skip only nameless rows.
@@ -33,11 +37,16 @@ from app.models import Game, PlaySession, Profile, WishlistItem
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# Placeholder profile until Phase 2 re-parents to the real auth.users id.
-# Fixed (not random) so reruns and other tooling can reference it.
+# Fixed (not random) so reruns and other tooling can reference it. The same
+# UUID is used for the auth.users row, keeping profile id == auth id exactly
+# as real signups will.
 ROBERT_PROFILE_ID = uuid.UUID("00000000-0000-4000-8000-000000000001")
-ROBERT_USERNAME = "robert"
+ROBERT_USERNAME = "rgrassian"  # founder handle (display name stays "Robert")
 ROBERT_DISPLAY_NAME = "Robert"
+# Log in locally as this address (magic link lands in Mailpit, :54324) to act
+# as Robert. Local-only — the guard in main() keeps this off prod, where
+# Robert signs up through real OAuth (Phase 2b).
+ROBERT_EMAIL = "rgrassian@example.com"
 
 # Mirrors RATINGS in src/lib/games.ts; the DB CHECK backstops it.
 VALID_RATINGS = frozenset({"Perfect", "Great", "Good", "Okay", "Bad"})
@@ -185,6 +194,61 @@ def read_csv(filename: str) -> list[dict]:
         return list(csv.DictReader(f))
 
 
+def ensure_robert_auth_user(session: Session) -> None:
+    """Insert the auth.users + auth.identities rows GoTrue needs to treat
+    Robert as a real, confirmed, magic-link-loginable email user.
+
+    Direct SQL into GoTrue's tables is a local-dev-only pattern (the Admin
+    API can't create a user with a chosen UUID, and we need id ==
+    ROBERT_PROFILE_ID for the FK). Column choices that matter:
+    - encrypted_password '': no hash ever matches, so password login is
+      impossible — magic link (OTP) is the only way in, matching config.toml.
+    - token columns '' not NULL: GoTrue's Go code scans them as strings and
+      errors on NULL.
+    - ON CONFLICT DO NOTHING: reruns and already-signed-up state are no-ops.
+    """
+    session.execute(
+        text(
+            """
+            INSERT INTO auth.users (
+                instance_id, id, aud, role, email, encrypted_password,
+                email_confirmed_at, created_at, updated_at,
+                raw_app_meta_data, raw_user_meta_data,
+                confirmation_token, recovery_token,
+                email_change_token_new, email_change
+            ) VALUES (
+                '00000000-0000-0000-0000-000000000000', :id,
+                'authenticated', 'authenticated', :email, '',
+                now(), now(), now(),
+                '{"provider": "email", "providers": ["email"]}', '{}',
+                '', '', '', ''
+            )
+            ON CONFLICT DO NOTHING
+            """
+        ),
+        {"id": ROBERT_PROFILE_ID, "email": ROBERT_EMAIL},
+    )
+    session.execute(
+        text(
+            """
+            INSERT INTO auth.identities (
+                provider_id, user_id, identity_data, provider,
+                last_sign_in_at, created_at, updated_at
+            ) VALUES (
+                :id_text, :id,
+                jsonb_build_object(
+                    'sub', :id_text ::text, 'email', :email ::text,
+                    'email_verified', true, 'phone_verified', false
+                ),
+                'email', now(), now(), now()
+            )
+            ON CONFLICT DO NOTHING
+            """
+        ),
+        {"id": ROBERT_PROFILE_ID, "id_text": str(ROBERT_PROFILE_ID), "email": ROBERT_EMAIL},
+    )
+
+
 def seed(session: Session) -> dict[str, int]:
     warnings: list[str] = []
 
@@ -194,6 +258,9 @@ def seed(session: Session) -> dict[str, int]:
     # Truncate-and-reload keeps the script idempotent; RESTART IDENTITY so
     # game ids don't grow across reruns, CASCADE for the FK chains.
     session.execute(text(f"TRUNCATE {', '.join(TABLES)} RESTART IDENTITY CASCADE"))
+
+    # Must exist before the profile insert: profiles.id → auth.users(id).
+    ensure_robert_auth_user(session)
 
     session.add(
         Profile(id=ROBERT_PROFILE_ID, username=ROBERT_USERNAME, display_name=ROBERT_DISPLAY_NAME)
@@ -239,9 +306,9 @@ def seed(session: Session) -> dict[str, int]:
 
 def main() -> None:
     # Environment guard: this script TRUNCATEs whatever DATABASE_URL points at.
-    # .env will eventually hold the prod pooler URL during debugging sessions
-    # (spec §7.6) — refusing outside dev makes "forgot to swap it back" a
-    # loud error instead of a wiped production database.
+    # .env may hold a prod pooler URL during a debugging session — refusing
+    # outside dev makes "forgot to swap it back" a loud error instead of a
+    # wiped production database.
     app_env = get_settings().app_env
     if app_env != "dev":
         print(

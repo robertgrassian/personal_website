@@ -27,6 +27,18 @@ def conn():
 
     with get_engine().connect() as connection:
         transaction = connection.begin()
+        # profiles.id → auth.users(id) (migration f985740c0df9) requires a
+        # backing auth user; insert one in the same rolled-back transaction so
+        # it vanishes with everything else.
+        connection.execute(
+            text(
+                "INSERT INTO auth.users "
+                "(instance_id, id, aud, role, email, created_at, updated_at) "
+                "VALUES ('00000000-0000-0000-0000-000000000000', :id, "
+                "'authenticated', 'authenticated', :email, now(), now())"
+            ),
+            {"id": PROFILE_ID, "email": f"constraint-{PROFILE_ID}@example.com"},
+        )
         # Throwaway profile to hang test rows off; random username to avoid
         # colliding with seeded data.
         connection.execute(

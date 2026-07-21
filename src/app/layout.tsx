@@ -14,6 +14,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  // Base for resolving relative OG/Twitter image URLs. Without it Next falls
+  // back to localhost during build, so social-preview images would point at
+  // the wrong host in production.
+  metadataBase: new URL("https://rgrassian.com"),
   title: "Robert Grassian",
   description: "Personal website of Robert Grassian",
 };
