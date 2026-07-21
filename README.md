@@ -18,6 +18,12 @@ A persistent site-wide nav bar (Caveat font, sticky) links all sections. The hom
 - [Tailwind CSS 4](https://tailwindcss.com)
 - ESLint + Prettier + Husky pre-commit hooks
 
+## Authentication
+
+Users sign in with **Google** (OpenID Connect). Supabase Auth brokers that sign-in and, once Google has verified the user's identity, mints the site's own session token — a signed JWT (ES256) — and owns the user store (`auth.users`). Google's only job is proving _who_ the user is; the token the app actually uses is issued by Supabase, not Google.
+
+Authorization is handled by a **FastAPI (Python) backend**, not by Supabase. On each request FastAPI verifies the JWT locally against Supabase's public keys (its JWKS endpoint) — no per-request round-trip to Supabase — and enforces access in application code: reads are public, writes are owner-only (`jwt.sub == row.user_id`). We deliberately don't use Supabase as a backend-as-a-service or its Row-Level Security — the browser never talks to the database, and FastAPI is its only client. Full detail lives in [`docs/plans/instanced-game-libraries.md`](docs/plans/instanced-game-libraries.md) (§5, Auth) and [`api/README.md`](api/README.md).
+
 ## Getting Started
 
 ```bash
