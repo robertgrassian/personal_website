@@ -416,6 +416,32 @@ functional. (Erasing every `supabase.co` reference entirely would need Supabase'
 auth domain — out of scope.) The `/privacy` page already exists and supplies the required
 privacy URL now.
 
+**Open items — Phase 4 (deferred 2026-07-22).** Concrete, trackable tasks for the two
+decisions above:
+
+- [ ] **Build the logged-out sign-up CTA banner** on `/video_games` — names the app
+      ("Robert's Game Library"), states its purpose, links `/privacy`. This page becomes
+      Google's App homepage, so the app-name string shown here must match the consent screen
+      exactly.
+- [ ] **Update Google Cloud OAuth config and re-run brand verification** (manual dashboard
+      step, _after_ the banner deploys): App name → "Robert's Game Library"; App homepage →
+      `https://rgrassian.com/video_games`; Privacy policy → `https://rgrassian.com/privacy`;
+      add `rgrassian.com` as an authorized domain; resubmit. Done = the consent screen shows
+      the app name, not the `supabase.co` host.
+- [ ] **Remove Sign in / Sign out from the global `Nav`** — surface sign-in inside the game
+      library, and give logged-in users a sign-out control there too (it no longer lives in
+      the nav).
+- [ ] **Move the login surface under the game library** (`/video_games/login`, or a
+      library-local sign-in affordance); update every link/redirect that points at `/login`,
+      including the `/auth/confirm` and `/auth/callback` error redirects (`/login?error=…`).
+- [ ] **Redirect post-login _and_ post-onboarding into the library** (`/library` resolver →
+      `/u/{username}`), never the portfolio home `/`. Replaces the interim `redirect("/")`
+      and fixes the current "lands on rgrassian.com after onboarding" behavior.
+- [ ] **Leave auth infrastructure untouched**: session cookie stays site-wide (not
+      path-scoped), middleware and `/auth/*` handlers unchanged.
+- [ ] _Contingency_: if Google also demands a **Terms of Service** URL, add `/terms` (same
+      pattern as `/privacy`).
+
 ### 7.2 Data fetching
 
 `getGames()` / `getWishlist()` change from `fs.readFileSync` to a `fetch` against the API —
@@ -592,12 +618,10 @@ Each phase ships independently and leaves the site working.
 ### Phase 4 — Multi-user
 
 - `/u/[username]` public routes, signup open, empty states, per-user rate limits.
-- The `/library` resolver route + sign-up CTA banner on `/video_games` (§7.1). The banner
-  doubles as the Google OAuth **App homepage** → completes brand verification so the consent
-  screen shows "Robert's Game Library" instead of the `supabase.co` host (§7.1).
-- **Scope auth surfaces to the game library** (§7.1): move the login page + sign-in/out
-  control out of the global nav, redirect post-login into the library; auth infrastructure
-  (session cookie, middleware, `/auth/*`) stays site-wide.
+- The `/library` resolver route + sign-up CTA banner on `/video_games` (§7.1).
+- Entry experience, auth-surface scoping, and Google brand verification — see the
+  **Open items checklist in §7.1** (banner, remove nav sign-in/out, redirect post-login into
+  the library, update Google Cloud + re-verify).
 - Light abuse guardrails (§9).
 
 ### Phase 5 — Social graph
