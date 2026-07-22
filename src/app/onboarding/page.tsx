@@ -36,7 +36,7 @@ export default async function OnboardingPage() {
   return (
     <main className="mx-auto flex min-h-[60vh] max-w-md flex-col justify-center px-6 py-16">
       <h1 className="text-2xl font-semibold text-foreground">Pick a username</h1>
-      <p className="mt-2 text-subtle">One more step — choose the handle for your game library.</p>
+      <p className="mt-2 text-subtle">One more step: choose the handle for your game library.</p>
       <OnboardingForm suggestedUsername={suggestUsername(user.email)} />
     </main>
   );
