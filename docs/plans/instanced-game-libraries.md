@@ -386,9 +386,61 @@ Routes:
 - `/video_games` — **decided: stays Robert's library** at its stable URL (existing
   links/SEO keep working, no redirect); doubles as the logged-out demo with the sign-up CTA.
 - `/library` — the resolver redirect described above.
-- Login/account: a sign-in button in `Nav.tsx`; Supabase handles the OAuth dance.
+- Login/account: **the sign-in surface lives inside the game library, not the global
+  nav** (decided 2026-07-22 — see below); Supabase handles the OAuth dance.
 - New-user onboarding: pick a username → auto-follow edges created (§4.2) → empty shelf
   state ("Add your first game") — and one follower already waiting.
+
+**Auth is the game library's, not the whole site's (decided 2026-07-22).** The portfolio
+(`/`, `/about`, `/resume`) is static content with no accounts; the game library is the only
+app with sign-in. So the auth _surfaces_ — the login page, the sign-in/out control, and the
+post-login/onboarding destination — all live under the game library, not in the site-wide
+nav or the portfolio home. The auth _infrastructure_ stays domain-wide: one Supabase session
+cookie on `rgrassian.com` (deliberately **not** path-scoped), the middleware refresh, and the
+`/auth/*` handlers are unchanged — keeping future cross-app SSO open (a shared login if the
+movie/book libraries in the backlog ever land). Post-login/onboarding redirects **into the
+library** (`/library` → your `/u/{username}`), never the portfolio home. _Deferred to Phase
+4_ (bundled with the entry-experience rework below); Phase 2 shipped auth top-level as an
+interim, and nothing is blocked by waiting.
+
+**Google OAuth brand verification is deferred to Phase 4.** To show the app name on the
+Google consent screen instead of the raw `*.supabase.co` redirect host, Google requires an
+"App homepage" URL that names the app, states its purpose in text, and links the privacy
+policy. The logged-out `/video_games` **sign-up CTA banner** above is exactly such a page —
+so we point Google's App homepage at `https://rgrassian.com/video_games` and let the banner
+satisfy verification as a byproduct of building it (no throwaway content, no change to the
+portfolio home — a bare login page or the photo-only home both fail Google's "explain the
+purpose" check, learned 2026-07-22). **App name: "Robert's Game Library."** Until this ships,
+the consent screen shows the `supabase.co` host — a purely cosmetic label; auth is fully
+functional. (Erasing every `supabase.co` reference entirely would need Supabase's paid custom
+auth domain — out of scope.) The `/privacy` page already exists and supplies the required
+privacy URL now.
+
+**Open items — Phase 4 (deferred 2026-07-22).** Concrete, trackable tasks for the two
+decisions above:
+
+- [ ] **Build the logged-out sign-up CTA banner** on `/video_games` — names the app
+      ("Robert's Game Library"), states its purpose, links `/privacy`. This page becomes
+      Google's App homepage, so the app-name string shown here must match the consent screen
+      exactly.
+- [ ] **Update Google Cloud OAuth config and re-run brand verification** (manual dashboard
+      step, _after_ the banner deploys): App name → "Robert's Game Library"; App homepage →
+      `https://rgrassian.com/video_games`; Privacy policy → `https://rgrassian.com/privacy`;
+      add `rgrassian.com` as an authorized domain; resubmit. Done = the consent screen shows
+      the app name, not the `supabase.co` host.
+- [ ] **Remove Sign in / Sign out from the global `Nav`** — surface sign-in inside the game
+      library, and give logged-in users a sign-out control there too (it no longer lives in
+      the nav).
+- [ ] **Move the login surface under the game library** (`/video_games/login`, or a
+      library-local sign-in affordance); update every link/redirect that points at `/login`,
+      including the `/auth/confirm` and `/auth/callback` error redirects (`/login?error=…`).
+- [ ] **Redirect post-login _and_ post-onboarding into the library** (`/library` resolver →
+      `/u/{username}`), never the portfolio home `/`. Replaces the interim `redirect("/")`
+      and fixes the current "lands on rgrassian.com after onboarding" behavior.
+- [ ] **Leave auth infrastructure untouched**: session cookie stays site-wide (not
+      path-scoped), middleware and `/auth/*` handlers unchanged.
+- [ ] _Contingency_: if Google also demands a **Terms of Service** URL, add `/terms` (same
+      pattern as `/privacy`).
 
 ### 7.2 Data fetching
 
@@ -567,6 +619,9 @@ Each phase ships independently and leaves the site working.
 
 - `/u/[username]` public routes, signup open, empty states, per-user rate limits.
 - The `/library` resolver route + sign-up CTA banner on `/video_games` (§7.1).
+- Entry experience, auth-surface scoping, and Google brand verification — see the
+  **Open items checklist in §7.1** (banner, remove nav sign-in/out, redirect post-login into
+  the library, update Google Cloud + re-verify).
 - Light abuse guardrails (§9).
 
 ### Phase 5 — Social graph
