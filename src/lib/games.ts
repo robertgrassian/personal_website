@@ -41,25 +41,23 @@ export type Filters = {
 // Game = BaseGame + played-only fields. Shared UI uses BaseGame so both this
 // and WishlistGame fit.
 //
-// `lastPlayed`, `currentlyPlaying`, and `playingSince` are all *derived* from
-// sessions.csv (see sessionsServer.ts) in getGames() — they are no longer CSV
-// columns on games.csv. An open session (empty end date) is the source of
-// truth for "currently playing"; the newest end date is "last played".
+// `lastPlayed`, `currentlyPlaying`, and `playingSince` are all *derived* by
+// the API from play_sessions rows. An open session (no end date) is the source
+// of truth for "currently playing"; the newest end date is "last played".
 export interface Game extends BaseGame {
-  // DB row id — present only when the game came from the library API
-  // (CSV rows have no id). Owner edits (PATCH /me/games/{id}) require it,
-  // so edit affordances only render for API-backed games.
+  // DB row id from the library API. Optional at the type level because the
+  // shared card types (GameCaseInput) predate a guaranteed id; in practice
+  // every API row carries one. Owner edits (PATCH /me/games/{id}) require it.
   id?: number;
   rating: Rating | ""; // "" = no rating assigned yet
   lastPlayed: string; // derived: newest session end date, or "" if none/only open
   currentlyPlaying: boolean; // derived: true when the game has an open session
   playingSince: string; // derived: start date of the open session, or "" if not playing
-  // Id of the open session, null when not playing — API-backed rows only
-  // (undefined on CSV rows). Closing a session (PATCH /me/sessions/{id})
-  // targets this id.
+  // Id of the open session, null when not playing. Closing a session
+  // (PATCH /me/sessions/{id}) targets this id.
   openSessionId?: number | null;
-  // Total play sessions (open + closed) — API-backed rows only. The delete
-  // confirm uses it to say how much history goes with the game.
+  // Total play sessions (open + closed). The delete confirm uses it to say
+  // how much history goes with the game.
   sessionCount?: number;
 }
 

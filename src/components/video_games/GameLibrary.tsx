@@ -262,7 +262,7 @@ export function GameLibrary({
       {activeShelves.length === 0 ? (
         <p className="mt-24 text-center text-shelf-text-muted text-lg italic">
           {view === "wishlist" && wishlist.length === 0
-            ? "Your wishlist is empty — add some games to wishlist.csv."
+            ? "Your wishlist is empty."
             : "No games match your filters."}
         </p>
       ) : (

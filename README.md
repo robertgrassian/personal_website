@@ -33,7 +33,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). In this mode the game library renders from the CSV files; auth and the database-backed library need the full stack below.
+Open [http://localhost:3000](http://localhost:3000). In this mode the static pages (home, about, resume) render, but the game library and auth need the full stack below — the library reads from the API, which requires `LIBRARY_API_ORIGIN` and a running backend.
 
 ### Full stack (frontend + backend + database)
 
@@ -71,22 +71,22 @@ Open [http://localhost:3000](http://localhost:3000). Local sign-in uses **magic 
 
 ## Game Library Data
 
-Game data lives in `games.csv`. Cover art is sourced from the [IGDB API](https://api-docs.igdb.com).
+Game, session, and wishlist data live in Postgres (Supabase), served by the
+FastAPI backend under `/api/py`. The library is edited through the site itself
+(add/remove games, rate, log sessions, manage the wishlist) — no CSV commits.
+Cover art is sourced from the [IGDB API](https://api-docs.igdb.com) via the
+authenticated `/api/py/igdb/search` proxy when adding a game.
 
-To fetch/refresh cover art:
-
-```bash
-CLIENT_ID=<igdb_client_id> CLIENT_SECRET=<igdb_client_secret> npx tsx scripts/fetch-covers.ts
-```
+A frozen CSV snapshot in `api/scripts/fixtures/` is the seed source for a local
+dev database (`cd api && uv run python scripts/seed.py`); it is not read by the
+running site.
 
 ## Claude Skills
 
 Slash commands defined in `.claude/skills/` for use with Claude Code in this project:
 
-| Skill      | Trigger     | Description                                                                       |
-| ---------- | ----------- | --------------------------------------------------------------------------------- |
-| `add-game` | `/add-game` | Add a game to `games.csv` with cover art from IGDB                                |
-| `session`  | `/session`  | Log a play session — start/stop currently playing (CRT TV) or backfill a past one |
-| `todo`     | `/todo`     | Manage the project TODO list (add, list, done, do)                                |
-| `explain`  | `/explain`  | Walk through code step-by-step (what it does and how)                             |
-| `teach`    | `/teach`    | Teach the concepts and "why" behind code or web topics                            |
+| Skill     | Trigger    | Description                                            |
+| --------- | ---------- | ------------------------------------------------------ |
+| `todo`    | `/todo`    | Manage the project TODO list (add, list, done, do)     |
+| `explain` | `/explain` | Walk through code step-by-step (what it does and how)  |
+| `teach`   | `/teach`   | Teach the concepts and "why" behind code or web topics |

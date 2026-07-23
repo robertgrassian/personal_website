@@ -10,7 +10,7 @@
       optimistic UI converges, and note the first-write latency (stacked Node+Python
       cold start measurement).
 - [ ] **After merging PR #63** (IGDB proxy + add/delete + wishlist): 1. Prod DB migration: `cd api && DATABASE_URL="$(cat ~/prod-db-url.txt)" uv run alembic upgrade head` 2. Vercel → add `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` (Production scope,
-      same Twitch app fetch-covers.ts uses) → redeploy
+      a Twitch application's credentials from dev.twitch.tv) → redeploy
 - [ ] **Local dev**: add the same `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` to the
       gitignored `.env` so the add-game IGDB search works locally (503 until then)
 

@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
-        // Allow cover art served by IGDB (populated by scripts/fetch-covers.ts)
+        // Allow cover art served by IGDB (stored as image_url on library rows)
         protocol: "https",
         hostname: "images.igdb.com",
       },
