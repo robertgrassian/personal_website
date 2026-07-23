@@ -8,7 +8,17 @@ env.py relies on that for autogenerate, so new models must be imported here.
 from app.models.base import Base
 from app.models.follow import Follow
 from app.models.game import Game, PlaySession
+from app.models.igdb import IgdbToken, RateLimit
 from app.models.profile import Profile
 from app.models.wishlist_item import WishlistItem
 
-__all__ = ["Base", "Follow", "Game", "PlaySession", "Profile", "WishlistItem"]
+__all__ = [
+    "Base",
+    "Follow",
+    "Game",
+    "IgdbToken",
+    "PlaySession",
+    "Profile",
+    "RateLimit",
+    "WishlistItem",
+]
