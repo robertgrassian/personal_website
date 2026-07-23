@@ -17,6 +17,9 @@ import {
   sortWishlist,
 } from "./pipeline";
 import { useGameLibraryUrlState } from "./useGameLibraryUrlState";
+import { useIsLibraryOwner } from "./useIsLibraryOwner";
+import { EditGameModal } from "./EditGameModal";
+import type { GameCaseInput } from "./GameCase";
 
 type GameLibraryProps = {
   games: Game[];
@@ -24,10 +27,33 @@ type GameLibraryProps = {
   // In-progress games (may be unrated, so not in `games`); forwarded to the
   // stats panel so "Recently Played" can surface them.
   currentlyPlayingGames: Game[];
+  // Games with no rating — rendered as an owner-only shelf so they stay
+  // reachable (and re-ratable) after a rating is cleared. Defaults to [] for
+  // callers that predate it.
+  unratedGames?: Game[];
 };
 
-export function GameLibrary({ games, wishlist, currentlyPlayingGames }: GameLibraryProps) {
+export function GameLibrary({
+  games,
+  wishlist,
+  currentlyPlayingGames,
+  unratedGames = [],
+}: GameLibraryProps) {
   const [statsOpen, setStatsOpen] = useState(false);
+
+  // Owner check resolves client-side after hydration (the page HTML is
+  // static and shared by all viewers). false until proven otherwise, so
+  // visitors never see a flash of edit controls.
+  const canEdit = useIsLibraryOwner();
+
+  // The game being edited, tracked by id (not object) so the open dialog
+  // always reflects the latest server data after a revalidation replaces the
+  // games array. Searching rated AND unrated keeps the dialog open (and
+  // consistent) when a rating change moves the game between those shelves.
+  const [editingGameId, setEditingGameId] = useState<number | null>(null);
+  const editingGame =
+    games.find((g) => g.id === editingGameId) ?? unratedGames.find((g) => g.id === editingGameId);
+  const handleEditGame = (game: GameCaseInput) => setEditingGameId(game.id ?? null);
 
   // URL-backed state lives in the hook; this component only renders.
   const {
@@ -218,9 +244,22 @@ export function GameLibrary({ games, wishlist, currentlyPlayingGames }: GameLibr
       ) : (
         <div className="mt-6 pb-24">
           {activeShelves.map((shelf) => (
-            <ShelfSection key={shelf.label} label={shelf.label} games={shelf.games} />
+            <ShelfSection
+              key={shelf.label}
+              label={shelf.label}
+              games={shelf.games}
+              onEditGame={canEdit ? handleEditGame : undefined}
+            />
           ))}
         </div>
+      )}
+
+      {/* Owner-only "Unrated" shelf: every unrated game keeps a case (and a
+          pencil), so clearing a rating is always reversible from the UI.
+          Deliberately outside the filter/group/sort pipeline — it's a small
+          owner utility surface, not part of the public browsing experience. */}
+      {view === "played" && canEdit && unratedGames.length > 0 && (
+        <ShelfSection label="Unrated" games={unratedGames} onEditGame={handleEditGame} />
       )}
 
       {view === "played" && (
@@ -231,6 +270,8 @@ export function GameLibrary({ games, wishlist, currentlyPlayingGames }: GameLibr
           onClose={() => setStatsOpen(false)}
         />
       )}
+
+      {editingGame && <EditGameModal game={editingGame} onClose={() => setEditingGameId(null)} />}
     </div>
   );
 }

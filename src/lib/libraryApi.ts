@@ -5,9 +5,9 @@ import type { Game } from "./games";
 import type { WishlistGame } from "./wishlist";
 
 // This module owns the FastAPI origin and the fetch mechanics for the library
-// read path (spec §7.2). gamesServer.ts / wishlistServer.ts branch to these
-// fetchers when LIBRARY_API_ORIGIN is set and keep their CSV code as the
-// fallback until Phase 3 proves parity (spec §8, Phase 1).
+// read path. gamesServer.ts / wishlistServer.ts branch to these fetchers when
+// LIBRARY_API_ORIGIN is set and keep their CSV code as the fallback until the
+// DB read path proves parity.
 
 // Read at call time (not module top level) so the value reflects the current
 // process env even if this module is evaluated before env loading finishes.
@@ -18,20 +18,36 @@ export function getLibraryApiOrigin(): string | undefined {
   return origin ? origin : undefined;
 }
 
-// Shared fetch for both endpoints. `path` is the part after the origin,
-// e.g. "/api/py/users/robert/games".
-async function fetchFromApi<T>(origin: string, path: string, what: string): Promise<T> {
+// Single cache tag per user covering games AND wishlist. Writes call
+// revalidateTag(libraryCacheTag(username)) — the one shared name both sides
+// must agree on, so it lives here next to the reads that use it.
+export function libraryCacheTag(username: string): string {
+  return `library:${username.toLowerCase()}`;
+}
+
+// Shared fetch for both endpoints. `path` is the part after the origin
+// (e.g. "/api/py/users/robert/games"); `tags` are the cache tags the entry is
+// stored under — the caller owns tag naming, this helper only fetches+caches.
+async function fetchFromApi<T>(
+  origin: string,
+  path: string,
+  what: string,
+  tags: string[]
+): Promise<T> {
   const url = `${origin}${path}`;
   let res: Response;
   try {
-    // `cache: "no-store"` — deliberately uncached for now. The spec's tag-based
-    // caching (§7.2: `next: { tags: ["library:username"] }` + revalidateTag on
-    // writes) only makes sense once writes exist to call revalidateTag (Phase 3).
-    // Until then a cached read would just serve stale data after a local seed or
-    // DB edit. This is a deliberate interim state; Phase 3 replaces it with tags.
+    // Cached until a write calls revalidateTag with one of these tags.
+    // "force-cache" opts in explicitly — Next 15 fetches are uncached by default.
+    // This also keeps pages statically renderable: the previous `no-store` was a
+    // dynamic API, which broke prerendering of the OG image route at build time.
     // AbortSignal.timeout bounds a *hung* (vs. refused) API: without it the page
     // render would stall indefinitely; with it the failure stays loud and fast.
-    res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    res = await fetch(url, {
+      cache: "force-cache",
+      next: { tags },
+      signal: AbortSignal.timeout(5000),
+    });
   } catch (err) {
     // Network-level failure (connection refused, DNS, etc.) — the API is
     // configured but unreachable. Fail loudly rather than silently falling
@@ -63,7 +79,8 @@ export function fetchGamesFromApi(origin: string, username: string): Promise<Gam
   return fetchFromApi<Game[]>(
     origin,
     `/api/py/users/${encodeURIComponent(username)}/games`,
-    "games"
+    "games",
+    [libraryCacheTag(username)]
   );
 }
 
@@ -71,6 +88,7 @@ export function fetchWishlistFromApi(origin: string, username: string): Promise<
   return fetchFromApi<WishlistGame[]>(
     origin,
     `/api/py/users/${encodeURIComponent(username)}/wishlist`,
-    "wishlist"
+    "wishlist",
+    [libraryCacheTag(username)]
   );
 }

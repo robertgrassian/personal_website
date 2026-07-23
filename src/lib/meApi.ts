@@ -1,11 +1,16 @@
 // Server-only client for the authenticated /me/* FastAPI endpoints.
 //
-// The "Next as BFF" boundary: the browser never calls FastAPI directly for
-// authenticated actions. Instead a Server Component
-// or Server Action reads the httpOnly session cookie here, forwards the
-// request to FastAPI with the access token as a Bearer header, and FastAPI
-// verifies it via JWKS. Keeping the token server-side (never handed to client
-// JS) is the whole point of the httpOnly session.
+// The "Next as BFF" boundary applies to WRITES: every mutation goes through a
+// Server Action → this module → FastAPI, because the cache invalidation
+// (revalidateTag) can only run on the Next server and must live next to the
+// write. This module does the cookie → Authorization: Bearer translation for
+// those server-side calls.
+//
+// Authenticated per-viewer READS are a separate, deliberate pattern: client
+// components may call /api/py/me/* directly with the token from the browser
+// Supabase client (e.g. useIsLibraryOwner) — the session is readable in the
+// browser by design of @supabase/ssr, and read-only calls need no
+// revalidation. Writes never take that path.
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 
@@ -121,4 +126,41 @@ export async function createMyProfile(
     };
   }
   return { ok: false, reason: "unknown", message: detail ?? "Something went wrong." };
+}
+
+// Simple ok/error result for game mutations — no reason discrimination yet
+// because the rating UI only shows a message; add reasons when a caller
+// actually branches on them.
+export type MutateGameResult = { ok: true } | { ok: false; message: string };
+
+/** Set or clear ("" = unrated) the rating on one of the caller's games. */
+export async function updateMyGameRating(
+  gameId: number,
+  rating: string
+): Promise<MutateGameResult> {
+  const token = await accessToken();
+  if (!token) {
+    return { ok: false, message: "You are not signed in." };
+  }
+
+  const res = await fetch(`${apiOrigin()}/api/py/me/games/${gameId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ rating }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(5000),
+  });
+
+  if (res.ok) return { ok: true };
+
+  // FastAPI's detail is a string for our domain errors (404) but an array of
+  // validation objects for 422s — only surface it when it's a plain string.
+  const detail = await res
+    .json()
+    .then((b) => (typeof b?.detail === "string" ? b.detail : undefined))
+    .catch(() => undefined);
+  return { ok: false, message: detail ?? `Couldn't update the rating (HTTP ${res.status}).` };
 }

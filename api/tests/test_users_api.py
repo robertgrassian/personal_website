@@ -22,6 +22,7 @@ requires_db = pytest.mark.skipif(not get_settings().database_url, reason="DATABA
 # The exact wire keys of the TS types being mirrored (src/lib/games.ts,
 # src/lib/wishlist.ts) — camelCase, via the schema alias generator.
 GAME_KEYS = {
+    "id",
     "name",
     "system",
     "genres",

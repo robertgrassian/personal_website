@@ -4,11 +4,8 @@ import "server-only";
 import fs from "fs";
 import path from "path";
 import type { WishlistGame } from "./wishlist";
+import { LIBRARY_OWNER_USERNAME } from "./games";
 import { fetchWishlistFromApi, getLibraryApiOrigin } from "./libraryApi";
-
-// /video_games is Robert's shelf at its stable URL; same fixed-user constant
-// as gamesServer.ts until per-user routes (/u/[username]) exist.
-const LIBRARY_USERNAME = "rgrassian";
 
 // CSV schema (wishlist.csv header):
 // name,system,genre,release_date,image_url,starred,date_added,notes
@@ -77,7 +74,7 @@ export async function getWishlist(): Promise<WishlistGame[]> {
   // proves parity).
   const apiOrigin = getLibraryApiOrigin();
   if (apiOrigin) {
-    return fetchWishlistFromApi(apiOrigin, LIBRARY_USERNAME);
+    return fetchWishlistFromApi(apiOrigin, LIBRARY_OWNER_USERNAME);
   }
 
   const csvPath = path.join(process.cwd(), "wishlist.csv");

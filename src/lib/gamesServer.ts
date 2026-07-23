@@ -4,14 +4,10 @@ import "server-only";
 import fs from "fs";
 import path from "path";
 import type { Game, Rating } from "./games";
-import { RATINGS } from "./games";
+import { LIBRARY_OWNER_USERNAME, RATINGS } from "./games";
 import type { Session } from "./sessions";
 import { getSessions } from "./sessionsServer";
 import { fetchGamesFromApi, getLibraryApiOrigin } from "./libraryApi";
-
-// /video_games is Robert's shelf at its stable URL — the read path always asks
-// the API for this fixed user until per-user routes (/u/[username]) exist.
-const LIBRARY_USERNAME = "rgrassian";
 
 const VALID_RATINGS = new Set<string>(["", ...RATINGS.map((r) => r.name)]);
 
@@ -105,7 +101,7 @@ export async function getGames(): Promise<Game[]> {
   // sessions merge below is CSV-branch-only.
   const apiOrigin = getLibraryApiOrigin();
   if (apiOrigin) {
-    return fetchGamesFromApi(apiOrigin, LIBRARY_USERNAME);
+    return fetchGamesFromApi(apiOrigin, LIBRARY_OWNER_USERNAME);
   }
 
   const csvPath = path.join(process.cwd(), "games.csv");

@@ -4,10 +4,13 @@ type ShelfSectionProps = {
   label: string;
   // Game[] and WishlistGame[] both fit via structural typing — no union needed.
   games: GameCaseInput[];
+  // Provided only when the viewer owns this library; each case forwards its
+  // own game so GameLibrary knows which one to open the edit dialog for.
+  onEditGame?: (game: GameCaseInput) => void;
 };
 
 // ShelfSection renders one shelf — an optional header row plus a "plank" of game cases.
-export function ShelfSection({ label, games }: ShelfSectionProps) {
+export function ShelfSection({ label, games, onEditGame }: ShelfSectionProps) {
   return (
     <section className="mt-10">
       {/* Shelf label — omitted when label is empty (e.g. "group by none") */}
@@ -34,7 +37,11 @@ export function ShelfSection({ label, games }: ShelfSectionProps) {
         style={{ gridTemplateColumns: "repeat(auto-fill, 96px)" }}
       >
         {games.map((game) => (
-          <GameCase key={game.name + "-" + game.system} game={game} />
+          <GameCase
+            key={game.name + "-" + game.system}
+            game={game}
+            onEdit={onEditGame && (() => onEditGame(game))}
+          />
         ))}
       </div>
     </section>

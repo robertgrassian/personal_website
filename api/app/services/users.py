@@ -63,10 +63,14 @@ def _require_profile(db: Session, username: str):
     return profile
 
 
-def _to_game_read(game: Game, play_state: PlayState) -> GameRead:
-    # NULL→"" translation: the FE types use "" (never null) for absent
-    # scalars — see the schemas.users module docstring.
+def to_game_read(game: Game, play_state: PlayState) -> GameRead:
+    """ORM row + derived play state → wire DTO. Public because the /me write
+    path (services/me.py) returns the same shape after a mutation.
+
+    NULL→"" translation: the FE types use "" (never null) for absent
+    scalars — see the schemas.users module docstring."""
     return GameRead(
+        id=game.id,
         name=game.name,
         system=game.system,
         rating=game.rating or "",
@@ -103,7 +107,7 @@ def get_user_games(db: Session, username: str) -> list[GameRead]:
     sessions_by_game: dict[int, list[PlaySession]] = defaultdict(list)
     for session in users_repo.list_play_sessions(db, [g.id for g in games]):
         sessions_by_game[session.game_id].append(session)
-    return [_to_game_read(g, derive_play_state(sessions_by_game.get(g.id, []))) for g in games]
+    return [to_game_read(g, derive_play_state(sessions_by_game.get(g.id, []))) for g in games]
 
 
 def get_user_wishlist(db: Session, username: str) -> list[WishlistGameRead]:
