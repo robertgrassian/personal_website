@@ -22,10 +22,15 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
 
-# DB backstop for the RATINGS list in src/lib/games.ts — two sources of truth
-# by accepted design (spec §4.2): the API validates against the TS-shaped
-# list, the constraint catches anything that slips past it.
-RATING_CHECK_SQL = "rating IN ('Perfect','Great','Good','Okay','Bad')"
+# Python mirror of the RATINGS list in src/lib/games.ts — two sources of
+# truth by accepted design: the API validates writes against this tuple and
+# the DB CHECK below backstops anything that slips past it.
+RATING_NAMES: tuple[str, ...] = ("Perfect", "Great", "Good", "Okay", "Bad")
+
+# Rendered from RATING_NAMES so the validator and the constraint can't drift.
+# Must produce the exact string the baseline migration used, or `alembic
+# check` would report a spurious constraint change.
+RATING_CHECK_SQL = "rating IN ({})".format(",".join(f"'{name}'" for name in RATING_NAMES))
 
 
 class Game(Base):

@@ -45,8 +45,10 @@ class BaseGameRead(CamelModel):
 
 class GameRead(BaseGameRead):
     """Mirrors ``Game`` (src/lib/games.ts): BaseGame + rating + derived play
-    state (spec §4.3)."""
+    state — plus the row ``id``, which the TS type carries as optional (CSV
+    rows never had one) and the owner write path targets (PATCH /me/games/{id})."""
 
+    id: int
     rating: str  # one of RATINGS names, or "" = unrated
     last_played: str  # newest closed-session end date, "" if none
     currently_playing: bool  # true when the game has an open session

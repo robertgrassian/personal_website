@@ -4,8 +4,9 @@
 // around to the back) while the overlay keeps text readable.
 
 import Image from "next/image";
-import { RATINGS } from "@/lib/games";
+import { RATINGS, type Rating } from "@/lib/games";
 import type { GameCaseInput } from "./GameCase";
+import { RatingEditor } from "./RatingEditor";
 
 // "2023-05-12" → "May 2023"
 function formatDate(iso: string): string {
@@ -16,9 +17,13 @@ function formatDate(iso: string): string {
 
 type GameCaseBackProps = {
   game: GameCaseInput;
+  // Present only when the viewer owns this library game — renders the rating
+  // editor. Undefined = read-only back face (visitors, wishlist entries).
+  onRate?: (rating: Rating | "") => void;
+  rateError?: string | null;
 };
 
-export function GameCaseBack({ game }: GameCaseBackProps) {
+export function GameCaseBack({ game, onRate, rateError }: GameCaseBackProps) {
   const ratingEntry = game.rating ? RATINGS.find((r) => r.name === game.rating) : undefined;
   const hasImage = game.imageUrl !== "";
 
@@ -76,6 +81,18 @@ export function GameCaseBack({ game }: GameCaseBackProps) {
             </p>
           )}
         </div>
+
+        {/* Owner-only rating editor, pinned to the bottom of the back face. */}
+        {onRate && (
+          <div className="mt-auto pt-1.5">
+            {rateError && (
+              <p className="text-[9px] leading-tight text-red-300 mb-1" role="alert">
+                {rateError}
+              </p>
+            )}
+            <RatingEditor current={game.rating ?? ""} onRate={onRate} />
+          </div>
+        )}
       </div>
     </div>
   );

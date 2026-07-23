@@ -20,7 +20,10 @@ from app.core.config import get_settings
 from app.core.supabase_admin import delete_auth_user
 from app.models import Profile
 from app.repositories import me as me_repo
-from app.schemas.me import MyProfileRead, ProfileCreate
+from app.repositories import users as users_repo
+from app.schemas.me import GameUpdate, MyProfileRead, ProfileCreate
+from app.schemas.users import GameRead
+from app.services.users import derive_play_state, to_game_read
 
 # Mirrors the DB CHECK on profiles.username (app/models/profile.py): starts
 # with a lowercase letter or digit, then [a-z0-9_-], 3-30 chars total. Kept in
@@ -85,6 +88,16 @@ class UsernameError(Exception):
 
 class SignupCapReachedError(Exception):
     """MAX_USERS reached — signup is closed."""
+
+
+class GameNotFoundError(Exception):
+    """No such game in the caller's library. Deliberately covers both "id
+    doesn't exist" and "id belongs to someone else" — /me/* treats the
+    caller's library as the entire namespace, so foreign rows are simply
+    not found (404), never revealed as forbidden (403)."""
+
+    def __init__(self, game_id: int) -> None:
+        super().__init__(f"Game {game_id} not found in your library")
 
 
 def get_my_profile(db: Session, user: AuthenticatedUser) -> MyProfileRead | None:
@@ -169,3 +182,23 @@ def create_my_profile(
             "taken", f"The username '{username}' is already taken."
         ) from exc
     return MyProfileRead(username=profile.username, display_name=profile.display_name)
+
+
+def update_my_game(
+    db: Session, user: AuthenticatedUser, game_id: int, payload: GameUpdate
+) -> GameRead:
+    """Apply a partial edit to one of the caller's games and return the full
+    updated game (same wire shape as the public reads, play state included, so
+    the client can reconcile without a second fetch)."""
+    game = me_repo.get_game_for_owner(db, game_id, user.id)
+    if game is None:
+        raise GameNotFoundError(game_id)
+
+    # model_fields_set = fields present in the request body — PATCH semantics.
+    # An omitted rating leaves the row untouched; "" (or null) clears to
+    # unrated, stored as NULL per the schema convention.
+    if "rating" in payload.model_fields_set:
+        game = me_repo.update_game_rating(db, game, payload.rating or None)
+
+    sessions = users_repo.list_play_sessions(db, [game.id])
+    return to_game_read(game, derive_play_state(sessions))

@@ -10,6 +10,7 @@ one and cascades it away on teardown.
 """
 
 import uuid
+from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,6 +20,7 @@ from app.core.auth import AuthenticatedUser, get_current_user
 from app.core.config import get_settings
 from app.core.db import get_sessionmaker
 from app.main import create_app
+from app.models import Game, PlaySession
 from scripts.seed import ROBERT_PROFILE_ID
 
 requires_db = pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
@@ -74,6 +76,36 @@ def fresh_auth_user():
         yield user_id, f"test-{user_id}@example.com"
     finally:
         _delete_auth_user(user_id)
+
+
+@pytest.fixture
+def fresh_user_with_game(fresh_auth_user):
+    """An onboarded throwaway user owning one game with one closed session.
+    Everything hangs off the auth user, so fresh_auth_user's teardown cascades
+    it all away (auth.users → profiles → games → play_sessions)."""
+    user_id, _ = fresh_auth_user
+    username = f"gamer-{str(user_id)[:8]}"
+    created = client_as(user_id).post("/api/py/me/profile", json={"username": username})
+    assert created.status_code == 201
+
+    sm = get_sessionmaker()
+    with sm() as session:
+        game = Game(
+            user_id=user_id,
+            name="Test Quest",
+            system="SNES",
+            rating="Good",
+            genres=["RPG"],
+            release_date=date(1995, 3, 9),
+        )
+        session.add(game)
+        session.flush()
+        session.add(
+            PlaySession(game_id=game.id, start_date=date(2026, 1, 1), end_date=date(2026, 1, 15))
+        )
+        session.commit()
+        game_id = game.id
+    yield user_id, game_id
 
 
 @requires_db
@@ -207,3 +239,99 @@ def test_username_race_returns_409_not_500(
         assert response.status_code == 409
     finally:
         _delete_auth_user(second_id)
+
+
+# ── PATCH /me/games/{id} ──────────────────────────────────────────────────
+
+
+@requires_db
+def test_patch_game_requires_token() -> None:
+    response = TestClient(create_app()).patch("/api/py/me/games/1", json={"rating": "Good"})
+    assert response.status_code == 401
+
+
+@requires_db
+def test_patch_game_updates_rating(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"rating": "Perfect"})
+    assert response.status_code == 200
+    body = response.json()
+    # Full game payload back, same wire shape as the public reads — including
+    # play state derived from the fixture's closed session.
+    assert body["id"] == game_id
+    assert body["rating"] == "Perfect"
+    assert body["name"] == "Test Quest"
+    assert body["currentlyPlaying"] is False
+    assert body["lastPlayed"] == "2026-01-15"
+
+
+@requires_db
+def test_patch_game_persists_to_public_read(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    client = client_as(user_id)
+    assert client.patch(f"/api/py/me/games/{game_id}", json={"rating": "Bad"}).status_code == 200
+    username = client.get("/api/py/me/profile").json()["username"]
+    [game] = TestClient(create_app()).get(f"/api/py/users/{username}/games").json()
+    assert game["rating"] == "Bad"
+
+
+@requires_db
+def test_patch_game_empty_string_clears_rating(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"rating": ""})
+    assert response.status_code == 200
+    assert response.json()["rating"] == ""  # NULL in the DB, "" on the wire
+
+
+@requires_db
+def test_patch_game_omitted_rating_changes_nothing(fresh_user_with_game) -> None:
+    # PATCH semantics: {} is a valid no-op — absent fields are left untouched,
+    # not reset. The fixture's rating survives.
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={})
+    assert response.status_code == 200
+    assert response.json()["rating"] == "Good"
+
+
+@requires_db
+def test_patch_game_unknown_rating_is_422(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"rating": "Legendary"})
+    assert response.status_code == 422
+
+
+@requires_db
+def test_patch_someone_elses_game_is_404(fresh_user_with_game) -> None:
+    # The fixture user's game PATCHed by a different (seeded) account: the
+    # ownership check must make it look nonexistent, and the row must be
+    # untouched afterward.
+    user_id, game_id = fresh_user_with_game
+    response = client_as(ROBERT_PROFILE_ID).patch(
+        f"/api/py/me/games/{game_id}", json={"rating": "Perfect"}
+    )
+    assert response.status_code == 404
+    check = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={})
+    assert check.json()["rating"] == "Good"
+
+
+@requires_db
+def test_patch_nonexistent_game_is_404(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    response = client_as(user_id).patch("/api/py/me/games/999999999", json={"rating": "Good"})
+    assert response.status_code == 404
+
+
+@requires_db
+def test_patch_game_forbidden_in_preview(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("APP_ENV", "preview")
+    get_settings.cache_clear()
+    try:
+        user_id, game_id = fresh_user_with_game
+        response = client_as(user_id).patch(
+            f"/api/py/me/games/{game_id}", json={"rating": "Perfect"}
+        )
+        assert response.status_code == 503
+    finally:
+        get_settings.cache_clear()

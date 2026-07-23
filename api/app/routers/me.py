@@ -14,9 +14,15 @@ from app.core.auth import CurrentUser
 from app.core.config import API_PREFIX
 from app.core.db import get_db
 from app.core.guards import forbid_in_preview
-from app.schemas.me import MyProfileRead, ProfileCreate
+from app.schemas.me import GameUpdate, MyProfileRead, ProfileCreate
+from app.schemas.users import GameRead
 from app.services import me as me_service
-from app.services.me import ProfileExistsError, SignupCapReachedError, UsernameError
+from app.services.me import (
+    GameNotFoundError,
+    ProfileExistsError,
+    SignupCapReachedError,
+    UsernameError,
+)
 
 router = APIRouter(prefix=API_PREFIX, tags=["me"])
 
@@ -66,3 +72,19 @@ def create_my_profile(user: CurrentUser, db: DbSession, payload: ProfileCreate) 
         raise HTTPException(status_code=code, detail=str(exc)) from exc
     except SignupCapReachedError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+
+
+@router.patch("/me/games/{game_id}", dependencies=[Depends(forbid_in_preview)])
+def update_my_game(
+    user: CurrentUser, db: DbSession, game_id: int, payload: GameUpdate
+) -> GameRead:
+    """Partially edit one of the caller's games (currently: rating).
+
+    404 covers both a nonexistent id and someone else's game — the service
+    treats the caller's library as the whole namespace. Unknown rating values
+    are a 422 from the schema validator before this handler runs.
+    """
+    try:
+        return me_service.update_my_game(db, user, game_id, payload)
+    except GameNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

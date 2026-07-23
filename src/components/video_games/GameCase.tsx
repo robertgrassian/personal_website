@@ -1,25 +1,31 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useOptimistic, useTransition } from "react";
 import Image from "next/image";
 import type { BaseGame } from "@/lib/baseGame";
 import { type Rating, RATINGS } from "@/lib/games";
 import { extractDominantColor } from "@/lib/dominant-color";
+import { updateGameRating } from "@/app/video_games/actions";
 import { RatingIndicator } from "./RatingIndicator";
 import { GameCaseBack } from "./GameCaseBack";
 import { GameCaseSpine } from "./GameCaseSpine";
 
 // View-agnostic input: Game supplies `rating` (badge); WishlistGame supplies
-// `starred` (star overlay). Never both — render logic picks one.
+// `starred` (star overlay). Never both — render logic picks one. `id` is the
+// DB row id (absent on CSV-sourced games); owner edits require it.
 export type GameCaseInput = BaseGame & {
+  id?: number;
   rating?: Rating | "";
   starred?: boolean;
 };
 
 type GameCaseProps = {
   game: GameCaseInput;
+  // True only for the library owner (resolved client-side after hydration).
+  // Turns on the rating editor on the back face when the game is editable.
+  canEdit?: boolean;
 };
 
-export function GameCase({ game }: GameCaseProps) {
+export function GameCase({ game, canEdit = false }: GameCaseProps) {
   // `flipped` drives the 3D CSS flip — true shows the metadata back face.
   const [flipped, setFlipped] = useState(false);
   // Badge disappears and reappears at the animation midpoint (300ms = half of 0.6s flip)
@@ -62,23 +68,63 @@ export function GameCase({ game }: GameCaseProps) {
       .catch(() => {});
   }, []);
 
+  // Optimistic rating: shows the clicked value immediately, then settles on
+  // whatever the server sends back. useOptimistic pins its state to the base
+  // value (the `game.rating` prop) whenever no transition is pending — so
+  // after the action completes and revalidation delivers fresh props, this
+  // converges to the server's truth automatically, including reverting a
+  // failed update without any manual rollback code.
+  const [optimisticRating, setOptimisticRating] = useOptimistic<Rating | "">(game.rating ?? "");
+  const [, startTransition] = useTransition();
+  const [rateError, setRateError] = useState<string | null>(null);
+
+  const handleRate = (next: Rating | "") => {
+    const gameId = game.id;
+    if (gameId === undefined) return;
+    // Optimistic updates must happen inside the same transition as the async
+    // action — React ties the optimistic value's lifetime to the transition.
+    startTransition(async () => {
+      setRateError(null);
+      setOptimisticRating(next);
+      const result = await updateGameRating(gameId, next);
+      if (!result.ok) setRateError(result.message);
+    });
+  };
+
+  // What the badge and back face display. Wishlist entries have no rating at
+  // all (undefined, distinct from "" = unrated) and are never editable here.
+  const displayRating = game.rating !== undefined ? optimisticRating : undefined;
+  const editable = canEdit && game.id !== undefined && game.rating !== undefined;
+
   const hasImage = game.imageUrl !== "" && !imageError;
-  const ratingLetter = game.rating
-    ? RATINGS.find((r) => r.name === game.rating)?.letter
+  const ratingLetter = displayRating
+    ? RATINGS.find((r) => r.name === displayRating)?.letter
     : undefined;
 
   return (
     // `group` enables group-hover: variants on descendants; `shrink-0` prevents flex squishing.
-    // button gives keyboard (Enter/Space) support for free; appearance-none removes browser chrome.
     // game-case-scene provides the perspective for the 3D flip.
-    // Escape key flips back to front for keyboard accessibility.
-    <button
-      type="button"
-      className="game-case-scene group relative w-24 shrink-0 cursor-pointer sm:cursor-default select-none appearance-none bg-transparent border-0 p-0 text-left
+    //
+    // div[role="button"] instead of <button>: the back face contains real
+    // <button>s (the rating editor), and interactive elements can't nest
+    // inside a native button (invalid HTML, broken semantics). The div
+    // re-implements what button gave for free: tabIndex for focus, and
+    // Enter/Space handling below (preventDefault stops Space scrolling the
+    // page). Escape still flips back to the front.
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={flipped}
+      className="game-case-scene group relative w-24 shrink-0 cursor-pointer sm:cursor-default select-none text-left
                  rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--shelf-input-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--shelf-bg)]"
       onClick={() => setFlipped((f) => !f)}
       onKeyDown={(e) => {
-        if (e.key === "Escape" && flipped) setFlipped(false);
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setFlipped((f) => !f);
+        } else if (e.key === "Escape" && flipped) {
+          setFlipped(false);
+        }
       }}
     >
       {/* Inner container — rotates as a unit for the 3D flip.
@@ -175,9 +221,15 @@ export function GameCase({ game }: GameCaseProps) {
           aria-hidden={!flipped}
           data-system={dominantColor ? undefined : game.system}
         >
-          <GameCaseBack game={game} />
+          {/* Spread + override so the back face shows the optimistic rating,
+              not the (possibly stale) prop, while an update is in flight. */}
+          <GameCaseBack
+            game={{ ...game, rating: displayRating }}
+            onRate={editable ? handleRate : undefined}
+            rateError={rateError}
+          />
         </div>
       </div>
-    </button>
+    </div>
   );
 }

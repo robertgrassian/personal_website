@@ -17,6 +17,7 @@ import {
   sortWishlist,
 } from "./pipeline";
 import { useGameLibraryUrlState } from "./useGameLibraryUrlState";
+import { useIsLibraryOwner } from "./useIsLibraryOwner";
 
 type GameLibraryProps = {
   games: Game[];
@@ -28,6 +29,11 @@ type GameLibraryProps = {
 
 export function GameLibrary({ games, wishlist, currentlyPlayingGames }: GameLibraryProps) {
   const [statsOpen, setStatsOpen] = useState(false);
+
+  // Owner check resolves client-side after hydration (the page HTML is
+  // static and shared by all viewers). false until proven otherwise, so
+  // visitors never see a flash of edit controls.
+  const canEdit = useIsLibraryOwner();
 
   // URL-backed state lives in the hook; this component only renders.
   const {
@@ -218,7 +224,12 @@ export function GameLibrary({ games, wishlist, currentlyPlayingGames }: GameLibr
       ) : (
         <div className="mt-6 pb-24">
           {activeShelves.map((shelf) => (
-            <ShelfSection key={shelf.label} label={shelf.label} games={shelf.games} />
+            <ShelfSection
+              key={shelf.label}
+              label={shelf.label}
+              games={shelf.games}
+              canEdit={canEdit}
+            />
           ))}
         </div>
       )}

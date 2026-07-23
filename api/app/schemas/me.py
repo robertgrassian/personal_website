@@ -6,8 +6,9 @@ which is exactly why they live on /me/* routes instead of the public /users/*
 ones.
 """
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
+from app.models.game import RATING_NAMES
 from app.schemas.users import CamelModel
 
 # Matches the client hint (OnboardingForm maxLength) and bounds what we store.
@@ -30,3 +31,24 @@ class ProfileCreate(CamelModel):
 
     username: str = Field(max_length=64)  # generous; the service regex caps at 30
     display_name: str = Field(default="", max_length=MAX_DISPLAY_NAME)
+
+
+class GameUpdate(CamelModel):
+    """Partial edit of one game in the caller's library (PATCH semantics):
+    only fields the client actually sent are applied — the service checks
+    ``model_fields_set``, so an omitted field is "leave unchanged", never
+    "reset". Currently rating-only; future metadata edits extend this model.
+    """
+
+    # "" (or null) clears the rating back to unrated; a name must be one of
+    # the known ratings. Validated here rather than the service because it's
+    # pure shape/vocabulary — no DB or business state involved.
+    rating: str | None = None
+
+    @field_validator("rating")
+    @classmethod
+    def _known_rating(cls, value: str | None) -> str | None:
+        if value is None or value == "" or value in RATING_NAMES:
+            return value
+        allowed = ", ".join(RATING_NAMES)
+        raise ValueError(f"rating must be one of: {allowed} — or empty to clear it")

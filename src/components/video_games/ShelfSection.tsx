@@ -4,10 +4,12 @@ type ShelfSectionProps = {
   label: string;
   // Game[] and WishlistGame[] both fit via structural typing — no union needed.
   games: GameCaseInput[];
+  // Forwarded to every case; true only when the viewer owns this library.
+  canEdit?: boolean;
 };
 
 // ShelfSection renders one shelf — an optional header row plus a "plank" of game cases.
-export function ShelfSection({ label, games }: ShelfSectionProps) {
+export function ShelfSection({ label, games, canEdit }: ShelfSectionProps) {
   return (
     <section className="mt-10">
       {/* Shelf label — omitted when label is empty (e.g. "group by none") */}
@@ -34,7 +36,7 @@ export function ShelfSection({ label, games }: ShelfSectionProps) {
         style={{ gridTemplateColumns: "repeat(auto-fill, 96px)" }}
       >
         {games.map((game) => (
-          <GameCase key={game.name + "-" + game.system} game={game} />
+          <GameCase key={game.name + "-" + game.system} game={game} canEdit={canEdit} />
         ))}
       </div>
     </section>
