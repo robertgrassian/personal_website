@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import type { WishlistGame } from "@/lib/wishlist";
 import {
   deleteWishlistItem,
@@ -8,10 +8,8 @@ import {
   updateWishlistItem,
 } from "@/app/video_games/actions";
 import { CloseIcon } from "@/components/Icon";
-
-const inputClass =
-  "w-full bg-shelf-input border border-shelf-input-border text-shelf-input-text text-sm rounded " +
-  "px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-shelf-input-ring";
+import { useModalChrome } from "./useModalChrome";
+import { inputClass, labelClass } from "./formStyles";
 
 type EditWishlistModalProps = {
   item: WishlistGame;
@@ -40,29 +38,8 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
 
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  });
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const previouslyFocused = document.activeElement;
-    closeButtonRef.current?.focus();
-
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseRef.current();
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKey);
-      if (previouslyFocused instanceof HTMLElement && previouslyFocused.isConnected) {
-        previouslyFocused.focus();
-      }
-    };
-  }, []);
+  // Scroll lock, focus-into/restore, and Escape-to-close.
+  useModalChrome(onClose, closeButtonRef);
 
   const patch = (fields: { starred?: boolean; notes?: string }) => {
     if (item.id === undefined) return;
@@ -144,7 +121,7 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
           Starred (priority wishlist)
         </label>
 
-        <label className="mt-4 flex flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label">
+        <label className={`mt-4 ${labelClass}`}>
           Notes
           <textarea
             value={notesDraft}
@@ -178,7 +155,7 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
             </button>
           ) : (
             <div>
-              <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label">
+              <label className={labelClass}>
                 System
                 <input
                   type="text"
