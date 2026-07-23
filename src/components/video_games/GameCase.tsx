@@ -1,10 +1,10 @@
 "use client";
-import { useState, useEffect, useRef, useCallback, useOptimistic, useTransition } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import type { BaseGame } from "@/lib/baseGame";
 import { type Rating, RATINGS } from "@/lib/games";
 import { extractDominantColor } from "@/lib/dominant-color";
-import { updateGameRating } from "@/app/video_games/actions";
+import { PencilIcon } from "@/components/Icon";
 import { RatingIndicator } from "./RatingIndicator";
 import { GameCaseBack } from "./GameCaseBack";
 import { GameCaseSpine } from "./GameCaseSpine";
@@ -20,12 +20,12 @@ export type GameCaseInput = BaseGame & {
 
 type GameCaseProps = {
   game: GameCaseInput;
-  // True only for the library owner (resolved client-side after hydration).
-  // Turns on the rating editor on the back face when the game is editable.
-  canEdit?: boolean;
+  // Provided only when the viewer owns this library — shows the pencil that
+  // opens the edit dialog (the dialog itself lives in GameLibrary).
+  onEdit?: () => void;
 };
 
-export function GameCase({ game, canEdit = false }: GameCaseProps) {
+export function GameCase({ game, onEdit }: GameCaseProps) {
   // `flipped` drives the 3D CSS flip — true shows the metadata back face.
   const [flipped, setFlipped] = useState(false);
   // Badge disappears and reappears at the animation midpoint (300ms = half of 0.6s flip)
@@ -68,37 +68,14 @@ export function GameCase({ game, canEdit = false }: GameCaseProps) {
       .catch(() => {});
   }, []);
 
-  // Optimistic rating: shows the clicked value immediately, then settles on
-  // whatever the server sends back. useOptimistic pins its state to the base
-  // value (the `game.rating` prop) whenever no transition is pending — so
-  // after the action completes and revalidation delivers fresh props, this
-  // converges to the server's truth automatically, including reverting a
-  // failed update without any manual rollback code.
-  const [optimisticRating, setOptimisticRating] = useOptimistic<Rating | "">(game.rating ?? "");
-  const [, startTransition] = useTransition();
-  const [rateError, setRateError] = useState<string | null>(null);
-
-  const handleRate = (next: Rating | "") => {
-    const gameId = game.id;
-    if (gameId === undefined) return;
-    // Optimistic updates must happen inside the same transition as the async
-    // action — React ties the optimistic value's lifetime to the transition.
-    startTransition(async () => {
-      setRateError(null);
-      setOptimisticRating(next);
-      const result = await updateGameRating(gameId, next);
-      if (!result.ok) setRateError(result.message);
-    });
-  };
-
-  // What the badge and back face display. Wishlist entries have no rating at
-  // all (undefined, distinct from "" = unrated) and are never editable here.
-  const displayRating = game.rating !== undefined ? optimisticRating : undefined;
-  const editable = canEdit && game.id !== undefined && game.rating !== undefined;
+  // Editable = the owner is viewing (onEdit provided) AND the row is
+  // API-backed (has an id) AND it's a library game (wishlist entries have no
+  // rating field at all — undefined, distinct from "" = unrated).
+  const editable = onEdit !== undefined && game.id !== undefined && game.rating !== undefined;
 
   const hasImage = game.imageUrl !== "" && !imageError;
-  const ratingLetter = displayRating
-    ? RATINGS.find((r) => r.name === displayRating)?.letter
+  const ratingLetter = game.rating
+    ? RATINGS.find((r) => r.name === game.rating)?.letter
     : undefined;
 
   return (
@@ -181,6 +158,27 @@ export function GameCase({ game, canEdit = false }: GameCaseProps) {
             <span className="text-white text-[10px] font-medium leading-tight">{game.name}</span>
           </div>
 
+          {/* Owner-only pencil → opens the edit dialog. Top-left; the rating
+              badge/star owns the top-right corner. Both handlers stop
+              propagation so activating the pencil doesn't also flip the card
+              (click) or trigger the card's Enter/Space handler (keydown). */}
+          {editable && showBadge && (
+            <button
+              type="button"
+              aria-label={`Edit ${game.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit?.();
+              }}
+              onKeyDown={(e) => e.stopPropagation()}
+              className="absolute top-1 left-1 z-10 rounded-full bg-black/60 p-1 text-white/90
+                         hover:bg-black/80 hover:text-white transition-colors cursor-pointer
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            >
+              <PencilIcon className="w-3 h-3" aria-hidden />
+            </button>
+          )}
+
           {/* Inside front face so overflow:hidden clips. Rating badge takes
               priority over the wishlist star — a game shouldn't have both. */}
           {ratingLetter && showBadge && <RatingIndicator rank={ratingLetter} />}
@@ -221,13 +219,7 @@ export function GameCase({ game, canEdit = false }: GameCaseProps) {
           aria-hidden={!flipped}
           data-system={dominantColor ? undefined : game.system}
         >
-          {/* Spread + override so the back face shows the optimistic rating,
-              not the (possibly stale) prop, while an update is in flight. */}
-          <GameCaseBack
-            game={{ ...game, rating: displayRating }}
-            onRate={editable ? handleRate : undefined}
-            rateError={rateError}
-          />
+          <GameCaseBack game={game} />
         </div>
       </div>
     </div>

@@ -18,6 +18,8 @@ import {
 } from "./pipeline";
 import { useGameLibraryUrlState } from "./useGameLibraryUrlState";
 import { useIsLibraryOwner } from "./useIsLibraryOwner";
+import { EditGameModal } from "./EditGameModal";
+import type { GameCaseInput } from "./GameCase";
 
 type GameLibraryProps = {
   games: Game[];
@@ -34,6 +36,14 @@ export function GameLibrary({ games, wishlist, currentlyPlayingGames }: GameLibr
   // static and shared by all viewers). false until proven otherwise, so
   // visitors never see a flash of edit controls.
   const canEdit = useIsLibraryOwner();
+
+  // The game being edited, tracked by id (not object) so the open dialog
+  // always reflects the latest server data after a revalidation replaces the
+  // games array. Resolving to undefined — e.g. the game left the shelves
+  // because its rating was cleared — closes the dialog via the null render.
+  const [editingGameId, setEditingGameId] = useState<number | null>(null);
+  const editingGame = games.find((g) => g.id === editingGameId);
+  const handleEditGame = (game: GameCaseInput) => setEditingGameId(game.id ?? null);
 
   // URL-backed state lives in the hook; this component only renders.
   const {
@@ -228,7 +238,7 @@ export function GameLibrary({ games, wishlist, currentlyPlayingGames }: GameLibr
               key={shelf.label}
               label={shelf.label}
               games={shelf.games}
-              canEdit={canEdit}
+              onEditGame={canEdit ? handleEditGame : undefined}
             />
           ))}
         </div>
@@ -242,6 +252,8 @@ export function GameLibrary({ games, wishlist, currentlyPlayingGames }: GameLibr
           onClose={() => setStatsOpen(false)}
         />
       )}
+
+      {editingGame && <EditGameModal game={editingGame} onClose={() => setEditingGameId(null)} />}
     </div>
   );
 }
