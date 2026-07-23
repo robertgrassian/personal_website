@@ -662,3 +662,203 @@ def test_patch_game_forbidden_in_preview(
         assert response.status_code == 503
     finally:
         get_settings.cache_clear()
+
+
+# ---------------------------------------------------------------------------
+# POST /me/games (add a game)
+# ---------------------------------------------------------------------------
+
+
+@requires_db
+def test_add_game_minimal_manual_entry(fresh_user_with_game) -> None:
+    # Only name + system — the manual-add path for games IGDB doesn't know.
+    user_id, _ = fresh_user_with_game
+    response = client_as(user_id).post(
+        "/api/py/me/games", json={"name": "Homebrew Quest", "system": "NES"}
+    )
+    assert response.status_code == 201
+    game = response.json()
+    assert game["name"] == "Homebrew Quest"
+    assert game["system"] == "NES"
+    assert game["rating"] == ""
+    assert game["genres"] == []
+    assert game["releaseDate"] == ""
+    assert game["imageUrl"] == ""
+    assert game["currentlyPlaying"] is False
+    assert game["sessionCount"] == 0
+    assert isinstance(game["id"], int)
+
+
+@requires_db
+def test_add_game_full_igdb_payload(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    response = client_as(user_id).post(
+        "/api/py/me/games",
+        json={
+            "name": "Chrono Trigger",
+            "system": "SNES",
+            "genres": ["RPG", "Adventure"],
+            "releaseDate": "1995-03-11",
+            "imageUrl": "https://images.igdb.com/igdb/image/upload/t_cover_big/co2mkh.jpg",
+            "igdbId": 1051,
+            "rating": "Perfect",
+        },
+    )
+    assert response.status_code == 201
+    game = response.json()
+    assert game["rating"] == "Perfect"
+    assert game["genres"] == ["RPG", "Adventure"]
+    assert game["releaseDate"] == "1995-03-11"
+    assert game["imageUrl"].endswith("co2mkh.jpg")
+
+
+@requires_db
+def test_add_game_shows_on_public_read(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    username = f"gamer-{str(user_id)[:8]}"
+    created = client_as(user_id).post(
+        "/api/py/me/games", json={"name": "Public Test", "system": "PS5"}
+    )
+    assert created.status_code == 201
+    games = client_as(user_id).get(f"/api/py/users/{username}/games").json()
+    names = {g["name"] for g in games}
+    assert "Public Test" in names
+    # The fixture's original game carries its one closed session in the count.
+    fixture_game = next(g for g in games if g["name"] == "Test Quest")
+    assert fixture_game["sessionCount"] == 1
+
+
+@requires_db
+def test_add_duplicate_game_is_409(fresh_user_with_game) -> None:
+    # The fixture user already owns Test Quest on SNES.
+    user_id, _ = fresh_user_with_game
+    response = client_as(user_id).post(
+        "/api/py/me/games", json={"name": "Test Quest", "system": "SNES"}
+    )
+    assert response.status_code == 409
+    assert "already in your library" in response.json()["detail"]
+
+
+@requires_db
+def test_add_same_name_other_system_is_allowed(fresh_user_with_game) -> None:
+    # Uniqueness is per (name, system): owning a game on two platforms is legal.
+    user_id, _ = fresh_user_with_game
+    response = client_as(user_id).post(
+        "/api/py/me/games", json={"name": "Test Quest", "system": "Switch"}
+    )
+    assert response.status_code == 201
+
+
+@requires_db
+def test_add_game_blank_fields_are_422(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    client = client_as(user_id)
+    assert client.post("/api/py/me/games", json={"name": "  ", "system": "NES"}).status_code == 422
+    assert client.post("/api/py/me/games", json={"name": "Game", "system": ""}).status_code == 422
+    assert client.post("/api/py/me/games", json={"system": "NES"}).status_code == 422
+
+
+@requires_db
+def test_add_game_rejects_non_igdb_image_url(fresh_user_with_game) -> None:
+    # Guardrail: covers are hotlinked, so an open URL field would make the
+    # library free image hosting for arbitrary content.
+    user_id, _ = fresh_user_with_game
+    response = client_as(user_id).post(
+        "/api/py/me/games",
+        json={"name": "Sneaky", "system": "PC", "imageUrl": "https://evil.example.com/x.jpg"},
+    )
+    assert response.status_code == 422
+
+
+@requires_db
+def test_add_game_unknown_rating_is_422(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    response = client_as(user_id).post(
+        "/api/py/me/games", json={"name": "Rated", "system": "PC", "rating": "Amazing"}
+    )
+    assert response.status_code == 422
+
+
+@requires_db
+def test_add_game_unknown_field_is_422(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    response = client_as(user_id).post(
+        "/api/py/me/games", json={"name": "Typo", "system": "PC", "systm": "oops"}
+    )
+    assert response.status_code == 422
+
+
+@requires_db
+def test_add_game_before_onboarding_is_403(fresh_auth_user) -> None:
+    # Authenticated but no profile row yet: a clear 403, not an FK 500.
+    user_id, _ = fresh_auth_user
+    response = client_as(user_id).post(
+        "/api/py/me/games", json={"name": "Too Soon", "system": "PC"}
+    )
+    assert response.status_code == 403
+
+
+@requires_db
+def test_add_game_forbidden_in_preview(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("APP_ENV", "preview")
+    get_settings.cache_clear()
+    try:
+        user_id, _ = fresh_user_with_game
+        response = client_as(user_id).post(
+            "/api/py/me/games", json={"name": "Preview", "system": "PC"}
+        )
+        assert response.status_code == 503
+    finally:
+        get_settings.cache_clear()
+
+
+# ---------------------------------------------------------------------------
+# DELETE /me/games/{game_id}
+# ---------------------------------------------------------------------------
+
+
+@requires_db
+def test_delete_game_cascades_sessions(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    username = f"gamer-{str(user_id)[:8]}"
+    response = client_as(user_id).delete(f"/api/py/me/games/{game_id}")
+    assert response.status_code == 204
+
+    games = client_as(user_id).get(f"/api/py/users/{username}/games").json()
+    assert games == []
+    sm = get_sessionmaker()
+    with sm() as session:
+        remaining = session.query(PlaySession).filter(PlaySession.game_id == game_id).count()
+    assert remaining == 0
+
+
+@requires_db
+def test_delete_foreign_game_is_404(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    response = client_as(ROBERT_PROFILE_ID).delete(f"/api/py/me/games/{game_id}")
+    assert response.status_code == 404
+    # Still there for its real owner.
+    check = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={})
+    assert check.status_code == 200
+
+
+@requires_db
+def test_delete_nonexistent_game_is_404(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    assert client_as(user_id).delete("/api/py/me/games/999999999").status_code == 404
+
+
+@requires_db
+def test_delete_game_forbidden_in_preview(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("APP_ENV", "preview")
+    get_settings.cache_clear()
+    try:
+        user_id, game_id = fresh_user_with_game
+        response = client_as(user_id).delete(f"/api/py/me/games/{game_id}")
+        assert response.status_code == 503
+    finally:
+        get_settings.cache_clear()

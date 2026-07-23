@@ -69,6 +69,54 @@ class GameUpdate(CamelModel):
     _known_rating = field_validator("rating")(validate_known_rating)
 
 
+class GameCreate(CamelModel):
+    """Add a game to the caller's library — typically from an IGDB search
+    pick, but every IGDB-derived field is optional so manually entered games
+    (titles IGDB doesn't know) work with just name + system.
+
+    ``imageUrl`` only accepts IGDB CDN URLs (or empty): covers are hotlinked,
+    and an open URL field would let any account use their library as free
+    image hosting for arbitrary content.
+    """
+
+    model_config = FORBID_EXTRA
+
+    name: str = Field(min_length=1, max_length=200)
+    system: str = Field(min_length=1, max_length=100)
+    genres: list[str] = Field(default_factory=list, max_length=10)
+    release_date: date | None = None
+    image_url: str = Field(default="", max_length=500)
+    igdb_id: int | None = None
+    # Optional up-front rating (back-filling games finished long ago);
+    # omitted/"" = enters the library unrated.
+    rating: str | None = None
+
+    _known_rating = field_validator("rating")(validate_known_rating)
+
+    @field_validator("name", "system")
+    @classmethod
+    def _strip_nonempty(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+    @field_validator("genres")
+    @classmethod
+    def _clean_genres(cls, value: list[str]) -> list[str]:
+        cleaned = [g.strip() for g in value if g.strip()]
+        if any(len(g) > 50 for g in cleaned):
+            raise ValueError("each genre must be 50 characters or fewer")
+        return cleaned
+
+    @field_validator("image_url")
+    @classmethod
+    def _igdb_url_only(cls, value: str) -> str:
+        if value and not value.startswith("https://images.igdb.com/"):
+            raise ValueError("imageUrl must be an https://images.igdb.com/ URL, or empty")
+        return value
+
+
 class SessionCreate(CamelModel):
     """Start playing now, or log a past playthrough, on one of the caller's
     games. ``endDate`` omitted/null creates an OPEN session ("start playing" —

@@ -19,6 +19,7 @@ import {
 import { useGameLibraryUrlState } from "./useGameLibraryUrlState";
 import { useIsLibraryOwner } from "./useIsLibraryOwner";
 import { EditGameModal } from "./EditGameModal";
+import { AddGameModal } from "./AddGameModal";
 import type { GameCaseInput } from "./GameCase";
 
 type GameLibraryProps = {
@@ -40,6 +41,7 @@ export function GameLibrary({
   unratedGames = [],
 }: GameLibraryProps) {
   const [statsOpen, setStatsOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   // Owner check resolves client-side after hydration (the page HTML is
   // static and shared by all viewers). false until proven otherwise, so
@@ -170,15 +172,29 @@ export function GameLibrary({
           ))}
         </div>
         {view === "played" && (
-          <button
-            type="button"
-            onClick={() => setStatsOpen(true)}
-            aria-label="Open library stats"
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
-          >
-            <ChartBarIcon className="w-4 h-4" aria-hidden />
-            <span>Stats</span>
-          </button>
+          <div className="flex items-center gap-1">
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
+              >
+                <span aria-hidden="true" className="text-base leading-none">
+                  +
+                </span>
+                <span>Add game</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setStatsOpen(true)}
+              aria-label="Open library stats"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
+            >
+              <ChartBarIcon className="w-4 h-4" aria-hidden />
+              <span>Stats</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -272,6 +288,7 @@ export function GameLibrary({
       )}
 
       {editingGame && <EditGameModal game={editingGame} onClose={() => setEditingGameId(null)} />}
+      {addOpen && <AddGameModal existingSystems={allSystems} onClose={() => setAddOpen(false)} />}
     </div>
   );
 }

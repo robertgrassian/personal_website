@@ -14,12 +14,21 @@ from app.core.auth import CurrentUser
 from app.core.config import API_PREFIX
 from app.core.db import get_db
 from app.core.guards import forbid_in_preview
-from app.schemas.me import GameUpdate, MyProfileRead, ProfileCreate, SessionClose, SessionCreate
+from app.schemas.me import (
+    GameCreate,
+    GameUpdate,
+    MyProfileRead,
+    ProfileCreate,
+    SessionClose,
+    SessionCreate,
+)
 from app.schemas.users import GameRead
 from app.services import me as me_service
 from app.services.me import (
     AlreadyPlayingError,
+    GameExistsError,
     GameNotFoundError,
+    OnboardingRequiredError,
     ProfileExistsError,
     SessionAlreadyClosedError,
     SessionDatesError,
@@ -76,6 +85,42 @@ def create_my_profile(user: CurrentUser, db: DbSession, payload: ProfileCreate) 
         raise HTTPException(status_code=code, detail=str(exc)) from exc
     except SignupCapReachedError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+
+
+@router.post(
+    "/me/games",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(forbid_in_preview)],
+)
+def create_my_game(user: CurrentUser, db: DbSession, payload: GameCreate) -> GameRead:
+    """Add a game to the caller's library (from an IGDB pick or entered by
+    hand). Returns the created game in the public wire shape.
+
+    Status mapping:
+    - 409 same (name, system) already in the library
+    - 403 authenticated but not onboarded yet
+    - 422 blank name/system, unknown rating, non-IGDB imageUrl (schema)
+    """
+    try:
+        return me_service.create_my_game(db, user, payload)
+    except GameExistsError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except OnboardingRequiredError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+
+
+@router.delete(
+    "/me/games/{game_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(forbid_in_preview)],
+)
+def delete_my_game(user: CurrentUser, db: DbSession, game_id: int) -> None:
+    """Remove a game and (via cascade) its play sessions. 404 covers both a
+    nonexistent id and someone else's game, as everywhere under /me."""
+    try:
+        me_service.delete_my_game(db, user, game_id)
+    except GameNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.patch("/me/games/{game_id}", dependencies=[Depends(forbid_in_preview)])

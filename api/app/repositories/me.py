@@ -23,6 +23,51 @@ def get_game_for_owner(db: Session, game_id: int, user_id: uuid.UUID) -> Game | 
     ).scalar_one_or_none()
 
 
+def find_game_by_name_and_system(
+    db: Session, user_id: uuid.UUID, name: str, system: str
+) -> Game | None:
+    # Backs the friendly duplicate check before an insert. Exact match, same
+    # as the uq_games_user_id_name_system constraint that backstops it.
+    return db.execute(
+        select(Game).where(Game.user_id == user_id, Game.name == name, Game.system == system)
+    ).scalar_one_or_none()
+
+
+def create_game(
+    db: Session,
+    *,
+    user_id: uuid.UUID,
+    name: str,
+    system: str,
+    genres: list[str],
+    release_date: date | None,
+    image_url: str | None,
+    igdb_id: int | None,
+    rating: str | None,
+) -> Game:
+    game = Game(
+        user_id=user_id,
+        name=name,
+        system=system,
+        genres=genres,
+        release_date=release_date,
+        image_url=image_url,
+        igdb_id=igdb_id,
+        rating=rating,
+    )
+    db.add(game)
+    db.commit()
+    db.refresh(game)
+    return game
+
+
+def delete_game(db: Session, game: Game) -> None:
+    # ON DELETE CASCADE takes the play sessions with it; the UI confirms with
+    # the session count first.
+    db.delete(game)
+    db.commit()
+
+
 def update_game_rating(db: Session, game: Game, rating: str | None) -> Game:
     game.rating = rating
     db.commit()

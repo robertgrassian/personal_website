@@ -62,6 +62,10 @@ class GameRead(BaseGameRead):
     # without an extra fetch — same enumeration trade-off as ``id``: knowing a
     # session id grants nothing, mutations re-check ownership.
     open_session_id: int | None
+    # Total sessions (open + closed) — the delete confirm says how much play
+    # history goes with the game. Free to compute: play-state derivation
+    # already loads every session.
+    session_count: int
 
 
 class WishlistGameRead(BaseGameRead):

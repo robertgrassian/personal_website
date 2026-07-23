@@ -9,12 +9,16 @@
 import { revalidateTag } from "next/cache";
 import {
   closeMySession,
+  createMyGame,
   createMySession,
+  deleteMyGame,
+  searchIgdb,
   updateMyGameRating,
   type MutateGameResult,
+  type SearchIgdbResult,
 } from "@/lib/meApi";
 import { libraryCacheTag } from "@/lib/libraryApi";
-import { LIBRARY_OWNER_USERNAME, RATINGS, type Rating } from "@/lib/games";
+import { LIBRARY_OWNER_USERNAME, RATINGS, type NewGame, type Rating } from "@/lib/games";
 
 // The API validates dates for real (parsing, ordering); this only rejects
 // obviously malformed input before it leaves the Next server.
@@ -22,6 +26,58 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function isValidRating(rating: string): rating is Rating | "" {
   return rating === "" || RATINGS.some((r) => r.name === rating);
+}
+
+/** Search IGDB for the add-game picker. A read, but it must run server-side:
+ *  the browser has no IGDB credentials, and the proxy needs the Bearer token
+ *  translation meApi does. No revalidation — nothing changed. */
+export async function searchGames(query: string): Promise<SearchIgdbResult> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2 || trimmed.length > 100) {
+    return { ok: false, message: "Type at least 2 characters." };
+  }
+  return searchIgdb(trimmed);
+}
+
+/** Add a game to the library (from an IGDB pick or manual entry). */
+export async function addGame(game: NewGame): Promise<MutateGameResult> {
+  const releaseDateOk = game.releaseDate === null || ISO_DATE_RE.test(game.releaseDate);
+  const imageUrlOk = game.imageUrl === "" || game.imageUrl.startsWith("https://images.igdb.com/");
+  if (
+    game.name.trim() === "" ||
+    game.system.trim() === "" ||
+    !releaseDateOk ||
+    !imageUrlOk ||
+    !isValidRating(game.rating) ||
+    (game.igdbId !== null && !Number.isInteger(game.igdbId)) ||
+    !Array.isArray(game.genres)
+  ) {
+    return { ok: false, message: "Invalid add request." };
+  }
+
+  const result = await createMyGame({
+    ...game,
+    name: game.name.trim(),
+    system: game.system.trim(),
+    genres: game.genres.map((g) => g.trim()).filter(Boolean),
+  });
+  if (result.ok) {
+    revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+  }
+  return result;
+}
+
+/** Remove a game from the library; its play sessions cascade away with it. */
+export async function deleteGame(gameId: number): Promise<MutateGameResult> {
+  if (!Number.isInteger(gameId)) {
+    return { ok: false, message: "Invalid delete request." };
+  }
+
+  const result = await deleteMyGame(gameId);
+  if (result.ok) {
+    revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+  }
+  return result;
 }
 
 export async function updateGameRating(

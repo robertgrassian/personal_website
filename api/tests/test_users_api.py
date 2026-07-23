@@ -33,6 +33,7 @@ GAME_KEYS = {
     "currentlyPlaying",
     "playingSince",
     "openSessionId",
+    "sessionCount",
 }
 WISHLIST_KEYS = {
     "name",

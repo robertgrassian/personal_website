@@ -21,7 +21,14 @@ from app.core.supabase_admin import delete_auth_user
 from app.models import Profile
 from app.repositories import me as me_repo
 from app.repositories import users as users_repo
-from app.schemas.me import GameUpdate, MyProfileRead, ProfileCreate, SessionClose, SessionCreate
+from app.schemas.me import (
+    GameCreate,
+    GameUpdate,
+    MyProfileRead,
+    ProfileCreate,
+    SessionClose,
+    SessionCreate,
+)
 from app.schemas.users import GameRead
 from app.services.users import derive_play_state, to_game_read
 
@@ -98,6 +105,23 @@ class GameNotFoundError(Exception):
 
     def __init__(self, game_id: int) -> None:
         super().__init__(f"Game {game_id} not found in your library")
+
+
+class GameExistsError(Exception):
+    """The caller's library already has this (name, system) combination."""
+
+    def __init__(self, name: str, system: str) -> None:
+        super().__init__(f"{name} ({system}) is already in your library.")
+
+
+class OnboardingRequiredError(Exception):
+    """Authenticated but no profile row yet — games.user_id references
+    profiles, so creating library rows before onboarding is impossible. The
+    explicit check turns what would be an FK-violation 500 (misread as a
+    duplicate by the IntegrityError backstop) into a clear 403."""
+
+    def __init__(self) -> None:
+        super().__init__("Complete onboarding before adding games.")
 
 
 class SessionNotFoundError(Exception):
@@ -207,6 +231,44 @@ def create_my_profile(
             raise ProfileExistsError("Profile already exists for this account.") from exc
         raise UsernameError("taken", f"The username '{username}' is already taken.") from exc
     return MyProfileRead(username=profile.username, display_name=profile.display_name)
+
+
+def create_my_game(db: Session, user: AuthenticatedUser, payload: GameCreate) -> GameRead:
+    """Add a game to the caller's library. Duplicate (name, system) is a
+    conflict: the explicit check gives the friendly message in the common
+    case, the uq_games_user_id_name_system constraint is the real backstop
+    for a concurrent double-submit (same pattern as onboarding)."""
+    if me_repo.get_profile_by_id(db, user.id) is None:
+        raise OnboardingRequiredError()
+    if me_repo.find_game_by_name_and_system(db, user.id, payload.name, payload.system):
+        raise GameExistsError(payload.name, payload.system)
+
+    try:
+        game = me_repo.create_game(
+            db,
+            user_id=user.id,
+            name=payload.name,
+            system=payload.system,
+            genres=payload.genres,
+            release_date=payload.release_date,
+            image_url=payload.image_url or None,
+            igdb_id=payload.igdb_id,
+            rating=payload.rating or None,
+        )
+    except IntegrityError as exc:
+        db.rollback()
+        raise GameExistsError(payload.name, payload.system) from exc
+    # A brand-new game has no sessions; skip the session query.
+    return to_game_read(game, derive_play_state([]))
+
+
+def delete_my_game(db: Session, user: AuthenticatedUser, game_id: int) -> None:
+    """Remove a game (and, via ON DELETE CASCADE, its play sessions) from the
+    caller's library. Same 404-over-403 policy as every /me lookup."""
+    game = me_repo.get_game_for_owner(db, game_id, user.id)
+    if game is None:
+        raise GameNotFoundError(game_id)
+    me_repo.delete_game(db, game)
 
 
 def update_my_game(
