@@ -85,6 +85,9 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   const startPlaying = () => {
     if (game.id === undefined) return;
     const gameId = game.id;
+    // Clear any leftover rate-on-stop step from a previous playthrough (the
+    // session could have been closed elsewhere while the picker was open).
+    setStopStep(false);
     startTransition(async () => {
       setError(null);
       const result = await logSession(gameId, localToday(), null);
@@ -235,6 +238,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
                       onClick={() => stopPlaying(r.name)}
                       disabled={isPending}
                       title={`Stop and rate ${r.name}`}
+                      aria-label={`Stop and rate ${r.name}`}
                       className="rounded-md border border-shelf-plank py-1.5 text-sm font-bold hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
                       style={{ color: r.color }}
                     >
@@ -277,6 +281,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
         <button
           type="button"
           onClick={() => setLogOpen((open) => !open)}
+          aria-expanded={logOpen}
           className="mt-3 block text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer"
         >
           Log a past session

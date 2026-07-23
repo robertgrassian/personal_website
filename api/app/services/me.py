@@ -185,9 +185,7 @@ def create_my_profile(
         # Clean up the orphaned auth user before refusing (best-effort; the
         # admin client logs and returns False if unconfigured).
         delete_auth_user(user.id)
-        raise SignupCapReachedError(
-            "Signups are currently at capacity. Please check back later."
-        )
+        raise SignupCapReachedError("Signups are currently at capacity. Please check back later.")
 
     if me_repo.username_exists(db, username):
         raise UsernameError("taken", f"The username '{username}' is already taken.")
@@ -207,9 +205,7 @@ def create_my_profile(
         db.rollback()
         if me_repo.get_profile_by_id(db, user.id) is not None:
             raise ProfileExistsError("Profile already exists for this account.") from exc
-        raise UsernameError(
-            "taken", f"The username '{username}' is already taken."
-        ) from exc
+        raise UsernameError("taken", f"The username '{username}' is already taken.") from exc
     return MyProfileRead(username=profile.username, display_name=profile.display_name)
 
 
@@ -256,7 +252,17 @@ def create_my_session(
         if existing is not None:
             raise AlreadyPlayingError(game.name, existing.start_date.isoformat())
 
-    me_repo.create_session(db, game.id, payload.start_date, payload.end_date)
+    try:
+        me_repo.create_session(db, game.id, payload.start_date, payload.end_date)
+    except IntegrityError as exc:
+        # The partial unique index (one open session per game) fired: a
+        # concurrent "start playing" won the race between our check above and
+        # this insert. Roll back and re-report it as the same 409 the check
+        # would have produced.
+        db.rollback()
+        winner = me_repo.get_open_session_for_game(db, game.id)
+        since = winner.start_date.isoformat() if winner else payload.start_date.isoformat()
+        raise AlreadyPlayingError(game.name, since) from exc
     return _game_read_with_fresh_state(db, game)
 
 

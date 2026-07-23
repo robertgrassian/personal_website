@@ -15,6 +15,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from app.core.auth import AuthenticatedUser, get_current_user
 from app.core.config import get_settings
@@ -518,6 +519,67 @@ def test_rate_on_stop_can_clear_rating(fresh_user_with_game) -> None:
     response = client_as(user_id).patch(f"/api/py/me/sessions/{session_id}", json={"rating": ""})
     assert response.status_code == 200
     assert response.json()["rating"] == ""  # fixture's "Good" cleared
+
+
+@requires_db
+def test_rate_on_stop_null_clears_rating(fresh_user_with_game) -> None:
+    # null is the other documented clear spelling, same as PATCH /me/games.
+    user_id, game_id = fresh_user_with_game
+    session_id = _start_playing(user_id, game_id)
+    response = client_as(user_id).patch(f"/api/py/me/sessions/{session_id}", json={"rating": None})
+    assert response.status_code == 200
+    assert response.json()["rating"] == ""
+
+
+@requires_db
+def test_open_sessions_on_different_games_coexist(fresh_user_with_game) -> None:
+    # "One open session per game" is per game — playing several different
+    # games at once is a supported state (the CRT shows the first one).
+    user_id, game_id = fresh_user_with_game
+    sm = get_sessionmaker()
+    with sm() as session:
+        other = Game(user_id=user_id, name="Second Quest", system="NES")
+        session.add(other)
+        session.commit()
+        other_id = other.id
+    client = client_as(user_id)
+    assert client.post(f"/api/py/me/games/{game_id}/sessions", json={}).status_code == 201
+    response = client.post(f"/api/py/me/games/{other_id}/sessions", json={})
+    assert response.status_code == 201
+    assert response.json()["currentlyPlaying"] is True
+
+
+@requires_db
+def test_db_enforces_single_open_session(fresh_user_with_game) -> None:
+    # The service's 409 is a check-then-insert that can race; the partial
+    # unique index is the real referee. Bypass the service and verify the DB
+    # itself rejects a second open session.
+    _, game_id = fresh_user_with_game
+    sm = get_sessionmaker()
+    with sm() as session:
+        session.add(PlaySession(game_id=game_id, start_date=date(2026, 7, 1)))
+        session.commit()
+        session.add(PlaySession(game_id=game_id, start_date=date(2026, 7, 2)))
+        with pytest.raises(IntegrityError):
+            session.commit()
+        session.rollback()
+
+
+@requires_db
+def test_same_day_session_boundaries_are_valid(fresh_user_with_game) -> None:
+    # endDate == startDate is a legitimate same-day playthrough; only an
+    # earlier end date is rejected — on create and on close alike.
+    user_id, game_id = fresh_user_with_game
+    client = client_as(user_id)
+    logged = client.post(
+        f"/api/py/me/games/{game_id}/sessions",
+        json={"startDate": "2026-05-05", "endDate": "2026-05-05"},
+    )
+    assert logged.status_code == 201
+    session_id = _start_playing(user_id, game_id, start="2026-07-10")
+    closed = client.patch(f"/api/py/me/sessions/{session_id}", json={"endDate": "2026-07-10"})
+    assert closed.status_code == 200
+    assert closed.json()["lastPlayed"] == "2026-07-10"
 
 
 @requires_db

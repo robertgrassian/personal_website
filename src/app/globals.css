@@ -48,6 +48,14 @@
     --stats-genres: #a78bfa; /* violet-400 */
     --stats-decades: #22d3ee; /* cyan-400 */
   }
+
+  /* Native date inputs render their calendar-picker icon from the browser's
+     color scheme, not from our CSS colors — without this the icon stays dark
+     on our dark, token-styled fields (EditGameModal). Scoped to date inputs
+     so other native widgets (scrollbars etc.) are untouched. */
+  input[type="date"] {
+    color-scheme: dark;
+  }
 }
 
 @theme inline {
