@@ -26,6 +26,12 @@ export default async function VideoGamesPage() {
   // the one currently being played) is excluded here; once it gets a rating it
   // shows up on the shelves — and in both places if it's still being played.
   const libraryGames = games.filter((g) => g.rating !== "");
+  // Unrated games power the owner-only "Unrated" shelf inside GameLibrary —
+  // without it, clearing a rating would make a game unreachable from the UI
+  // (no case, no pencil, no way to re-rate). Passed for every viewer but only
+  // rendered after the client-side owner check, so the static HTML stays
+  // identical for everyone.
+  const unratedGames = games.filter((g) => g.rating === "");
   // Headline counts. "Played" spans the whole collection you've engaged with:
   // every rated game plus anything currently in progress. The `||` de-dupes a
   // game that's both rated and currently playing — it's counted once.
@@ -50,6 +56,7 @@ export default async function VideoGamesPage() {
             games={libraryGames}
             wishlist={wishlist}
             currentlyPlayingGames={currentlyPlayingGames}
+            unratedGames={unratedGames}
           />
         </Suspense>
       </div>

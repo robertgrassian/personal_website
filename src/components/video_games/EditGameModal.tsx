@@ -37,6 +37,9 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    // Remember what opened the dialog (the pencil) so focus can return to it
+    // on close instead of dropping to <body>.
+    const previouslyFocused = document.activeElement;
     closeButtonRef.current?.focus();
 
     const handleKey = (e: KeyboardEvent) => {
@@ -46,6 +49,11 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKey);
+      // isConnected guards against the opener having been unmounted (e.g. the
+      // game moved shelves after a rating change re-rendered the grid).
+      if (previouslyFocused instanceof HTMLElement && previouslyFocused.isConnected) {
+        previouslyFocused.focus();
+      }
     };
   }, []);
 
@@ -133,11 +141,9 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
             Remove rating
           </button>
         )}
-        {/* Unrating a game removes it from the shelves (only rated games are
-            shelved), which unmounts this modal — worth a heads-up. */}
         {optimisticRating === "" && (
           <p className="mt-3 text-xs text-shelf-text-muted italic">
-            Unrated games leave the shelves until rated again.
+            Unrated games move to the Unrated shelf (visible only to you) until rated again.
           </p>
         )}
 

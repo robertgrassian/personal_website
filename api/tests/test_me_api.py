@@ -284,6 +284,25 @@ def test_patch_game_empty_string_clears_rating(fresh_user_with_game) -> None:
 
 
 @requires_db
+def test_patch_game_null_clears_rating(fresh_user_with_game) -> None:
+    # JSON null is the other documented clear spelling (the FE sends "").
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"rating": None})
+    assert response.status_code == 200
+    assert response.json()["rating"] == ""
+
+
+@requires_db
+def test_patch_game_unknown_field_is_422(fresh_user_with_game) -> None:
+    # extra="forbid": a typo'd key must fail loudly, not read as a no-op —
+    # under PATCH semantics a silently-dropped field is indistinguishable
+    # from a deliberate "leave unchanged".
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"ratings": "Perfect"})
+    assert response.status_code == 422
+
+
+@requires_db
 def test_patch_game_omitted_rating_changes_nothing(fresh_user_with_game) -> None:
     # PATCH semantics: {} is a valid no-op — absent fields are left untouched,
     # not reset. The fixture's rating survives.

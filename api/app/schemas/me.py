@@ -6,10 +6,16 @@ which is exactly why they live on /me/* routes instead of the public /users/*
 ones.
 """
 
-from pydantic import Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from app.models.game import RATING_NAMES
 from app.schemas.users import CamelModel
+
+# Request bodies reject unknown keys ("extra": a typo like {"ratings": ...}
+# must be a loud 422, not a silent no-op — especially under PATCH semantics
+# where "field absent" legitimately means "leave unchanged"). Pydantic merges
+# this with the inherited CamelModel config rather than replacing it.
+FORBID_EXTRA = ConfigDict(extra="forbid")
 
 # Matches the client hint (OnboardingForm maxLength) and bounds what we store.
 MAX_DISPLAY_NAME = 80
@@ -29,6 +35,8 @@ class ProfileCreate(CamelModel):
     Action is directly invocable — the client's maxLength is only a hint, so
     the server must be the real bound. Over-length → FastAPI 422."""
 
+    model_config = FORBID_EXTRA
+
     username: str = Field(max_length=64)  # generous; the service regex caps at 30
     display_name: str = Field(default="", max_length=MAX_DISPLAY_NAME)
 
@@ -39,6 +47,8 @@ class GameUpdate(CamelModel):
     ``model_fields_set``, so an omitted field is "leave unchanged", never
     "reset". Currently rating-only; future metadata edits extend this model.
     """
+
+    model_config = FORBID_EXTRA
 
     # "" (or null) clears the rating back to unrated; a name must be one of
     # the known ratings. Validated here rather than the service because it's

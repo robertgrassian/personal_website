@@ -25,18 +25,19 @@ export function libraryCacheTag(username: string): string {
   return `library:${username.toLowerCase()}`;
 }
 
-// Shared fetch for both endpoints. `path` is the part after the origin,
-// e.g. "/api/py/users/robert/games".
+// Shared fetch for both endpoints. `path` is the part after the origin
+// (e.g. "/api/py/users/robert/games"); `tags` are the cache tags the entry is
+// stored under — the caller owns tag naming, this helper only fetches+caches.
 async function fetchFromApi<T>(
   origin: string,
   path: string,
   what: string,
-  username: string
+  tags: string[]
 ): Promise<T> {
   const url = `${origin}${path}`;
   let res: Response;
   try {
-    // Cached until a write calls revalidateTag with this user's tag.
+    // Cached until a write calls revalidateTag with one of these tags.
     // "force-cache" opts in explicitly — Next 15 fetches are uncached by default.
     // This also keeps pages statically renderable: the previous `no-store` was a
     // dynamic API, which broke prerendering of the OG image route at build time.
@@ -44,7 +45,7 @@ async function fetchFromApi<T>(
     // render would stall indefinitely; with it the failure stays loud and fast.
     res = await fetch(url, {
       cache: "force-cache",
-      next: { tags: [libraryCacheTag(username)] },
+      next: { tags },
       signal: AbortSignal.timeout(5000),
     });
   } catch (err) {
@@ -79,7 +80,7 @@ export function fetchGamesFromApi(origin: string, username: string): Promise<Gam
     origin,
     `/api/py/users/${encodeURIComponent(username)}/games`,
     "games",
-    username
+    [libraryCacheTag(username)]
   );
 }
 
@@ -88,6 +89,6 @@ export function fetchWishlistFromApi(origin: string, username: string): Promise<
     origin,
     `/api/py/users/${encodeURIComponent(username)}/wishlist`,
     "wishlist",
-    username
+    [libraryCacheTag(username)]
   );
 }
