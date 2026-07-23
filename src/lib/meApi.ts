@@ -133,34 +133,71 @@ export async function createMyProfile(
 // actually branches on them.
 export type MutateGameResult = { ok: true } | { ok: false; message: string };
 
-/** Set or clear ("" = unrated) the rating on one of the caller's games. */
-export async function updateMyGameRating(
-  gameId: number,
-  rating: string
+/** Shared mechanics for the game/session mutations: token, JSON body, and the
+ *  ok/message mapping. `what` names the operation in fallback error text. */
+async function mutateGame(
+  path: string,
+  method: "POST" | "PATCH",
+  body: Record<string, unknown>,
+  what: string
 ): Promise<MutateGameResult> {
   const token = await accessToken();
   if (!token) {
     return { ok: false, message: "You are not signed in." };
   }
 
-  const res = await fetch(`${apiOrigin()}/api/py/me/games/${gameId}`, {
-    method: "PATCH",
+  const res = await fetch(`${apiOrigin()}${path}`, {
+    method,
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ rating }),
+    body: JSON.stringify(body),
     cache: "no-store",
     signal: AbortSignal.timeout(5000),
   });
 
   if (res.ok) return { ok: true };
 
-  // FastAPI's detail is a string for our domain errors (404) but an array of
-  // validation objects for 422s — only surface it when it's a plain string.
+  // FastAPI's detail is a string for our domain errors (404/409) but an array
+  // of validation objects for 422s — only surface it when it's a plain string.
   const detail = await res
     .json()
     .then((b) => (typeof b?.detail === "string" ? b.detail : undefined))
     .catch(() => undefined);
-  return { ok: false, message: detail ?? `Couldn't update the rating (HTTP ${res.status}).` };
+  return { ok: false, message: detail ?? `Couldn't ${what} (HTTP ${res.status}).` };
+}
+
+/** Set or clear ("" = unrated) the rating on one of the caller's games. */
+export function updateMyGameRating(gameId: number, rating: string): Promise<MutateGameResult> {
+  return mutateGame(`/api/py/me/games/${gameId}`, "PATCH", { rating }, "update the rating");
+}
+
+/** Start playing (endDate null → open session) or log a past playthrough
+ *  (both dates) on one of the caller's games. Dates are YYYY-MM-DD. */
+export function createMySession(
+  gameId: number,
+  startDate: string,
+  endDate: string | null
+): Promise<MutateGameResult> {
+  return mutateGame(
+    `/api/py/me/games/${gameId}/sessions`,
+    "POST",
+    { startDate, endDate },
+    "log the session"
+  );
+}
+
+/** Close an open session ("stop playing"). When `rating` is passed it is
+ *  applied to the game in the same transaction (rate-on-stop); undefined
+ *  leaves the rating untouched. */
+export function closeMySession(
+  sessionId: number,
+  endDate: string,
+  rating?: string
+): Promise<MutateGameResult> {
+  // Omit the rating key entirely when not rating — the API's PATCH semantics
+  // treat an absent field as "leave unchanged" and null/"" as "clear".
+  const body: Record<string, unknown> = rating === undefined ? { endDate } : { endDate, rating };
+  return mutateGame(`/api/py/me/sessions/${sessionId}`, "PATCH", body, "stop the session");
 }

@@ -14,12 +14,16 @@ from app.core.auth import CurrentUser
 from app.core.config import API_PREFIX
 from app.core.db import get_db
 from app.core.guards import forbid_in_preview
-from app.schemas.me import GameUpdate, MyProfileRead, ProfileCreate
+from app.schemas.me import GameUpdate, MyProfileRead, ProfileCreate, SessionClose, SessionCreate
 from app.schemas.users import GameRead
 from app.services import me as me_service
 from app.services.me import (
+    AlreadyPlayingError,
     GameNotFoundError,
     ProfileExistsError,
+    SessionAlreadyClosedError,
+    SessionDatesError,
+    SessionNotFoundError,
     SignupCapReachedError,
     UsernameError,
 )
@@ -88,3 +92,52 @@ def update_my_game(
         return me_service.update_my_game(db, user, game_id, payload)
     except GameNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post(
+    "/me/games/{game_id}/sessions",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(forbid_in_preview)],
+)
+def create_my_session(
+    user: CurrentUser, db: DbSession, game_id: int, payload: SessionCreate
+) -> GameRead:
+    """Start playing one of the caller's games (no endDate → open session) or
+    log a past playthrough (both dates). Returns the game with fresh play
+    state.
+
+    Status mapping:
+    - 404 game nonexistent or someone else's
+    - 409 game already has an open session (only when opening another)
+    - 422 endDate before startDate (schema validator)
+    """
+    try:
+        return me_service.create_my_session(db, user, game_id, payload)
+    except GameNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except AlreadyPlayingError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.patch("/me/sessions/{session_id}", dependencies=[Depends(forbid_in_preview)])
+def close_my_session(
+    user: CurrentUser, db: DbSession, session_id: int, payload: SessionClose
+) -> GameRead:
+    """Close an open session ("stop playing"), optionally rating the game in
+    the same transaction. Returns the game with fresh play state.
+
+    Status mapping:
+    - 404 session nonexistent or under someone else's game
+    - 409 session already closed
+    - 422 endDate before the session's start date
+    """
+    try:
+        return me_service.close_my_session(db, user, session_id, payload)
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except SessionAlreadyClosedError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except SessionDatesError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc

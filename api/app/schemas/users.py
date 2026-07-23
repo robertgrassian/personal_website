@@ -57,6 +57,11 @@ class GameRead(BaseGameRead):
     last_played: str  # newest closed-session end date, "" if none
     currently_playing: bool  # true when the game has an open session
     playing_since: str  # newest open-session start date, "" if not playing
+    # Id of the newest open session, null when not playing. Rides in the
+    # public payload so the owner UI can close it (PATCH /me/sessions/{id})
+    # without an extra fetch — same enumeration trade-off as ``id``: knowing a
+    # session id grants nothing, mutations re-check ownership.
+    open_session_id: int | None
 
 
 class WishlistGameRead(BaseGameRead):

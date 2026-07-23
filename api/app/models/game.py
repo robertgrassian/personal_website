@@ -1,4 +1,4 @@
-"""Library games and their play sessions (spec §4.2, §4.3)."""
+"""Library games and their play sessions."""
 
 import uuid
 from datetime import date, datetime
@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Identity,
+    Index,
     Integer,
     Text,
     UniqueConstraint,
@@ -39,9 +40,7 @@ class Game(Base):
     __tablename__ = "games"
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("profiles.id", ondelete="CASCADE")
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("profiles.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(Text)
     system: Mapped[str] = mapped_column(Text)
     # NULL = unrated; the CHECK only constrains non-NULL values.
@@ -52,9 +51,7 @@ class Game(Base):
     # Set when the game is added via IGDB search; the hook for normalizing
     # into a shared catalog later, if ever.
     igdb_id: Mapped[int | None] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
         # Final name via the metadata naming convention: ck_games_rating.
@@ -71,8 +68,22 @@ class PlaySession(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
     # ON DELETE CASCADE: deleting a game takes its play history with it; the
-    # delete UI warns with the session count first (spec §4.2).
+    # delete UI warns with the session count first.
     game_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("games.id", ondelete="CASCADE"))
     start_date: Mapped[date] = mapped_column(Date)
-    # NULL = open session = "currently playing" (spec §4.3).
+    # NULL = open session = "currently playing".
     end_date: Mapped[date | None] = mapped_column(Date)
+
+    __table_args__ = (
+        # At most one OPEN session per game, enforced by the DB: the service's
+        # check-then-insert 409 can race (two concurrent "start playing"
+        # requests both pass the check), and this partial index is what makes
+        # the invariant real — the loser gets an IntegrityError the service
+        # maps back to the same 409. Closed sessions are unconstrained.
+        Index(
+            "uq_play_sessions_one_open_per_game",
+            "game_id",
+            unique=True,
+            postgresql_where=text("end_date IS NULL"),
+        ),
+    )
