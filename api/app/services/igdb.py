@@ -119,6 +119,20 @@ def _escape_apicalypse(term: str) -> str:
     return term.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def _upgrade_cover_url(url: str) -> str:
+    """IGDB cover URL → the 264x374 (t_cover_big) size the shelves hotlink.
+    IGDB returns protocol-relative thumbnails
+    (//images.igdb.com/.../t_thumb/...): upgrade the size, then make the scheme
+    explicit only when it's actually missing — guarding against a doubled
+    scheme (https:https://...) if IGDB ever returns an already-absolute URL.
+    The result must satisfy validate_igdb_image_url so a later POST /me/games
+    with this cover isn't rejected."""
+    if not url:
+        return ""
+    url = url.replace("t_thumb", "t_cover_big")
+    return f"https:{url}" if url.startswith("//") else url
+
+
 def _parse_results(raw: list[dict]) -> list[IgdbSearchResult]:
     """IGDB rows → wire DTOs. Every field except name/id is optional on
     IGDB's side, hence the .get chains; absent scalars become "" per the
@@ -139,11 +153,7 @@ def _parse_results(raw: list[dict]) -> list[IgdbSearchResult]:
                 ),
                 platforms=[p["name"] for p in row.get("platforms", [])],
                 genres=[g["name"] for g in row.get("genres", [])],
-                # IGDB returns protocol-relative thumbnail URLs; upgrade to
-                # the 264x374 cover size the shelves already hotlink.
-                cover_url=cover_url.replace("t_thumb", "t_cover_big").replace(
-                    "//images", "https://images", 1
-                ),
+                cover_url=_upgrade_cover_url(cover_url),
             )
         )
     return results
