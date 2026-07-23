@@ -36,6 +36,7 @@ GAME_KEYS = {
     "sessionCount",
 }
 WISHLIST_KEYS = {
+    "id",
     "name",
     "system",
     "genres",

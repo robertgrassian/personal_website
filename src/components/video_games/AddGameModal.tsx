@@ -3,7 +3,8 @@
 import Image from "next/image";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { localToday, RATINGS, type IgdbSearchResult, type NewGame, type Rating } from "@/lib/games";
-import { addGame, searchGames } from "@/app/video_games/actions";
+import type { NewWishlistItem } from "@/lib/wishlist";
+import { addGame, addWishlistItem, searchGames } from "@/app/video_games/actions";
 import { CloseIcon } from "@/components/Icon";
 
 const inputClass =
@@ -16,9 +17,17 @@ const labelClass = "flex flex-col gap-1 text-[10px] uppercase tracking-wide text
 // comma-separated string while typing (splitting on every keystroke would
 // fight the user mid-word). `platforms` keeps the pick's IGDB platform list
 // around as system suggestions; it is not part of the POST payload.
-type Draft = Omit<NewGame, "genres"> & { genresText: string; platforms: string[] };
+type Draft = Omit<NewGame, "genres"> & {
+  genresText: string;
+  platforms: string[];
+  starred: boolean;
+};
 
 type AddGameModalProps = {
+  // Where the confirmed game goes. Same search/confirm flow either way;
+  // "wishlist" swaps the rating picker for a star checkbox and makes the
+  // system optional (wishlist entries may not have picked a platform yet).
+  target: "library" | "wishlist";
   // The library's current shelf systems, offered as suggestions so new games
   // land on existing shelves ("SNES") instead of IGDB's names ("Super
   // Nintendo Entertainment System").
@@ -30,7 +39,7 @@ type AddGameModalProps = {
 // its details → POST. A manual path (blank form) covers games IGDB doesn't
 // know. Same mount-only lifecycle as EditGameModal: scroll lock and Escape
 // bind on mount, focus returns to the opener on unmount.
-export function AddGameModal({ existingSystems, onClose }: AddGameModalProps) {
+export function AddGameModal({ target, existingSystems, onClose }: AddGameModalProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<IgdbSearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -109,6 +118,7 @@ export function AddGameModal({ existingSystems, onClose }: AddGameModalProps) {
       imageUrl: r.coverUrl,
       igdbId: r.igdbId,
       rating: "",
+      starred: false,
     });
   };
 
@@ -123,26 +133,44 @@ export function AddGameModal({ existingSystems, onClose }: AddGameModalProps) {
       imageUrl: "",
       igdbId: null,
       rating: "",
+      starred: false,
     });
   };
 
   const save = () => {
     if (draft === null) return;
-    const game: NewGame = {
-      name: draft.name,
-      system: draft.system,
-      genres: draft.genresText
-        .split(",")
-        .map((g) => g.trim())
-        .filter(Boolean),
-      releaseDate: draft.releaseDate,
-      imageUrl: draft.imageUrl,
-      igdbId: draft.igdbId,
-      rating: draft.rating,
-    };
+    const genres = draft.genresText
+      .split(",")
+      .map((g) => g.trim())
+      .filter(Boolean);
     startTransition(async () => {
       setError(null);
-      const result = await addGame(game);
+      let result;
+      if (target === "library") {
+        const game: NewGame = {
+          name: draft.name,
+          system: draft.system,
+          genres,
+          releaseDate: draft.releaseDate,
+          imageUrl: draft.imageUrl,
+          igdbId: draft.igdbId,
+          rating: draft.rating,
+        };
+        result = await addGame(game);
+      } else {
+        const item: NewWishlistItem = {
+          name: draft.name,
+          system: draft.system,
+          genres,
+          releaseDate: draft.releaseDate,
+          imageUrl: draft.imageUrl,
+          igdbId: draft.igdbId,
+          starred: draft.starred,
+          // Browser-local date — the API's default is UTC "today".
+          dateAdded: localToday(),
+        };
+        result = await addWishlistItem(item);
+      }
       if (result.ok) onClose();
       else setError(result.message);
     });
@@ -152,7 +180,14 @@ export function AddGameModal({ existingSystems, onClose }: AddGameModalProps) {
   // IGDB platform names, deduped.
   const systemSuggestions = [...new Set([...existingSystems, ...(draft?.platforms ?? [])])];
 
-  const saveDisabled = isPending || draft === null || !draft.name.trim() || !draft.system.trim();
+  // Wishlist entries may leave the system undecided; library games can't.
+  const saveDisabled =
+    isPending ||
+    draft === null ||
+    !draft.name.trim() ||
+    (target === "library" && !draft.system.trim());
+
+  const heading = target === "library" ? "Add a game" : "Add to wishlist";
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center p-4">
@@ -165,11 +200,11 @@ export function AddGameModal({ existingSystems, onClose }: AddGameModalProps) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Add a game"
+        aria-label={heading}
         className="relative w-full max-w-md max-h-[85vh] overflow-y-auto rounded-lg border border-shelf-plank bg-shelf-bg p-5 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3">
-          <h2 className="text-shelf-text font-semibold leading-snug">Add a game</h2>
+          <h2 className="text-shelf-text font-semibold leading-snug">{heading}</h2>
           <button
             type="button"
             onClick={onClose}
@@ -271,7 +306,7 @@ export function AddGameModal({ existingSystems, onClose }: AddGameModalProps) {
               </label>
 
               <label className={labelClass}>
-                System
+                {target === "library" ? "System" : "System (optional)"}
                 <input
                   type="text"
                   value={draft.system}
@@ -311,34 +346,46 @@ export function AddGameModal({ existingSystems, onClose }: AddGameModalProps) {
                 />
               </label>
 
-              <div>
-                <p className={labelClass}>Rating (optional)</p>
-                <div className="mt-1 grid grid-cols-5 gap-1.5">
-                  {RATINGS.map((r) => {
-                    const active = r.name === draft.rating;
-                    return (
-                      <button
-                        key={r.letter}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() =>
-                          setDraft({ ...draft, rating: active ? "" : (r.name as Rating) })
-                        }
-                        title={active ? "Remove rating" : `Rate ${r.name}`}
-                        aria-label={active ? "Remove rating" : `Rate ${r.name}`}
-                        className={`rounded-md border py-1.5 text-sm font-bold transition-colors cursor-pointer ${
-                          active
-                            ? "border-transparent text-black/80"
-                            : "border-shelf-plank hover:bg-shelf-input"
-                        }`}
-                        style={active ? { backgroundColor: r.color } : { color: r.color }}
-                      >
-                        {r.letter}
-                      </button>
-                    );
-                  })}
+              {target === "library" ? (
+                <div>
+                  <p className={labelClass}>Rating (optional)</p>
+                  <div className="mt-1 grid grid-cols-5 gap-1.5">
+                    {RATINGS.map((r) => {
+                      const active = r.name === draft.rating;
+                      return (
+                        <button
+                          key={r.letter}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() =>
+                            setDraft({ ...draft, rating: active ? "" : (r.name as Rating) })
+                          }
+                          title={active ? "Remove rating" : `Rate ${r.name}`}
+                          aria-label={active ? "Remove rating" : `Rate ${r.name}`}
+                          className={`rounded-md border py-1.5 text-sm font-bold transition-colors cursor-pointer ${
+                            active
+                              ? "border-transparent text-black/80"
+                              : "border-shelf-plank hover:bg-shelf-input"
+                          }`}
+                          style={active ? { backgroundColor: r.color } : { color: r.color }}
+                        >
+                          {r.letter}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <label className="flex items-center gap-2 text-sm text-shelf-text cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={draft.starred}
+                    onChange={(e) => setDraft({ ...draft, starred: e.target.checked })}
+                    className="accent-amber-500"
+                  />
+                  Star it (priority wishlist)
+                </label>
+              )}
             </div>
 
             <div className="mt-4 flex items-center gap-3">
@@ -348,7 +395,7 @@ export function AddGameModal({ existingSystems, onClose }: AddGameModalProps) {
                 disabled={saveDisabled}
                 className="rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
               >
-                Add to library
+                {target === "library" ? "Add to library" : "Add to wishlist"}
               </button>
               <button
                 type="button"

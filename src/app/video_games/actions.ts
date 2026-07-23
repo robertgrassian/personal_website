@@ -11,14 +11,19 @@ import {
   closeMySession,
   createMyGame,
   createMySession,
+  createMyWishlistItem,
   deleteMyGame,
+  deleteMyWishlistItem,
+  promoteMyWishlistItem,
   searchIgdb,
   updateMyGameRating,
+  updateMyWishlistItem,
   type MutateGameResult,
   type SearchIgdbResult,
 } from "@/lib/meApi";
 import { libraryCacheTag } from "@/lib/libraryApi";
 import { LIBRARY_OWNER_USERNAME, RATINGS, type NewGame, type Rating } from "@/lib/games";
+import type { NewWishlistItem } from "@/lib/wishlist";
 
 // The API validates dates for real (parsing, ordering); this only rejects
 // obviously malformed input before it leaves the Next server.
@@ -74,6 +79,78 @@ export async function deleteGame(gameId: number): Promise<MutateGameResult> {
   }
 
   const result = await deleteMyGame(gameId);
+  if (result.ok) {
+    revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+  }
+  return result;
+}
+
+/** Add a wishlist entry (IGDB pick or manual; only name is required). */
+export async function addWishlistItem(item: NewWishlistItem): Promise<MutateGameResult> {
+  const releaseDateOk = item.releaseDate === null || ISO_DATE_RE.test(item.releaseDate);
+  const imageUrlOk = item.imageUrl === "" || item.imageUrl.startsWith("https://images.igdb.com/");
+  if (
+    item.name.trim() === "" ||
+    !releaseDateOk ||
+    !imageUrlOk ||
+    !ISO_DATE_RE.test(item.dateAdded) ||
+    (item.igdbId !== null && !Number.isInteger(item.igdbId)) ||
+    !Array.isArray(item.genres)
+  ) {
+    return { ok: false, message: "Invalid wishlist request." };
+  }
+
+  const result = await createMyWishlistItem({
+    ...item,
+    name: item.name.trim(),
+    system: item.system.trim(),
+    genres: item.genres.map((g) => g.trim()).filter(Boolean),
+  });
+  if (result.ok) {
+    revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+  }
+  return result;
+}
+
+/** Edit a wishlist entry — pass only the fields to change. */
+export async function updateWishlistItem(
+  itemId: number,
+  fields: { starred?: boolean; notes?: string; system?: string }
+): Promise<MutateGameResult> {
+  if (!Number.isInteger(itemId)) {
+    return { ok: false, message: "Invalid wishlist request." };
+  }
+
+  const result = await updateMyWishlistItem(itemId, fields);
+  if (result.ok) {
+    revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+  }
+  return result;
+}
+
+/** Remove a wishlist entry. */
+export async function deleteWishlistItem(itemId: number): Promise<MutateGameResult> {
+  if (!Number.isInteger(itemId)) {
+    return { ok: false, message: "Invalid wishlist request." };
+  }
+
+  const result = await deleteMyWishlistItem(itemId);
+  if (result.ok) {
+    revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+  }
+  return result;
+}
+
+/** Promote a wishlist entry into the library ("" system = use the stored one). */
+export async function promoteWishlistItem(
+  itemId: number,
+  system: string
+): Promise<MutateGameResult> {
+  if (!Number.isInteger(itemId)) {
+    return { ok: false, message: "Invalid promote request." };
+  }
+
+  const result = await promoteMyWishlistItem(itemId, system.trim());
   if (result.ok) {
     revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
   }

@@ -94,8 +94,11 @@ def to_game_read(game: Game, play_state: PlayState) -> GameRead:
     )
 
 
-def _to_wishlist_read(item: WishlistItem) -> WishlistGameRead:
+def to_wishlist_read(item: WishlistItem) -> WishlistGameRead:
+    """ORM row → wire DTO. Public because the /me wishlist writes
+    (services/me.py) return the same shape after a mutation."""
     return WishlistGameRead(
+        id=item.id,
         name=item.name,
         system=item.system or "",
         genres=list(item.genres),
@@ -123,7 +126,7 @@ def get_user_games(db: Session, username: str) -> list[GameRead]:
 
 def get_user_wishlist(db: Session, username: str) -> list[WishlistGameRead]:
     profile = _require_profile(db, username)
-    return [_to_wishlist_read(item) for item in users_repo.list_wishlist_items(db, profile.id)]
+    return [to_wishlist_read(item) for item in users_repo.list_wishlist_items(db, profile.id)]
 
 
 def get_user_profile(db: Session, username: str) -> ProfileRead:

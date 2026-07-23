@@ -28,9 +28,12 @@ from app.schemas.me import (
     ProfileCreate,
     SessionClose,
     SessionCreate,
+    WishlistCreate,
+    WishlistPromote,
+    WishlistUpdate,
 )
-from app.schemas.users import GameRead
-from app.services.users import derive_play_state, to_game_read
+from app.schemas.users import GameRead, WishlistGameRead
+from app.services.users import derive_play_state, to_game_read, to_wishlist_read
 
 # Mirrors the DB CHECK on profiles.username (app/models/profile.py): starts
 # with a lowercase letter or digit, then [a-z0-9_-], 3-30 chars total. Kept in
@@ -122,6 +125,28 @@ class OnboardingRequiredError(Exception):
 
     def __init__(self) -> None:
         super().__init__("Complete onboarding before adding games.")
+
+
+class WishlistItemExistsError(Exception):
+    """The caller's wishlist already has this name (dedupe is by name alone)."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(f"{name} is already on your wishlist.")
+
+
+class WishlistItemNotFoundError(Exception):
+    """No such wishlist item in the caller's list — 404-over-403, as usual."""
+
+    def __init__(self, item_id: int) -> None:
+        super().__init__(f"Wishlist item {item_id} not found.")
+
+
+class SystemRequiredError(Exception):
+    """Promoting needs a system (games.system is NOT NULL) and neither the
+    wishlist row nor the request supplied one — invalid input, so 422."""
+
+    def __init__(self) -> None:
+        super().__init__("Pick a system to add this game to the library.")
 
 
 class SessionNotFoundError(Exception):
@@ -296,6 +321,90 @@ def _game_read_with_fresh_state(db: Session, game) -> GameRead:
     without a second fetch."""
     sessions = users_repo.list_play_sessions(db, [game.id])
     return to_game_read(game, derive_play_state(sessions))
+
+
+def create_my_wishlist_item(
+    db: Session, user: AuthenticatedUser, payload: WishlistCreate
+) -> WishlistGameRead:
+    """Add a wishlist entry. Same shape of checks as create_my_game: profile
+    first (FK), then a friendly name-dedupe 409 with the unique constraint as
+    the concurrency backstop."""
+    if me_repo.get_profile_by_id(db, user.id) is None:
+        raise OnboardingRequiredError()
+    if me_repo.find_wishlist_item_by_name(db, user.id, payload.name):
+        raise WishlistItemExistsError(payload.name)
+
+    try:
+        item = me_repo.create_wishlist_item(
+            db,
+            user_id=user.id,
+            name=payload.name,
+            system=payload.system or None,
+            genres=payload.genres,
+            release_date=payload.release_date,
+            image_url=payload.image_url or None,
+            igdb_id=payload.igdb_id,
+            starred=payload.starred,
+            notes=payload.notes,
+            date_added=payload.date_added,
+        )
+    except IntegrityError as exc:
+        db.rollback()
+        raise WishlistItemExistsError(payload.name) from exc
+    return to_wishlist_read(item)
+
+
+def update_my_wishlist_item(
+    db: Session, user: AuthenticatedUser, item_id: int, payload: WishlistUpdate
+) -> WishlistGameRead:
+    """Partial edit (starred / notes / system) with the same model_fields_set
+    PATCH semantics as GameUpdate. system "" clears to undecided (NULL)."""
+    item = me_repo.get_wishlist_item_for_owner(db, item_id, user.id)
+    if item is None:
+        raise WishlistItemNotFoundError(item_id)
+
+    if "starred" in payload.model_fields_set and payload.starred is not None:
+        item.starred = payload.starred
+    if "notes" in payload.model_fields_set and payload.notes is not None:
+        item.notes = payload.notes
+    if "system" in payload.model_fields_set and payload.system is not None:
+        item.system = payload.system.strip() or None
+    item = me_repo.update_wishlist_item(db, item)
+    return to_wishlist_read(item)
+
+
+def delete_my_wishlist_item(db: Session, user: AuthenticatedUser, item_id: int) -> None:
+    item = me_repo.get_wishlist_item_for_owner(db, item_id, user.id)
+    if item is None:
+        raise WishlistItemNotFoundError(item_id)
+    me_repo.delete_wishlist_item(db, item)
+
+
+def promote_my_wishlist_item(
+    db: Session, user: AuthenticatedUser, item_id: int, payload: WishlistPromote
+) -> GameRead:
+    """The "I bought it" flow: wishlist entry → library game, atomically (the
+    repo commits the insert and the delete together). The request's system
+    wins over the stored one; games.system is NOT NULL so one of them must
+    exist. Library duplicate (name, system) is a 409, with the games unique
+    constraint backstopping the race as in create_my_game."""
+    item = me_repo.get_wishlist_item_for_owner(db, item_id, user.id)
+    if item is None:
+        raise WishlistItemNotFoundError(item_id)
+
+    system = payload.system.strip() or (item.system or "").strip()
+    if not system:
+        raise SystemRequiredError()
+    if me_repo.find_game_by_name_and_system(db, user.id, item.name, system):
+        raise GameExistsError(item.name, system)
+
+    try:
+        game = me_repo.promote_wishlist_item(db, item, system=system)
+    except IntegrityError as exc:
+        db.rollback()
+        raise GameExistsError(item.name, system) from exc
+    # Fresh from the wishlist, so no sessions exist yet.
+    return to_game_read(game, derive_play_state([]))
 
 
 def create_my_session(

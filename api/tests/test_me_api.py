@@ -862,3 +862,201 @@ def test_delete_game_forbidden_in_preview(
         assert response.status_code == 503
     finally:
         get_settings.cache_clear()
+
+
+# ---------------------------------------------------------------------------
+# Wishlist: POST/PATCH/DELETE /me/wishlist, POST /me/wishlist/{id}/promote
+# ---------------------------------------------------------------------------
+
+
+def _add_wishlist(user_id: uuid.UUID, body: dict) -> dict:
+    response = client_as(user_id).post("/api/py/me/wishlist", json=body)
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+@requires_db
+def test_add_wishlist_minimal(fresh_user_with_game) -> None:
+    # Name only — system stays undecided ("" on the wire, NULL in the DB).
+    user_id, _ = fresh_user_with_game
+    item = _add_wishlist(user_id, {"name": "Wish Quest"})
+    assert item["system"] == ""
+    assert item["starred"] is False
+    assert item["notes"] == ""
+    assert item["dateAdded"] != ""
+    assert isinstance(item["id"], int)
+
+
+@requires_db
+def test_add_wishlist_full(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    item = _add_wishlist(
+        user_id,
+        {
+            "name": "Wish Quest Deluxe",
+            "system": "PS5",
+            "genres": ["RPG"],
+            "releaseDate": "2024-06-01",
+            "igdbId": 777,
+            "starred": True,
+            "notes": "Wait for a sale",
+            "dateAdded": "2026-07-01",
+            "imageUrl": "https://images.igdb.com/igdb/image/upload/t_cover_big/wq.jpg",
+        },
+    )
+    assert item["starred"] is True
+    assert item["notes"] == "Wait for a sale"
+    assert item["dateAdded"] == "2026-07-01"
+    assert item["system"] == "PS5"
+
+
+@requires_db
+def test_add_wishlist_duplicate_name_is_409(fresh_user_with_game) -> None:
+    # Dedupe is by name alone — same name on another system still conflicts.
+    user_id, _ = fresh_user_with_game
+    _add_wishlist(user_id, {"name": "Wish Once", "system": "PS5"})
+    response = client_as(user_id).post(
+        "/api/py/me/wishlist", json={"name": "Wish Once", "system": "Switch"}
+    )
+    assert response.status_code == 409
+
+
+@requires_db
+def test_add_wishlist_shows_on_public_read(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    username = f"gamer-{str(user_id)[:8]}"
+    _add_wishlist(user_id, {"name": "Public Wish"})
+    wishlist = client_as(user_id).get(f"/api/py/users/{username}/wishlist").json()
+    assert [w["name"] for w in wishlist] == ["Public Wish"]
+
+
+@requires_db
+def test_update_wishlist_star_notes_system(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    item = _add_wishlist(user_id, {"name": "Editable Wish", "system": "PS5"})
+    response = client_as(user_id).patch(
+        f"/api/py/me/wishlist/{item['id']}",
+        json={"starred": True, "notes": "hyped", "system": ""},
+    )
+    assert response.status_code == 200
+    updated = response.json()
+    assert updated["starred"] is True
+    assert updated["notes"] == "hyped"
+    assert updated["system"] == ""  # "" cleared the system back to undecided
+
+
+@requires_db
+def test_update_wishlist_partial_leaves_rest(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    item = _add_wishlist(user_id, {"name": "Sticky Wish", "starred": True, "notes": "keep me"})
+    response = client_as(user_id).patch(
+        f"/api/py/me/wishlist/{item['id']}", json={"starred": False}
+    )
+    updated = response.json()
+    assert updated["starred"] is False
+    assert updated["notes"] == "keep me"  # untouched by the partial PATCH
+
+
+@requires_db
+def test_update_wishlist_unknown_field_is_422(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    item = _add_wishlist(user_id, {"name": "Typo Wish"})
+    response = client_as(user_id).patch(f"/api/py/me/wishlist/{item['id']}", json={"stared": True})
+    assert response.status_code == 422
+
+
+@requires_db
+def test_delete_wishlist_item(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    username = f"gamer-{str(user_id)[:8]}"
+    item = _add_wishlist(user_id, {"name": "Doomed Wish"})
+    assert client_as(user_id).delete(f"/api/py/me/wishlist/{item['id']}").status_code == 204
+    wishlist = client_as(user_id).get(f"/api/py/users/{username}/wishlist").json()
+    assert wishlist == []
+
+
+@requires_db
+def test_wishlist_foreign_and_nonexistent_are_404(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    item = _add_wishlist(user_id, {"name": "Foreign Wish"})
+    assert (
+        client_as(ROBERT_PROFILE_ID).delete(f"/api/py/me/wishlist/{item['id']}").status_code == 404
+    )
+    assert client_as(user_id).patch("/api/py/me/wishlist/999999999", json={}).status_code == 404
+
+
+@requires_db
+def test_promote_wishlist_item(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    username = f"gamer-{str(user_id)[:8]}"
+    item = _add_wishlist(
+        user_id, {"name": "Promoted Quest", "system": "PS5", "genres": ["RPG"], "igdbId": 55}
+    )
+    response = client_as(user_id).post(f"/api/py/me/wishlist/{item['id']}/promote", json={})
+    assert response.status_code == 201
+    game = response.json()
+    assert game["name"] == "Promoted Quest"
+    assert game["system"] == "PS5"
+    assert game["rating"] == ""  # enters the library unrated
+    assert game["sessionCount"] == 0
+
+    # Atomic move: in the library, gone from the wishlist.
+    games = client_as(user_id).get(f"/api/py/users/{username}/games").json()
+    assert "Promoted Quest" in {g["name"] for g in games}
+    wishlist = client_as(user_id).get(f"/api/py/users/{username}/wishlist").json()
+    assert wishlist == []
+
+
+@requires_db
+def test_promote_payload_system_wins(fresh_user_with_game) -> None:
+    # Wishlisted for PS5, bought on Switch: the request's system wins.
+    user_id, _ = fresh_user_with_game
+    item = _add_wishlist(user_id, {"name": "Switched Quest", "system": "PS5"})
+    response = client_as(user_id).post(
+        f"/api/py/me/wishlist/{item['id']}/promote", json={"system": "Switch"}
+    )
+    assert response.status_code == 201
+    assert response.json()["system"] == "Switch"
+
+
+@requires_db
+def test_promote_without_any_system_is_422(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    item = _add_wishlist(user_id, {"name": "Systemless Wish"})
+    response = client_as(user_id).post(f"/api/py/me/wishlist/{item['id']}/promote", json={})
+    assert response.status_code == 422
+    # Still on the wishlist — nothing half-happened.
+    username = f"gamer-{str(user_id)[:8]}"
+    wishlist = client_as(user_id).get(f"/api/py/users/{username}/wishlist").json()
+    assert [w["name"] for w in wishlist] == ["Systemless Wish"]
+
+
+@requires_db
+def test_promote_into_existing_library_slot_is_409(fresh_user_with_game) -> None:
+    # The fixture user already owns Test Quest on SNES.
+    user_id, _ = fresh_user_with_game
+    item = _add_wishlist(user_id, {"name": "Test Quest", "system": "SNES"})
+    response = client_as(user_id).post(f"/api/py/me/wishlist/{item['id']}/promote", json={})
+    assert response.status_code == 409
+    # The wishlist row survives the refused promote.
+    username = f"gamer-{str(user_id)[:8]}"
+    wishlist = client_as(user_id).get(f"/api/py/users/{username}/wishlist").json()
+    assert [w["name"] for w in wishlist] == ["Test Quest"]
+
+
+@requires_db
+def test_wishlist_writes_forbidden_in_preview(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id, _ = fresh_user_with_game
+    item = _add_wishlist(user_id, {"name": "Preview Wish"})
+    monkeypatch.setenv("APP_ENV", "preview")
+    get_settings.cache_clear()
+    try:
+        client = client_as(user_id)
+        assert client.post("/api/py/me/wishlist", json={"name": "Nope"}).status_code == 503
+        assert client.patch(f"/api/py/me/wishlist/{item['id']}", json={}).status_code == 503
+        assert client.delete(f"/api/py/me/wishlist/{item['id']}").status_code == 503
+        assert client.post(f"/api/py/me/wishlist/{item['id']}/promote", json={}).status_code == 503
+    finally:
+        get_settings.cache_clear()

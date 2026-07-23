@@ -69,8 +69,11 @@ class GameRead(BaseGameRead):
 
 
 class WishlistGameRead(BaseGameRead):
-    """Mirrors ``WishlistGame`` (src/lib/wishlist.ts)."""
+    """Mirrors ``WishlistGame`` (src/lib/wishlist.ts) — plus the row ``id``
+    the owner write path targets (PATCH/DELETE /me/wishlist/{id}, promote).
+    Same accepted enumeration trade-off as GameRead.id."""
 
+    id: int
     starred: bool
     date_added: str  # ISO date ("" if unknown; NOT NULL in the DB, so always set)
     notes: str

@@ -14,6 +14,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { IgdbSearchResult, NewGame } from "@/lib/games";
+import type { NewWishlistItem } from "@/lib/wishlist";
 
 export type MyProfile = {
   username: string;
@@ -179,6 +180,36 @@ export function createMyGame(game: NewGame): Promise<MutateGameResult> {
 /** Remove a game (and, server-side via cascade, its play sessions). */
 export function deleteMyGame(gameId: number): Promise<MutateGameResult> {
   return mutateGame(`/api/py/me/games/${gameId}`, "DELETE", null, "delete the game");
+}
+
+/** Add a wishlist entry. */
+export function createMyWishlistItem(item: NewWishlistItem): Promise<MutateGameResult> {
+  return mutateGame("/api/py/me/wishlist", "POST", { ...item }, "add to the wishlist");
+}
+
+/** Partially edit a wishlist entry — pass only the fields to change
+ *  (PATCH semantics: absent = leave unchanged; system "" = undecided). */
+export function updateMyWishlistItem(
+  itemId: number,
+  fields: { starred?: boolean; notes?: string; system?: string }
+): Promise<MutateGameResult> {
+  return mutateGame(`/api/py/me/wishlist/${itemId}`, "PATCH", fields, "update the wishlist");
+}
+
+/** Remove a wishlist entry. */
+export function deleteMyWishlistItem(itemId: number): Promise<MutateGameResult> {
+  return mutateGame(`/api/py/me/wishlist/${itemId}`, "DELETE", null, "remove from the wishlist");
+}
+
+/** Promote a wishlist entry into the library ("I bought it"). `system` wins
+ *  over the stored one; "" defers to what the wishlist row already has. */
+export function promoteMyWishlistItem(itemId: number, system: string): Promise<MutateGameResult> {
+  return mutateGame(
+    `/api/py/me/wishlist/${itemId}/promote`,
+    "POST",
+    { system },
+    "move to the library"
+  );
 }
 
 // Search results ride in the ok branch; failures reuse the message shape so
