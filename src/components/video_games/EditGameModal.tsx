@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
-import { RATINGS, type Game, type Rating } from "@/lib/games";
-import { updateGameRating } from "@/app/video_games/actions";
+import { localToday, RATINGS, type Game, type Rating } from "@/lib/games";
+import { logSession, stopSession, updateGameRating } from "@/app/video_games/actions";
 import { CloseIcon } from "@/components/Icon";
+
+const dateInputClass =
+  "bg-shelf-input border border-shelf-input-border text-shelf-input-text text-sm rounded " +
+  "px-2 py-1 focus:outline-none focus:ring-1 focus:ring-shelf-input-ring";
 
 type EditGameModalProps = {
   game: Game;
@@ -22,8 +26,18 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   // the prop once the action's revalidation delivers fresh data — including
   // reverting automatically if the server call fails.
   const [optimisticRating, setOptimisticRating] = useOptimistic<Rating | "">(game.rating);
-  const [, startTransition] = useTransition();
+  // isPending covers the whole write round-trip: it stays true until the
+  // revalidated data lands, so session buttons stay disabled through the
+  // moment the game's play state visibly updates.
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  // Session UI state. stopStep = the rate-on-stop picker is showing;
+  // logOpen = the past-session form is showing.
+  const [stopStep, setStopStep] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
+  const [logStart, setLogStart] = useState("");
+  const [logEnd, setLogEnd] = useState("");
 
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -67,6 +81,51 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
       if (!result.ok) setError(result.message);
     });
   };
+
+  const startPlaying = () => {
+    if (game.id === undefined) return;
+    const gameId = game.id;
+    startTransition(async () => {
+      setError(null);
+      const result = await logSession(gameId, localToday(), null);
+      if (!result.ok) setError(result.message);
+    });
+  };
+
+  // rating: a name sets it, "" clears it, undefined keeps whatever it is —
+  // all applied atomically with the close on the API side.
+  const stopPlaying = (rating?: Rating | "") => {
+    if (game.openSessionId == null) return;
+    const sessionId = game.openSessionId;
+    startTransition(async () => {
+      setError(null);
+      const result = await stopSession(sessionId, localToday(), rating);
+      if (result.ok) setStopStep(false);
+      else setError(result.message);
+    });
+  };
+
+  const saveLoggedSession = () => {
+    if (game.id === undefined || logStart === "") return;
+    const gameId = game.id;
+    // An empty end date logs a backdated session that's still going — the
+    // game becomes currently playing (or a 409 if it already is).
+    const end = logEnd === "" ? null : logEnd;
+    startTransition(async () => {
+      setError(null);
+      const result = await logSession(gameId, logStart, end);
+      if (result.ok) {
+        setLogOpen(false);
+        setLogStart("");
+        setLogEnd("");
+      } else {
+        setError(result.message);
+      }
+    });
+  };
+
+  const playing = game.currentlyPlaying && game.openSessionId != null;
+  const logDatesInvalid = logEnd !== "" && logStart !== "" && logEnd < logStart;
 
   return (
     // z-50: above StatsPanel's backdrop/panel (z-30/z-40 range).
@@ -145,6 +204,118 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
           <p className="mt-3 text-xs text-shelf-text-muted italic">
             Unrated games move to the Unrated shelf (visible only to you) until rated again.
           </p>
+        )}
+
+        <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
+          Play
+        </p>
+
+        {playing ? (
+          <div className="mt-2">
+            <p className="text-sm text-shelf-text">
+              Playing since <span className="font-medium">{game.playingSince}</span>
+            </p>
+            {!stopStep ? (
+              <button
+                type="button"
+                onClick={() => setStopStep(true)}
+                disabled={isPending}
+                className="mt-2 rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+              >
+                Stop playing
+              </button>
+            ) : (
+              <div className="mt-2">
+                <p className="text-xs text-shelf-text-muted">Finished — how was it?</p>
+                <div className="mt-1.5 grid grid-cols-5 gap-1.5">
+                  {RATINGS.map((r) => (
+                    <button
+                      key={r.letter}
+                      type="button"
+                      onClick={() => stopPlaying(r.name)}
+                      disabled={isPending}
+                      title={`Stop and rate ${r.name}`}
+                      className="rounded-md border border-shelf-plank py-1.5 text-sm font-bold hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                      style={{ color: r.color }}
+                    >
+                      {r.letter}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2 flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => stopPlaying(undefined)}
+                    disabled={isPending}
+                    className="text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {game.rating !== "" ? `Stop, keep "${game.rating}"` : "Stop without rating"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStopStep(false)}
+                    disabled={isPending}
+                    className="text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={startPlaying}
+            disabled={isPending}
+            className="mt-2 rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+          >
+            Start playing
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setLogOpen((open) => !open)}
+          className="mt-3 block text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer"
+        >
+          Log a past session
+        </button>
+        {logOpen && (
+          <div className="mt-2 flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label">
+              From
+              <input
+                type="date"
+                value={logStart}
+                max={localToday()}
+                onChange={(e) => setLogStart(e.target.value)}
+                className={dateInputClass}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label">
+              To
+              <input
+                type="date"
+                value={logEnd}
+                min={logStart || undefined}
+                max={localToday()}
+                onChange={(e) => setLogEnd(e.target.value)}
+                className={dateInputClass}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={saveLoggedSession}
+              disabled={isPending || logStart === "" || logDatesInvalid}
+              className="rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+            >
+              Save
+            </button>
+            <p className="w-full text-[11px] text-shelf-text-muted">
+              Leave “To” empty if you’re still playing it.
+            </p>
+          </div>
         )}
 
         {error && (

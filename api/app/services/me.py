@@ -21,7 +21,7 @@ from app.core.supabase_admin import delete_auth_user
 from app.models import Profile
 from app.repositories import me as me_repo
 from app.repositories import users as users_repo
-from app.schemas.me import GameUpdate, MyProfileRead, ProfileCreate
+from app.schemas.me import GameUpdate, MyProfileRead, ProfileCreate, SessionClose, SessionCreate
 from app.schemas.users import GameRead
 from app.services.users import derive_play_state, to_game_read
 
@@ -98,6 +98,35 @@ class GameNotFoundError(Exception):
 
     def __init__(self, game_id: int) -> None:
         super().__init__(f"Game {game_id} not found in your library")
+
+
+class SessionNotFoundError(Exception):
+    """No such session under the caller's games — same 404-over-403 policy as
+    GameNotFoundError: foreign and nonexistent ids are indistinguishable."""
+
+    def __init__(self, session_id: int) -> None:
+        super().__init__(f"Session {session_id} not found in your library")
+
+
+class AlreadyPlayingError(Exception):
+    """Tried to open a session on a game that already has one. Mirrors the
+    old session skill's "already_playing" answer; the message carries the
+    existing start date so the UI can say since when."""
+
+    def __init__(self, game_name: str, since: str) -> None:
+        super().__init__(f"{game_name} is already being played (since {since}).")
+
+
+class SessionAlreadyClosedError(Exception):
+    """Tried to close a session that already has an end date."""
+
+    def __init__(self, session_id: int) -> None:
+        super().__init__(f"Session {session_id} is already closed.")
+
+
+class SessionDatesError(Exception):
+    """Close date precedes the session's start date — invalid input, not a
+    conflict, so the router maps it to a 422."""
 
 
 def get_my_profile(db: Session, user: AuthenticatedUser) -> MyProfileRead | None:
@@ -200,5 +229,63 @@ def update_my_game(
     if "rating" in payload.model_fields_set:
         game = me_repo.update_game_rating(db, game, payload.rating or None)
 
+    return _game_read_with_fresh_state(db, game)
+
+
+def _game_read_with_fresh_state(db: Session, game) -> GameRead:
+    """Re-derive play state from all of the game's sessions after a mutation —
+    the wire shape every session write returns, so the client reconciles
+    without a second fetch."""
     sessions = users_repo.list_play_sessions(db, [game.id])
     return to_game_read(game, derive_play_state(sessions))
+
+
+def create_my_session(
+    db: Session, user: AuthenticatedUser, game_id: int, payload: SessionCreate
+) -> GameRead:
+    """Start playing (no endDate → open session) or log a past playthrough
+    (both dates). Only one open session per game: opening a second is a
+    conflict, matching the old session skill; logging closed past sessions is
+    always allowed, even while the game is being played."""
+    game = me_repo.get_game_for_owner(db, game_id, user.id)
+    if game is None:
+        raise GameNotFoundError(game_id)
+
+    if payload.end_date is None:
+        existing = me_repo.get_open_session_for_game(db, game.id)
+        if existing is not None:
+            raise AlreadyPlayingError(game.name, existing.start_date.isoformat())
+
+    me_repo.create_session(db, game.id, payload.start_date, payload.end_date)
+    return _game_read_with_fresh_state(db, game)
+
+
+def close_my_session(
+    db: Session, user: AuthenticatedUser, session_id: int, payload: SessionClose
+) -> GameRead:
+    """Stop playing: set the session's end date, optionally rating the game in
+    the same transaction (rate-on-stop). Rating follows PATCH semantics —
+    omitted leaves it alone, ""/null clears to unrated."""
+    play_session = me_repo.get_session_for_owner(db, session_id, user.id)
+    if play_session is None:
+        raise SessionNotFoundError(session_id)
+    if play_session.end_date is not None:
+        raise SessionAlreadyClosedError(session_id)
+    if payload.end_date < play_session.start_date:
+        raise SessionDatesError(
+            f"endDate must not be before the session's start date "
+            f"({play_session.start_date.isoformat()})."
+        )
+
+    # Ownership was proven by the session lookup; this fetch just materializes
+    # the game row for the rating write and the response payload.
+    game = me_repo.get_game_for_owner(db, play_session.game_id, user.id)
+    rate = "rating" in payload.model_fields_set
+    me_repo.finish_session(
+        db,
+        play_session,
+        payload.end_date,
+        rated_game=game if rate else None,
+        rating=payload.rating or None,
+    )
+    return _game_read_with_fresh_state(db, game)

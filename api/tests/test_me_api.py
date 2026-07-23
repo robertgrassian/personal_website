@@ -340,6 +340,252 @@ def test_patch_nonexistent_game_is_404(fresh_user_with_game) -> None:
     assert response.status_code == 404
 
 
+def test_create_session_requires_token() -> None:
+    response = TestClient(create_app()).post("/api/py/me/games/1/sessions", json={})
+    assert response.status_code == 401
+
+
+def test_close_session_requires_token() -> None:
+    response = TestClient(create_app()).patch("/api/py/me/sessions/1", json={})
+    assert response.status_code == 401
+
+
+@requires_db
+def test_start_playing_opens_session(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).post(
+        f"/api/py/me/games/{game_id}/sessions", json={"startDate": "2026-07-20"}
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["currentlyPlaying"] is True
+    assert body["playingSince"] == "2026-07-20"
+    assert isinstance(body["openSessionId"], int)
+    # The fixture's closed session is untouched by starting a new one.
+    assert body["lastPlayed"] == "2026-01-15"
+
+
+@requires_db
+def test_start_playing_defaults_to_today(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).post(f"/api/py/me/games/{game_id}/sessions", json={})
+    assert response.status_code == 201
+    assert response.json()["playingSince"] == date.today().isoformat()
+
+
+@requires_db
+def test_start_playing_shows_on_public_read(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    client = client_as(user_id)
+    assert client.post(f"/api/py/me/games/{game_id}/sessions", json={}).status_code == 201
+    username = client.get("/api/py/me/profile").json()["username"]
+    [game] = TestClient(create_app()).get(f"/api/py/users/{username}/games").json()
+    assert game["currentlyPlaying"] is True
+    assert isinstance(game["openSessionId"], int)
+
+
+@requires_db
+def test_second_open_session_is_409(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    client = client_as(user_id)
+    assert client.post(f"/api/py/me/games/{game_id}/sessions", json={}).status_code == 201
+    response = client.post(f"/api/py/me/games/{game_id}/sessions", json={})
+    assert response.status_code == 409
+    assert "already being played" in response.json()["detail"]
+
+
+@requires_db
+def test_log_past_session_updates_last_played(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).post(
+        f"/api/py/me/games/{game_id}/sessions",
+        json={"startDate": "2026-06-01", "endDate": "2026-06-10"},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["currentlyPlaying"] is False
+    assert body["openSessionId"] is None
+    assert body["lastPlayed"] == "2026-06-10"
+
+
+@requires_db
+def test_log_past_session_allowed_while_playing(fresh_user_with_game) -> None:
+    # A finished past playthrough never conflicts with the open session —
+    # only opening a second one does.
+    user_id, game_id = fresh_user_with_game
+    client = client_as(user_id)
+    assert client.post(f"/api/py/me/games/{game_id}/sessions", json={}).status_code == 201
+    response = client.post(
+        f"/api/py/me/games/{game_id}/sessions",
+        json={"startDate": "2026-02-01", "endDate": "2026-02-10"},
+    )
+    assert response.status_code == 201
+    assert response.json()["currentlyPlaying"] is True
+
+
+@requires_db
+def test_create_session_end_before_start_is_422(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).post(
+        f"/api/py/me/games/{game_id}/sessions",
+        json={"startDate": "2026-06-10", "endDate": "2026-06-01"},
+    )
+    assert response.status_code == 422
+
+
+@requires_db
+def test_create_session_unknown_field_is_422(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).post(
+        f"/api/py/me/games/{game_id}/sessions", json={"start": "2026-06-01"}
+    )
+    assert response.status_code == 422
+
+
+@requires_db
+def test_create_session_foreign_game_is_404(fresh_user_with_game) -> None:
+    _, game_id = fresh_user_with_game
+    response = client_as(ROBERT_PROFILE_ID).post(f"/api/py/me/games/{game_id}/sessions", json={})
+    assert response.status_code == 404
+
+
+@requires_db
+def test_create_session_forbidden_in_preview(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("APP_ENV", "preview")
+    get_settings.cache_clear()
+    try:
+        user_id, game_id = fresh_user_with_game
+        response = client_as(user_id).post(f"/api/py/me/games/{game_id}/sessions", json={})
+        assert response.status_code == 503
+    finally:
+        get_settings.cache_clear()
+
+
+def _start_playing(user_id: uuid.UUID, game_id: int, start: str = "2026-07-01") -> int:
+    """Open a session via the API and return its id."""
+    response = client_as(user_id).post(
+        f"/api/py/me/games/{game_id}/sessions", json={"startDate": start}
+    )
+    assert response.status_code == 201
+    return response.json()["openSessionId"]
+
+
+@requires_db
+def test_stop_playing_closes_session(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    session_id = _start_playing(user_id, game_id)
+    response = client_as(user_id).patch(
+        f"/api/py/me/sessions/{session_id}", json={"endDate": "2026-07-15"}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["currentlyPlaying"] is False
+    assert body["openSessionId"] is None
+    assert body["lastPlayed"] == "2026-07-15"
+    assert body["rating"] == "Good"  # no rating in the payload → untouched
+
+
+@requires_db
+def test_stop_playing_defaults_to_today(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    session_id = _start_playing(user_id, game_id)
+    response = client_as(user_id).patch(f"/api/py/me/sessions/{session_id}", json={})
+    assert response.status_code == 200
+    assert response.json()["lastPlayed"] == date.today().isoformat()
+
+
+@requires_db
+def test_rate_on_stop_applies_both(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    session_id = _start_playing(user_id, game_id)
+    response = client_as(user_id).patch(
+        f"/api/py/me/sessions/{session_id}",
+        json={"endDate": "2026-07-15", "rating": "Perfect"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["currentlyPlaying"] is False
+    assert body["lastPlayed"] == "2026-07-15"
+    assert body["rating"] == "Perfect"
+
+
+@requires_db
+def test_rate_on_stop_can_clear_rating(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    session_id = _start_playing(user_id, game_id)
+    response = client_as(user_id).patch(f"/api/py/me/sessions/{session_id}", json={"rating": ""})
+    assert response.status_code == 200
+    assert response.json()["rating"] == ""  # fixture's "Good" cleared
+
+
+@requires_db
+def test_stop_with_unknown_rating_is_422_and_stays_open(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    session_id = _start_playing(user_id, game_id)
+    response = client_as(user_id).patch(
+        f"/api/py/me/sessions/{session_id}", json={"rating": "Legendary"}
+    )
+    assert response.status_code == 422
+    check = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={})
+    assert check.json()["currentlyPlaying"] is True
+
+
+@requires_db
+def test_close_already_closed_session_is_409(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    session_id = _start_playing(user_id, game_id)
+    client = client_as(user_id)
+    assert client.patch(f"/api/py/me/sessions/{session_id}", json={}).status_code == 200
+    response = client.patch(f"/api/py/me/sessions/{session_id}", json={})
+    assert response.status_code == 409
+
+
+@requires_db
+def test_close_end_before_session_start_is_422(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    session_id = _start_playing(user_id, game_id, start="2026-07-10")
+    response = client_as(user_id).patch(
+        f"/api/py/me/sessions/{session_id}", json={"endDate": "2026-07-01"}
+    )
+    assert response.status_code == 422
+    check = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={})
+    assert check.json()["currentlyPlaying"] is True
+
+
+@requires_db
+def test_close_foreign_session_is_404(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    session_id = _start_playing(user_id, game_id)
+    response = client_as(ROBERT_PROFILE_ID).patch(f"/api/py/me/sessions/{session_id}", json={})
+    assert response.status_code == 404
+    check = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={})
+    assert check.json()["currentlyPlaying"] is True
+
+
+@requires_db
+def test_close_nonexistent_session_is_404(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    response = client_as(user_id).patch("/api/py/me/sessions/999999999", json={})
+    assert response.status_code == 404
+
+
+@requires_db
+def test_close_session_forbidden_in_preview(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id, game_id = fresh_user_with_game
+    session_id = _start_playing(user_id, game_id)
+    monkeypatch.setenv("APP_ENV", "preview")
+    get_settings.cache_clear()
+    try:
+        response = client_as(user_id).patch(f"/api/py/me/sessions/{session_id}", json={})
+        assert response.status_code == 503
+    finally:
+        get_settings.cache_clear()
+
+
 @requires_db
 def test_patch_game_forbidden_in_preview(
     fresh_user_with_game, monkeypatch: pytest.MonkeyPatch

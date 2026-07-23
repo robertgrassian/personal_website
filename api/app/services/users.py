@@ -37,18 +37,24 @@ class PlayState:
     currently_playing: bool
     last_played: str  # ISO date or ""
     playing_since: str  # ISO date or ""
+    open_session_id: int | None  # newest open session, None when not playing
 
 
 def derive_play_state(sessions: Iterable[PlaySession]) -> PlayState:
     """Pure function over one game's sessions — see module docstring for the
     ported semantics. Dates compare as date objects here (the TS version
     compares ISO strings lexically — equivalent for valid dates)."""
-    open_starts = [s.start_date for s in sessions if s.end_date is None]
+    open_sessions = [s for s in sessions if s.end_date is None]
     closed_ends = [s.end_date for s in sessions if s.end_date is not None]
+    # Newest open session wins both fields; id breaks a same-day tie (higher
+    # id = inserted later). Keeps playing_since and open_session_id pointing
+    # at the same session.
+    newest_open = max(open_sessions, key=lambda s: (s.start_date, s.id), default=None)
     return PlayState(
-        currently_playing=bool(open_starts),
+        currently_playing=newest_open is not None,
         last_played=max(closed_ends).isoformat() if closed_ends else "",
-        playing_since=max(open_starts).isoformat() if open_starts else "",
+        playing_since=newest_open.start_date.isoformat() if newest_open else "",
+        open_session_id=newest_open.id if newest_open else None,
     )
 
 
@@ -80,6 +86,7 @@ def to_game_read(game: Game, play_state: PlayState) -> GameRead:
         last_played=play_state.last_played,
         currently_playing=play_state.currently_playing,
         playing_since=play_state.playing_since,
+        open_session_id=play_state.open_session_id,
     )
 
 

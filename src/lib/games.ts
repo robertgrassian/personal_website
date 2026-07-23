@@ -54,4 +54,18 @@ export interface Game extends BaseGame {
   lastPlayed: string; // derived: newest session end date, or "" if none/only open
   currentlyPlaying: boolean; // derived: true when the game has an open session
   playingSince: string; // derived: start date of the open session, or "" if not playing
+  // Id of the open session, null when not playing — API-backed rows only
+  // (undefined on CSV rows). Closing a session (PATCH /me/sessions/{id})
+  // targets this id.
+  openSessionId?: number | null;
+}
+
+// Today's date in the browser's (or server's) local timezone as YYYY-MM-DD.
+// Session writes send this explicitly: the API's own "today" default runs on
+// UTC serverless clocks, which would date an evening session tomorrow.
+export function localToday(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
 }

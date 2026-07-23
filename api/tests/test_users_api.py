@@ -32,6 +32,7 @@ GAME_KEYS = {
     "lastPlayed",
     "currentlyPlaying",
     "playingSince",
+    "openSessionId",
 }
 WISHLIST_KEYS = {
     "name",
@@ -90,11 +91,13 @@ def test_open_session_games_are_currently_playing(client: TestClient) -> None:
         game = by_name[name]
         assert game["currentlyPlaying"] is True, name
         assert game["playingSince"] != "", name
+        assert isinstance(game["openSessionId"], int), name
     # Everything else is not currently playing.
     for game in games:
         if game["name"] not in open_names:
             assert game["currentlyPlaying"] is False, game["name"]
             assert game["playingSince"] == "", game["name"]
+            assert game["openSessionId"] is None, game["name"]
 
 
 @requires_db
