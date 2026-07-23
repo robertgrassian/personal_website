@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     # Free-tier abuse insurance, adjustable without a deploy.
     max_users: int = 100
 
+    # --- IGDB proxy ------------------------------------------------------------
+    # Twitch application credentials (IGDB authenticates via Twitch OAuth).
+    # Server-side only, never exposed to clients; unset → /igdb/search
+    # answers 503. Same credentials scripts/fetch-covers.ts used inline.
+    twitch_client_id: str | None = None
+    twitch_client_secret: str | None = None
+
     @model_validator(mode="after")
     def _warn_ambiguous_auth_config(self) -> "Settings":
         # If both verification modes are configured, decode_token uses the

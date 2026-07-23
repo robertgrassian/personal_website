@@ -14,18 +14,33 @@ from app.core.auth import CurrentUser
 from app.core.config import API_PREFIX
 from app.core.db import get_db
 from app.core.guards import forbid_in_preview
-from app.schemas.me import GameUpdate, MyProfileRead, ProfileCreate, SessionClose, SessionCreate
-from app.schemas.users import GameRead
+from app.schemas.me import (
+    GameCreate,
+    GameUpdate,
+    MyProfileRead,
+    ProfileCreate,
+    SessionClose,
+    SessionCreate,
+    WishlistCreate,
+    WishlistPromote,
+    WishlistUpdate,
+)
+from app.schemas.users import GameRead, WishlistGameRead
 from app.services import me as me_service
 from app.services.me import (
     AlreadyPlayingError,
+    GameExistsError,
     GameNotFoundError,
+    OnboardingRequiredError,
     ProfileExistsError,
     SessionAlreadyClosedError,
     SessionDatesError,
     SessionNotFoundError,
     SignupCapReachedError,
+    SystemRequiredError,
     UsernameError,
+    WishlistItemExistsError,
+    WishlistItemNotFoundError,
 )
 
 router = APIRouter(prefix=API_PREFIX, tags=["me"])
@@ -78,6 +93,42 @@ def create_my_profile(user: CurrentUser, db: DbSession, payload: ProfileCreate) 
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
 
 
+@router.post(
+    "/me/games",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(forbid_in_preview)],
+)
+def create_my_game(user: CurrentUser, db: DbSession, payload: GameCreate) -> GameRead:
+    """Add a game to the caller's library (from an IGDB pick or entered by
+    hand). Returns the created game in the public wire shape.
+
+    Status mapping:
+    - 409 same (name, system) already in the library
+    - 403 authenticated but not onboarded yet
+    - 422 blank name/system, unknown rating, non-IGDB imageUrl (schema)
+    """
+    try:
+        return me_service.create_my_game(db, user, payload)
+    except GameExistsError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except OnboardingRequiredError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+
+
+@router.delete(
+    "/me/games/{game_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(forbid_in_preview)],
+)
+def delete_my_game(user: CurrentUser, db: DbSession, game_id: int) -> None:
+    """Remove a game and (via cascade) its play sessions. 404 covers both a
+    nonexistent id and someone else's game, as everywhere under /me."""
+    try:
+        me_service.delete_my_game(db, user, game_id)
+    except GameNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
 @router.patch("/me/games/{game_id}", dependencies=[Depends(forbid_in_preview)])
 def update_my_game(
     user: CurrentUser, db: DbSession, game_id: int, payload: GameUpdate
@@ -92,6 +143,79 @@ def update_my_game(
         return me_service.update_my_game(db, user, game_id, payload)
     except GameNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post(
+    "/me/wishlist",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(forbid_in_preview)],
+)
+def create_my_wishlist_item(
+    user: CurrentUser, db: DbSession, payload: WishlistCreate
+) -> WishlistGameRead:
+    """Add a wishlist entry (only name required — system may stay undecided).
+
+    Status mapping: 409 name already wishlisted / 403 not onboarded / 422
+    blank name or non-IGDB imageUrl (schema).
+    """
+    try:
+        return me_service.create_my_wishlist_item(db, user, payload)
+    except WishlistItemExistsError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except OnboardingRequiredError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+
+
+@router.patch("/me/wishlist/{item_id}", dependencies=[Depends(forbid_in_preview)])
+def update_my_wishlist_item(
+    user: CurrentUser, db: DbSession, item_id: int, payload: WishlistUpdate
+) -> WishlistGameRead:
+    """Partially edit a wishlist entry (starred / notes / system; system ""
+    clears to undecided). 404 = nonexistent or someone else's."""
+    try:
+        return me_service.update_my_wishlist_item(db, user, item_id, payload)
+    except WishlistItemNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.delete(
+    "/me/wishlist/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(forbid_in_preview)],
+)
+def delete_my_wishlist_item(user: CurrentUser, db: DbSession, item_id: int) -> None:
+    """Remove a wishlist entry. 404 = nonexistent or someone else's."""
+    try:
+        me_service.delete_my_wishlist_item(db, user, item_id)
+    except WishlistItemNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post(
+    "/me/wishlist/{item_id}/promote",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(forbid_in_preview)],
+)
+def promote_my_wishlist_item(
+    user: CurrentUser, db: DbSession, item_id: int, payload: WishlistPromote
+) -> GameRead:
+    """Promote a wishlist entry into the library ("I bought it") — the game
+    is created and the wishlist row removed in one transaction. Returns the
+    new library game (unrated, no sessions).
+
+    Status mapping: 404 item not found / 409 (name, system) already in the
+    library / 422 no system anywhere (games require one).
+    """
+    try:
+        return me_service.promote_my_wishlist_item(db, user, item_id, payload)
+    except WishlistItemNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except GameExistsError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except SystemRequiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
 
 
 @router.post(

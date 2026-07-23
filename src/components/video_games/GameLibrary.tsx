@@ -19,6 +19,8 @@ import {
 import { useGameLibraryUrlState } from "./useGameLibraryUrlState";
 import { useIsLibraryOwner } from "./useIsLibraryOwner";
 import { EditGameModal } from "./EditGameModal";
+import { EditWishlistModal } from "./EditWishlistModal";
+import { AddGameModal } from "./AddGameModal";
 import type { GameCaseInput } from "./GameCase";
 
 type GameLibraryProps = {
@@ -40,6 +42,7 @@ export function GameLibrary({
   unratedGames = [],
 }: GameLibraryProps) {
   const [statsOpen, setStatsOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   // Owner check resolves client-side after hydration (the page HTML is
   // static and shared by all viewers). false until proven otherwise, so
@@ -53,7 +56,14 @@ export function GameLibrary({
   const [editingGameId, setEditingGameId] = useState<number | null>(null);
   const editingGame =
     games.find((g) => g.id === editingGameId) ?? unratedGames.find((g) => g.id === editingGameId);
-  const handleEditGame = (game: GameCaseInput) => setEditingGameId(game.id ?? null);
+  // Wishlist edits tracked separately — the pencil is shared, but the two
+  // views open different dialogs (EditGameModal vs EditWishlistModal).
+  const [editingWishlistId, setEditingWishlistId] = useState<number | null>(null);
+  const editingWishlistItem = wishlist.find((w) => w.id === editingWishlistId);
+  const handleEditGame = (game: GameCaseInput) => {
+    if (view === "wishlist") setEditingWishlistId(game.id ?? null);
+    else setEditingGameId(game.id ?? null);
+  };
 
   // URL-backed state lives in the hook; this component only renders.
   const {
@@ -169,17 +179,31 @@ export function GameLibrary({
             </button>
           ))}
         </div>
-        {view === "played" && (
-          <button
-            type="button"
-            onClick={() => setStatsOpen(true)}
-            aria-label="Open library stats"
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
-          >
-            <ChartBarIcon className="w-4 h-4" aria-hidden />
-            <span>Stats</span>
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
+            >
+              <span aria-hidden="true" className="text-base leading-none">
+                +
+              </span>
+              <span>{view === "played" ? "Add game" : "Add to wishlist"}</span>
+            </button>
+          )}
+          {view === "played" && (
+            <button
+              type="button"
+              onClick={() => setStatsOpen(true)}
+              aria-label="Open library stats"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
+            >
+              <ChartBarIcon className="w-4 h-4" aria-hidden />
+              <span>Stats</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter status — rendered only while filters are active, so the row
@@ -272,6 +296,20 @@ export function GameLibrary({
       )}
 
       {editingGame && <EditGameModal game={editingGame} onClose={() => setEditingGameId(null)} />}
+      {editingWishlistItem && (
+        <EditWishlistModal
+          item={editingWishlistItem}
+          existingSystems={allSystems}
+          onClose={() => setEditingWishlistId(null)}
+        />
+      )}
+      {addOpen && (
+        <AddGameModal
+          target={view === "played" ? "library" : "wishlist"}
+          existingSystems={allSystems}
+          onClose={() => setAddOpen(false)}
+        />
+      )}
     </div>
   );
 }

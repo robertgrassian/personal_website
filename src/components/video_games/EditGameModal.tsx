@@ -2,7 +2,7 @@
 
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { localToday, RATINGS, type Game, type Rating } from "@/lib/games";
-import { logSession, stopSession, updateGameRating } from "@/app/video_games/actions";
+import { deleteGame, logSession, stopSession, updateGameRating } from "@/app/video_games/actions";
 import { CloseIcon } from "@/components/Icon";
 
 const dateInputClass =
@@ -38,6 +38,8 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   const [logOpen, setLogOpen] = useState(false);
   const [logStart, setLogStart] = useState("");
   const [logEnd, setLogEnd] = useState("");
+  // deleteStep = the remove confirm (with session count) is showing.
+  const [deleteStep, setDeleteStep] = useState(false);
 
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -127,8 +129,21 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
     });
   };
 
+  const removeGame = () => {
+    if (game.id === undefined) return;
+    const gameId = game.id;
+    startTransition(async () => {
+      setError(null);
+      const result = await deleteGame(gameId);
+      // The game is gone — close the dialog; revalidation removes the card.
+      if (result.ok) onClose();
+      else setError(result.message);
+    });
+  };
+
   const playing = game.currentlyPlaying && game.openSessionId != null;
   const logDatesInvalid = logEnd !== "" && logStart !== "" && logEnd < logStart;
+  const sessionCount = game.sessionCount ?? 0;
 
   return (
     // z-50: above StatsPanel's backdrop/panel (z-30/z-40 range).
@@ -322,6 +337,53 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
             </p>
           </div>
         )}
+
+        <div className="mt-5 border-t border-shelf-plank pt-3">
+          {!deleteStep ? (
+            <button
+              type="button"
+              onClick={() => setDeleteStep(true)}
+              disabled={isPending}
+              className="text-xs text-red-600 dark:text-red-400 underline underline-offset-2 hover:opacity-80 transition-opacity cursor-pointer disabled:opacity-50"
+            >
+              Remove from library
+            </button>
+          ) : (
+            <div>
+              <p className="text-sm text-shelf-text">
+                Remove <span className="font-medium">{game.name}</span>?
+                {sessionCount > 0 && (
+                  <span className="text-shelf-text-muted">
+                    {" "}
+                    This also deletes{" "}
+                    {sessionCount === 1
+                      ? "its 1 logged session"
+                      : `its ${sessionCount} logged sessions`}
+                    .
+                  </span>
+                )}
+              </p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={removeGame}
+                  disabled={isPending}
+                  className="rounded-md border border-red-600/50 dark:border-red-400/50 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-600/10 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                >
+                  Remove
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteStep(false)}
+                  disabled={isPending}
+                  className="rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         {error && (
           <p role="alert" className="mt-3 text-xs text-red-500 dark:text-red-400">

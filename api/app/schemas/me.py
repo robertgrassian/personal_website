@@ -52,6 +52,15 @@ def validate_known_rating(value: str | None) -> str | None:
     raise ValueError(f"rating must be one of: {allowed} — or empty to clear it")
 
 
+def validate_igdb_image_url(value: str) -> str:
+    """Covers are hotlinked into pages, so an open URL field would let any
+    account use their library as free image hosting; only the IGDB CDN (or
+    empty = fallback art) is accepted. Shared by every payload with a cover."""
+    if value and not value.startswith("https://images.igdb.com/"):
+        raise ValueError("imageUrl must be an https://images.igdb.com/ URL, or empty")
+    return value
+
+
 class GameUpdate(CamelModel):
     """Partial edit of one game in the caller's library (PATCH semantics):
     only fields the client actually sent are applied — the service checks
@@ -67,6 +76,111 @@ class GameUpdate(CamelModel):
     rating: str | None = None
 
     _known_rating = field_validator("rating")(validate_known_rating)
+
+
+class GameCreate(CamelModel):
+    """Add a game to the caller's library — typically from an IGDB search
+    pick, but every IGDB-derived field is optional so manually entered games
+    (titles IGDB doesn't know) work with just name + system.
+
+    ``imageUrl`` only accepts IGDB CDN URLs (or empty): covers are hotlinked,
+    and an open URL field would let any account use their library as free
+    image hosting for arbitrary content.
+    """
+
+    model_config = FORBID_EXTRA
+
+    name: str = Field(min_length=1, max_length=200)
+    system: str = Field(min_length=1, max_length=100)
+    genres: list[str] = Field(default_factory=list, max_length=10)
+    release_date: date | None = None
+    image_url: str = Field(default="", max_length=500)
+    igdb_id: int | None = None
+    # Optional up-front rating (back-filling games finished long ago);
+    # omitted/"" = enters the library unrated.
+    rating: str | None = None
+
+    _known_rating = field_validator("rating")(validate_known_rating)
+
+    @field_validator("name", "system")
+    @classmethod
+    def _strip_nonempty(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+    @field_validator("genres")
+    @classmethod
+    def _clean_genres(cls, value: list[str]) -> list[str]:
+        cleaned = [g.strip() for g in value if g.strip()]
+        if any(len(g) > 50 for g in cleaned):
+            raise ValueError("each genre must be 50 characters or fewer")
+        return cleaned
+
+    _igdb_url_only = field_validator("image_url")(validate_igdb_image_url)
+
+
+class WishlistCreate(CamelModel):
+    """Add a wishlist entry — same IGDB-pick-or-manual shape as GameCreate,
+    but only ``name`` is required: wishlist dedupes by name alone and
+    ``system`` may stay empty until you decide which platform to buy.
+
+    ``dateAdded`` defaults to the server's UTC clock; the web UI sends the
+    browser-local date explicitly, same as session dates."""
+
+    model_config = FORBID_EXTRA
+
+    name: str = Field(min_length=1, max_length=200)
+    system: str = Field(default="", max_length=100)
+    genres: list[str] = Field(default_factory=list, max_length=10)
+    release_date: date | None = None
+    image_url: str = Field(default="", max_length=500)
+    igdb_id: int | None = None
+    starred: bool = False
+    notes: str = Field(default="", max_length=1000)
+    date_added: date = Field(default_factory=date.today)
+
+    _igdb_url_only = field_validator("image_url")(validate_igdb_image_url)
+
+    @field_validator("name")
+    @classmethod
+    def _strip_nonempty(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+    @field_validator("genres")
+    @classmethod
+    def _clean_genres(cls, value: list[str]) -> list[str]:
+        cleaned = [g.strip() for g in value if g.strip()]
+        if any(len(g) > 50 for g in cleaned):
+            raise ValueError("each genre must be 50 characters or fewer")
+        return cleaned
+
+
+class WishlistUpdate(CamelModel):
+    """Partial edit of a wishlist entry (PATCH semantics via
+    ``model_fields_set``, like GameUpdate). ``system: ""`` clears back to
+    undecided (stored NULL); starred and notes replace outright."""
+
+    model_config = FORBID_EXTRA
+
+    starred: bool | None = None
+    notes: str | None = Field(default=None, max_length=1000)
+    system: str | None = Field(default=None, max_length=100)
+
+
+class WishlistPromote(CamelModel):
+    """Promote a wishlist entry to the library ("I bought it"). ``system`` is
+    required by the games table, so it must arrive here when the wishlist row
+    never got one; when both exist, the payload wins (you might buy it on a
+    different platform than you wishlisted)."""
+
+    model_config = FORBID_EXTRA
+
+    system: str = Field(default="", max_length=100)
 
 
 class SessionCreate(CamelModel):
