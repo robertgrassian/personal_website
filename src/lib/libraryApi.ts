@@ -5,17 +5,35 @@ import type { Game } from "./games";
 import type { WishlistGame } from "./wishlist";
 
 // This module owns the FastAPI origin and the fetch mechanics for the library
-// read path. gamesServer.ts / wishlistServer.ts branch to these fetchers when
-// LIBRARY_API_ORIGIN is set and keep their CSV code as the fallback until the
-// DB read path proves parity.
+// read path — the site's only data source since the CSVs were retired.
 
-// Read at call time (not module top level) so the value reflects the current
-// process env even if this module is evaluated before env loading finishes.
-// process.env is a plain Node global — Next.js loads .env files into it
-// automatically (a Next convention; bare Node would need dotenv).
-export function getLibraryApiOrigin(): string | undefined {
-  const origin = process.env.LIBRARY_API_ORIGIN?.trim();
-  return origin ? origin : undefined;
+// Resolves the FastAPI origin for BOTH the public read path and the
+// authenticated /me/* write path (meApi.ts imports this). Since the CSVs were
+// retired there's no fallback data source, so an unresolvable origin is a
+// misconfiguration that must fail loudly (at build time for the static library
+// pages), never render an empty library.
+//
+// Checked at call time (not module load) so it reflects the live process env.
+// Resolution order:
+//   - LIBRARY_API_ORIGIN when set — dev points it at the uvicorn process
+//     (:8000); prod may set it explicitly.
+//   - else VERCEL_PROJECT_PRODUCTION_URL (the public production domain, e.g.
+//     rgrassian.com) so a Vercel deploy self-heals with no explicit var —
+//     this is why prod cuts over to the API automatically once deployed.
+//     DELIBERATELY not VERCEL_URL: that's the per-deployment *.vercel.app
+//     hostname, which Deployment Protection gates even when the custom domain
+//     is public, so a self-call there would hit the SSO wall (HTML) instead of
+//     our JSON.
+export function requireLibraryApiOrigin(): string {
+  const explicit = process.env.LIBRARY_API_ORIGIN?.trim();
+  if (explicit) return explicit;
+  const prodDomain = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (prodDomain) return `https://${prodDomain}`;
+  throw new Error(
+    "No FastAPI origin resolved for the library. Set LIBRARY_API_ORIGIN " +
+      "(local: http://127.0.0.1:8000, with `npm run dev:api` running), or rely " +
+      "on VERCEL_PROJECT_PRODUCTION_URL on a Vercel deploy."
+  );
 }
 
 // Single cache tag per user covering games AND wishlist. Writes call
@@ -50,21 +68,19 @@ async function fetchFromApi<T>(
     });
   } catch (err) {
     // Network-level failure (connection refused, DNS, etc.) — the API is
-    // configured but unreachable. Fail loudly rather than silently falling
-    // back to CSV: a configured-but-broken API should be obvious in dev.
+    // configured but unreachable. Fail loudly: a broken API should be
+    // obvious in dev, and there is no fallback data source.
     throw new Error(
-      `LIBRARY_API_ORIGIN is set but fetching ${what} from ${url} failed ` +
+      `Fetching ${what} from ${url} failed ` +
         `(${err instanceof Error ? err.message : String(err)}). ` +
-        `Is the API running? Start it with \`npm run dev:api\`, ` +
-        `or unset LIBRARY_API_ORIGIN to use the CSV fallback.`
+        `Is the API running? Start it with \`npm run dev:api\`.`
     );
   }
   if (!res.ok) {
     // Same policy for HTTP errors (404 unknown user, 500, ...): loud, actionable.
     throw new Error(
-      `LIBRARY_API_ORIGIN is set but ${url} returned ${res.status} ${res.statusText} ` +
-        `while fetching ${what}. Check the API logs (\`npm run dev:api\`), ` +
-        `or unset LIBRARY_API_ORIGIN to use the CSV fallback.`
+      `${url} returned ${res.status} ${res.statusText} while fetching ${what}. ` +
+        `Check the API logs (\`npm run dev:api\`).`
     );
   }
   // Cast, don't validate: the API contract-mirrors the TS types exactly

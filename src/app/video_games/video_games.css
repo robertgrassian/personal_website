@@ -31,7 +31,7 @@
   --shelf-divider: #e0dbd4;
 
   /* --- Game case system fallback colors (shown when no cover art is available) ---
-     Add a new entry here whenever a new console appears in games.csv.
+     Add a new entry here whenever a new console appears in the library.
      Applied via [data-system="..."] attribute selectors on the card element. */
   --system-fallback: #374151;
 }

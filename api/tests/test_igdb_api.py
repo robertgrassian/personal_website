@@ -172,6 +172,28 @@ def test_sparse_igdb_rows_become_empty_fields(test_user, igdb_env) -> None:
 
 
 @requires_db
+def test_already_absolute_cover_url_is_not_double_prefixed(test_user, igdb_env) -> None:
+    # If IGDB ever returns an already-absolute https:// cover, the scheme must
+    # not be doubled (https:https://...) — that would fail validate_igdb_image_url
+    # on a later POST /me/games.
+    igdb_env["igdb_responses"].append(
+        httpx.Response(
+            200,
+            json=[
+                {
+                    "id": 9,
+                    "name": "Absolute",
+                    "cover": {"url": "https://images.igdb.com/igdb/image/upload/t_thumb/x.jpg"},
+                }
+            ],
+        )
+    )
+    response = client_as(test_user).get(SEARCH_URL, params={"q": "absolute"})
+    (result,) = response.json()
+    assert result["coverUrl"] == "https://images.igdb.com/igdb/image/upload/t_cover_big/x.jpg"
+
+
+@requires_db
 def test_query_term_is_escaped(test_user, igdb_env) -> None:
     client_as(test_user).get(SEARCH_URL, params={"q": 'say "hi" \\ bye'})
     assert 'search "say \\"hi\\" \\\\ bye";' in igdb_env["last_body"]

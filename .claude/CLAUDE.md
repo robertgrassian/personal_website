@@ -35,16 +35,18 @@ Work history, skills, and a PDF download link.
 
 ### 4. Video Game Library (`/video_games`) — Built
 
-A showcase of every video game I've ever played, driven by `games.csv` at the project root. The UI is **"video game shelves"** — game cover art displayed on shelf planks, styled to evoke a home collection or Blockbuster. This section is largely complete:
+A showcase of every video game I've ever played, backed by Postgres (Supabase) and served by the FastAPI backend. The UI is **"video game shelves"** — game cover art displayed on shelf planks, styled to evoke a home collection or Blockbuster. This section is largely complete:
 
-- CSV-driven data parsed server-side via `src/lib/gamesServer.ts` (server-only); types and constants in `src/lib/games.ts`
-- Shelf UI with cover art (fetched via IGDB) and system-colored fallbacks
+- Data read server-side via `src/lib/gamesServer.ts` (server-only) → `libraryApi.ts` → `GET /api/py/users/{username}/games`; types and constants in `src/lib/games.ts`. `LIBRARY_API_ORIGIN` must be set (local: `http://127.0.0.1:8000`); there is no CSV fallback (retired in Phase 3)
+- Shelf UI with cover art (IGDB URLs stored on each row) and system-colored fallbacks
 - Filter bar: search, rating, system, genre
 - Group by: system, rating, genre, decade
 - Sort within shelves: name, release date, last played
-- Cover art fetched via `scripts/fetch-covers.ts` using the IGDB API
-- Play state lives in `sessions.csv` (`game,start_date,end_date`), parsed via `src/lib/sessionsServer.ts`. An **open session** (empty `end_date`) is the source of truth for "currently playing"; the newest `end_date` is "last played". `getGames()` derives `currentlyPlaying`, `lastPlayed`, and `playingSince` onto each `Game` — there is no `currently_playing`/`last_played` column on `games.csv` anymore
-- "Currently playing" CRT TV above the view tabs (`CurrentlyPlaying.tsx`) shows the first game with an open session, labeled "playing since {start}" — managed via the `session` skill (which opens/closes/logs sessions and can rate a game on stop). Unrated games appear only on the CRT, not the shelves
+- Owner editing happens in the site UI (add/remove games, rate, log/close sessions, wishlist CRUD + promote) — see the write path below. Cover art for new games comes from the `/api/py/igdb/search` proxy
+- Play state is derived by the API from `play_sessions` rows. An **open session** (NULL `end_date`) is the source of truth for "currently playing"; the newest `end_date` is "last played". Each `Game` arrives with `currentlyPlaying`, `lastPlayed`, `playingSince`, `openSessionId`, and `sessionCount` already derived
+- "Currently playing" CRT TV above the view tabs (`CurrentlyPlaying.tsx`) shows the first game with an open session, labeled "playing since {start}". Unrated games appear only on the CRT, not the shelves
+
+Owner writes follow the BFF pattern: browser → Server Action (`src/app/video_games/actions.ts`) → `src/lib/meApi.ts` (cookie → Bearer) → FastAPI `/api/py/me/*` → on success `revalidateTag(libraryCacheTag(...))`. The full backend lives in `api/` (routers → services → repositories); migrations via Alembic. A frozen CSV snapshot in `api/scripts/fixtures/` seeds a local dev DB (`cd api && uv run python scripts/seed.py`) and is not read by the running site.
 
 Remaining ideas are tracked in `TODO.md` (backlog).
 

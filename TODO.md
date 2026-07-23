@@ -4,13 +4,17 @@
 
 **Pending manual steps — game library backend (Vercel/prod dashboards, ~10 min total):**
 
-- [ ] **Flip prod reads from CSV → Postgres** (outstanding since PR #61): Vercel →
-      Settings → Environment Variables → add `LIBRARY_API_ORIGIN=https://rgrassian.com`
-      (Production scope) → redeploy. Then click a rating in prod to confirm the
-      optimistic UI converges, and note the first-write latency (stacked Node+Python
-      cold start measurement).
+- [ ] **Confirm the prod CSV → Postgres cutover** (no longer a manual env-var step):
+      the read/write origin resolver now falls back to `VERCEL_PROJECT_PRODUCTION_URL`
+      when `LIBRARY_API_ORIGIN` is unset, so prod cuts over to the API **automatically**
+      on the first deploy after PR #64 merges (which removes the CSV files). Nothing to
+      set in Vercel. After that deploy: load `/video_games` to confirm it renders from
+      Postgres, click a rating to confirm the optimistic UI converges, and note the
+      first-write latency (stacked Node+Python cold start). If you ever want to pin the
+      origin explicitly instead of self-resolving, you _can_ set `LIBRARY_API_ORIGIN`,
+      but it's optional now.
 - [ ] **After merging PR #63** (IGDB proxy + add/delete + wishlist): 1. Prod DB migration: `cd api && DATABASE_URL="$(cat ~/prod-db-url.txt)" uv run alembic upgrade head` 2. Vercel → add `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` (Production scope,
-      same Twitch app fetch-covers.ts uses) → redeploy
+      a Twitch application's credentials from dev.twitch.tv) → redeploy
 - [ ] **Local dev**: add the same `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` to the
       gitignored `.env` so the add-game IGDB search works locally (503 until then)
 
@@ -23,6 +27,8 @@
 
 ## Backlog / Ideas
 
+- [ ] Backfill existing games' genres to IGDB's vocabulary — the current genres came from the old Wikipedia-scraping `add-game` skill (retired in Phase 3), so they won't match what the new IGDB add flow (`/api/py/igdb/search`) suggests for future games. Normalizing now means future adds match up and skip the manual genre-editing step. Approach: for each library game with an `igdb_id` (or matched by name), pull its IGDB genres and overwrite the row's `genres`. Note: genre editing isn't in the write path yet (`GameUpdate`/`PATCH /me/games/{id}` is rating-only), so this needs either a one-off backfill script in `api/scripts/` (query IGDB per game, update `games.genres` directly) or extending the edit UI to support genres first. Decide whether to also map IGDB's verbose names (e.g. "Role-playing (RPG)") to shorter shelf labels while backfilling.
+- [ ] Enforce a per-user library size cap (~2k games) before multi-user signup opens (spec §9 decision #3 bundles row caps with the abuse guardrails; Phase 3 shipped the per-user rate limits but not this cap). Safe to defer while signup is closed and only the founder writes, but wire it into `create_my_game` (a cheap `count_games >= MAX_GAMES` check, MAX_GAMES as an env var like MAX_USERS) as part of Phase 4 so it isn't forgotten when writes open to others.
 - [ ] Library-level "create session" button (owner-only) — start or log a session for any game without opening that game's pencil/edit modal: a game picker (search the library) + the same start-now / past-dates form the modal has. Stretch goal: accept a game NOT in the library yet ("I just started something new") — the flow would add the game to the library (IGDB search, Phase 3 slice 4's proxy) and open its session in one go. Backend already supports everything except add+start-in-one; UI is the work. Keep simple, iterate later.
 - [ ] Normalize game metadata into a shared catalog (a `game_metadata` table + per-user `played_games`/`wishlist_games` link tables) — today `games` and `wishlist_items` each carry their own copy of name/system/genres/release_date/image_url. Spec §4.2 deliberately chose denormalized-with-`igdb_id` for v1 (canonical rows need an ownership/moderation story; user-entered games lack a canonical key). Revisit at Phase 4 when cross-user duplication actually exists — the `igdb_id` column on both tables is the planned backfill key (group by it, extract canonical rows, repoint).
 - [ ] Profile pictures for user accounts (instanced game libraries follow-up, post-v1 — see `docs/plans/instanced-game-libraries.md`; likely Supabase Storage + upload/crop flow, shown in the library profile header and follower lists)

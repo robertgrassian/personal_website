@@ -11,7 +11,7 @@ import { GameCaseSpine } from "./GameCaseSpine";
 
 // View-agnostic input: Game supplies `rating` (badge); WishlistGame supplies
 // `starred` (star overlay). Never both — render logic picks one. `id` is the
-// DB row id (absent on CSV-sourced games); owner edits require it.
+// DB row id from the library API; owner edits require it.
 export type GameCaseInput = BaseGame & {
   id?: number;
   rating?: Rating | "";

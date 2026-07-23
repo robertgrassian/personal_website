@@ -6,7 +6,7 @@ export interface BaseGame {
   system: string;
   genres: string[]; // CSV stores "Action-Adventure|Puzzle"; split on "|"
   releaseDate: string; // ISO date, e.g. "2023-05-12" ("" if unknown)
-  imageUrl: string; // populated by scripts/fetch-covers.ts; "" = fallback
+  imageUrl: string; // IGDB cover URL; "" = fallback art
 }
 
 // Returns game.genres or ["Unknown"]. Use when a game must appear once per genre.

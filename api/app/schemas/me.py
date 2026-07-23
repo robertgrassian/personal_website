@@ -61,6 +61,24 @@ def validate_igdb_image_url(value: str) -> str:
     return value
 
 
+def strip_required(value: str) -> str:
+    """Trim a required text field and reject a blank result. Shared by the
+    name/system fields that must carry a real value."""
+    stripped = value.strip()
+    if not stripped:
+        raise ValueError("must not be blank")
+    return stripped
+
+
+def clean_genres(value: list[str]) -> list[str]:
+    """Trim genres, drop blanks, and cap each length. Shared by GameCreate and
+    WishlistCreate — the wire shape and rules are identical."""
+    cleaned = [g.strip() for g in value if g.strip()]
+    if any(len(g) > 50 for g in cleaned):
+        raise ValueError("each genre must be 50 characters or fewer")
+    return cleaned
+
+
 class GameUpdate(CamelModel):
     """Partial edit of one game in the caller's library (PATCH semantics):
     only fields the client actually sent are applied — the service checks
@@ -101,23 +119,8 @@ class GameCreate(CamelModel):
     rating: str | None = None
 
     _known_rating = field_validator("rating")(validate_known_rating)
-
-    @field_validator("name", "system")
-    @classmethod
-    def _strip_nonempty(cls, value: str) -> str:
-        stripped = value.strip()
-        if not stripped:
-            raise ValueError("must not be blank")
-        return stripped
-
-    @field_validator("genres")
-    @classmethod
-    def _clean_genres(cls, value: list[str]) -> list[str]:
-        cleaned = [g.strip() for g in value if g.strip()]
-        if any(len(g) > 50 for g in cleaned):
-            raise ValueError("each genre must be 50 characters or fewer")
-        return cleaned
-
+    _strip = field_validator("name", "system")(strip_required)
+    _genres = field_validator("genres")(clean_genres)
     _igdb_url_only = field_validator("image_url")(validate_igdb_image_url)
 
 
@@ -142,22 +145,8 @@ class WishlistCreate(CamelModel):
     date_added: date = Field(default_factory=date.today)
 
     _igdb_url_only = field_validator("image_url")(validate_igdb_image_url)
-
-    @field_validator("name")
-    @classmethod
-    def _strip_nonempty(cls, value: str) -> str:
-        stripped = value.strip()
-        if not stripped:
-            raise ValueError("must not be blank")
-        return stripped
-
-    @field_validator("genres")
-    @classmethod
-    def _clean_genres(cls, value: list[str]) -> list[str]:
-        cleaned = [g.strip() for g in value if g.strip()]
-        if any(len(g) > 50 for g in cleaned):
-            raise ValueError("each genre must be 50 characters or fewer")
-        return cleaned
+    _strip = field_validator("name")(strip_required)
+    _genres = field_validator("genres")(clean_genres)
 
 
 class WishlistUpdate(CamelModel):
