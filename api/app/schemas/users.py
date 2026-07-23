@@ -2,8 +2,9 @@
 
 Mirroring contract (spec §6): ``GameRead`` and ``WishlistGameRead`` mirror the
 frontend TypeScript types ``Game`` (src/lib/games.ts) and ``WishlistGame``
-(src/lib/wishlist.ts) field-for-field so the FE types don't churn when the
-data source moves from CSV to this API. That means:
+(src/lib/wishlist.ts) field-for-field, so the FE consumes this API without a
+translation layer (the shapes were designed to match when the data source
+moved from CSV to this API). That means:
 
 - **camelCase keys on the wire** (``releaseDate``, ``imageUrl``, ...), produced
   by the ``to_camel`` alias generator; Python code still uses snake_case names.
@@ -45,8 +46,8 @@ class BaseGameRead(CamelModel):
 
 class GameRead(BaseGameRead):
     """Mirrors ``Game`` (src/lib/games.ts): BaseGame + rating + derived play
-    state — plus the row ``id``, which the TS type carries as optional (CSV
-    rows never had one) and the owner write path targets (PATCH /me/games/{id}).
+    state — plus the row ``id`` (optional on the TS type for shared-card
+    reasons) that the owner write path targets (PATCH /me/games/{id}).
 
     Exposing ids on the public read is an accepted trade-off: anyone can
     enumerate a library's row ids, but ids grant nothing — every mutation
