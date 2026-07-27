@@ -147,10 +147,10 @@ export function GameLibrary({
         .filter((g) => g.games.length > 0)
         .map((group) => ({ ...group, games: sortGames(group.games, sortOrder) }));
     }
+    // No "none" short-circuit here (unlike played): groupWishlist always has
+    // to run so the Starred shelf is split off even when grouping is off.
     const filtered = filterWishlist(wishlist, activeWishlistFilters);
-    const groups =
-      groupBy === "none" ? [{ label: "", games: filtered }] : groupWishlist(filtered, groupBy);
-    return groups
+    return groupWishlist(filtered, groupBy)
       .filter((g) => g.games.length > 0)
       .map((group) => ({ ...group, games: sortWishlist(group.games, sortOrder) }));
   }, [view, games, wishlist, activeFilters, activeWishlistFilters, groupBy, sortOrder]);

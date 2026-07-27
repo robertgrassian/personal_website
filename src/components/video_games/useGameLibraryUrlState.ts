@@ -150,7 +150,7 @@ export function useGameLibraryUrlState(): UrlState {
   );
 
   // setView also strips groupBy/sortOrder values the new view doesn't support,
-  // so e.g. `?sortOrder=starred-first` doesn't leak from wishlist to played.
+  // so e.g. `?sortOrder=added-newest` doesn't leak from wishlist to played.
   const setView = useCallback(
     (value: View) => {
       const params = new URLSearchParams(searchParams.toString());

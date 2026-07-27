@@ -13,7 +13,6 @@ const GROUP_BY_LABELS: Record<GroupBy, string> = {
   none: "None",
   system: "System",
   rating: "Rating",
-  starred: "Starred",
   genre: "Genre",
   decade: "Decade",
 };
@@ -27,7 +26,6 @@ const SORT_LABELS: Record<SortOrder, string> = {
   "played-oldest": "Last Played: Oldest",
   "added-newest": "Added: Recent",
   "added-oldest": "Added: Oldest",
-  "starred-first": "Starred First",
 };
 
 // Minimum scroll distance (px) before toggling filter bar visibility.

@@ -4,7 +4,9 @@
 export type View = "played" | "wishlist";
 
 // Unions across BOTH views. Per-view valid subsets live in VIEW_CONFIG below.
-export type GroupBy = "none" | "system" | "rating" | "starred" | "genre" | "decade";
+// Note there is no "starred" value: on the wishlist, starred items are always
+// split into their own leading shelf, so it isn't a grouping you can pick.
+export type GroupBy = "none" | "system" | "rating" | "genre" | "decade";
 
 export type SortOrder =
   | "name-asc"
@@ -14,8 +16,7 @@ export type SortOrder =
   | "played-newest"
   | "played-oldest"
   | "added-newest"
-  | "added-oldest"
-  | "starred-first";
+  | "added-oldest";
 
 // All view-specific data in one Record — adding a view = one object literal.
 export type ViewConfig = {
@@ -43,9 +44,9 @@ export const VIEW_CONFIG: Record<View, ViewConfig> = {
   },
   wishlist: {
     label: "Want to Play",
-    defaultGroupBy: "starred",
+    defaultGroupBy: "system",
     defaultSortOrder: "name-asc",
-    validGroupBy: ["none", "system", "starred", "genre", "decade"],
+    validGroupBy: ["none", "system", "genre", "decade"],
     validSortOrder: [
       "name-asc",
       "name-desc",
@@ -53,7 +54,6 @@ export const VIEW_CONFIG: Record<View, ViewConfig> = {
       "release-newest",
       "added-newest",
       "added-oldest",
-      "starred-first",
     ],
   },
 };
