@@ -36,6 +36,28 @@ export function requireLibraryApiOrigin(): string {
   );
 }
 
+// True when this deployment would reach PRODUCTION's API without being
+// production itself — i.e. a preview deploy that self-resolved to the
+// production domain above.
+//
+// Reads in that state are fine: the library data is public either way. WRITES
+// are not, and the API can't stop them — forbid_in_preview reads the APP_ENV
+// of the server *receiving* the request, which for a self-resolved preview is
+// production's, so the guard sees "prod" and allows the mutation. Enforcing it
+// here, where this deployment's own environment is actually known, is the only
+// place the distinction exists.
+//
+// Setting LIBRARY_API_ORIGIN explicitly opts out: it means someone chose the
+// target on purpose (a preview pointed at its own read-only-role API, say),
+// and that choice is theirs to make.
+export function targetsForeignEnvironmentApi(): boolean {
+  if (process.env.LIBRARY_API_ORIGIN?.trim()) return false;
+  const vercelEnv = process.env.VERCEL_ENV?.trim();
+  // Unset = not a Vercel deploy (local dev, CI), where there's no production
+  // domain to accidentally reach.
+  return Boolean(vercelEnv) && vercelEnv !== "production";
+}
+
 // Single cache tag per user covering games AND wishlist. Writes call
 // revalidateTag(libraryCacheTag(username)) — the one shared name both sides
 // must agree on, so it lives here next to the reads that use it.

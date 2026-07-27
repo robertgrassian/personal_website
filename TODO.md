@@ -12,7 +12,14 @@
       Postgres, click a rating to confirm the optimistic UI converges, and note the
       first-write latency (stacked Node+Python cold start). If you ever want to pin the
       origin explicitly instead of self-resolving, you _can_ set `LIBRARY_API_ORIGIN`,
-      but it's optional now.
+      but it's optional now.<br>
+      **Preview caveat:** `VERCEL_PROJECT_PRODUCTION_URL` is set on preview deploys too
+      and points at the production domain, so a preview deploy _reads_ production's
+      library. Writes from a preview are refused client-side
+      (`targetsForeignEnvironmentApi` in `libraryApi.ts`) because the API's
+      `forbid_in_preview` can't see them — it reads production's `APP_ENV`, not the
+      preview deploy's. To let a preview write again, point it at its own API with a
+      Preview-scoped `LIBRARY_API_ORIGIN`.
 - [ ] **After merging PR #63** (IGDB proxy + add/delete + wishlist): 1. Prod DB migration: `cd api && DATABASE_URL="$(cat ~/prod-db-url.txt)" uv run alembic upgrade head` 2. Vercel → add `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` (Production scope,
       a Twitch application's credentials from dev.twitch.tv) → redeploy
 - [ ] **Local dev**: add the same `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` to the

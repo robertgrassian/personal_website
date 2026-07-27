@@ -13,7 +13,7 @@
 // revalidation. Writes never take that path.
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import { requireLibraryApiOrigin } from "@/lib/libraryApi";
+import { requireLibraryApiOrigin, targetsForeignEnvironmentApi } from "@/lib/libraryApi";
 import type { IgdbSearchResult, NewGame } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
 
@@ -43,6 +43,15 @@ async function accessToken(): Promise<string | null> {
 // imported above): explicit LIBRARY_API_ORIGIN, else the Vercel production
 // domain. See that function for the VERCEL_URL caveat.
 
+// Refused-write message, shared by every mutation below. A preview deploy that
+// self-resolved its origin points at PRODUCTION's API, so an unguarded write
+// there would mutate the real library — and the API's own forbid_in_preview
+// can't catch it (see targetsForeignEnvironmentApi). Every write funnels
+// through this check before its fetch.
+const FOREIGN_API_WRITE_MESSAGE =
+  "Writes are disabled on preview deployments — this deploy reads production's " +
+  "library, so a write here would change the real thing.";
+
 /** The caller's profile, or null when they're authenticated but haven't
  *  completed onboarding yet (the API returns 404 for that state). */
 export async function fetchMyProfile(): Promise<MyProfile | null> {
@@ -69,6 +78,9 @@ export async function createMyProfile(
   username: string,
   displayName: string
 ): Promise<CreateProfileResult> {
+  if (targetsForeignEnvironmentApi()) {
+    return { ok: false, reason: "unknown", message: FOREIGN_API_WRITE_MESSAGE };
+  }
   const token = await accessToken();
   if (!token) {
     return { ok: false, reason: "unknown", message: "You are not signed in." };
@@ -124,6 +136,9 @@ async function mutateGame(
   body: Record<string, unknown> | null,
   what: string
 ): Promise<MutateGameResult> {
+  if (targetsForeignEnvironmentApi()) {
+    return { ok: false, message: FOREIGN_API_WRITE_MESSAGE };
+  }
   const token = await accessToken();
   if (!token) {
     return { ok: false, message: "You are not signed in." };
@@ -200,6 +215,11 @@ export type SearchIgdbResult =
 
 /** Search IGDB through the authenticated proxy (rate-limited server-side). */
 export async function searchIgdb(query: string): Promise<SearchIgdbResult> {
+  // Nominally a read, but the proxy writes through it (token cache, rate-limit
+  // counters), so it gets the same refusal as the mutations.
+  if (targetsForeignEnvironmentApi()) {
+    return { ok: false, message: FOREIGN_API_WRITE_MESSAGE };
+  }
   const token = await accessToken();
   if (!token) {
     return { ok: false, message: "You are not signed in." };
