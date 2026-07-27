@@ -71,7 +71,12 @@ export function GameCase({ game, onEdit }: GameCaseProps) {
   // Editable = the owner is viewing (onEdit provided) AND the row is
   // API-backed (has an id) AND it's a library game (wishlist entries have no
   // rating field at all — undefined, distinct from "" = unrated).
-  const editable = onEdit !== undefined && game.id !== undefined && game.rating !== undefined;
+  // `onEdit` is only supplied to an owner, and an `id` means the row is
+  // API-backed so a mutation has something to target. Deliberately NOT gated on
+  // `rating`: that's a Game-only field, and requiring it hid the pencil on every
+  // wishlist card — which made EditWishlistModal unreachable. GameLibrary's
+  // handleEditGame picks the right dialog per view, so both kinds are editable.
+  const editable = onEdit !== undefined && game.id !== undefined;
 
   const hasImage = game.imageUrl !== "" && !imageError;
   const ratingLetter = game.rating

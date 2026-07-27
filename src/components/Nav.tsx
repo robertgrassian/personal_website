@@ -24,11 +24,16 @@ export function Nav() {
     // backdrop-blur-sm + bg-background/90 = frosted glass that lets a hint of page content show through.
     // z-50 ensures the nav sits above all page content, including sticky filter bars (z-20).
     <nav className="sticky top-0 z-50 border-b border-divider bg-background/90 backdrop-blur-sm">
-      <div className="px-6 h-[var(--nav-height)] flex items-center justify-between">
+      {/* Everything scales down only below `sm`. Adding the auth control pushed
+          this row past a phone's width; desktop had room and is left alone. The
+          bar's height is fixed by --nav-height, so shrinking the type changes
+          nothing for FilterBar/StatsPanel, which offset their sticky position
+          by that same token. */}
+      <div className="px-4 sm:px-6 h-[var(--nav-height)] flex items-center justify-between gap-3">
         {/* Site name — two-line display with Caveat, links back to home */}
         <Link
           href="/"
-          className={`${caveat.className} text-2xl leading-tight text-foreground hover:text-link transition-colors duration-150`}
+          className={`${caveat.className} text-xl sm:text-2xl leading-tight text-foreground hover:text-link transition-colors duration-150 whitespace-nowrap`}
         >
           {/* Two separate spans so each word sits on its own line */}
           <span className="block">Robert</span>
@@ -36,13 +41,13 @@ export function Nav() {
         </Link>
 
         {/* Page links — active route gets the amber accent color */}
-        <ul className="flex items-center gap-6 list-none">
+        <ul className="flex items-center gap-3 sm:gap-6 list-none">
           {links.map(({ href, label }) => (
             <li key={href}>
               <Link
                 href={href}
                 // pathname.startsWith handles nested routes (e.g. /video_games/some-game)
-                className={`text-sm transition-colors duration-150 ${
+                className={`text-xs sm:text-sm whitespace-nowrap transition-colors duration-150 ${
                   pathname.startsWith(href)
                     ? "text-link font-medium"
                     : "text-subtle hover:text-link"

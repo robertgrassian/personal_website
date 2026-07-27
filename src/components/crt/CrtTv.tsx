@@ -354,17 +354,36 @@ export function CrtTv({ games, compact = false }: CrtTvProps) {
         </div>
 
         {hasGames ? (
+          // Every line below is height-stable on purpose. The channel cycle
+          // swaps games on a timer, and each game's metadata is a different
+          // shape — a longer title wraps, a longer genre list wraps, a game
+          // with no open session has no date line. Any of those changes this
+          // block's height, and because .pcrt-stage--compact is a
+          // bottom-aligned flex row, a taller block pushes the TV (and the
+          // page below it) down. Reserving the worst case keeps it fixed.
+          //
+          // `lh` units are line-heights of the element itself, so the reserved
+          // space tracks each line's own type scale instead of a magic rem
+          // value that silently drifts if the font size changes.
           <>
-            <h2 className="mt-1 text-2xl font-bold text-foreground">{active!.name}</h2>
-            <p className="mt-0.5 text-sm text-muted">
+            {/* Two lines reserved and clamped: short titles leave the second
+                line empty, long ones fill it, nothing exceeds it. Reserving
+                rather than truncating to one line keeps long titles readable
+                on a phone, which is where the wrapping happens. */}
+            <h2 className="mt-1 line-clamp-2 min-h-[2lh] text-2xl font-bold text-foreground">
+              {active!.name}
+            </h2>
+            {/* One line, clamped — genre lists are open-ended, and this is
+                secondary metadata, so an ellipsis costs little. */}
+            <p className="mt-0.5 line-clamp-1 text-sm text-muted">
               {active!.system}
               {active!.genres.length > 0 && ` · ${active!.genres.join(", ")}`}
             </p>
-            {active!.playingSince && (
-              <p className="mt-1.5 text-xs italic text-subtle">
-                playing since {formatDay(active!.playingSince)}
-              </p>
-            )}
+            {/* Always rendered, empty when there's no date, so the line's
+                height is reserved either way. */}
+            <p className="mt-1.5 min-h-[1lh] text-xs italic text-subtle">
+              {active!.playingSince ? `playing since ${formatDay(active!.playingSince)}` : ""}
+            </p>
           </>
         ) : (
           <>
