@@ -33,7 +33,7 @@ function passesBaseFilters(game: BaseGame, filters: BaseFilters): boolean {
 }
 
 // Returns keys for BaseGame-compatible GroupBy values; null for view-specific
-// ones ("rating", "starred") so the caller decides.
+// ones ("rating") so the caller decides.
 function sharedGroupKeys(game: BaseGame, groupBy: GroupBy): string[] | null {
   switch (groupBy) {
     case "none":
@@ -146,39 +146,41 @@ export function filterWishlist(list: WishlistGame[], filters: WishlistFilters): 
   return list.filter((w) => passesBaseFilters(w, filters));
 }
 
+const STARRED_LABEL = "Starred";
+
 function getWishlistGroupKeys(w: WishlistGame, groupBy: GroupBy): string[] {
-  const shared = sharedGroupKeys(w, groupBy);
-  if (shared) return shared;
-  if (groupBy === "starred") return [w.starred ? "Starred" : "Other"];
-  return fallbackGroupKeys(groupBy, "wishlist");
+  return sharedGroupKeys(w, groupBy) ?? fallbackGroupKeys(groupBy, "wishlist");
 }
 
+// Starred items are always pulled out into a single leading shelf; `groupBy`
+// only ever applies to what's left. A starred item therefore appears once, on
+// the Starred shelf, never also under its system/genre/decade.
 export function groupWishlist(
   list: WishlistGame[],
   groupBy: GroupBy
 ): Array<{ label: string; games: WishlistGame[] }> {
+  const starred = list.filter((w) => w.starred);
+  const rest = list.filter((w) => !w.starred);
+
   const map = new Map<string, WishlistGame[]>();
-  for (const w of list) {
+  for (const w of rest) {
     for (const key of getWishlistGroupKeys(w, groupBy)) {
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(w);
     }
   }
 
-  return Array.from(map.entries())
+  const groups = Array.from(map.entries())
     .map(([label, games]) => ({ label, games }))
     .sort((a, b) => {
-      if (groupBy === "starred") {
-        // Starred shelf always first, Other below — regardless of size.
-        if (a.label === "Starred") return -1;
-        if (b.label === "Starred") return 1;
-        return 0;
-      }
       if (groupBy === "system") {
         return b.games.length - a.games.length || a.label.localeCompare(b.label);
       }
       return a.label.localeCompare(b.label);
     });
+
+  // Prepended rather than sorted in, so no group can ever outrank it.
+  return starred.length > 0 ? [{ label: STARRED_LABEL, games: starred }, ...groups] : groups;
 }
 
 export function sortWishlist(list: WishlistGame[], sortOrder: SortOrder): WishlistGame[] {
@@ -190,9 +192,6 @@ export function sortWishlist(list: WishlistGame[], sortOrder: SortOrder): Wishli
         return (b.dateAdded || "0000").localeCompare(a.dateAdded || "0000");
       case "added-oldest":
         return (a.dateAdded || "9999").localeCompare(b.dateAdded || "9999");
-      case "starred-first":
-        // Boolean → number so starred (true → 1) outranks unstarred (false → 0).
-        return Number(b.starred) - Number(a.starred) || a.name.localeCompare(b.name);
       default:
         return fallbackCompare(a, b, sortOrder, "wishlist");
     }
