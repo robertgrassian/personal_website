@@ -14,7 +14,10 @@ import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 
-const linkClass = "text-sm text-subtle hover:text-link transition-colors duration-150";
+// Matches the nav links' responsive type scale (Nav.tsx) so the row shrinks as
+// one unit on narrow screens instead of this control staying a step larger.
+const linkClass =
+  "text-xs sm:text-sm whitespace-nowrap text-subtle hover:text-link transition-colors duration-150";
 
 export function AuthButton() {
   const [user, setUser] = useState<User | null>(null);
