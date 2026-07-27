@@ -6,12 +6,8 @@ import { localToday, RATINGS, type IgdbSearchResult, type NewGame, type Rating }
 import type { NewWishlistItem } from "@/lib/wishlist";
 import { addGame, addWishlistItem, searchGames } from "@/app/video_games/actions";
 import { CloseIcon } from "@/components/Icon";
-
-const inputClass =
-  "w-full bg-shelf-input border border-shelf-input-border text-shelf-input-text text-sm rounded " +
-  "px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-shelf-input-ring";
-
-const labelClass = "flex flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label";
+import { useModalChrome } from "./useModalChrome";
+import { inputClass, labelClass } from "./formStyles";
 
 // The confirm form's working copy: NewGame except genres, which stay a raw
 // comma-separated string while typing (splitting on every keystroke would
@@ -53,29 +49,8 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  });
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const previouslyFocused = document.activeElement;
-    searchInputRef.current?.focus();
-
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseRef.current();
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKey);
-      if (previouslyFocused instanceof HTMLElement && previouslyFocused.isConnected) {
-        previouslyFocused.focus();
-      }
-    };
-  }, []);
+  // Scroll lock, focus-into/restore, and Escape-to-close.
+  useModalChrome(onClose, searchInputRef);
 
   // Debounced search. The timeout collapses bursts of keystrokes into one
   // request; the sequence counter drops responses that arrive after a newer
@@ -222,6 +197,9 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              // Matches the server action's upper bound, so pasting a long
+              // string can't produce a query the action refuses outright.
+              maxLength={100}
               placeholder="Search IGDB…"
               aria-label="Search IGDB for a game"
               className={`${inputClass} mt-4`}
@@ -337,10 +315,13 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
 
               <label className={labelClass}>
                 Release date
+                {/* Capped at today for the library (you can't have played a
+                    game that isn't out yet) but uncapped for the wishlist,
+                    where unreleased games are the normal case. */}
                 <input
                   type="date"
                   value={draft.releaseDate ?? ""}
-                  max={localToday()}
+                  max={target === "library" ? localToday() : undefined}
                   onChange={(e) => setDraft({ ...draft, releaseDate: e.target.value || null })}
                   className={inputClass}
                 />

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import { localToday, RATINGS, type Game, type Rating } from "@/lib/games";
 import { deleteGame, logSession, stopSession, updateGameRating } from "@/app/video_games/actions";
 import { CloseIcon } from "@/components/Icon";
+import { useModalChrome } from "./useModalChrome";
 
 const dateInputClass =
   "bg-shelf-input border border-shelf-input-border text-shelf-input-text text-sm rounded " +
@@ -43,35 +44,9 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
 
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Same latest-ref pattern as StatsPanel: the Escape listener reads onClose
-  // through a ref so the effect never needs to re-run.
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  });
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    // Remember what opened the dialog (the pencil) so focus can return to it
-    // on close instead of dropping to <body>.
-    const previouslyFocused = document.activeElement;
-    closeButtonRef.current?.focus();
-
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseRef.current();
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKey);
-      // isConnected guards against the opener having been unmounted (e.g. the
-      // game moved shelves after a rating change re-rendered the grid).
-      if (previouslyFocused instanceof HTMLElement && previouslyFocused.isConnected) {
-        previouslyFocused.focus();
-      }
-    };
-  }, []);
+  // Scroll lock, focus-into/restore, and Escape-to-close — shared across the
+  // owner dialogs.
+  useModalChrome(onClose, closeButtonRef);
 
   const rate = (next: Rating | "") => {
     if (game.id === undefined) return;

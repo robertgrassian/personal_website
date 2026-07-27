@@ -93,6 +93,14 @@ export function GameLibrary({
     () => [...new Set(wishlist.flatMap((w) => w.genres))].sort(),
     [wishlist]
   );
+  // Shelf-system suggestions for the add/promote forms. Deliberately distinct
+  // from `allSystems`: the filter dropdown should only offer systems you can
+  // actually filter to (rated games), but a system that currently exists only
+  // on an unrated game is still one of your shelves, so it belongs here.
+  const systemSuggestions = useMemo(
+    () => [...new Set([...games, ...unratedGames].map((g) => g.system))].sort(),
+    [games, unratedGames]
+  );
 
   // "Available" sets — values that still yield results given the other active
   // filters. Options outside these sets render as disabled in the dropdowns.
@@ -262,7 +270,7 @@ export function GameLibrary({
       {activeShelves.length === 0 ? (
         <p className="mt-24 text-center text-shelf-text-muted text-lg italic">
           {view === "wishlist" && wishlist.length === 0
-            ? "Your wishlist is empty — add some games to wishlist.csv."
+            ? "Your wishlist is empty."
             : "No games match your filters."}
         </p>
       ) : (
@@ -299,14 +307,14 @@ export function GameLibrary({
       {editingWishlistItem && (
         <EditWishlistModal
           item={editingWishlistItem}
-          existingSystems={allSystems}
+          existingSystems={systemSuggestions}
           onClose={() => setEditingWishlistId(null)}
         />
       )}
       {addOpen && (
         <AddGameModal
           target={view === "played" ? "library" : "wishlist"}
-          existingSystems={allSystems}
+          existingSystems={systemSuggestions}
           onClose={() => setAddOpen(false)}
         />
       )}

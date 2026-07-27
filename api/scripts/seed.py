@@ -1,4 +1,4 @@
-"""Seed the local database from the repo-root CSVs.
+"""Seed the local database from the frozen CSV snapshot in scripts/fixtures/.
 
 Run from api/:  uv run python scripts/seed.py
 
@@ -11,7 +11,8 @@ owner of the seeded library. Auth users created by other local signups are
 left alone, but their profiles ARE truncated: after a reseed those accounts
 are back in the "authenticated but no profile" onboarding state.
 
-Validation ports the rules from src/lib/gamesServer.ts: warn-don't-drop for
+Validation ports the rules the retired CSV parser (gamesServer.ts) used:
+warn-don't-drop for
 fixable problems (unknown rating, missing system), skip only nameless rows.
 The one hard failure is session-name resolution — sessions.csv references
 games by name, and a name matching zero or several games aborts the run
@@ -35,7 +36,10 @@ from app.core.config import get_settings
 from app.core.db import get_sessionmaker
 from app.models import Game, PlaySession, Profile, WishlistItem
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# Frozen CSV snapshot (the retired repo-root CSVs) — the local seed source.
+# Prod data lives in Postgres; these fixtures only exist to rebuild a local
+# dev database and are not read by the site.
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
 # Fixed (not random) so reruns and other tooling can reference it. The same
 # UUID is used for the auth.users row, keeping profile id == auth id exactly
@@ -190,7 +194,7 @@ def parse_wishlist_rows(rows: Iterable[dict], warnings: list[str]) -> list[dict]
 
 
 def read_csv(filename: str) -> list[dict]:
-    with (REPO_ROOT / filename).open(newline="") as f:
+    with (FIXTURES_DIR / filename).open(newline="") as f:
         return list(csv.DictReader(f))
 
 

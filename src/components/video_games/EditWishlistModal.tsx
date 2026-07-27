@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import type { WishlistGame } from "@/lib/wishlist";
 import {
   deleteWishlistItem,
@@ -8,10 +8,8 @@ import {
   updateWishlistItem,
 } from "@/app/video_games/actions";
 import { CloseIcon } from "@/components/Icon";
-
-const inputClass =
-  "w-full bg-shelf-input border border-shelf-input-border text-shelf-input-text text-sm rounded " +
-  "px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-shelf-input-ring";
+import { useModalChrome } from "./useModalChrome";
+import { inputClass, labelClass } from "./formStyles";
 
 type EditWishlistModalProps = {
   item: WishlistGame;
@@ -28,6 +26,11 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  // Optimistic star, matching EditGameModal's rating: the checkbox flips on
+  // click instead of after the round-trip, converges on the prop once
+  // revalidation delivers fresh data, and reverts itself if the write fails.
+  const [optimisticStarred, setOptimisticStarred] = useOptimistic<boolean>(item.starred);
+
   // Notes buffer locally until Save — a textarea that fires a server write
   // per keystroke would be miserable. Starred toggles write immediately.
   const [notesDraft, setNotesDraft] = useState(item.notes);
@@ -40,29 +43,8 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
 
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  });
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const previouslyFocused = document.activeElement;
-    closeButtonRef.current?.focus();
-
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseRef.current();
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKey);
-      if (previouslyFocused instanceof HTMLElement && previouslyFocused.isConnected) {
-        previouslyFocused.focus();
-      }
-    };
-  }, []);
+  // Scroll lock, focus-into/restore, and Escape-to-close.
+  useModalChrome(onClose, closeButtonRef);
 
   const patch = (fields: { starred?: boolean; notes?: string }) => {
     if (item.id === undefined) return;
@@ -70,6 +52,19 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
     startTransition(async () => {
       setError(null);
       const result = await updateWishlistItem(itemId, fields);
+      if (!result.ok) setError(result.message);
+    });
+  };
+
+  const toggleStarred = (next: boolean) => {
+    if (item.id === undefined) return;
+    const itemId = item.id;
+    startTransition(async () => {
+      setError(null);
+      // Set inside the transition — that's what ties the optimistic value's
+      // lifetime to the async work below.
+      setOptimisticStarred(next);
+      const result = await updateWishlistItem(itemId, { starred: next });
       if (!result.ok) setError(result.message);
     });
   };
@@ -136,15 +131,14 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
         <label className="mt-5 flex items-center gap-2 text-sm text-shelf-text cursor-pointer">
           <input
             type="checkbox"
-            checked={item.starred}
-            disabled={isPending}
-            onChange={(e) => patch({ starred: e.target.checked })}
+            checked={optimisticStarred}
+            onChange={(e) => toggleStarred(e.target.checked)}
             className="accent-amber-500"
           />
           Starred (priority wishlist)
         </label>
 
-        <label className="mt-4 flex flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label">
+        <label className={`mt-4 ${labelClass}`}>
           Notes
           <textarea
             value={notesDraft}
@@ -178,7 +172,7 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
             </button>
           ) : (
             <div>
-              <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label">
+              <label className={labelClass}>
                 System
                 <input
                   type="text"

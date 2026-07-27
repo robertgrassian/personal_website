@@ -44,6 +44,10 @@ def increment_rate_limit(db: Session, user_id: uuid.UUID, bucket: str, window: t
     In the update branch, ``RateLimit.window_start`` refers to the EXISTING
     row's value (Postgres semantics for ON CONFLICT DO UPDATE), which is
     exactly what the window check needs.
+
+    Fixed windows, not a sliding average: a caller who spends their budget at
+    the end of one window and again at the start of the next can briefly send
+    2x the limit. Accepted — this protects a quota, it isn't a security control.
     """
     cutoff = func.now() - window
     expired = RateLimit.window_start < cutoff

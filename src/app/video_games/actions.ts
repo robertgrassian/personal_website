@@ -38,8 +38,12 @@ function isValidRating(rating: string): rating is Rating | "" {
  *  translation meApi does. No revalidation — nothing changed. */
 export async function searchGames(query: string): Promise<SearchIgdbResult> {
   const trimmed = query.trim();
-  if (trimmed.length < 2 || trimmed.length > 100) {
+  if (trimmed.length < 2) {
     return { ok: false, message: "Type at least 2 characters." };
+  }
+  // The API caps `q` at 100 too; saying so beats one message for both bounds.
+  if (trimmed.length > 100) {
+    return { ok: false, message: "Search term is too long (100 characters max)." };
   }
   return searchIgdb(trimmed);
 }

@@ -119,31 +119,52 @@ def _escape_apicalypse(term: str) -> str:
     return term.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def _upgrade_cover_url(url: str) -> str:
+    """IGDB cover URL → the 264x374 (t_cover_big) size the shelves hotlink.
+    IGDB returns protocol-relative thumbnails
+    (//images.igdb.com/.../t_thumb/...): upgrade the size, then make the scheme
+    explicit only when it's actually missing — guarding against a doubled
+    scheme (https:https://...) if IGDB ever returns an already-absolute URL.
+    The result must satisfy validate_igdb_image_url so a later POST /me/games
+    with this cover isn't rejected."""
+    if not url:
+        return ""
+    url = url.replace("t_thumb", "t_cover_big")
+    return f"https:{url}" if url.startswith("//") else url
+
+
 def _parse_results(raw: list[dict]) -> list[IgdbSearchResult]:
     """IGDB rows → wire DTOs. Every field except name/id is optional on
     IGDB's side, hence the .get chains; absent scalars become "" per the
     site-wide wire convention."""
     results: list[IgdbSearchResult] = []
     for row in raw:
+        # id and name are the two fields a candidate can't do without — one
+        # identifies it, the other renders it. A row missing either is dropped
+        # rather than subscripted: one malformed row would otherwise turn the
+        # whole search into a KeyError 500 instead of the 502 the router
+        # reserves for upstream trouble.
+        igdb_id = row.get("id")
+        name = row.get("name")
+        if igdb_id is None or not name:
+            continue
         release_ts = row.get("first_release_date")
-        cover_url = (row.get("cover") or {}).get("url", "")
+        # `or []` / `or ""` rather than a .get default: IGDB omits these keys,
+        # but an explicit null would slip past a default and blow up below.
+        cover_url = (row.get("cover") or {}).get("url") or ""
         results.append(
             IgdbSearchResult(
-                igdb_id=row["id"],
-                name=row["name"],
+                igdb_id=igdb_id,
+                name=name,
                 # IGDB dates are unix timestamps (UTC midnight of release day).
                 release_date=(
                     datetime.fromtimestamp(release_ts, tz=UTC).date().isoformat()
                     if release_ts
                     else ""
                 ),
-                platforms=[p["name"] for p in row.get("platforms", [])],
-                genres=[g["name"] for g in row.get("genres", [])],
-                # IGDB returns protocol-relative thumbnail URLs; upgrade to
-                # the 264x374 cover size the shelves already hotlink.
-                cover_url=cover_url.replace("t_thumb", "t_cover_big").replace(
-                    "//images", "https://images", 1
-                ),
+                platforms=[p["name"] for p in row.get("platforms") or []],
+                genres=[g["name"] for g in row.get("genres") or []],
+                cover_url=_upgrade_cover_url(cover_url),
             )
         )
     return results

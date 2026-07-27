@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     # --- IGDB proxy ------------------------------------------------------------
     # Twitch application credentials (IGDB authenticates via Twitch OAuth).
     # Server-side only, never exposed to clients; unset → /igdb/search
-    # answers 503. Same credentials scripts/fetch-covers.ts used inline.
+    # answers 503. A Twitch application's client id/secret (dev.twitch.tv).
     twitch_client_id: str | None = None
     twitch_client_secret: str | None = None
 

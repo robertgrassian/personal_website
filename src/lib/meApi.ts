@@ -13,6 +13,7 @@
 // revalidation. Writes never take that path.
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { requireLibraryApiOrigin, targetsForeignEnvironmentApi } from "@/lib/libraryApi";
 import type { IgdbSearchResult, NewGame } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
 
@@ -38,30 +39,18 @@ async function accessToken(): Promise<string | null> {
   return session?.access_token ?? null;
 }
 
-function apiOrigin(): string {
-  // The authenticated /me/* path always needs an absolute origin for the
-  // server-side fetch to FastAPI. It is DELIBERATELY resolved separately from
-  // the public read path's LIBRARY_API_ORIGIN: reads stay on CSV in prod (that
-  // var unset) until Phase 3, but the write path must reach the API regardless.
-  //   - Dev: LIBRARY_API_ORIGIN points at the separate uvicorn process (:8000).
-  //   - Prod: no separate process — FastAPI is a serverless function on the
-  //     same deployment. We target VERCEL_PROJECT_PRODUCTION_URL (the public
-  //     production domain, e.g. rgrassian.com) rather than VERCEL_URL. This is
-  //     load-bearing: VERCEL_URL is the per-deployment *.vercel.app hostname,
-  //     which Vercel Deployment Protection gates *even when the custom domain
-  //     is public* — so a self-call to VERCEL_URL would get the SSO wall (HTML)
-  //     instead of our JSON and every signup's onboarding would break.
-  const explicit = process.env.LIBRARY_API_ORIGIN?.trim();
-  if (explicit) return explicit;
-  const prodDomain = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
-  if (prodDomain) return `https://${prodDomain}`;
-  // Neither available: a real misconfiguration — fail loudly, never silently.
-  throw new Error(
-    "No API origin for the authenticated write path: set LIBRARY_API_ORIGIN " +
-      "(local: http://127.0.0.1:8000), or rely on VERCEL_PROJECT_PRODUCTION_URL " +
-      "in a Vercel deploy."
-  );
-}
+// The write path shares the read path's origin resolver (requireLibraryApiOrigin,
+// imported above): explicit LIBRARY_API_ORIGIN, else the Vercel production
+// domain. See that function for the VERCEL_URL caveat.
+
+// Refused-write message, shared by every mutation below. A preview deploy that
+// self-resolved its origin points at PRODUCTION's API, so an unguarded write
+// there would mutate the real library — and the API's own forbid_in_preview
+// can't catch it (see targetsForeignEnvironmentApi). Every write funnels
+// through this check before its fetch.
+const FOREIGN_API_WRITE_MESSAGE =
+  "Writes are disabled on preview deployments — this deploy reads production's " +
+  "library, so a write here would change the real thing.";
 
 /** The caller's profile, or null when they're authenticated but haven't
  *  completed onboarding yet (the API returns 404 for that state). */
@@ -69,7 +58,7 @@ export async function fetchMyProfile(): Promise<MyProfile | null> {
   const token = await accessToken();
   if (!token) return null;
 
-  const res = await fetch(`${apiOrigin()}/api/py/me/profile`, {
+  const res = await fetch(`${requireLibraryApiOrigin()}/api/py/me/profile`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store", // per-viewer, never cached
     // Bound the Node→Python self-call so a hung hop fails fast instead of
@@ -89,12 +78,15 @@ export async function createMyProfile(
   username: string,
   displayName: string
 ): Promise<CreateProfileResult> {
+  if (targetsForeignEnvironmentApi()) {
+    return { ok: false, reason: "unknown", message: FOREIGN_API_WRITE_MESSAGE };
+  }
   const token = await accessToken();
   if (!token) {
     return { ok: false, reason: "unknown", message: "You are not signed in." };
   }
 
-  const res = await fetch(`${apiOrigin()}/api/py/me/profile`, {
+  const res = await fetch(`${requireLibraryApiOrigin()}/api/py/me/profile`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -144,12 +136,15 @@ async function mutateGame(
   body: Record<string, unknown> | null,
   what: string
 ): Promise<MutateGameResult> {
+  if (targetsForeignEnvironmentApi()) {
+    return { ok: false, message: FOREIGN_API_WRITE_MESSAGE };
+  }
   const token = await accessToken();
   if (!token) {
     return { ok: false, message: "You are not signed in." };
   }
 
-  const res = await fetch(`${apiOrigin()}${path}`, {
+  const res = await fetch(`${requireLibraryApiOrigin()}${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -220,16 +215,24 @@ export type SearchIgdbResult =
 
 /** Search IGDB through the authenticated proxy (rate-limited server-side). */
 export async function searchIgdb(query: string): Promise<SearchIgdbResult> {
+  // Nominally a read, but the proxy writes through it (token cache, rate-limit
+  // counters), so it gets the same refusal as the mutations.
+  if (targetsForeignEnvironmentApi()) {
+    return { ok: false, message: FOREIGN_API_WRITE_MESSAGE };
+  }
   const token = await accessToken();
   if (!token) {
     return { ok: false, message: "You are not signed in." };
   }
 
-  const res = await fetch(`${apiOrigin()}/api/py/igdb/search?q=${encodeURIComponent(query)}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-    signal: AbortSignal.timeout(10000), // upstream hop to IGDB can be slower
-  });
+  const res = await fetch(
+    `${requireLibraryApiOrigin()}/api/py/igdb/search?q=${encodeURIComponent(query)}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10000), // upstream hop to IGDB can be slower
+    }
+  );
 
   if (res.ok) {
     return { ok: true, results: (await res.json()) as IgdbSearchResult[] };

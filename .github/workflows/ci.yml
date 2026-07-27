@@ -5,6 +5,17 @@ on:
     branches: ["main"]
 
 jobs:
+  # Static checks only, despite the job name. The name must stay `build`: the
+  # "Main protection" ruleset requires a status check with that exact context,
+  # and for Actions the context is the job name — renaming it would leave the
+  # required check permanently pending.
+  #
+  # This job deliberately does NOT run `next build`: since the CSVs were retired
+  # the library pages prerender from the FastAPI origin, and there is none in
+  # Actions, so the build would fail on requireLibraryApiOrigin() rather than on
+  # anything about the change under review. The real production build runs on
+  # every PR as the Vercel check, which does have an origin and live data, so
+  # build coverage isn't lost.
   build:
     runs-on: ubuntu-latest
 
@@ -23,5 +34,5 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Build
-        run: npm run build
+      - name: Typecheck
+        run: npx tsc --noEmit
