@@ -13,6 +13,8 @@
 // revalidation. Writes never take that path.
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import type { IgdbSearchResult, NewGame } from "@/lib/games";
+import type { NewWishlistItem } from "@/lib/wishlist";
 
 export type MyProfile = {
   username: string;
@@ -134,11 +136,12 @@ export async function createMyProfile(
 export type MutateGameResult = { ok: true } | { ok: false; message: string };
 
 /** Shared mechanics for the game/session mutations: token, JSON body, and the
- *  ok/message mapping. `what` names the operation in fallback error text. */
+ *  ok/message mapping. `what` names the operation in fallback error text.
+ *  DELETE sends no body (the API answers 204). */
 async function mutateGame(
   path: string,
-  method: "POST" | "PATCH",
-  body: Record<string, unknown>,
+  method: "POST" | "PATCH" | "DELETE",
+  body: Record<string, unknown> | null,
   what: string
 ): Promise<MutateGameResult> {
   const token = await accessToken();
@@ -150,9 +153,9 @@ async function mutateGame(
     method,
     headers: {
       Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
+      ...(body !== null && { "Content-Type": "application/json" }),
     },
-    body: JSON.stringify(body),
+    ...(body !== null && { body: JSON.stringify(body) }),
     cache: "no-store",
     signal: AbortSignal.timeout(5000),
   });
@@ -166,6 +169,76 @@ async function mutateGame(
     .then((b) => (typeof b?.detail === "string" ? b.detail : undefined))
     .catch(() => undefined);
   return { ok: false, message: detail ?? `Couldn't ${what} (HTTP ${res.status}).` };
+}
+
+/** Add a game to the caller's library. `rating: ""` and `igdbId: null` etc.
+ *  are sent as-is — the API treats ""/null as absent for optional fields. */
+export function createMyGame(game: NewGame): Promise<MutateGameResult> {
+  return mutateGame("/api/py/me/games", "POST", { ...game }, "add the game");
+}
+
+/** Remove a game (and, server-side via cascade, its play sessions). */
+export function deleteMyGame(gameId: number): Promise<MutateGameResult> {
+  return mutateGame(`/api/py/me/games/${gameId}`, "DELETE", null, "delete the game");
+}
+
+/** Add a wishlist entry. */
+export function createMyWishlistItem(item: NewWishlistItem): Promise<MutateGameResult> {
+  return mutateGame("/api/py/me/wishlist", "POST", { ...item }, "add to the wishlist");
+}
+
+/** Partially edit a wishlist entry — pass only the fields to change
+ *  (PATCH semantics: absent = leave unchanged; system "" = undecided). */
+export function updateMyWishlistItem(
+  itemId: number,
+  fields: { starred?: boolean; notes?: string; system?: string }
+): Promise<MutateGameResult> {
+  return mutateGame(`/api/py/me/wishlist/${itemId}`, "PATCH", fields, "update the wishlist");
+}
+
+/** Remove a wishlist entry. */
+export function deleteMyWishlistItem(itemId: number): Promise<MutateGameResult> {
+  return mutateGame(`/api/py/me/wishlist/${itemId}`, "DELETE", null, "remove from the wishlist");
+}
+
+/** Promote a wishlist entry into the library ("I bought it"). `system` wins
+ *  over the stored one; "" defers to what the wishlist row already has. */
+export function promoteMyWishlistItem(itemId: number, system: string): Promise<MutateGameResult> {
+  return mutateGame(
+    `/api/py/me/wishlist/${itemId}/promote`,
+    "POST",
+    { system },
+    "move to the library"
+  );
+}
+
+// Search results ride in the ok branch; failures reuse the message shape so
+// the modal can render either with one code path.
+export type SearchIgdbResult =
+  | { ok: true; results: IgdbSearchResult[] }
+  | { ok: false; message: string };
+
+/** Search IGDB through the authenticated proxy (rate-limited server-side). */
+export async function searchIgdb(query: string): Promise<SearchIgdbResult> {
+  const token = await accessToken();
+  if (!token) {
+    return { ok: false, message: "You are not signed in." };
+  }
+
+  const res = await fetch(`${apiOrigin()}/api/py/igdb/search?q=${encodeURIComponent(query)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+    signal: AbortSignal.timeout(10000), // upstream hop to IGDB can be slower
+  });
+
+  if (res.ok) {
+    return { ok: true, results: (await res.json()) as IgdbSearchResult[] };
+  }
+  const detail = await res
+    .json()
+    .then((b) => (typeof b?.detail === "string" ? b.detail : undefined))
+    .catch(() => undefined);
+  return { ok: false, message: detail ?? `Search failed (HTTP ${res.status}).` };
 }
 
 /** Set or clear ("" = unrated) the rating on one of the caller's games. */

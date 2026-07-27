@@ -2,6 +2,18 @@
 
 ## Up Next
 
+**Pending manual steps — game library backend (Vercel/prod dashboards, ~10 min total):**
+
+- [ ] **Flip prod reads from CSV → Postgres** (outstanding since PR #61): Vercel →
+      Settings → Environment Variables → add `LIBRARY_API_ORIGIN=https://rgrassian.com`
+      (Production scope) → redeploy. Then click a rating in prod to confirm the
+      optimistic UI converges, and note the first-write latency (stacked Node+Python
+      cold start measurement).
+- [ ] **After merging PR #63** (IGDB proxy + add/delete + wishlist): 1. Prod DB migration: `cd api && DATABASE_URL="$(cat ~/prod-db-url.txt)" uv run alembic upgrade head` 2. Vercel → add `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` (Production scope,
+      same Twitch app fetch-covers.ts uses) → redeploy
+- [ ] **Local dev**: add the same `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` to the
+      gitignored `.env` so the add-game IGDB search works locally (503 until then)
+
 ## Recently Completed
 
 - [x] Game library page now uses the photorealistic CRT (`components/crt/CrtTv.tsx`, relocated out of `currently_playing/` since it's shared by two routes) instead of the wood-paneled TV; `/currently_playing` still works standalone. Old wood TV (`components/video_games/CurrentlyPlaying.tsx`) and its `crt-*` styles in `video_games.css` are left in place, unused

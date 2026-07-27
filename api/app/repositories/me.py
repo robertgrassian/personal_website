@@ -8,7 +8,7 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Game, PlaySession, Profile
+from app.models import Game, PlaySession, Profile, WishlistItem
 
 
 def get_profile_by_id(db: Session, user_id: uuid.UUID) -> Profile | None:
@@ -21,6 +21,51 @@ def get_game_for_owner(db: Session, game_id: int, user_id: uuid.UUID) -> Game | 
     return db.execute(
         select(Game).where(Game.id == game_id, Game.user_id == user_id)
     ).scalar_one_or_none()
+
+
+def find_game_by_name_and_system(
+    db: Session, user_id: uuid.UUID, name: str, system: str
+) -> Game | None:
+    # Backs the friendly duplicate check before an insert. Exact match, same
+    # as the uq_games_user_id_name_system constraint that backstops it.
+    return db.execute(
+        select(Game).where(Game.user_id == user_id, Game.name == name, Game.system == system)
+    ).scalar_one_or_none()
+
+
+def create_game(
+    db: Session,
+    *,
+    user_id: uuid.UUID,
+    name: str,
+    system: str,
+    genres: list[str],
+    release_date: date | None,
+    image_url: str | None,
+    igdb_id: int | None,
+    rating: str | None,
+) -> Game:
+    game = Game(
+        user_id=user_id,
+        name=name,
+        system=system,
+        genres=genres,
+        release_date=release_date,
+        image_url=image_url,
+        igdb_id=igdb_id,
+        rating=rating,
+    )
+    db.add(game)
+    db.commit()
+    db.refresh(game)
+    return game
+
+
+def delete_game(db: Session, game: Game) -> None:
+    # ON DELETE CASCADE takes the play sessions with it; the UI confirms with
+    # the session count first.
+    db.delete(game)
+    db.commit()
 
 
 def update_game_rating(db: Session, game: Game, rating: str | None) -> Game:
@@ -78,6 +123,87 @@ def finish_session(
     if rated_game is not None:
         rated_game.rating = rating
     db.commit()
+
+
+def find_wishlist_item_by_name(db: Session, user_id: uuid.UUID, name: str) -> WishlistItem | None:
+    # Wishlist dedupe is by name alone (no system in the unique key).
+    return db.execute(
+        select(WishlistItem).where(WishlistItem.user_id == user_id, WishlistItem.name == name)
+    ).scalar_one_or_none()
+
+
+def get_wishlist_item_for_owner(
+    db: Session, item_id: int, user_id: uuid.UUID
+) -> WishlistItem | None:
+    # Ownership in the WHERE clause: foreign == nonexistent == None → 404.
+    return db.execute(
+        select(WishlistItem).where(WishlistItem.id == item_id, WishlistItem.user_id == user_id)
+    ).scalar_one_or_none()
+
+
+def create_wishlist_item(
+    db: Session,
+    *,
+    user_id: uuid.UUID,
+    name: str,
+    system: str | None,
+    genres: list[str],
+    release_date: date | None,
+    image_url: str | None,
+    igdb_id: int | None,
+    starred: bool,
+    notes: str,
+    date_added: date,
+) -> WishlistItem:
+    item = WishlistItem(
+        user_id=user_id,
+        name=name,
+        system=system,
+        genres=genres,
+        release_date=release_date,
+        image_url=image_url,
+        igdb_id=igdb_id,
+        starred=starred,
+        notes=notes,
+        date_added=date_added,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def update_wishlist_item(db: Session, item: WishlistItem) -> WishlistItem:
+    # The service mutates the ORM row's fields directly; this just commits.
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def delete_wishlist_item(db: Session, item: WishlistItem) -> None:
+    db.delete(item)
+    db.commit()
+
+
+def promote_wishlist_item(db: Session, item: WishlistItem, *, system: str) -> Game:
+    # Single commit on purpose (like finish_session): the game insert and the
+    # wishlist delete land together — a promote can never duplicate the entry
+    # into both lists or drop it from both.
+    game = Game(
+        user_id=item.user_id,
+        name=item.name,
+        system=system,
+        genres=list(item.genres),
+        release_date=item.release_date,
+        image_url=item.image_url,
+        igdb_id=item.igdb_id,
+        rating=None,
+    )
+    db.add(game)
+    db.delete(item)
+    db.commit()
+    db.refresh(game)
+    return game
 
 
 def username_exists(db: Session, username: str) -> bool:

@@ -62,11 +62,18 @@ class GameRead(BaseGameRead):
     # without an extra fetch — same enumeration trade-off as ``id``: knowing a
     # session id grants nothing, mutations re-check ownership.
     open_session_id: int | None
+    # Total sessions (open + closed) — the delete confirm says how much play
+    # history goes with the game. Free to compute: play-state derivation
+    # already loads every session.
+    session_count: int
 
 
 class WishlistGameRead(BaseGameRead):
-    """Mirrors ``WishlistGame`` (src/lib/wishlist.ts)."""
+    """Mirrors ``WishlistGame`` (src/lib/wishlist.ts) — plus the row ``id``
+    the owner write path targets (PATCH/DELETE /me/wishlist/{id}, promote).
+    Same accepted enumeration trade-off as GameRead.id."""
 
+    id: int
     starred: bool
     date_added: str  # ISO date ("" if unknown; NOT NULL in the DB, so always set)
     notes: str

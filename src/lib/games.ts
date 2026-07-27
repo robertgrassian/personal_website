@@ -58,6 +58,33 @@ export interface Game extends BaseGame {
   // (undefined on CSV rows). Closing a session (PATCH /me/sessions/{id})
   // targets this id.
   openSessionId?: number | null;
+  // Total play sessions (open + closed) — API-backed rows only. The delete
+  // confirm uses it to say how much history goes with the game.
+  sessionCount?: number;
+}
+
+// One candidate from GET /api/py/igdb/search — the add-game picker's row.
+// Platforms/genres are IGDB's own names; the confirm step lets the owner
+// edit them into this library's vocabulary before the game is created.
+export interface IgdbSearchResult {
+  igdbId: number;
+  name: string;
+  releaseDate: string; // ISO date or "" if IGDB has none
+  platforms: string[];
+  genres: string[];
+  coverUrl: string; // "" = no cover on IGDB; fallback art renders instead
+}
+
+// Payload for POST /me/games — mirrors the API's GameCreate schema. Every
+// IGDB-derived field is optional so manual entry works with name + system.
+export interface NewGame {
+  name: string;
+  system: string;
+  genres: string[];
+  releaseDate: string | null; // ISO date or null
+  imageUrl: string; // "" or an https://images.igdb.com/ URL
+  igdbId: number | null;
+  rating: Rating | ""; // "" = enters the library unrated
 }
 
 // Today's date in the browser's (or server's) local timezone as YYYY-MM-DD.

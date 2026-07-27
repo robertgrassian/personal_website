@@ -38,12 +38,14 @@ class PlayState:
     last_played: str  # ISO date or ""
     playing_since: str  # ISO date or ""
     open_session_id: int | None  # newest open session, None when not playing
+    session_count: int  # all sessions, open and closed
 
 
 def derive_play_state(sessions: Iterable[PlaySession]) -> PlayState:
     """Pure function over one game's sessions — see module docstring for the
     ported semantics. Dates compare as date objects here (the TS version
     compares ISO strings lexically — equivalent for valid dates)."""
+    sessions = list(sessions)
     open_sessions = [s for s in sessions if s.end_date is None]
     closed_ends = [s.end_date for s in sessions if s.end_date is not None]
     # Newest open session wins both fields; id breaks a same-day tie (higher
@@ -55,6 +57,7 @@ def derive_play_state(sessions: Iterable[PlaySession]) -> PlayState:
         last_played=max(closed_ends).isoformat() if closed_ends else "",
         playing_since=newest_open.start_date.isoformat() if newest_open else "",
         open_session_id=newest_open.id if newest_open else None,
+        session_count=len(sessions),
     )
 
 
@@ -87,11 +90,15 @@ def to_game_read(game: Game, play_state: PlayState) -> GameRead:
         currently_playing=play_state.currently_playing,
         playing_since=play_state.playing_since,
         open_session_id=play_state.open_session_id,
+        session_count=play_state.session_count,
     )
 
 
-def _to_wishlist_read(item: WishlistItem) -> WishlistGameRead:
+def to_wishlist_read(item: WishlistItem) -> WishlistGameRead:
+    """ORM row → wire DTO. Public because the /me wishlist writes
+    (services/me.py) return the same shape after a mutation."""
     return WishlistGameRead(
+        id=item.id,
         name=item.name,
         system=item.system or "",
         genres=list(item.genres),
@@ -119,7 +126,7 @@ def get_user_games(db: Session, username: str) -> list[GameRead]:
 
 def get_user_wishlist(db: Session, username: str) -> list[WishlistGameRead]:
     profile = _require_profile(db, username)
-    return [_to_wishlist_read(item) for item in users_repo.list_wishlist_items(db, profile.id)]
+    return [to_wishlist_read(item) for item in users_repo.list_wishlist_items(db, profile.id)]
 
 
 def get_user_profile(db: Session, username: str) -> ProfileRead:
