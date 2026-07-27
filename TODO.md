@@ -24,6 +24,10 @@
       a Twitch application's credentials from dev.twitch.tv) → redeploy
 - [ ] **Local dev**: add the same `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` to the
       gitignored `.env` so the add-game IGDB search works locally (503 until then)
+- [ ] **Make `npm run build` work again** — the production build is currently broken, so
+      Vercel deploys and the pre-push sanity check can't be trusted. Run it, capture the
+      failure (type error vs lint vs module resolution), fix the root cause rather than
+      loosening the check (no `ignoreBuildErrors`/`ignoreDuringBuilds` escape hatches).
 
 ## Recently Completed
 
@@ -35,6 +39,25 @@
 - [x] Fix `.claude/tools/wikipedia.py` truncating nested templates (platforms/released_raw cut off mid-`{{collapsible list}}`) + add-game guidance for enhanced editions/ports (original NA date wins)
 
 ## Backlog / Ideas
+
+- [ ] Make wishlist items fully editable, the same way library games are — today
+      `EditWishlistModal.tsx` only supports delete + promote (the promote step is the only
+      place name/system get touched), while `EditGameModal.tsx` can edit a game's fields.
+      Want: edit a wishlist item's name, system, genres, release date, cover art in place,
+      without having to promote it first. Needs a `WishlistItemUpdate` schema + `PATCH
+      /api/py/me/wishlist/{id}` on the API side (routers → services → repositories, mirroring
+      the games write path), a Server Action in `video_games/actions.ts` with the usual
+      `revalidateTag(libraryCacheTag(...))`, and the edit form fields lifted out of
+      `EditGameModal` so both modals share one implementation instead of duplicating it.
+- [ ] Field suggestions (system, genre, …) should work on mobile, not just desktop — the
+      add/promote forms use a native `<datalist>` (`AddGameModal.tsx`, `EditWishlistModal.tsx`),
+      which mobile Safari/Chrome either render poorly or ignore, so on a phone the system
+      field is a bare free-text input. Replace the datalist with a real combobox (controlled
+      input + filtered dropdown list, keyboard + touch friendly) so suggestions appear on
+      every device. Also make the suggestions game-specific: `AddGameModal` already merges
+      IGDB's `draft.platforms` for the selected game into the shelf-system list, but the
+      promote form in `EditWishlistModal` only offers existing shelf systems — thread the
+      IGDB platforms through there too, and consider doing the same for genres.
 
 - [ ] Backfill existing games' genres to IGDB's vocabulary — the current genres came from the old Wikipedia-scraping `add-game` skill (retired in Phase 3), so they won't match what the new IGDB add flow (`/api/py/igdb/search`) suggests for future games. Normalizing now means future adds match up and skip the manual genre-editing step. Approach: for each library game with an `igdb_id` (or matched by name), pull its IGDB genres and overwrite the row's `genres`. Note: genre editing isn't in the write path yet (`GameUpdate`/`PATCH /me/games/{id}` is rating-only), so this needs either a one-off backfill script in `api/scripts/` (query IGDB per game, update `games.genres` directly) or extending the edit UI to support genres first. Decide whether to also map IGDB's verbose names (e.g. "Role-playing (RPG)") to shorter shelf labels while backfilling.<br>
       **Do the case/duplicate normalization in the same pass:** `clean_genres` (`api/app/schemas/me.py`) trims and drops blanks but does not dedupe or normalize case, so `"RPG, rpg"` stores both and `"RPG, RPG"` stores it twice — and the filter dropdown, built from `new Set(...)`, then shows them as separate options. Fix belongs in `clean_genres` (dedupe preserving first-seen casing) rather than the modal, so it also covers direct Server Action calls that bypass the UI. Same normalization problem as the backfill, one size larger, so the vocabulary decision above should settle the casing rule too.
