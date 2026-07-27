@@ -922,6 +922,16 @@ def test_add_wishlist_duplicate_name_is_409(fresh_user_with_game) -> None:
 
 
 @requires_db
+def test_add_wishlist_before_onboarding_is_403(fresh_auth_user) -> None:
+    # Same explicit profile check as POST /me/games: a clear 403 rather than
+    # letting the wishlist_items → profiles FK surface as a 500 (or get
+    # misread as a duplicate by the IntegrityError backstop).
+    user_id, _ = fresh_auth_user
+    response = client_as(user_id).post("/api/py/me/wishlist", json={"name": "Too Soon"})
+    assert response.status_code == 403
+
+
+@requires_db
 def test_add_wishlist_shows_on_public_read(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     username = f"gamer-{str(user_id)[:8]}"

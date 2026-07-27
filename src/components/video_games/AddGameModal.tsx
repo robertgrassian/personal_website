@@ -197,6 +197,9 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              // Matches the server action's upper bound, so pasting a long
+              // string can't produce a query the action refuses outright.
+              maxLength={100}
               placeholder="Search IGDB…"
               aria-label="Search IGDB for a game"
               className={`${inputClass} mt-4`}
@@ -312,10 +315,13 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
 
               <label className={labelClass}>
                 Release date
+                {/* Capped at today for the library (you can't have played a
+                    game that isn't out yet) but uncapped for the wishlist,
+                    where unreleased games are the normal case. */}
                 <input
                   type="date"
                   value={draft.releaseDate ?? ""}
-                  max={localToday()}
+                  max={target === "library" ? localToday() : undefined}
                   onChange={(e) => setDraft({ ...draft, releaseDate: e.target.value || null })}
                   className={inputClass}
                 />

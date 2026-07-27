@@ -194,6 +194,36 @@ def test_already_absolute_cover_url_is_not_double_prefixed(test_user, igdb_env) 
 
 
 @requires_db
+def test_rows_missing_id_or_name_are_skipped(test_user, igdb_env) -> None:
+    # One malformed row shouldn't cost the whole search a KeyError 500; the
+    # usable candidates still come back.
+    igdb_env["igdb_responses"].append(
+        httpx.Response(200, json=[{"id": 11}, {"name": "No Id"}, {"id": 12, "name": "Fine"}])
+    )
+    response = client_as(test_user).get(SEARCH_URL, params={"q": "partial"})
+    assert response.status_code == 200
+    assert [r["name"] for r in response.json()] == ["Fine"]
+
+
+@requires_db
+def test_null_valued_fields_are_tolerated(test_user, igdb_env) -> None:
+    # An explicit null slips past a .get(key, default), so the parser uses
+    # `or []` / `or ""` instead.
+    igdb_env["igdb_responses"].append(
+        httpx.Response(
+            200,
+            json=[{"id": 13, "name": "Nulls", "platforms": None, "genres": None, "cover": None}],
+        )
+    )
+    response = client_as(test_user).get(SEARCH_URL, params={"q": "nulls"})
+    assert response.status_code == 200
+    (result,) = response.json()
+    assert result["platforms"] == []
+    assert result["genres"] == []
+    assert result["coverUrl"] == ""
+
+
+@requires_db
 def test_query_term_is_escaped(test_user, igdb_env) -> None:
     client_as(test_user).get(SEARCH_URL, params={"q": 'say "hi" \\ bye'})
     assert 'search "say \\"hi\\" \\\\ bye";' in igdb_env["last_body"]

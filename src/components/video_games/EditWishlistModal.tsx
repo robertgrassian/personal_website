@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import type { WishlistGame } from "@/lib/wishlist";
 import {
   deleteWishlistItem,
@@ -26,6 +26,11 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  // Optimistic star, matching EditGameModal's rating: the checkbox flips on
+  // click instead of after the round-trip, converges on the prop once
+  // revalidation delivers fresh data, and reverts itself if the write fails.
+  const [optimisticStarred, setOptimisticStarred] = useOptimistic<boolean>(item.starred);
+
   // Notes buffer locally until Save — a textarea that fires a server write
   // per keystroke would be miserable. Starred toggles write immediately.
   const [notesDraft, setNotesDraft] = useState(item.notes);
@@ -47,6 +52,19 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
     startTransition(async () => {
       setError(null);
       const result = await updateWishlistItem(itemId, fields);
+      if (!result.ok) setError(result.message);
+    });
+  };
+
+  const toggleStarred = (next: boolean) => {
+    if (item.id === undefined) return;
+    const itemId = item.id;
+    startTransition(async () => {
+      setError(null);
+      // Set inside the transition — that's what ties the optimistic value's
+      // lifetime to the async work below.
+      setOptimisticStarred(next);
+      const result = await updateWishlistItem(itemId, { starred: next });
       if (!result.ok) setError(result.message);
     });
   };
@@ -113,9 +131,8 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
         <label className="mt-5 flex items-center gap-2 text-sm text-shelf-text cursor-pointer">
           <input
             type="checkbox"
-            checked={item.starred}
-            disabled={isPending}
-            onChange={(e) => patch({ starred: e.target.checked })}
+            checked={optimisticStarred}
+            onChange={(e) => toggleStarred(e.target.checked)}
             className="accent-amber-500"
           />
           Starred (priority wishlist)

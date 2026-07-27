@@ -139,20 +139,31 @@ def _parse_results(raw: list[dict]) -> list[IgdbSearchResult]:
     site-wide wire convention."""
     results: list[IgdbSearchResult] = []
     for row in raw:
+        # id and name are the two fields a candidate can't do without — one
+        # identifies it, the other renders it. A row missing either is dropped
+        # rather than subscripted: one malformed row would otherwise turn the
+        # whole search into a KeyError 500 instead of the 502 the router
+        # reserves for upstream trouble.
+        igdb_id = row.get("id")
+        name = row.get("name")
+        if igdb_id is None or not name:
+            continue
         release_ts = row.get("first_release_date")
-        cover_url = (row.get("cover") or {}).get("url", "")
+        # `or []` / `or ""` rather than a .get default: IGDB omits these keys,
+        # but an explicit null would slip past a default and blow up below.
+        cover_url = (row.get("cover") or {}).get("url") or ""
         results.append(
             IgdbSearchResult(
-                igdb_id=row["id"],
-                name=row["name"],
+                igdb_id=igdb_id,
+                name=name,
                 # IGDB dates are unix timestamps (UTC midnight of release day).
                 release_date=(
                     datetime.fromtimestamp(release_ts, tz=UTC).date().isoformat()
                     if release_ts
                     else ""
                 ),
-                platforms=[p["name"] for p in row.get("platforms", [])],
-                genres=[g["name"] for g in row.get("genres", [])],
+                platforms=[p["name"] for p in row.get("platforms") or []],
+                genres=[g["name"] for g in row.get("genres") or []],
                 cover_url=_upgrade_cover_url(cover_url),
             )
         )
