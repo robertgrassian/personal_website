@@ -5,7 +5,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { caveat } from "../lib/fonts";
-import { AuthButton } from "./AuthButton";
 
 // `activePaths` exists because the link target and the page you end up on are
 // not always the same URL. /library is a redirect-only resolver (it sends you
@@ -28,11 +27,12 @@ export function Nav() {
     // backdrop-blur-sm + bg-background/90 = frosted glass that lets a hint of page content show through.
     // z-50 ensures the nav sits above all page content, including sticky filter bars (z-20).
     <nav className="sticky top-0 z-50 border-b border-divider bg-background/90 backdrop-blur-sm">
-      {/* Everything scales down only below `sm`. Adding the auth control pushed
-          this row past a phone's width; desktop had room and is left alone. The
-          bar's height is fixed by --nav-height, so shrinking the type changes
-          nothing for FilterBar/StatsPanel, which offset their sticky position
-          by that same token. */}
+      {/* Everything scales down only below `sm`, from when the auth control
+          still lived here and pushed the row past a phone's width. Kept after
+          it moved into the library: the smaller phone type reads fine and
+          leaves room for a fourth link later. The bar's height is fixed by
+          --nav-height, so type size changes nothing for FilterBar/StatsPanel,
+          which offset their sticky position by that same token. */}
       <div className="px-4 sm:px-6 h-[var(--nav-height)] flex items-center justify-between gap-3">
         {/* Site name — two-line display with Caveat, links back to home */}
         <Link
@@ -61,10 +61,6 @@ export function Nav() {
               </Link>
             </li>
           ))}
-          {/* Auth state is client-resolved (per-viewer, never server-cached) */}
-          <li>
-            <AuthButton />
-          </li>
         </ul>
       </div>
     </nav>

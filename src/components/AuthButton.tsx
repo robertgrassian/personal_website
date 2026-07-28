@@ -1,9 +1,15 @@
 "use client";
 
-// Sign-in / sign-out control for the nav. Client Component because auth state
-// is a live, browser-side concern: onAuthStateChange pushes updates (sign-in
-// completes in the /auth/confirm tab, sign-out, token refresh) and this
-// re-renders without a page reload.
+// Sign-in / sign-out control for the game library header. Client Component
+// because auth state is a live, browser-side concern: onAuthStateChange pushes
+// updates (sign-in completes in the /auth/confirm tab, sign-out, token
+// refresh) and this re-renders without a page reload.
+//
+// It lives in the library rather than the global nav on purpose: the portfolio
+// (/, /about, /resume) is static content with no accounts, and the game
+// library is the only app here with sign-in. The auth *infrastructure* stays
+// site-wide (one session cookie on the domain, middleware refresh, /auth/*
+// handlers) so a future app can share the session — only the surfaces moved.
 //
 // This reflects the session for DISPLAY only. It is never a security boundary
 // — every protected read/write is authorized server-side by FastAPI verifying
@@ -14,10 +20,12 @@ import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 
-// Matches the nav links' responsive type scale (Nav.tsx) so the row shrinks as
-// one unit on narrow screens instead of this control staying a step larger.
+// Shelf tokens, not the global ones: this sits on the library's own background
+// (.shelf-theme), where text-subtle would be low-contrast. Both tokens carry
+// light and dark values.
 const linkClass =
-  "text-xs sm:text-sm whitespace-nowrap text-subtle hover:text-link transition-colors duration-150";
+  "text-sm whitespace-nowrap text-shelf-text-muted hover:text-shelf-text " +
+  "underline underline-offset-4 transition-colors duration-150";
 
 export function AuthButton() {
   const [user, setUser] = useState<User | null>(null);
@@ -51,7 +59,7 @@ export function AuthButton() {
 
   if (!user) {
     return (
-      <Link href="/login" className={linkClass}>
+      <Link href="/video_games/login" className={linkClass}>
         Sign in
       </Link>
     );

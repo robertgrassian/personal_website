@@ -12,6 +12,7 @@ import { getProfile } from "@/lib/profileServer";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { CrtTv } from "@/components/crt/CrtTv";
 import { LibraryCount } from "@/components/video_games/LibraryCount";
+import { AuthButton } from "@/components/AuthButton";
 
 // One library page, two routes: /video_games (Robert's shelf, at its stable
 // URL) and /u/[username] (anyone's). Extracted so the two can never drift —
@@ -64,9 +65,16 @@ export async function LibraryPage({ username, heading }: LibraryPageProps) {
   return (
     <main className="min-h-screen bg-shelf-bg shelf-theme">
       <div className="max-w-7xl mx-auto px-6 py-12">
-        <h1 className="text-4xl font-bold text-shelf-text">
-          {heading ?? `${profile.displayName}'s Game Library`}
-        </h1>
+        {/* The sign-in/out control lives here rather than the global nav: the
+            portfolio has no accounts, the library is the only app that does.
+            items-start keeps it aligned to the heading's first line when a
+            long display name wraps. */}
+        <div className="flex items-start justify-between gap-4">
+          <h1 className="text-4xl font-bold text-shelf-text">
+            {heading ?? `${profile.displayName}'s Game Library`}
+          </h1>
+          <AuthButton />
+        </div>
         {/* useSearchParams (inside LibraryCount) requires a Suspense boundary.
             The fallback shows the default-view count so there's no flash. */}
         <Suspense fallback={<p className="mt-2 text-shelf-text-muted">{playedCount} games</p>}>

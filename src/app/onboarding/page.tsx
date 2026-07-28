@@ -27,7 +27,7 @@ export default async function OnboardingPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
+  if (!user) redirect("/video_games/login");
 
   // Already has a profile? Then onboarding is done — send them to their
   // library, the same place a successful submission lands.
