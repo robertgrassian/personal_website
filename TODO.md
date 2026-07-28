@@ -2,34 +2,38 @@
 
 ## Up Next
 
-**Pending manual steps — game library backend (Vercel/prod dashboards, ~10 min total):**
+**Pending manual steps (dashboards / prod DB).** Ordered — the first one gates merging PR #68.
 
-- [ ] **Confirm the prod CSV → Postgres cutover** (no longer a manual env-var step):
-      the read/write origin resolver now falls back to `VERCEL_PROJECT_PRODUCTION_URL`
-      when `LIBRARY_API_ORIGIN` is unset, so prod cuts over to the API **automatically**
-      on the first deploy after PR #64 merges (which removes the CSV files). Nothing to
-      set in Vercel. After that deploy: load `/video_games` to confirm it renders from
-      Postgres, click a rating to confirm the optimistic UI converges, and note the
-      first-write latency (stacked Node+Python cold start). If you ever want to pin the
-      origin explicitly instead of self-resolving, you _can_ set `LIBRARY_API_ORIGIN`,
-      but it's optional now.<br>
-      **Preview caveat:** `VERCEL_PROJECT_PRODUCTION_URL` is set on preview deploys too
-      and points at the production domain, so a preview deploy _reads_ production's
-      library. Writes from a preview are refused client-side
-      (`targetsForeignEnvironmentApi` in `libraryApi.ts`) because the API's
-      `forbid_in_preview` can't see them — it reads production's `APP_ENV`, not the
-      preview deploy's. To let a preview write again, point it at its own API with a
-      Preview-scoped `LIBRARY_API_ORIGIN`.
-- [ ] **After merging PR #63** (IGDB proxy + add/delete + wishlist): 1. Prod DB migration: `cd api && DATABASE_URL="$(cat ~/prod-db-url.txt)" uv run alembic upgrade head` 2. Vercel → add `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` (Production scope,
-      a Twitch application's credentials from dev.twitch.tv) → redeploy
+- [ ] **⚠️ BEFORE merging PR #68: confirm prod is migrated to `8f881f29b261`.**
+      `cd api && DATABASE_URL="$(cat ~/prod-db-url.txt)" uv run alembic current` — if it is
+      not at head, run `alembic upgrade head`. This was already listed as a post-#63 step and
+      may not have been done. It is now **blocking**, not optional: Phase 4 slice 6 charges
+      every write against the `rate_limits` table that migration creates, so on an unmigrated
+      prod database every add, rating, session, and wishlist edit would 500 instead of just
+      game search failing. Slice 6 itself adds no migration (`alembic check` is clean); it
+      only raises the stakes on that one.
+- [ ] **Vercel → add `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET`** (Production scope, from a
+      Twitch application at dev.twitch.tv) → redeploy. Until then `/api/py/igdb/search`
+      answers 503 and the add-game picker cannot search.
 - [ ] **Local dev**: add the same `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` to the
       gitignored `.env` so the add-game IGDB search works locally (503 until then)
+- [ ] **Google OAuth brand verification** (only after PR #68 is in production, since it needs
+      the live CTA banner). Google Cloud console → OAuth consent screen → Branding:
+      App name → `Robert's Game Library` (must match `APP_NAME` in
+      `src/components/video_games/SignupCta.tsx` **byte for byte**);
+      App homepage → `https://rgrassian.com/video_games`;
+      Privacy policy → `https://rgrassian.com/privacy`;
+      add `rgrassian.com` as an authorized domain; resubmit.
+      Done = the consent screen shows the app name instead of the `supabase.co` host.
+      _Contingency:_ if Google also demands a Terms of Service URL, add `/terms` mirroring
+      the existing `/privacy` page.
 - [ ] **Preview deploys can't authenticate — set the Supabase env vars for Preview scope.**
       Visiting a preview URL returned `500 MIDDLEWARE_INVOCATION_FAILED`, because
       `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` appear to be scoped to
       Production only. The middleware matches every non-asset path, so one missing var
-      took down the whole deployment. Reproduced locally: `Your project's URL and Key are
-  required to create a Supabase client!` **Quick fix:** Vercel → Settings →
+      took down the whole deployment. Reproduced locally — the throw is
+      "Your project's URL and Key are required to create a Supabase client!".<br>
+      **Quick fix:** Vercel → Settings →
       Environment Variables → tick **Preview** for both (same values; both are public by
       design — the browser needs them for the OAuth dance) → redeploy. `NEXT_PUBLIC_*` is
       inlined at build time, so an already-built deploy won't pick them up; it needs a new
@@ -63,6 +67,18 @@
 
 ## Recently Completed
 
+- [x] **Instanced libraries Phase 4 — multi-user** (PR #68, branch `phase4/multi-user`,
+      2026-07-28). Seven slices: CI running ruff + the full pytest suite against a real
+      Postgres; `/u/[username]` public libraries with the username threaded through the
+      three places it was hardcoded; the `/library` resolver and post-login redirects;
+      auth surfaces moved under the game library; the sign-up CTA banner; profile header
+      and real empty states; per-user write limits and a `MAX_GAMES` cap. 173 tests.
+      Remaining manual steps are in "Up Next" above
+- [x] Prod CSV → Postgres cutover confirmed serving: `https://rgrassian.com/video_games`
+      returns 200 and `/api/py/health` reports `{"status":"ok","env":"prod","db":"ok"}`.
+      (The optimistic-UI click-through and the first-write cold-start timing were not
+      measured — do those next time you edit something in prod)
+
 - [x] `npm run build` investigated — **not broken**. It is green on `main` (17/17 pages); it
       fails only when the library API is unreachable at build time, which is deliberate:
       `requireLibraryApiOrigin()` (`src/lib/libraryApi.ts`) documents that an unresolvable
@@ -91,8 +107,8 @@
       `EditWishlistModal.tsx` only supports delete + promote (the promote step is the only
       place name/system get touched), while `EditGameModal.tsx` can edit a game's fields.
       Want: edit a wishlist item's name, system, genres, release date, cover art in place,
-      without having to promote it first. Needs a `WishlistItemUpdate` schema + `PATCH
-/api/py/me/wishlist/{id}` on the API side (routers → services → repositories, mirroring
+      without having to promote it first. Needs a `WishlistItemUpdate` schema plus a
+      `PATCH /api/py/me/wishlist/{id}` endpoint (routers → services → repositories, mirroring
       the games write path), a Server Action in `video_games/actions.ts` with the usual
       `revalidateTag(libraryCacheTag(...))`, and the edit form fields lifted out of
       `EditGameModal` so both modals share one implementation instead of duplicating it.
