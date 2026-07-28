@@ -23,18 +23,13 @@ import { SignupCta } from "@/components/video_games/SignupCta";
 // may be async functions and `await` data before rendering.
 type LibraryPageProps = {
   username: string;
-  // What the <h1> says. /video_games pins its established "Video Game
-  // Library"; /u/[username] omits it and gets the owner's display name, which
-  // comes from the profile rather than the URL segment so the casing is
-  // canonical (usernames are citext — /u/RGrassian resolves to the same user).
-  heading?: string;
   // Show the logged-out sign-up pitch. Only /video_games sets this: that page
   // is the public demo shelf and the URL Google's OAuth brand verification
   // points at. A user's own /u/{username} is not a marketing surface.
   showSignupCta?: boolean;
 };
 
-export async function LibraryPage({ username, heading, showSignupCta = false }: LibraryPageProps) {
+export async function LibraryPage({ username, showSignupCta = false }: LibraryPageProps) {
   // Awaited first and alone: a username nobody owns must become a 404 page,
   // not the loud "the API is unwell" error that getGames() would throw for
   // the same 404. Costs one extra round trip on a cache miss, and the three
@@ -76,8 +71,12 @@ export async function LibraryPage({ username, heading, showSignupCta = false }: 
             long display name wraps. */}
         <div className="flex items-start justify-between gap-4">
           <div>
+            {/* Same wording on both routes, since both show the same library.
+                The display name comes from the profile rather than the URL
+                segment so the casing is canonical (usernames are citext, so
+                /u/RGrassian resolves to the same user as /u/rgrassian). */}
             <h1 className="text-4xl font-bold text-shelf-text">
-              {heading ?? `${profile.displayName}'s Video Game Library`}
+              {profile.displayName}&apos;s Video Game Library
             </h1>
             {/* Whose library this is. On /u/[username] the heading already
                 carries the display name, so the handle is what adds

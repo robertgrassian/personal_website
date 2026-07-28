@@ -18,7 +18,7 @@
       `lsof -nP -iTCP:8000 -sTCP:LISTEN` and `ps -o lstart= -p <pid>`.
 - [ ] **Google OAuth brand verification** (only after PR #68 is in production, since it needs
       the live CTA banner). Google Cloud console → OAuth consent screen → Branding:
-      App name → `Robert's Game Library` (must match `APP_NAME` in
+      App name → `Video Game Library` (must match `APP_NAME` in
       `src/components/video_games/SignupCta.tsx` **byte for byte**);
       App homepage → `https://rgrassian.com/video_games`;
       Privacy policy → `https://rgrassian.com/privacy`;
@@ -53,7 +53,7 @@
       the Preview env vars above are set (or just run `npm run dev:full` locally and sign in
       with a magic link via Mailpit at `http://127.0.0.1:54324`): 1. **Sign-up CTA banner** (`/video_games`, signed out) — appearance, and that it
       disappears once signed in. Confirm the app name reads exactly
-      "Robert's Game Library" on screen; it must match the Google Cloud console string
+      "Video Game Library" on screen; it must match the Google Cloud console string
       or brand verification falls back to the `supabase.co` host. 2. **`AuthButton` in the library header** (`components/video_games/LibraryPage.tsx`) —
       it moved out of the global nav in slice 3. Check alignment against the `<h1>`
       (especially when a long display name wraps), contrast on the shelf background, and

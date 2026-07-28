@@ -410,7 +410,9 @@ policy. The logged-out `/video_games` **sign-up CTA banner** above is exactly su
 so we point Google's App homepage at `https://rgrassian.com/video_games` and let the banner
 satisfy verification as a byproduct of building it (no throwaway content, no change to the
 portfolio home — a bare login page or the photo-only home both fail Google's "explain the
-purpose" check, learned 2026-07-22). **App name: "Robert's Game Library."** Until this ships,
+purpose" check, learned 2026-07-22). **App name: "Video Game Library"** (updated
+2026-07-28: the app is the product someone signs into, and "Robert's" scopes a single
+library rather than naming it). Until this ships,
 the consent screen shows the `supabase.co` host — a purely cosmetic label; auth is fully
 functional. (Erasing every `supabase.co` reference entirely would need Supabase's paid custom
 auth domain — out of scope.) The `/privacy` page already exists and supplies the required
@@ -420,13 +422,13 @@ privacy URL now.
 Concrete, trackable tasks for the two decisions above:
 
 - [x] **Build the logged-out sign-up CTA banner** on `/video_games` — names the app
-      ("Robert's Game Library"), states its purpose, links `/privacy`. This page becomes
+      ("Video Game Library"), states its purpose, links `/privacy`. This page becomes
       Google's App homepage, so the app-name string shown here must match the consent screen
       exactly. _Shipped:_ `src/components/video_games/SignupCta.tsx`, gated by a
       `showSignupCta` prop only `/video_games` passes. The app name is a named constant
       (`APP_NAME`) precisely because it must stay byte-identical to the console string.
 - [ ] **Update Google Cloud OAuth config and re-run brand verification** (manual dashboard
-      step, _after_ the banner deploys): App name → "Robert's Game Library"; App homepage →
+      step, _after_ the banner deploys): App name → "Video Game Library"; App homepage →
       `https://rgrassian.com/video_games`; Privacy policy → `https://rgrassian.com/privacy`;
       add `rgrassian.com` as an authorized domain; resubmit. Done = the consent screen shows
       the app name, not the `supabase.co` host. **Still open — the only item here that is not

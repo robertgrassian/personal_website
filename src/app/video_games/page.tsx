@@ -9,11 +9,15 @@ export const metadata = {
 // /u/rgrassian (spec decision #5): existing links and SEO keep working, and
 // it doubles as the logged-out demo. The page itself is now just the shared
 // library shell with the owner pinned.
+//
+// No `heading` override any more: this URL and /u/rgrassian show the same
+// library, so they should say the same thing. LibraryPage's default —
+// "{displayName}'s Video Game Library" — is now correct for both, and dropping
+// the prop means there is one fewer place for them to drift apart.
 export default function VideoGamesPage() {
   return (
     <LibraryPage
       username={LIBRARY_OWNER_USERNAME}
-      heading="Video Game Library"
       // This page doubles as the logged-out demo and as the "App homepage"
       // Google's OAuth brand verification points at — see SignupCta.
       showSignupCta

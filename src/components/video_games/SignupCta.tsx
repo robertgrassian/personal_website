@@ -13,7 +13,13 @@ import { createClient } from "@/lib/supabase/client";
 // APP_NAME in particular must stay byte-identical to the app name configured
 // in the Google Cloud console, or the consent screen falls back to showing the
 // raw supabase.co host.
-const APP_NAME = "Robert's Game Library";
+//
+// The app is "Video Game Library"; "Robert's" belongs to a particular library,
+// not to the product someone signs into. Rendered inside the heading and the
+// first sentence rather than alone, because the page heading directly above
+// already reads "Robert's Video Game Library" and a bare repeat looks like a
+// mistake.
+const APP_NAME = "Video Game Library";
 
 // Rendered by default and hidden after hydration if a session turns up, rather
 // than the reverse. Two reasons. Logged-out visitors are both the overwhelming
@@ -47,11 +53,13 @@ export function SignupCta() {
       // so the banner follows the library's color scheme without dark: variants.
       className="mt-6 rounded-lg border border-shelf-input-border bg-shelf-input px-5 py-4 sm:px-6 sm:py-5"
     >
-      <h2 className="text-lg font-semibold text-shelf-text sm:text-xl">{APP_NAME}</h2>
+      <h2 className="text-lg font-semibold text-shelf-text sm:text-xl">
+        Build your own {APP_NAME}
+      </h2>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-shelf-text-muted sm:text-base">
-        A shelf of every video game I have played — what I finished, how I rated it, what I am
-        playing right now, and what I want to play next. Sign in to build and track a library of
-        your own: add games, rate them, log playthroughs, and keep a wishlist.
+        {APP_NAME} is a shelf for every game you have played: what you finished, how you rated it,
+        what you are playing right now, and what you want to play next. Sign in to start yours, then
+        add games, rate them, log playthroughs, and keep a wishlist.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
         <Link
