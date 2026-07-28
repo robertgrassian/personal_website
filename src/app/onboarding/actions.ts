@@ -6,7 +6,9 @@
 // wiring. It runs on the server, so it can read the httpOnly session cookie
 // (via meApi) and forward the Bearer token to FastAPI.
 import { redirect } from "next/navigation";
+import { revalidateTag } from "next/cache";
 import { createMyProfile } from "@/lib/meApi";
+import { libraryCacheTag } from "@/lib/libraryApi";
 
 // The shape useActionState threads between submissions. null = untouched.
 export type OnboardingState = { error: string } | null;
@@ -24,6 +26,17 @@ export async function submitOnboarding(
     // Return the error to the form; useActionState re-renders with it.
     return { error: result.message };
   }
+
+  // Purge anything cached under this username BEFORE redirecting to it. The
+  // public profile read is cached with force-cache under this tag, and a 404
+  // (returned as null) is a cacheable response like any other — so if this
+  // handle was ever requested while it was still free (someone checking
+  // whether it was taken, a crawler), "no such user" is sitting in the cache
+  // under the name its new owner is about to be sent to. Without this purge
+  // they land on their own 404 page with no way out: the only other thing that
+  // clears the tag is one of their own writes, and there is no write UI on a
+  // 404.
+  revalidateTag(libraryCacheTag(result.profile.username));
 
   // Success: profile created. redirect() throws NEXT_REDIRECT, which Next
   // turns into a client navigation — so nothing after this line runs, and the
