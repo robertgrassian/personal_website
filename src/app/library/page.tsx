@@ -12,13 +12,18 @@
 // alternative — deciding the tile's href on the homepage — would make the
 // whole homepage dynamic for the sake of one link.
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import { fetchMyProfile } from "@/lib/meApi";
 
 // Per-request (reads the session cookie) — never statically rendered.
 export const dynamic = "force-dynamic";
 
 export default async function LibraryResolverPage() {
+  // No credentials on this deployment: nobody can be signed in, so the honest
+  // answer is the logged-out one. Without this the page would throw and 500 —
+  // the single route that a misconfigured deployment would still break.
+  if (!isSupabaseConfigured()) redirect("/video_games");
+
   const supabase = await createClient();
   const {
     data: { user },

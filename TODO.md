@@ -24,6 +24,27 @@
       a Twitch application's credentials from dev.twitch.tv) → redeploy
 - [ ] **Local dev**: add the same `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` to the
       gitignored `.env` so the add-game IGDB search works locally (503 until then)
+- [ ] **Preview deploys can't authenticate — set the Supabase env vars for Preview scope.**
+      Visiting a preview URL returned `500 MIDDLEWARE_INVOCATION_FAILED`, because
+      `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` appear to be scoped to
+      Production only. The middleware matches every non-asset path, so one missing var
+      took down the whole deployment. Reproduced locally: `Your project's URL and Key are
+    required to create a Supabase client!` **Quick fix:** Vercel → Settings →
+      Environment Variables → tick **Preview** for both (same values; both are public by
+      design — the browser needs them for the OAuth dance) → redeploy. `NEXT_PUBLIC_*` is
+      inlined at build time, so an already-built deploy won't pick them up; it needs a new
+      build.<br>
+      **Caveat this accepts:** previews would then authenticate against _production_
+      Supabase, so signing in on a preview uses your real account. Writes are still refused
+      (`targetsForeignEnvironmentApi`), so it's reads + a real session. That's the spec's
+      known no-staging trade-off (§7.5).<br>
+      **Long-term fix: a real staging environment** — a second Supabase project (or
+      Supabase branching) with its own auth + DB, so previews stop borrowing production's
+      identity system entirely. Already tracked as a backlog item below; this is the
+      concrete reason to promote it.<br>
+      _Already mitigated in code (PR #68):_ the middleware and the two session-reading
+      pages now degrade instead of throwing when the vars are absent — auth stops working
+      but every page still renders, so a missing var can't take the site down again.
 
 ## Recently Completed
 
@@ -56,7 +77,7 @@
       place name/system get touched), while `EditGameModal.tsx` can edit a game's fields.
       Want: edit a wishlist item's name, system, genres, release date, cover art in place,
       without having to promote it first. Needs a `WishlistItemUpdate` schema + `PATCH
-  /api/py/me/wishlist/{id}` on the API side (routers → services → repositories, mirroring
+/api/py/me/wishlist/{id}` on the API side (routers → services → repositories, mirroring
       the games write path), a Server Action in `video_games/actions.ts` with the usual
       `revalidateTag(libraryCacheTag(...))`, and the edit form fields lifted out of
       `EditGameModal` so both modals share one implementation instead of duplicating it.
@@ -77,7 +98,7 @@
 - [ ] Normalize game metadata into a shared catalog (a `game_metadata` table + per-user `played_games`/`wishlist_games` link tables) — today `games` and `wishlist_items` each carry their own copy of name/system/genres/release_date/image_url. Spec §4.2 deliberately chose denormalized-with-`igdb_id` for v1 (canonical rows need an ownership/moderation story; user-entered games lack a canonical key). Revisit at Phase 4 when cross-user duplication actually exists — the `igdb_id` column on both tables is the planned backfill key (group by it, extract canonical rows, repoint).
 - [ ] Profile pictures for user accounts (instanced game libraries follow-up, post-v1 — see `docs/plans/instanced-game-libraries.md`; likely Supabase Storage + upload/crop flow, shown in the library profile header and follower lists)
 - [ ] Homepage customization per user (instanced game libraries follow-up, post-v1 — let users personalize their library page: hero/backdrop, shelf styling, featured games, etc. Scope TBD)
-- [ ] Staging environment (instanced game libraries follow-up — the spec accepts a "no staging" caveat (§7.5: previews are read-only against prod, writes first run for real in prod); revisit with a second Supabase project or branching once the write path exists)
+- [ ] Staging environment (instanced game libraries follow-up — the spec accepts a "no staging" caveat (§7.5: previews are read-only against prod, writes first run for real in prod); revisit with a second Supabase project or branching once the write path exists). **Promoted in priority 2026-07-28:** the preview 500 in "Up Next" is this caveat biting for real. Pointing Preview at production's Supabase is the stopgap, but it means preview sign-ins are production accounts. A second Supabase project (own DB + own GoTrue + own Google OAuth client) would give previews a real identity system and finally let the write path be exercised somewhere that isn't prod
 - [ ] Decide the routing/namespace strategy as the site grows into multiple apps. Today auth is top-level (`/login`, `/onboarding`, `/auth/*`) because it's a site-wide identity system, while the game library lives under `/video_games`. Options once more apps exist: (a) keep everything on `rgrassian.com` with top-level auth + per-app route prefixes — simplest, one shared session across apps; (b) split an app onto a subdomain like `games.rgrassian.com` — cleaner isolation and independent deploys, but subdomains are separate cookie origins, so sharing the login session needs a `.rgrassian.com` cookie domain plus Supabase/Vercel redirect wiring, which works against cross-app SSO. Leaning toward (a) until an app genuinely needs isolation.
 - [ ] "Current Hobbies" section on `/about` — start with currently-playing games (reusing the CRT/session data from the game library), with room to extend to books currently being read and other hobbies later. Design not decided yet (what it looks like, whether it reuses `CrtTv` directly or needs its own compact treatment).
 - [ ] Alternate "currently playing" display: Marquee Banner (Option 2 from the mockups) — full-width banner using the game's blurred cover as the backdrop (same recipe as GameCaseBack: dominant color base + blurred art + dark overlay), sharp cover on the left, system/genre chips and "last played" on the right. Build it as a sibling of `CurrentlyPlaying` (same `Game` prop) and add a display-mode switch (config const, or URL param for fun) to swap between the CRT and the marquee. Mockups: https://claude.ai/code/artifact/2e891385-8fc9-4c9b-b8da-469658de243d

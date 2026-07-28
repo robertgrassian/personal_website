@@ -6,7 +6,7 @@
 //   - signed in, onboarded → /u/{username} (nothing to do here)
 //   - signed in, no profile→ render the username picker
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import { fetchMyProfile } from "@/lib/meApi";
 import { OnboardingForm } from "./OnboardingForm";
 
@@ -22,6 +22,9 @@ function suggestUsername(email: string | undefined): string {
 }
 
 export default async function OnboardingPage() {
+  // Same degradation as /library: unconfigured means nobody is signed in.
+  if (!isSupabaseConfigured()) redirect("/video_games/login");
+
   const supabase = await createClient();
   const {
     data: { user },
