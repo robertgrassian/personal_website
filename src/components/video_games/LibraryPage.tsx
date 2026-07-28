@@ -77,7 +77,7 @@ export async function LibraryPage({ username, heading, showSignupCta = false }: 
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-4xl font-bold text-shelf-text">
-              {heading ?? `${profile.displayName}'s Game Library`}
+              {heading ?? `${profile.displayName}'s Video Game Library`}
             </h1>
             {/* Whose library this is. On /u/[username] the heading already
                 carries the display name, so the handle is what adds

@@ -654,6 +654,15 @@ Two things learned during the slices, recorded because they cost real time:
 - Backfill: create follow edges between Robert and any users who signed up during Phase 4.
 - Profile headers with follower/following counts and lists; follow button; user search
   (pg_trgm index + `/users/search` endpoint + UI).
+- **"Back to my library" control on other people's libraries.** Once you can navigate to
+  another user (from a follower list or search), you need a one-click way home, and there
+  is none today: the global nav's Game Library link points at `/library`, which resolves
+  correctly but reads as a generic site link rather than "return to mine". Show a control
+  on `/u/[username]` whenever the viewer is signed in and is **not** the owner. Resolved
+  client-side after hydration like every other per-viewer affordance (§7.2), so the cached
+  page stays identical for everyone. Noted during Phase 4 (2026-07-28) while building the
+  profile header, and deferred deliberately: with no way to reach another user's library
+  yet, it had nothing to navigate back from. Phase 5 creates that need, so it belongs here.
 
 ### Phase 6 — Hardening / polish (as needed)
 

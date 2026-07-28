@@ -298,7 +298,10 @@ export function GameLibrary({
               <button
                 type="button"
                 onClick={() => setAddOpen(true)}
-                className="rounded-md bg-shelf-plank px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 cursor-pointer"
+                // Site amber accent + text-background, the same pairing the
+                // login button and the sign-up CTA use, so it reads correctly
+                // in light and dark.
+                className="rounded-md bg-link px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 cursor-pointer"
               >
                 {view === "played" ? "Add your first game" : "Add your first wish"}
               </button>

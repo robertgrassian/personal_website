@@ -56,7 +56,11 @@ export function SignupCta() {
       <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
         <Link
           href="/video_games/login"
-          className="rounded-md bg-shelf-plank px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          // bg-link is the site's amber accent, paired with text-background as
+          // on the login page: the accent flips amber-700 → amber-500 between
+          // light and dark, and the background token flips with it, so the
+          // label stays readable both ways (plain white would not).
+          className="rounded-md bg-link px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90"
         >
           Sign in to start your library
         </Link>

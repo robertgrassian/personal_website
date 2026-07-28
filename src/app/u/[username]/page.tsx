@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const profile = await getProfile(username);
   if (!profile) return { title: "Library not found" };
   return {
-    title: `${profile.displayName}'s Game Library`,
+    title: `${profile.displayName}'s Video Game Library`,
     description: `Every video game ${profile.displayName} has played.`,
   };
 }

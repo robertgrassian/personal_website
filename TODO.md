@@ -106,6 +106,17 @@
 
 ## Backlog / Ideas
 
+- [ ] **Implement account deletion (`DELETE /api/py/me/account`)** — spec decision #22 planned
+      it (cascade down from `profiles` + `auth.users` removal via the Supabase Admin API,
+      which `core/supabase_admin.py` already wraps for the over-cap cleanup), but it was never
+      built. Noticed 2026-07-28 while editing `/privacy`: the policy described deleting your
+      account as though it were self-serve, so the copy now points at email instead, which is
+      the only mechanism that actually exists. Once the endpoint and a UI control ship,
+      update that paragraph (there is a comment in `src/app/privacy/page.tsx` marking it).
+      Worth doing before signup opens widely: it is the kind of thing a privacy policy is
+      expected to back up. Note `rate_limits` has no FK to `profiles`, so those rows will not
+      cascade and need deleting explicitly.
+
 - [ ] Make wishlist items fully editable, the same way library games are — today
       `EditWishlistModal.tsx` only supports delete + promote (the promote step is the only
       place name/system get touched), while `EditGameModal.tsx` can edit a game's fields.
