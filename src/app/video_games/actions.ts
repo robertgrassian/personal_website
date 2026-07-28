@@ -14,7 +14,7 @@ import {
   createMyWishlistItem,
   deleteMyGame,
   deleteMyWishlistItem,
-  fetchMyProfile,
+  fetchMyUsername,
   promoteMyWishlistItem,
   searchIgdb,
   updateMyGameRating,
@@ -36,10 +36,16 @@ import type { NewWishlistItem } from "@/lib/wishlist";
  *  library changed?" always has exactly this answer.
  *
  *  A missing profile is not an error here: the write already succeeded, so the
- *  worst case is a stale page until the next revalidation. */
+ *  worst case is a stale page until the next revalidation.
+ *
+ *  CALL THIS ONLY AFTER A WRITE THE API ACCEPTED — every call site below is
+ *  inside an `if (result.ok)`. fetchMyUsername trusts an unverified cookie on
+ *  a cache hit, and that succeeded write is what proves the session real. */
 async function revalidateMyLibrary(): Promise<void> {
-  const profile = await fetchMyProfile();
-  if (profile) revalidateTag(libraryCacheTag(profile.username));
+  // fetchMyUsername, not fetchMyProfile: same answer, but memoized per user so
+  // this doesn't add an API round trip to every single write.
+  const username = await fetchMyUsername();
+  if (username) revalidateTag(libraryCacheTag(username));
 }
 
 // The API validates dates for real (parsing, ordering); this only rejects

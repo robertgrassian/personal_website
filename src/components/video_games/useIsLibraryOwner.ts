@@ -24,6 +24,15 @@ export function useIsLibraryOwner(ownerUsername: string): boolean {
     // navigated away while /me/profile was in flight).
     let cancelled = false;
 
+    // Clear the previous library's answer before resolving this one. Load-
+    // bearing, not defensive: navigating between two /u/[username] pages keeps
+    // this component mounted (same route segment, so React reconciles rather
+    // than remounts), and without the reset an owner who clicks through to
+    // someone else's library would keep their edit controls — pencils and "Add
+    // game" on a shelf that isn't theirs, whose writes would silently land in
+    // their OWN library, since every mutation targets /me/*.
+    setIsOwner(false);
+
     async function resolve() {
       const supabase = createClient();
       const {
@@ -53,7 +62,8 @@ export function useIsLibraryOwner(ownerUsername: string): boolean {
       cancelled = true;
     };
     // Re-runs if the viewer navigates between two library pages without a
-    // full reload — otherwise the previous page's answer would stick.
+    // full reload. The reset at the top of the effect is what actually
+    // discards the previous page's answer; re-running is what replaces it.
   }, [ownerUsername]);
 
   return isOwner;

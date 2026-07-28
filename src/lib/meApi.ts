@@ -26,7 +26,11 @@ export type MyProfile = {
 // or a typed failure the UI can branch on without parsing message strings.
 export type CreateProfileResult =
   | { ok: true; profile: MyProfile }
-  | { ok: false; reason: "taken" | "invalid" | "at_capacity" | "unknown"; message: string };
+  | {
+      ok: false;
+      reason: "taken" | "invalid" | "at_capacity" | "rate_limited" | "unknown";
+      message: string;
+    };
 
 async function accessToken(): Promise<string | null> {
   const supabase = await createClient();
@@ -72,8 +76,58 @@ export async function fetchMyProfile(): Promise<MyProfile | null> {
   return (await res.json()) as MyProfile;
 }
 
+// Memoized user id → username, so the write path doesn't pay a Node→Python
+// round trip just to learn whose cache tag to purge. Every mutation needs the
+// answer (revalidateMyLibrary in video_games/actions.ts) and the answer never
+// changes: usernames are assigned once at onboarding and there is no rename
+// endpoint.
+//
+// Module scope, so it survives across requests within one serverless instance
+// and is repopulated for free after a cold start. Bounded by MAX_USERS (100),
+// and holds only a username — public data that is already on the page.
+//
+// IF A RENAME FEATURE EVER LANDS, THIS MUST GO (or be invalidated by it):
+// a stale entry would revalidate the old username's tag, leaving the renamed
+// library's pages stale instead.
+const usernameByUserId = new Map<string, string>();
+
+/** The caller's username, or null when signed out / not onboarded.
+ *
+ *  Same answer as `fetchMyProfile()?.username`, but usually free: the session
+ *  read is a local cookie parse, and only the first call per user per instance
+ *  reaches the API.
+ *
+ *  ONLY SAFE AFTER A WRITE THE API ALREADY ACCEPTED. The map is keyed on the
+ *  user id from getSession(), which reads the cookie without verifying the JWT
+ *  — so on a warm entry this returns a username derived from unverified input,
+ *  where fetchMyProfile() would have had FastAPI verify the token first. Every
+ *  current caller sits behind an `if (result.ok)` on a mutation FastAPI
+ *  accepted, which is what makes the shortcut sound: a forged cookie never
+ *  reaches this code, because the write it would have to accompany fails 401
+ *  first. Call this somewhere that is not gated that way and a forged cookie
+ *  picks which user's cache tag gets purged. */
+export async function fetchMyUsername(): Promise<string | null> {
+  const supabase = await createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return null;
+
+  const cached = usernameByUserId.get(session.user.id);
+  if (cached) return cached;
+
+  const profile = await fetchMyProfile();
+  // Nothing cached for the not-onboarded state: it is precisely the one that
+  // changes, and it changes to a value we would then be serving wrong.
+  if (!profile) return null;
+
+  usernameByUserId.set(session.user.id, profile.username);
+  return profile.username;
+}
+
 /** Complete onboarding by creating the caller's profile. Maps FastAPI's status
- *  codes to the typed CreateProfileResult (409 taken, 422 invalid, 403 cap). */
+ *  codes to the typed CreateProfileResult (409 taken, 422 invalid, 403 cap,
+ *  429 rate-limited). */
 export async function createMyProfile(
   username: string,
   displayName: string
@@ -117,6 +171,17 @@ export async function createMyProfile(
       ok: false,
       reason: "at_capacity",
       message: detail ?? "Signups are currently at capacity.",
+    };
+  }
+  if (res.status === 429) {
+    // Profile creation is a charged write like any other (rate_limit_writes
+    // guards it), so onboarding can be rate-limited too — rare, but without
+    // this it surfaced as the generic "Something went wrong", which reads as
+    // broken rather than "wait a moment".
+    return {
+      ok: false,
+      reason: "rate_limited",
+      message: detail ?? "Too many attempts — wait a moment and try again.",
     };
   }
   return { ok: false, reason: "unknown", message: detail ?? "Something went wrong." };

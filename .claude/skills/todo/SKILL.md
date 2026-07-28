@@ -7,6 +7,17 @@ disable-model-invocation: false
 
 Check the first word of `$ARGUMENTS` (case-insensitive) to determine the mode: `list`, `done`, `do`, or a new item.
 
+## Always: reconcile the file first
+
+Before doing anything else, in every mode, fix the file's structure. TODO.md is edited outside this skill too (directly, mid-conversation), and those edits don't follow the rules below — so the skill is where drift gets corrected rather than assumed absent.
+
+1. **Any `- [x]` item outside "Recently Completed" is misplaced.** Move it to the top of Recently Completed. Compress it while moving: keep detail that stays useful as reference (a debugging gotcha, an accepted trade-off, a follow-up someone will need), drop the planning detail that only mattered while it was pending (step-by-step dashboard instructions, "quick fix vs long-term fix" framing).
+2. **Fix cross-references broken by the move.** A remaining open item that said "see the gotcha above" needs repointing once that text moves to another section.
+3. **Trim Recently Completed to 20 entries**, dropping the oldest from the bottom. Before dropping one, check whether it carries reference material still cited elsewhere in the file; if so, fold that detail into whatever item cites it rather than losing it.
+4. **Prune stale framing in section headers and open items** — a note saying work is blocked on something that has since shipped is worse than no note.
+
+Do this silently as part of whatever was asked. Only report it if something non-obvious moved.
+
 ## If listing (`/todo list`)
 
 Read `TODO.md` in full, then output two sections:
@@ -45,7 +56,7 @@ The description after "done" identifies which task to complete. Find the matchin
 
 1. **Remove** the matching `- [ ]` line from whatever section it's in.
 2. **Add** it to the **Recently Completed** section as `- [x] <task description>`, inserted at the **top** of that section (newest first).
-3. If **Recently Completed** already has 3 entries, remove the **bottom** (oldest) entry to keep it at 3 max.
+3. If **Recently Completed** now exceeds **20** entries, remove from the **bottom** (oldest) until it's back to 20.
 4. If no matching item is found, let the user know.
 
 ## If implementing a task (`/todo do <description>`)
@@ -54,7 +65,7 @@ The description after "do" identifies which task to implement. Find the best-mat
 
 1. Read `TODO.md` to find the matching task. If no match is found, let the user know and stop.
 2. Implement the task — read whatever files are needed, make the changes, and explain what you did.
-3. Immediately after writing the changes to the codebase, mark the item done: remove the `- [ ]` line and add it as `- [x]` at the top of **Recently Completed**, keeping that section at 3 entries max.
+3. Immediately after writing the changes to the codebase, mark the item done: remove the `- [ ]` line and add it as `- [x]` at the top of **Recently Completed**, keeping that section at 20 entries max.
 
 Do **not** ask the user whether the changes look good before marking done. The act of applying changes to the codebase (whether auto-accepted or manually accepted by the user) is sufficient — mark it done as the final step of the implementation.
 

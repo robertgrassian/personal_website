@@ -12,8 +12,14 @@ import { LibraryPage } from "@/components/video_games/LibraryPage";
 type PageProps = { params: Promise<{ username: string }> };
 
 // Next calls this alongside the page render to build <head>. Both it and the
-// page await getProfile() for the same username; the fetch cache collapses
-// that into one request, so this costs nothing extra.
+// page await getProfile() for the same username.
+//
+// For a username that exists, the fetch cache collapses those into one request
+// and this costs nothing extra. For one that does not, it costs a second API
+// round trip: Next does not put the 404 in the Data Cache, so neither call
+// finds an entry and both reach the API. Acceptable — an unknown username is
+// the rare path, and the alternative (caching misses) is what would strand a
+// new user on a stale 404 of their own name.
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { username } = await params;
   const profile = await getProfile(username);

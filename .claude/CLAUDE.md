@@ -57,6 +57,7 @@ Remaining ideas are tracked in `TODO.md` (backlog).
 ## Conventions
 
 - When I ask "what's next" or similar (e.g., "what should I work on"), reference `TODO.md` for the answer. Don't explore the codebase — just read the TODO and summarize what's up next.
+- **`TODO.md` structure rules apply to every edit, not just `/todo` invocations.** Marking something done means _moving_ it to the top of **Recently Completed**, not ticking it in place — a `- [x]` left in "Up Next" or "Backlog" is a bug. Recently Completed is newest-first and capped at **20**; drop the oldest past that, but first check whether it holds reference material still cited elsewhere in the file. Compress items as they move: keep the detail that stays useful (gotchas, accepted trade-offs, follow-ups), drop the planning detail that only mattered while pending. Fix any "see above" cross-reference the move breaks. The `/todo` skill (`.claude/skills/todo/SKILL.md`) restates these, but it only loads when invoked — most TODO edits happen mid-conversation without it, which is exactly how drift gets in.
 - **Never add "Co-Authored-By: Claude" (or any Claude/Anthropic attribution) to git commit messages.**
 - **Use `ggp` instead of `git push` when pushing branches.**
 - **Always support both light and dark mode.** The site uses `@media (prefers-color-scheme: dark)` CSS variables in `globals.css` and Tailwind `dark:` variants in components — both must be addressed for any new UI. Never add color classes that only work in one mode.

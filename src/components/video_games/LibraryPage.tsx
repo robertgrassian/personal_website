@@ -9,6 +9,7 @@ import "@/components/crt/crt.css";
 import { getGames } from "@/lib/gamesServer";
 import { getWishlist } from "@/lib/wishlistServer";
 import { getProfile } from "@/lib/profileServer";
+import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { CrtTv } from "@/components/crt/CrtTv";
 import { LibraryCount } from "@/components/video_games/LibraryCount";
@@ -35,7 +36,22 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
   // the same 404. Costs one extra round trip on a cache miss, and the three
   // reads share a cache tag so they warm and expire together.
   const profile = await getProfile(username);
-  if (!profile) notFound();
+  if (!profile) {
+    // ...with one exception. The founder's profile is seeded, not user-created,
+    // so its absence is never "no such user" — it means the API is pointed at
+    // an unmigrated or unseeded database. A 404 page would quietly present that
+    // as an empty site; the rest of this read path deliberately fails loudly
+    // instead of rendering something wrong (see requireLibraryApiOrigin), and
+    // the flagship library page is the last place to break that rule.
+    if (username.toLowerCase() === LIBRARY_OWNER_USERNAME) {
+      throw new Error(
+        `The library API has no profile for '${LIBRARY_OWNER_USERNAME}', the seeded owner. ` +
+          `That is a backend misconfiguration, not a missing user — check that the database ` +
+          `is migrated and seeded (\`cd api && uv run python scripts/seed.py\`).`
+      );
+    }
+    notFound();
+  }
 
   // Independent, so Promise.all runs them concurrently instead of
   // serializing two API round-trips.
