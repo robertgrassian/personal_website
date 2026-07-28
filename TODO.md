@@ -29,7 +29,7 @@
       `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` appear to be scoped to
       Production only. The middleware matches every non-asset path, so one missing var
       took down the whole deployment. Reproduced locally: `Your project's URL and Key are
-    required to create a Supabase client!` **Quick fix:** Vercel → Settings →
+  required to create a Supabase client!` **Quick fix:** Vercel → Settings →
       Environment Variables → tick **Preview** for both (same values; both are public by
       design — the browser needs them for the OAuth dance) → redeploy. `NEXT_PUBLIC_*` is
       inlined at build time, so an already-built deploy won't pick them up; it needs a new
@@ -45,6 +45,21 @@
       _Already mitigated in code (PR #68):_ the middleware and the two session-reading
       pages now degrade instead of throwing when the vars are absent — auth stops working
       but every page still renders, so a missing var can't take the site down again.
+- [ ] **Browser pass on the Phase 4 UI (PR #68)** — these are all client-rendered, so they
+      are invisible to `curl` and were _not_ verified during implementation. Do this after
+      the Preview env vars above are set (or just run `npm run dev:full` locally and sign in
+      with a magic link via Mailpit at `http://127.0.0.1:54324`): 1. **Sign-up CTA banner** (`/video_games`, signed out) — appearance, and that it
+      disappears once signed in. Confirm the app name reads exactly
+      "Robert's Game Library" on screen; it must match the Google Cloud console string
+      or brand verification falls back to the `supabase.co` host. 2. **`AuthButton` in the library header** (`components/video_games/LibraryPage.tsx`) —
+      it moved out of the global nav in slice 3. Check alignment against the `<h1>`
+      (especially when a long display name wraps), contrast on the shelf background, and
+      **both light and dark mode**. 3. **Login page `?error=` copy** (`/video_games/login`) — rendered client-side via
+      `useSearchParams`, so it never appears in server HTML. Hit
+      `/video_games/login?error=oauth_failed` and `?error=link_invalid` and confirm both
+      messages render. 4. While you are there: the owner edit affordances on `/u/rgrassian` (pencils, Add
+      game, Unrated shelf) should appear only on your own library and never on someone
+      else's.
 
 ## Recently Completed
 

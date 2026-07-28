@@ -86,6 +86,13 @@ export function GameLibrary({
     clearFilters,
   } = useGameLibraryUrlState();
 
+  // "There is genuinely nothing in this view", as opposed to "the filters
+  // excluded everything". Rated and unrated are both checked because an owner
+  // whose only games are unrated still has a library — they'd see it on the
+  // Unrated shelf, so telling them it's empty would be wrong.
+  const isNothingHere =
+    view === "played" ? games.length === 0 && unratedGames.length === 0 : wishlist.length === 0;
+
   // Option lists for each view's dropdowns — memoized on the immutable props.
   const allSystems = useMemo(() => [...new Set(games.map((g) => g.system))].sort(), [games]);
   const allGenres = useMemo(() => [...new Set(games.flatMap((g) => g.genres))].sort(), [games]);
@@ -272,11 +279,36 @@ export function GameLibrary({
       )}
 
       {activeShelves.length === 0 ? (
-        <p className="mt-24 text-center text-shelf-text-muted text-lg italic">
-          {view === "wishlist" && wishlist.length === 0
-            ? "Your wishlist is empty."
-            : "No games match your filters."}
-        </p>
+        // Three different situations used to share one message. They call for
+        // different things: a brand-new owner needs a way in, a visitor to an
+        // empty library needs to know it's empty rather than broken, and a
+        // filtered-to-nothing shelf needs neither.
+        isNothingHere ? (
+          <div className="mt-24 flex flex-col items-center gap-4 text-center">
+            <p className="text-lg text-shelf-text-muted">
+              {canEdit
+                ? view === "played"
+                  ? "Your library is empty."
+                  : "Your wishlist is empty."
+                : view === "played"
+                  ? "This library is empty."
+                  : "This wishlist is empty."}
+            </p>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className="rounded-md bg-shelf-plank px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 cursor-pointer"
+              >
+                {view === "played" ? "Add your first game" : "Add your first wish"}
+              </button>
+            )}
+          </div>
+        ) : (
+          <p className="mt-24 text-center text-shelf-text-muted text-lg italic">
+            No games match your filters.
+          </p>
+        )
       ) : (
         <div className="mt-6 pb-24">
           {activeShelves.map((shelf) => (

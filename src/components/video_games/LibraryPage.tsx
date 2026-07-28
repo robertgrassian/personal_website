@@ -75,9 +75,19 @@ export async function LibraryPage({ username, heading, showSignupCta = false }: 
             items-start keeps it aligned to the heading's first line when a
             long display name wraps. */}
         <div className="flex items-start justify-between gap-4">
-          <h1 className="text-4xl font-bold text-shelf-text">
-            {heading ?? `${profile.displayName}'s Game Library`}
-          </h1>
+          <div>
+            <h1 className="text-4xl font-bold text-shelf-text">
+              {heading ?? `${profile.displayName}'s Game Library`}
+            </h1>
+            {/* Whose library this is. On /u/[username] the heading already
+                carries the display name, so the handle is what adds
+                information; on /video_games the heading is generic and this is
+                the only thing naming the owner. Rendered from the profile, so
+                the casing is the stored one rather than whatever the URL used.
+                Follower/following counts belong here too, but not until Phase 5
+                gives them a follow button and lists to be actionable with. */}
+            <p className="mt-1 text-sm text-shelf-text-muted">@{profile.username}</p>
+          </div>
           <AuthButton />
         </div>
         {/* useSearchParams (inside LibraryCount) requires a Suspense boundary.

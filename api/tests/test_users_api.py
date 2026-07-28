@@ -241,6 +241,48 @@ def other_user():
             session.commit()
 
 
+@pytest.fixture
+def onboarded_user_with_nothing():
+    """A user who has completed onboarding but added nothing at all — the
+    brand-new-signup state the library's empty states render for."""
+    user_id = uuid.uuid4()
+    username = f"empty{str(user_id)[:8]}"
+    sm = get_sessionmaker()
+    with sm() as session:
+        session.execute(_INSERT_AUTH_USER, {"id": user_id, "email": f"{username}@example.com"})
+        session.commit()
+
+    app = create_app()
+    app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(
+        id=user_id, email=f"{username}@example.com"
+    )
+    created = TestClient(app).post("/api/py/me/profile", json={"username": username})
+    assert created.status_code == 201, created.text
+    try:
+        yield username
+    finally:
+        with sm() as session:
+            session.execute(text("DELETE FROM auth.users WHERE id = :id"), {"id": user_id})
+            session.commit()
+
+
+@requires_db
+def test_empty_library_is_empty_lists_not_404(
+    client: TestClient, onboarded_user_with_nothing: str
+) -> None:
+    # The distinction the UI depends on: an onboarded user with no rows is a
+    # real, empty library (render "add your first game"), not a missing one
+    # (render a 404 page). Only an unknown username 404s.
+    username = onboarded_user_with_nothing
+    assert client.get(f"/api/py/users/{username}").status_code == 200
+    games = client.get(f"/api/py/users/{username}/games")
+    wishlist = client.get(f"/api/py/users/{username}/wishlist")
+    assert games.status_code == 200
+    assert wishlist.status_code == 200
+    assert games.json() == []
+    assert wishlist.json() == []
+
+
 @requires_db
 def test_second_users_games_are_their_own(client: TestClient, other_user: str) -> None:
     games = client.get(f"/api/py/users/{other_user}/games").json()
