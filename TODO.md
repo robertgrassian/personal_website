@@ -24,12 +24,23 @@
       a Twitch application's credentials from dev.twitch.tv) → redeploy
 - [ ] **Local dev**: add the same `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` to the
       gitignored `.env` so the add-game IGDB search works locally (503 until then)
-- [ ] **Make `npm run build` work again** — the production build is currently broken, so
-      Vercel deploys and the pre-push sanity check can't be trusted. Run it, capture the
-      failure (type error vs lint vs module resolution), fix the root cause rather than
-      loosening the check (no `ignoreBuildErrors`/`ignoreDuringBuilds` escape hatches).
 
 ## Recently Completed
+
+- [x] `npm run build` investigated — **not broken**. It is green on `main` (17/17 pages); it
+      fails only when the library API is unreachable at build time, which is deliberate:
+      `requireLibraryApiOrigin()` (`src/lib/libraryApi.ts`) documents that an unresolvable
+      origin must fail loudly rather than prerender an empty library, and the error already
+      says "Is the API running? Start it with `npm run dev:api`." Start the API before
+      building locally
+- [x] CI now runs the Python half of the toolchain (spec decision #8) — a second `api` job in
+      `.github/workflows/ci.yml` runs `ruff check` + the full `pytest` suite against a
+      postgres:16 service container. Previously 107 of 161 tests silently skipped in CI for
+      want of a `DATABASE_URL`. Needed one new file, `api/scripts/ci_auth_schema.sql`: a
+      minimal stand-in for Supabase's `auth.users`/`auth.identities`. GoTrue owns those
+      tables everywhere else, so Alembic never creates them — but migration
+      `f985740c0df9` adds a real FK to `auth.users`, so migrations can't run on bare
+      Postgres without it
 
 - [x] CRT metadata block is height-stable across channel changes (`components/crt/CrtTv.tsx`) — the auto-cycle used to resize the block per game, and since `.pcrt-stage--compact` is a bottom-aligned flex row, a taller block pushed the TV and the page below it down on a timer. Three causes, all fixed by reserving the worst case instead of truncating: the title now reserves and clamps two lines (`min-h-[2lh] line-clamp-2` — long names wrap into reserved space on mobile rather than growing the block), the system/genres line clamps to one, and the "playing since" line always renders (empty when a game has no open-session date) instead of disappearing
 - [x] Mobile nav no longer cramped by the auth control (`components/Nav.tsx`, `components/AuthButton.tsx`) — type, gaps, and horizontal padding scale down below `sm` only, so desktop is unchanged. `AuthButton` shares the links' responsive scale so the row shrinks as one unit. Row height still comes from `--nav-height`, so `FilterBar`/`StatsPanel` sticky offsets are untouched
@@ -45,7 +56,7 @@
       place name/system get touched), while `EditGameModal.tsx` can edit a game's fields.
       Want: edit a wishlist item's name, system, genres, release date, cover art in place,
       without having to promote it first. Needs a `WishlistItemUpdate` schema + `PATCH
-      /api/py/me/wishlist/{id}` on the API side (routers → services → repositories, mirroring
+  /api/py/me/wishlist/{id}` on the API side (routers → services → repositories, mirroring
       the games write path), a Server Action in `video_games/actions.ts` with the usual
       `revalidateTag(libraryCacheTag(...))`, and the edit form fields lifted out of
       `EditGameModal` so both modals share one implementation instead of duplicating it.
