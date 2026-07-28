@@ -56,10 +56,13 @@ export function SignupCta() {
       <h2 className="text-lg font-semibold text-shelf-text sm:text-xl">
         Build your own {APP_NAME}
       </h2>
+      {/* The heading carries the app name, which is what Google's brand
+          verification looks for, so this states the purpose and stops. An
+          earlier draft repeated the name here and then re-listed the same
+          features a second time. */}
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-shelf-text-muted sm:text-base">
-        {APP_NAME} is a shelf for every game you have played: what you finished, how you rated it,
-        what you are playing right now, and what you want to play next. Sign in to start yours, then
-        add games, rate them, log playthroughs, and keep a wishlist.
+        Track every game you have played: what you finished, how you rated it, what you are playing
+        now, and what you want to play next. Sign in to start yours.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
         <Link
