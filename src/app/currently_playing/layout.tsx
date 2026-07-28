@@ -4,7 +4,7 @@
 // still global once loaded — nothing route-scopes the rules themselves. What
 // keeps these styles from colliding with other pages is the `pcrt-` class
 // namespace used throughout crt.css, not the import location. The CRT is shared
-// with /video_games, which imports the same stylesheet in its own layout.
+// with the library pages, which pull the same stylesheet in via LibraryPage.
 import "@/components/crt/crt.css";
 
 export default function CurrentlyPlayingLayout({ children }: { children: React.ReactNode }) {

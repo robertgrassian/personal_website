@@ -410,35 +410,45 @@ policy. The logged-out `/video_games` **sign-up CTA banner** above is exactly su
 so we point Google's App homepage at `https://rgrassian.com/video_games` and let the banner
 satisfy verification as a byproduct of building it (no throwaway content, no change to the
 portfolio home — a bare login page or the photo-only home both fail Google's "explain the
-purpose" check, learned 2026-07-22). **App name: "Robert's Game Library."** Until this ships,
+purpose" check, learned 2026-07-22). **App name: "Video Game Library"** (updated
+2026-07-28: the app is the product someone signs into, and "Robert's" scopes a single
+library rather than naming it). Until this ships,
 the consent screen shows the `supabase.co` host — a purely cosmetic label; auth is fully
 functional. (Erasing every `supabase.co` reference entirely would need Supabase's paid custom
 auth domain — out of scope.) The `/privacy` page already exists and supplies the required
 privacy URL now.
 
-**Open items — Phase 4 (deferred 2026-07-22).** Concrete, trackable tasks for the two
-decisions above:
+**Open items — Phase 4 (deferred 2026-07-22; code items shipped 2026-07-28 in PR #68).**
+Concrete, trackable tasks for the two decisions above:
 
-- [ ] **Build the logged-out sign-up CTA banner** on `/video_games` — names the app
-      ("Robert's Game Library"), states its purpose, links `/privacy`. This page becomes
+- [x] **Build the logged-out sign-up CTA banner** on `/video_games` — names the app
+      ("Video Game Library"), states its purpose, links `/privacy`. This page becomes
       Google's App homepage, so the app-name string shown here must match the consent screen
-      exactly.
+      exactly. _Shipped:_ `src/components/video_games/SignupCta.tsx`, gated by a
+      `showSignupCta` prop only `/video_games` passes. The app name is a named constant
+      (`APP_NAME`) precisely because it must stay byte-identical to the console string.
 - [ ] **Update Google Cloud OAuth config and re-run brand verification** (manual dashboard
-      step, _after_ the banner deploys): App name → "Robert's Game Library"; App homepage →
+      step, _after_ the banner deploys): App name → "Video Game Library"; App homepage →
       `https://rgrassian.com/video_games`; Privacy policy → `https://rgrassian.com/privacy`;
       add `rgrassian.com` as an authorized domain; resubmit. Done = the consent screen shows
-      the app name, not the `supabase.co` host.
-- [ ] **Remove Sign in / Sign out from the global `Nav`** — surface sign-in inside the game
+      the app name, not the `supabase.co` host. **Still open — the only item here that is not
+      code.** Tracked in `TODO.md`; blocked until PR #68 reaches production.
+- [x] **Remove Sign in / Sign out from the global `Nav`** — surface sign-in inside the game
       library, and give logged-in users a sign-out control there too (it no longer lives in
-      the nav).
-- [ ] **Move the login surface under the game library** (`/video_games/login`, or a
+      the nav). _Shipped:_ `AuthButton` moved into the library header in `LibraryPage.tsx`,
+      restyled onto the shelf tokens.
+- [x] **Move the login surface under the game library** (`/video_games/login`, or a
       library-local sign-in affordance); update every link/redirect that points at `/login`,
       including the `/auth/confirm` and `/auth/callback` error redirects (`/login?error=…`).
-- [ ] **Redirect post-login _and_ post-onboarding into the library** (`/library` resolver →
+      _Shipped:_ all three redirects verified landing on the new path.
+- [x] **Redirect post-login _and_ post-onboarding into the library** (`/library` resolver →
       `/u/{username}`), never the portfolio home `/`. Replaces the interim `redirect("/")`
-      and fixes the current "lands on rgrassian.com after onboarding" behavior.
-- [ ] **Leave auth infrastructure untouched**: session cookie stays site-wide (not
-      path-scoped), middleware and `/auth/*` handlers unchanged.
+      and fixes the current "lands on rgrassian.com after onboarding" behavior. _Shipped:_
+      `src/app/library/page.tsx`; all four branches verified against real Supabase sessions.
+- [x] **Leave auth infrastructure untouched**: session cookie stays site-wide (not
+      path-scoped), middleware and `/auth/*` handlers unchanged. _Held._ The one middleware
+      change is unrelated to scoping: it now degrades instead of throwing when the Supabase
+      env vars are absent, because a missing var was 500-ing every route on the deployment.
 - [ ] _Contingency_: if Google also demands a **Terms of Service** URL, add `/terms` (same
       pattern as `/privacy`).
 
@@ -617,12 +627,28 @@ Each phase ships independently and leaves the site working.
 
 ### Phase 4 — Multi-user
 
-- `/u/[username]` public routes, signup open, empty states, per-user rate limits.
-- The `/library` resolver route + sign-up CTA banner on `/video_games` (§7.1).
-- Entry experience, auth-surface scoping, and Google brand verification — see the
-  **Open items checklist in §7.1** (banner, remove nav sign-in/out, redirect post-login into
-  the library, update Google Cloud + re-verify).
-- Light abuse guardrails (§9).
+**Code complete 2026-07-28 (PR #68), sliced as 0–7.** One manual step remains: the Google
+Cloud re-verification in the §7.1 checklist.
+
+- [x] `/u/[username]` public routes, signup open, empty states, per-user rate limits.
+      Signup needed no new switch — it was only ever bounded by `MAX_USERS`.
+- [x] The `/library` resolver route + sign-up CTA banner on `/video_games` (§7.1).
+- [x] Entry experience and auth-surface scoping — see the **Open items checklist in §7.1**.
+      Google brand verification is the one item still open there.
+- [x] Light abuse guardrails (§9): shared per-user write budget (60/min, `writes` bucket,
+      applied as a route dependency beside `forbid_in_preview`) and `MAX_GAMES` (2000),
+      enforced on both doors into the games table — create and wishlist-promote.
+
+Two things learned during the slices, recorded because they cost real time:
+
+- **The username had three distinct consumers**, not one: the server read argument, the
+  client-side owner comparison, and the `revalidateTag` key. Only the first two are
+  interchangeable. The tag must be resolved from the caller's own token server-side —
+  taking it as a Server Action argument would let anyone purge anyone else's cache.
+- **`next build` prerenders `/video_games` against production's API**, so the fetch timeout
+  is a deploy-time concern, not just a runtime one. A 5s bound sized for page renders turned
+  a serverless cold start into failed deployments; it is now phase-aware (30s + one retry
+  while prerendering, 5s when serving).
 
 ### Phase 5 — Social graph
 
@@ -630,6 +656,15 @@ Each phase ships independently and leaves the site working.
 - Backfill: create follow edges between Robert and any users who signed up during Phase 4.
 - Profile headers with follower/following counts and lists; follow button; user search
   (pg_trgm index + `/users/search` endpoint + UI).
+- **"Back to my library" control on other people's libraries.** Once you can navigate to
+  another user (from a follower list or search), you need a one-click way home, and there
+  is none today: the global nav's Game Library link points at `/library`, which resolves
+  correctly but reads as a generic site link rather than "return to mine". Show a control
+  on `/u/[username]` whenever the viewer is signed in and is **not** the owner. Resolved
+  client-side after hydration like every other per-viewer affordance (§7.2), so the cached
+  page stays identical for everyone. Noted during Phase 4 (2026-07-28) while building the
+  profile header, and deferred deliberately: with no way to reach another user's library
+  yet, it had nothing to navigate back from. Phase 5 creates that need, so it belongs here.
 
 ### Phase 6 — Hardening / polish (as needed)
 

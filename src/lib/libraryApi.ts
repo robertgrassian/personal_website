@@ -3,6 +3,7 @@
 import "server-only";
 import type { Game } from "./games";
 import type { WishlistGame } from "./wishlist";
+import type { LibraryProfile } from "./profile";
 
 // This module owns the FastAPI origin and the fetch mechanics for the library
 // read path — the site's only data source since the CSVs were retired.
@@ -68,38 +69,94 @@ export function libraryCacheTag(username: string): string {
 // Shared fetch for both endpoints. `path` is the part after the origin
 // (e.g. "/api/py/users/robert/games"); `tags` are the cache tags the entry is
 // stored under — the caller owns tag naming, this helper only fetches+caches.
+// True while `next build` is prerendering pages, false when serving a request.
+// Next sets NEXT_PHASE for the duration of the build; nothing else does.
+const IS_PRERENDER = process.env.NEXT_PHASE === "phase-production-build";
+
+// How long to wait on the API before giving up. AbortSignal.timeout bounds a
+// *hung* (vs. refused) API: without it a render would stall indefinitely.
+//
+// The two budgets differ because the deadlines do. Serving a request, someone
+// is watching a blank page, so 5s is already generous. Prerendering, nobody is
+// waiting and the request may be paying a serverless Python cold start — on
+// Vercel the build container calls production's function, which can sit idle
+// for days between deploys. A tight bound there turns a slow cold start into a
+// failed deployment, which is exactly what it did.
+const REQUEST_TIMEOUT_MS = 5_000;
+const PRERENDER_TIMEOUT_MS = 30_000;
+
+function fetchWithTimeout(url: string, tags: string[]): Promise<Response> {
+  return fetch(url, {
+    // Cached until a write calls revalidateTag with one of these tags.
+    // "force-cache" opts in explicitly — Next 15 fetches are uncached by
+    // default. This also keeps pages statically renderable: an earlier
+    // `no-store` was a dynamic API, which broke prerendering of the OG image
+    // route at build time.
+    cache: "force-cache",
+    next: { tags },
+    signal: AbortSignal.timeout(IS_PRERENDER ? PRERENDER_TIMEOUT_MS : REQUEST_TIMEOUT_MS),
+  });
+}
+
+// Network-level failure (connection refused, DNS, timeout) — the API is
+// configured but unreachable. Fail loudly: a broken API should be obvious in
+// dev, and there is no fallback data source.
+function wrapFetchError(err: unknown, what: string, url: string): Error {
+  return new Error(
+    `Fetching ${what} from ${url} failed ` +
+      `(${err instanceof Error ? err.message : String(err)}). ` +
+      `Is the API running? Start it with \`npm run dev:api\`.`
+  );
+}
+
+// Two shapes, one implementation. Without `allowMissing` a 404 is a thrown
+// error like any other bad status; with it, a 404 becomes null so the caller
+// can distinguish "no such user" from "the API is unwell". Overloads (rather
+// than a boolean returning `T | null` for everyone) keep the common callers
+// free of a null they can never receive.
 async function fetchFromApi<T>(
   origin: string,
   path: string,
   what: string,
   tags: string[]
-): Promise<T> {
+): Promise<T>;
+async function fetchFromApi<T>(
+  origin: string,
+  path: string,
+  what: string,
+  tags: string[],
+  allowMissing: true
+): Promise<T | null>;
+async function fetchFromApi<T>(
+  origin: string,
+  path: string,
+  what: string,
+  tags: string[],
+  allowMissing = false
+): Promise<T | null> {
   const url = `${origin}${path}`;
   let res: Response;
   try {
-    // Cached until a write calls revalidateTag with one of these tags.
-    // "force-cache" opts in explicitly — Next 15 fetches are uncached by default.
-    // This also keeps pages statically renderable: the previous `no-store` was a
-    // dynamic API, which broke prerendering of the OG image route at build time.
-    // AbortSignal.timeout bounds a *hung* (vs. refused) API: without it the page
-    // render would stall indefinitely; with it the failure stays loud and fast.
-    res = await fetch(url, {
-      cache: "force-cache",
-      next: { tags },
-      signal: AbortSignal.timeout(5000),
-    });
+    res = await fetchWithTimeout(url, tags);
   } catch (err) {
-    // Network-level failure (connection refused, DNS, etc.) — the API is
-    // configured but unreachable. Fail loudly: a broken API should be
-    // obvious in dev, and there is no fallback data source.
-    throw new Error(
-      `Fetching ${what} from ${url} failed ` +
-        `(${err instanceof Error ? err.message : String(err)}). ` +
-        `Is the API running? Start it with \`npm run dev:api\`.`
-    );
+    // One retry, but only while prerendering. A build's first request to the
+    // API is very often a serverless Python cold start, and on Vercel that
+    // request goes to production's function from the build container — so a
+    // timeout here means "still warming up", not "broken". The retry finds it
+    // warm. At request time there is a user waiting, so a failure stays a
+    // failure.
+    if (!IS_PRERENDER) throw wrapFetchError(err, what, url);
+    try {
+      res = await fetchWithTimeout(url, tags);
+    } catch (retryErr) {
+      throw wrapFetchError(retryErr, what, url);
+    }
   }
+  // An expected outcome, not a failure: /u/{username} for a username nobody
+  // owns. The caller turns this into a 404 page.
+  if (res.status === 404 && allowMissing) return null;
   if (!res.ok) {
-    // Same policy for HTTP errors (404 unknown user, 500, ...): loud, actionable.
+    // Same policy for the rest (500, 502, an unexpected 404, ...): loud, actionable.
     throw new Error(
       `${url} returned ${res.status} ${res.statusText} while fetching ${what}. ` +
         `Check the API logs (\`npm run dev:api\`).`
@@ -111,8 +168,8 @@ async function fetchFromApi<T>(
   return (await res.json()) as T;
 }
 
-// encodeURIComponent: harmless for the current constant "robert", but Phase 4's
-// /u/[username] routes will pass user-shaped input into these URLs.
+// encodeURIComponent throughout: /u/[username] puts user-shaped input into
+// these URLs, so the segment is escaped rather than trusted.
 export function fetchGamesFromApi(origin: string, username: string): Promise<Game[]> {
   return fetchFromApi<Game[]>(
     origin,
@@ -128,5 +185,21 @@ export function fetchWishlistFromApi(origin: string, username: string): Promise<
     `/api/py/users/${encodeURIComponent(username)}/wishlist`,
     "wishlist",
     [libraryCacheTag(username)]
+  );
+}
+
+// null = no such user. Shares the library cache tag with games and wishlist:
+// one tag per user covers everything a library page renders, so a single
+// revalidateTag after a write refreshes all three.
+export function fetchProfileFromApi(
+  origin: string,
+  username: string
+): Promise<LibraryProfile | null> {
+  return fetchFromApi<LibraryProfile>(
+    origin,
+    `/api/py/users/${encodeURIComponent(username)}`,
+    "profile",
+    [libraryCacheTag(username)],
+    true
   );
 }

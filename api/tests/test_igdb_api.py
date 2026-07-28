@@ -20,6 +20,7 @@ from app.core.config import get_settings
 from app.core.db import get_sessionmaker
 from app.main import create_app
 from app.repositories import igdb as igdb_repo
+from app.repositories import rate_limit as rate_limit_repo
 from app.services import igdb as igdb_service
 
 requires_db = pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
@@ -306,12 +307,12 @@ def test_rate_limits_are_per_user(igdb_env, test_user) -> None:
     try:
         with sm() as session:
             for expected in (1, 2, 3):
-                count = igdb_repo.increment_rate_limit(
+                count = rate_limit_repo.increment_rate_limit(
                     session, test_user, "igdb_search", timedelta(seconds=60)
                 )
                 assert count == expected
             assert (
-                igdb_repo.increment_rate_limit(
+                rate_limit_repo.increment_rate_limit(
                     session, other_user, "igdb_search", timedelta(seconds=60)
                 )
                 == 1

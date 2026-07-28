@@ -1,65 +1,26 @@
-import { Suspense } from "react";
-import { getGames } from "@/lib/gamesServer";
-import { GameLibrary } from "@/components/video_games/GameLibrary";
-import { CrtTv } from "@/components/crt/CrtTv";
-import { LibraryCount } from "@/components/video_games/LibraryCount";
-import { getWishlist } from "@/lib/wishlistServer";
+import { LibraryPage } from "@/components/video_games/LibraryPage";
+import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 
 export const metadata = {
   title: "Video Game Library | Robert Grassian",
 };
 
-// Async Server Component — a Next.js App Router convention: server components
-// may be async functions and `await` data before rendering. getGames() /
-// getWishlist() are now async (they may fetch from the library API). The two
-// awaits are independent, so Promise.all runs them concurrently instead of
-// serializing two API round-trips.
-export default async function VideoGamesPage() {
-  const [games, wishlist] = await Promise.all([getGames(), getWishlist()]);
-  // All in-progress games — the CRT cycles through them like TV channels, and
-  // the stats panel uses them so "Recently Played" can include a currently-playing
-  // game even when it's unrated (and thus absent from the rated shelves below).
-  // Filtered before the rating cut below, so an unrated in-progress game still
-  // appears on the CRT.
-  const currentlyPlayingGames = games.filter((g) => g.currentlyPlaying);
-  // Shelves hold finished, rated games only. A game with no rating yet (usually
-  // the one currently being played) is excluded here; once it gets a rating it
-  // shows up on the shelves — and in both places if it's still being played.
-  const libraryGames = games.filter((g) => g.rating !== "");
-  // Unrated games power the owner-only "Unrated" shelf inside GameLibrary —
-  // without it, clearing a rating would make a game unreachable from the UI
-  // (no case, no pencil, no way to re-rate). Passed for every viewer but only
-  // rendered after the client-side owner check, so the static HTML stays
-  // identical for everyone.
-  const unratedGames = games.filter((g) => g.rating === "");
-  // Headline counts. "Played" spans the whole collection you've engaged with:
-  // every rated game plus anything currently in progress. The `||` de-dupes a
-  // game that's both rated and currently playing — it's counted once.
-  const playedCount = games.filter((g) => g.rating !== "" || g.currentlyPlaying).length;
-  const wishlistCount = wishlist.length;
-
+// Robert's shelf keeps this stable URL rather than redirecting to
+// /u/rgrassian (spec decision #5): existing links and SEO keep working, and
+// it doubles as the logged-out demo. The page itself is now just the shared
+// library shell with the owner pinned.
+//
+// No `heading` override any more: this URL and /u/rgrassian show the same
+// library, so they should say the same thing. LibraryPage's default —
+// "{displayName}'s Video Game Library" — is now correct for both, and dropping
+// the prop means there is one fewer place for them to drift apart.
+export default function VideoGamesPage() {
   return (
-    <main className="min-h-screen bg-shelf-bg shelf-theme">
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        <h1 className="text-4xl font-bold text-shelf-text">Video Game Library</h1>
-        {/* useSearchParams (inside LibraryCount) requires a Suspense boundary.
-            The fallback shows the default-view count so there's no flash. */}
-        <Suspense fallback={<p className="mt-2 text-shelf-text-muted">{playedCount} games</p>}>
-          <LibraryCount playedCount={playedCount} wishlistCount={wishlistCount} />
-        </Suspense>
-
-        {currentlyPlayingGames.length > 0 && <CrtTv games={currentlyPlayingGames} compact />}
-
-        {/* Suspense is required because GameLibrary uses useSearchParams() */}
-        <Suspense fallback={null}>
-          <GameLibrary
-            games={libraryGames}
-            wishlist={wishlist}
-            currentlyPlayingGames={currentlyPlayingGames}
-            unratedGames={unratedGames}
-          />
-        </Suspense>
-      </div>
-    </main>
+    <LibraryPage
+      username={LIBRARY_OWNER_USERNAME}
+      // This page doubles as the logged-out demo and as the "App homepage"
+      // Google's OAuth brand verification points at — see SignupCta.
+      showSignupCta
+    />
   );
 }

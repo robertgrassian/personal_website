@@ -75,5 +75,11 @@ Remaining ideas are tracked in `TODO.md` (backlog).
 ## Commands
 
 - `npm run dev` — Start dev server (Turbopack)
-- `npm run build` — Production build
+- `npm run dev:api` — Start the FastAPI backend (uvicorn, port 8000)
+- `npm run dev:full` — Both of the above at once
+- `npm run build` — Production build. **Requires the library API to be running** (`npm run dev:api`):
+  `/video_games` and its OG image prerender from it, and an unreachable origin fails the build by
+  design rather than shipping an empty library
 - `npm run lint` — Run ESLint
+- `cd api && uv run pytest` — Python test suite (integration tests need `DATABASE_URL`)
+- `cd api && uv run ruff check .` — Python lint

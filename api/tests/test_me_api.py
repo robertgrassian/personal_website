@@ -10,13 +10,14 @@ one and cascades it away on teardown.
 """
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
+from app.core import guards
 from app.core.auth import AuthenticatedUser, get_current_user
 from app.core.config import get_settings
 from app.core.db import get_sessionmaker
@@ -1068,5 +1069,147 @@ def test_wishlist_writes_forbidden_in_preview(
         assert client.patch(f"/api/py/me/wishlist/{item['id']}", json={}).status_code == 503
         assert client.delete(f"/api/py/me/wishlist/{item['id']}").status_code == 503
         assert client.post(f"/api/py/me/wishlist/{item['id']}/promote", json={}).status_code == 503
+    finally:
+        get_settings.cache_clear()
+
+
+# --- Abuse guardrails ------------------------------------------------------
+#
+# Two limits, both aimed at scripts rather than people: a per-user write budget
+# and a per-library row cap. Neither is an invariant — both are count-then-act
+# and can overshoot slightly under concurrency — so these test the behaviour at
+# the boundary, not exactness under race.
+
+
+def _reset_write_budget(user_id: uuid.UUID) -> None:
+    """Zero the caller's write counter.
+
+    Needed because the fixtures reach the API through the real write path —
+    creating a profile is itself a charged write — so a test that lowers the
+    limit afterwards would start already in debt. rate_limits deliberately has
+    no FK to profiles, so these rows also outlive the fixture teardown.
+    """
+    sm = get_sessionmaker()
+    with sm() as session:
+        session.execute(text("DELETE FROM rate_limits WHERE user_id = :id"), {"id": user_id})
+        session.commit()
+
+
+@requires_db
+def test_write_rate_limit_returns_429_at_the_boundary(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id, _ = fresh_user_with_game
+    _reset_write_budget(user_id)
+    # One write per window, so the second is over budget.
+    monkeypatch.setattr(guards, "WRITE_RATE_LIMIT_MAX", 1)
+    client = client_as(user_id)
+
+    first = client.post("/api/py/me/wishlist", json={"name": "Within budget"})
+    assert first.status_code == 201
+
+    second = client.post("/api/py/me/wishlist", json={"name": "Over budget"})
+    assert second.status_code == 429
+    # Retry-After tells the caller when it's worth trying again.
+    assert second.headers["Retry-After"] == str(int(guards.WRITE_RATE_LIMIT_WINDOW.total_seconds()))
+    # A plain-string detail, not a validation array: mutateGame() in
+    # src/lib/meApi.ts only forwards the former to the UI, so anything else
+    # would reach the user as a generic "Couldn't ... (HTTP 429)".
+    assert isinstance(second.json()["detail"], str)
+    assert "too many" in second.json()["detail"].lower()
+    # Refused before the write, not after it: the second item does not exist.
+    username = f"gamer-{str(user_id)[:8]}"
+    names = {w["name"] for w in client.get(f"/api/py/users/{username}/wishlist").json()}
+    assert names == {"Within budget"}
+
+
+@requires_db
+def test_write_rate_limit_window_resets(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id, _ = fresh_user_with_game
+    _reset_write_budget(user_id)
+    # A zero-length window is always already expired, so each request resets it.
+    monkeypatch.setattr(guards, "WRITE_RATE_LIMIT_MAX", 1)
+    monkeypatch.setattr(guards, "WRITE_RATE_LIMIT_WINDOW", timedelta(seconds=0))
+    client = client_as(user_id)
+    assert client.post("/api/py/me/wishlist", json={"name": "One"}).status_code == 201
+    assert client.post("/api/py/me/wishlist", json={"name": "Two"}).status_code == 201
+
+
+@requires_db
+def test_write_rate_limit_is_per_user(fresh_user_with_game, monkeypatch) -> None:
+    # One user exhausting their budget must not spend anyone else's.
+    #
+    # The second user is built by hand rather than by also requesting the
+    # fresh_auth_user fixture: fresh_user_with_game depends on that fixture, so
+    # pytest would hand back the SAME user and the test would prove nothing.
+    spender_id, _ = fresh_user_with_game
+    _reset_write_budget(spender_id)
+    monkeypatch.setattr(guards, "WRITE_RATE_LIMIT_MAX", 1)
+    assert client_as(spender_id).post("/api/py/me/wishlist", json={"name": "A"}).status_code == 201
+    assert client_as(spender_id).post("/api/py/me/wishlist", json={"name": "B"}).status_code == 429
+
+    other_id = _make_auth_user()
+    try:
+        other = client_as(other_id)
+        # Onboarding is itself a charged write, and it succeeds: proof the
+        # budget is keyed per user, not global.
+        username = f"other-{str(other_id)[:8]}"
+        assert other.post("/api/py/me/profile", json={"username": username}).status_code == 201
+        # ...and their own next write is the one that exceeds their own budget.
+        assert other.post("/api/py/me/wishlist", json={"name": "C"}).status_code == 429
+    finally:
+        _delete_auth_user(other_id)
+        _reset_write_budget(other_id)
+
+
+@requires_db
+def test_add_game_refused_when_library_is_full(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id, _ = fresh_user_with_game  # already owns exactly one game
+    monkeypatch.setenv("MAX_GAMES", "1")
+    get_settings.cache_clear()
+    try:
+        response = client_as(user_id).post(
+            "/api/py/me/games", json={"name": "One Too Many", "system": "PC"}
+        )
+        assert response.status_code == 403
+        assert "full" in response.json()["detail"].lower()
+    finally:
+        get_settings.cache_clear()
+
+
+@requires_db
+def test_add_game_allowed_below_the_cap(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id, _ = fresh_user_with_game  # owns one game, cap of two leaves room
+    monkeypatch.setenv("MAX_GAMES", "2")
+    get_settings.cache_clear()
+    try:
+        response = client_as(user_id).post(
+            "/api/py/me/games", json={"name": "Room For One More", "system": "PC"}
+        )
+        assert response.status_code == 201
+    finally:
+        get_settings.cache_clear()
+
+
+@requires_db
+def test_promote_refused_when_library_is_full(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Promote is the other door into the games table; capping only create_my_game
+    # would let a full library grow by wishlisting first and promoting after.
+    user_id, _ = fresh_user_with_game
+    item = _add_wishlist(user_id, {"name": "Promote Me", "system": "PC"})
+    monkeypatch.setenv("MAX_GAMES", "1")
+    get_settings.cache_clear()
+    try:
+        response = client_as(user_id).post(f"/api/py/me/wishlist/{item['id']}/promote", json={})
+        assert response.status_code == 403
+        assert "full" in response.json()["detail"].lower()
     finally:
         get_settings.cache_clear()

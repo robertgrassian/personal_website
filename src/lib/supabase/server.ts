@@ -8,6 +8,17 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+// Whether this deployment has the (public) Supabase credentials at all.
+// Checked at call time, not module load, so it reflects the live env.
+//
+// Server Components that read the session must consult this first: without
+// credentials createServerClient throws, and an uncaught throw in a page is a
+// 500. The middleware degrades the same way (see ./middleware.ts) — together
+// they keep a missing env var from taking down routes that don't need auth.
+export function isSupabaseConfigured(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+}
+
 export async function createClient() {
   const cookieStore = await cookies();
 

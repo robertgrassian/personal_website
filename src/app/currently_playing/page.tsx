@@ -1,4 +1,5 @@
 import { getGames } from "@/lib/gamesServer";
+import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 import { CrtTv } from "@/components/crt/CrtTv";
 
 // Next.js convention: a `metadata` export sets the <title>/<meta> for this route.
@@ -15,7 +16,9 @@ export const metadata = {
 export default async function CurrentlyPlayingPage() {
   // Same filter the game library uses (video_games/page.tsx): a game is
   // "currently playing" when it has an open session (empty end_date).
-  const games = (await getGames()).filter((g) => g.currentlyPlaying);
+  // Robert's own page, so the owner is pinned — this route is not part of the
+  // /u/[username] family.
+  const games = (await getGames(LIBRARY_OWNER_USERNAME)).filter((g) => g.currentlyPlaying);
 
   return (
     // Base site tokens (bg-background/text-foreground) keep the page chrome

@@ -2,34 +2,100 @@
 
 ## Up Next
 
-**Pending manual steps — game library backend (Vercel/prod dashboards, ~10 min total):**
+**Pending manual steps (dashboards / prod DB).** Nothing blocks merging PR #68 any more.
 
-- [ ] **Confirm the prod CSV → Postgres cutover** (no longer a manual env-var step):
-      the read/write origin resolver now falls back to `VERCEL_PROJECT_PRODUCTION_URL`
-      when `LIBRARY_API_ORIGIN` is unset, so prod cuts over to the API **automatically**
-      on the first deploy after PR #64 merges (which removes the CSV files). Nothing to
-      set in Vercel. After that deploy: load `/video_games` to confirm it renders from
-      Postgres, click a rating to confirm the optimistic UI converges, and note the
-      first-write latency (stacked Node+Python cold start). If you ever want to pin the
-      origin explicitly instead of self-resolving, you _can_ set `LIBRARY_API_ORIGIN`,
-      but it's optional now.<br>
-      **Preview caveat:** `VERCEL_PROJECT_PRODUCTION_URL` is set on preview deploys too
-      and points at the production domain, so a preview deploy _reads_ production's
-      library. Writes from a preview are refused client-side
-      (`targetsForeignEnvironmentApi` in `libraryApi.ts`) because the API's
-      `forbid_in_preview` can't see them — it reads production's `APP_ENV`, not the
-      preview deploy's. To let a preview write again, point it at its own API with a
-      Preview-scoped `LIBRARY_API_ORIGIN`.
-- [ ] **After merging PR #63** (IGDB proxy + add/delete + wishlist): 1. Prod DB migration: `cd api && DATABASE_URL="$(cat ~/prod-db-url.txt)" uv run alembic upgrade head` 2. Vercel → add `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` (Production scope,
-      a Twitch application's credentials from dev.twitch.tv) → redeploy
-- [ ] **Local dev**: add the same `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` to the
-      gitignored `.env` so the add-game IGDB search works locally (503 until then)
-- [ ] **Make `npm run build` work again** — the production build is currently broken, so
-      Vercel deploys and the pre-push sanity check can't be trusted. Run it, capture the
-      failure (type error vs lint vs module resolution), fix the root cause rather than
-      loosening the check (no `ignoreBuildErrors`/`ignoreDuringBuilds` escape hatches).
+- [ ] **Vercel → add `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET`** (Production scope, from a
+      Twitch application at dev.twitch.tv) → redeploy. Until then `/api/py/igdb/search`
+      answers 503 and the add-game picker cannot search.
+- [x] ~~**Local dev**: add `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` to the gitignored
+      `.env`~~ — done, and verified returning real IGDB results (2026-07-28).<br>
+      **Gotcha if search ever 503s again: restart the API.** `Settings` reads `.env` once at
+      construction and is `lru_cache`d, so a uvicorn process started before a var was added
+      never sees it. The 503 that surfaced here came from a server that had been up for three
+      days, predating the creds — and because it was started without `--reload`, it wasn't
+      from `npm run dev:api`, so every later `npm run dev:full` had its API half die silently
+      with `EADDRINUSE` while Next came up fine. Check with
+      `lsof -nP -iTCP:8000 -sTCP:LISTEN` and `ps -o lstart= -p <pid>`.
+- [ ] **Google OAuth brand verification** (only after PR #68 is in production, since it needs
+      the live CTA banner). Google Cloud console → OAuth consent screen → Branding:
+      App name → `Video Game Library` (must match `APP_NAME` in
+      `src/components/video_games/SignupCta.tsx` **byte for byte**);
+      App homepage → `https://rgrassian.com/video_games`;
+      Privacy policy → `https://rgrassian.com/privacy`;
+      add `rgrassian.com` as an authorized domain; resubmit.
+      Done = the consent screen shows the app name instead of the `supabase.co` host.
+      _Contingency:_ if Google also demands a Terms of Service URL, add `/terms` mirroring
+      the existing `/privacy` page.
+- [ ] **Preview deploys can't authenticate — set the Supabase env vars for Preview scope.**
+      Visiting a preview URL returned `500 MIDDLEWARE_INVOCATION_FAILED`, because
+      `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` appear to be scoped to
+      Production only. The middleware matches every non-asset path, so one missing var
+      took down the whole deployment. Reproduced locally — the throw is
+      "Your project's URL and Key are required to create a Supabase client!".<br>
+      **Quick fix:** Vercel → Settings →
+      Environment Variables → tick **Preview** for both (same values; both are public by
+      design — the browser needs them for the OAuth dance) → redeploy. `NEXT_PUBLIC_*` is
+      inlined at build time, so an already-built deploy won't pick them up; it needs a new
+      build.<br>
+      **Caveat this accepts:** previews would then authenticate against _production_
+      Supabase, so signing in on a preview uses your real account. Writes are still refused
+      (`targetsForeignEnvironmentApi`), so it's reads + a real session. That's the spec's
+      known no-staging trade-off (§7.5).<br>
+      **Long-term fix: a real staging environment** — a second Supabase project (or
+      Supabase branching) with its own auth + DB, so previews stop borrowing production's
+      identity system entirely. Already tracked as a backlog item below; this is the
+      concrete reason to promote it.<br>
+      _Already mitigated in code (PR #68):_ the middleware and the two session-reading
+      pages now degrade instead of throwing when the vars are absent — auth stops working
+      but every page still renders, so a missing var can't take the site down again.
+- [ ] **Browser pass on the Phase 4 UI (PR #68)** — these are all client-rendered, so they
+      are invisible to `curl` and were _not_ verified during implementation. Do this after
+      the Preview env vars above are set (or just run `npm run dev:full` locally and sign in
+      with a magic link via Mailpit at `http://127.0.0.1:54324`): 1. **Sign-up CTA banner** (`/video_games`, signed out) — appearance, and that it
+      disappears once signed in. Confirm the app name reads exactly
+      "Video Game Library" on screen; it must match the Google Cloud console string
+      or brand verification falls back to the `supabase.co` host. 2. **`AuthButton` in the library header** (`components/video_games/LibraryPage.tsx`) —
+      it moved out of the global nav in slice 3. Check alignment against the `<h1>`
+      (especially when a long display name wraps), contrast on the shelf background, and
+      **both light and dark mode**. 3. **Login page `?error=` copy** (`/video_games/login`) — rendered client-side via
+      `useSearchParams`, so it never appears in server HTML. Hit
+      `/video_games/login?error=oauth_failed` and `?error=link_invalid` and confirm both
+      messages render. 4. While you are there: the owner edit affordances on `/u/rgrassian` (pencils, Add
+      game, Unrated shelf) should appear only on your own library and never on someone
+      else's.
 
 ## Recently Completed
+
+- [x] Prod DB confirmed at migration `8f881f29b261` (2026-07-28, via `alembic current`), so
+      `rate_limits` and `igdb_tokens` exist in production. This was the merge blocker for
+      PR #68: slice 6 charges every write against `rate_limits`, so an unmigrated prod would
+      have 500'd every add/rating/session/wishlist edit rather than only failing game search
+- [x] **Instanced libraries Phase 4 — multi-user** (PR #68, branch `phase4/multi-user`,
+      2026-07-28). Seven slices: CI running ruff + the full pytest suite against a real
+      Postgres; `/u/[username]` public libraries with the username threaded through the
+      three places it was hardcoded; the `/library` resolver and post-login redirects;
+      auth surfaces moved under the game library; the sign-up CTA banner; profile header
+      and real empty states; per-user write limits and a `MAX_GAMES` cap. 173 tests.
+      Remaining manual steps are in "Up Next" above
+- [x] Prod CSV → Postgres cutover confirmed serving: `https://rgrassian.com/video_games`
+      returns 200 and `/api/py/health` reports `{"status":"ok","env":"prod","db":"ok"}`.
+      (The optimistic-UI click-through and the first-write cold-start timing were not
+      measured — do those next time you edit something in prod)
+
+- [x] `npm run build` investigated — **not broken**. It is green on `main` (17/17 pages); it
+      fails only when the library API is unreachable at build time, which is deliberate:
+      `requireLibraryApiOrigin()` (`src/lib/libraryApi.ts`) documents that an unresolvable
+      origin must fail loudly rather than prerender an empty library, and the error already
+      says "Is the API running? Start it with `npm run dev:api`." Start the API before
+      building locally
+- [x] CI now runs the Python half of the toolchain (spec decision #8) — a second `api` job in
+      `.github/workflows/ci.yml` runs `ruff check` + the full `pytest` suite against a
+      postgres:16 service container. Previously 107 of 161 tests silently skipped in CI for
+      want of a `DATABASE_URL`. Needed one new file, `api/scripts/ci_auth_schema.sql`: a
+      minimal stand-in for Supabase's `auth.users`/`auth.identities`. GoTrue owns those
+      tables everywhere else, so Alembic never creates them — but migration
+      `f985740c0df9` adds a real FK to `auth.users`, so migrations can't run on bare
+      Postgres without it
 
 - [x] CRT metadata block is height-stable across channel changes (`components/crt/CrtTv.tsx`) — the auto-cycle used to resize the block per game, and since `.pcrt-stage--compact` is a bottom-aligned flex row, a taller block pushed the TV and the page below it down on a timer. Three causes, all fixed by reserving the worst case instead of truncating: the title now reserves and clamps two lines (`min-h-[2lh] line-clamp-2` — long names wrap into reserved space on mobile rather than growing the block), the system/genres line clamps to one, and the "playing since" line always renders (empty when a game has no open-session date) instead of disappearing
 - [x] Mobile nav no longer cramped by the auth control (`components/Nav.tsx`, `components/AuthButton.tsx`) — type, gaps, and horizontal padding scale down below `sm` only, so desktop is unchanged. `AuthButton` shares the links' responsive scale so the row shrinks as one unit. Row height still comes from `--nav-height`, so `FilterBar`/`StatsPanel` sticky offsets are untouched
@@ -40,12 +106,23 @@
 
 ## Backlog / Ideas
 
+- [ ] **Implement account deletion (`DELETE /api/py/me/account`)** — spec decision #22 planned
+      it (cascade down from `profiles` + `auth.users` removal via the Supabase Admin API,
+      which `core/supabase_admin.py` already wraps for the over-cap cleanup), but it was never
+      built. Noticed 2026-07-28 while editing `/privacy`: the policy described deleting your
+      account as though it were self-serve, so the copy now points at email instead, which is
+      the only mechanism that actually exists. Once the endpoint and a UI control ship,
+      update that paragraph (there is a comment in `src/app/privacy/page.tsx` marking it).
+      Worth doing before signup opens widely: it is the kind of thing a privacy policy is
+      expected to back up. Note `rate_limits` has no FK to `profiles`, so those rows will not
+      cascade and need deleting explicitly.
+
 - [ ] Make wishlist items fully editable, the same way library games are — today
       `EditWishlistModal.tsx` only supports delete + promote (the promote step is the only
       place name/system get touched), while `EditGameModal.tsx` can edit a game's fields.
       Want: edit a wishlist item's name, system, genres, release date, cover art in place,
-      without having to promote it first. Needs a `WishlistItemUpdate` schema + `PATCH
-      /api/py/me/wishlist/{id}` on the API side (routers → services → repositories, mirroring
+      without having to promote it first. Needs a `WishlistItemUpdate` schema plus a
+      `PATCH /api/py/me/wishlist/{id}` endpoint (routers → services → repositories, mirroring
       the games write path), a Server Action in `video_games/actions.ts` with the usual
       `revalidateTag(libraryCacheTag(...))`, and the edit form fields lifted out of
       `EditGameModal` so both modals share one implementation instead of duplicating it.
@@ -66,7 +143,7 @@
 - [ ] Normalize game metadata into a shared catalog (a `game_metadata` table + per-user `played_games`/`wishlist_games` link tables) — today `games` and `wishlist_items` each carry their own copy of name/system/genres/release_date/image_url. Spec §4.2 deliberately chose denormalized-with-`igdb_id` for v1 (canonical rows need an ownership/moderation story; user-entered games lack a canonical key). Revisit at Phase 4 when cross-user duplication actually exists — the `igdb_id` column on both tables is the planned backfill key (group by it, extract canonical rows, repoint).
 - [ ] Profile pictures for user accounts (instanced game libraries follow-up, post-v1 — see `docs/plans/instanced-game-libraries.md`; likely Supabase Storage + upload/crop flow, shown in the library profile header and follower lists)
 - [ ] Homepage customization per user (instanced game libraries follow-up, post-v1 — let users personalize their library page: hero/backdrop, shelf styling, featured games, etc. Scope TBD)
-- [ ] Staging environment (instanced game libraries follow-up — the spec accepts a "no staging" caveat (§7.5: previews are read-only against prod, writes first run for real in prod); revisit with a second Supabase project or branching once the write path exists)
+- [ ] Staging environment (instanced game libraries follow-up — the spec accepts a "no staging" caveat (§7.5: previews are read-only against prod, writes first run for real in prod); revisit with a second Supabase project or branching once the write path exists). **Promoted in priority 2026-07-28:** the preview 500 in "Up Next" is this caveat biting for real. Pointing Preview at production's Supabase is the stopgap, but it means preview sign-ins are production accounts. A second Supabase project (own DB + own GoTrue + own Google OAuth client) would give previews a real identity system and finally let the write path be exercised somewhere that isn't prod
 - [ ] Decide the routing/namespace strategy as the site grows into multiple apps. Today auth is top-level (`/login`, `/onboarding`, `/auth/*`) because it's a site-wide identity system, while the game library lives under `/video_games`. Options once more apps exist: (a) keep everything on `rgrassian.com` with top-level auth + per-app route prefixes — simplest, one shared session across apps; (b) split an app onto a subdomain like `games.rgrassian.com` — cleaner isolation and independent deploys, but subdomains are separate cookie origins, so sharing the login session needs a `.rgrassian.com` cookie domain plus Supabase/Vercel redirect wiring, which works against cross-app SSO. Leaning toward (a) until an app genuinely needs isolation.
 - [ ] "Current Hobbies" section on `/about` — start with currently-playing games (reusing the CRT/session data from the game library), with room to extend to books currently being read and other hobbies later. Design not decided yet (what it looks like, whether it reuses `CrtTv` directly or needs its own compact treatment).
 - [ ] Alternate "currently playing" display: Marquee Banner (Option 2 from the mockups) — full-width banner using the game's blurred cover as the backdrop (same recipe as GameCaseBack: dominant color base + blurred art + dark overlay), sharp cover on the left, system/genre chips and "last played" on the right. Build it as a sibling of `CurrentlyPlaying` (same `Game` prop) and add a display-mode switch (config const, or URL param for fun) to swap between the CRT and the marquee. Mockups: https://claude.ai/code/artifact/2e891385-8fc9-4c9b-b8da-469658de243d

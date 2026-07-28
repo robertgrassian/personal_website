@@ -36,5 +36,5 @@ export async function GET(request: NextRequest) {
 
   // Missing code, or the exchange failed (expired/replayed code, provider
   // error) → back to login with a friendly flag.
-  return NextResponse.redirect(`${origin}/login?error=oauth_failed`);
+  return NextResponse.redirect(`${origin}/video_games/login?error=oauth_failed`);
 }
