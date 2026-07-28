@@ -2,16 +2,8 @@
 
 ## Up Next
 
-**Pending manual steps (dashboards / prod DB).** Ordered — the first one gates merging PR #68.
+**Pending manual steps (dashboards / prod DB).** Nothing blocks merging PR #68 any more.
 
-- [ ] **⚠️ BEFORE merging PR #68: confirm prod is migrated to `8f881f29b261`.**
-      `cd api && DATABASE_URL="$(cat ~/prod-db-url.txt)" uv run alembic current` — if it is
-      not at head, run `alembic upgrade head`. This was already listed as a post-#63 step and
-      may not have been done. It is now **blocking**, not optional: Phase 4 slice 6 charges
-      every write against the `rate_limits` table that migration creates, so on an unmigrated
-      prod database every add, rating, session, and wishlist edit would 500 instead of just
-      game search failing. Slice 6 itself adds no migration (`alembic check` is clean); it
-      only raises the stakes on that one.
 - [ ] **Vercel → add `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET`** (Production scope, from a
       Twitch application at dev.twitch.tv) → redeploy. Until then `/api/py/igdb/search`
       answers 503 and the add-game picker cannot search.
@@ -67,6 +59,10 @@
 
 ## Recently Completed
 
+- [x] Prod DB confirmed at migration `8f881f29b261` (2026-07-28, via `alembic current`), so
+      `rate_limits` and `igdb_tokens` exist in production. This was the merge blocker for
+      PR #68: slice 6 charges every write against `rate_limits`, so an unmigrated prod would
+      have 500'd every add/rating/session/wishlist edit rather than only failing game search
 - [x] **Instanced libraries Phase 4 — multi-user** (PR #68, branch `phase4/multi-user`,
       2026-07-28). Seven slices: CI running ruff + the full pytest suite against a real
       Postgres; `/u/[username]` public libraries with the username threaded through the
