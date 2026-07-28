@@ -10,5 +10,13 @@ export const metadata = {
 // it doubles as the logged-out demo. The page itself is now just the shared
 // library shell with the owner pinned.
 export default function VideoGamesPage() {
-  return <LibraryPage username={LIBRARY_OWNER_USERNAME} heading="Video Game Library" />;
+  return (
+    <LibraryPage
+      username={LIBRARY_OWNER_USERNAME}
+      heading="Video Game Library"
+      // This page doubles as the logged-out demo and as the "App homepage"
+      // Google's OAuth brand verification points at — see SignupCta.
+      showSignupCta
+    />
+  );
 }

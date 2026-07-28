@@ -13,6 +13,7 @@ import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { CrtTv } from "@/components/crt/CrtTv";
 import { LibraryCount } from "@/components/video_games/LibraryCount";
 import { AuthButton } from "@/components/AuthButton";
+import { SignupCta } from "@/components/video_games/SignupCta";
 
 // One library page, two routes: /video_games (Robert's shelf, at its stable
 // URL) and /u/[username] (anyone's). Extracted so the two can never drift —
@@ -27,9 +28,13 @@ type LibraryPageProps = {
   // comes from the profile rather than the URL segment so the casing is
   // canonical (usernames are citext — /u/RGrassian resolves to the same user).
   heading?: string;
+  // Show the logged-out sign-up pitch. Only /video_games sets this: that page
+  // is the public demo shelf and the URL Google's OAuth brand verification
+  // points at. A user's own /u/{username} is not a marketing surface.
+  showSignupCta?: boolean;
 };
 
-export async function LibraryPage({ username, heading }: LibraryPageProps) {
+export async function LibraryPage({ username, heading, showSignupCta = false }: LibraryPageProps) {
   // Awaited first and alone: a username nobody owns must become a 404 page,
   // not the loud "the API is unwell" error that getGames() would throw for
   // the same 404. Costs one extra round trip on a cache miss, and the three
@@ -80,6 +85,8 @@ export async function LibraryPage({ username, heading }: LibraryPageProps) {
         <Suspense fallback={<p className="mt-2 text-shelf-text-muted">{playedCount} games</p>}>
           <LibraryCount playedCount={playedCount} wishlistCount={wishlistCount} />
         </Suspense>
+
+        {showSignupCta && <SignupCta />}
 
         {currentlyPlayingGames.length > 0 && <CrtTv games={currentlyPlayingGames} compact />}
 
