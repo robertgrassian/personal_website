@@ -3,6 +3,7 @@
 // Title section on a dark background, game cases sitting on a walnut shelf plank.
 import { ImageResponse } from "next/og";
 import { getGames } from "@/lib/gamesServer";
+import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 import { OG } from "@/lib/og-theme";
 
 export const size = { width: 1200, height: 630 };
@@ -48,7 +49,9 @@ const PLANK_BACKGROUND = [
 // Async is fine here — Next.js awaits metadata image route handlers, and
 // getGames() is now async (it may fetch from the library API).
 export default async function OGImage() {
-  const games = await getGames();
+  // The OG image for /video_games specifically, so the owner is pinned.
+  // /u/[username] has no OG image of its own yet.
+  const games = await getGames(LIBRARY_OWNER_USERNAME);
   const totalCount = games.length;
   // Build a name→game map for fast lookup, then pull featured games in order.
   const byName = new Map(games.map((g) => [g.name, g]));

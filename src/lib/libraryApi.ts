@@ -3,6 +3,7 @@
 import "server-only";
 import type { Game } from "./games";
 import type { WishlistGame } from "./wishlist";
+import type { LibraryProfile } from "./profile";
 
 // This module owns the FastAPI origin and the fetch mechanics for the library
 // read path — the site's only data source since the CSVs were retired.
@@ -68,12 +69,31 @@ export function libraryCacheTag(username: string): string {
 // Shared fetch for both endpoints. `path` is the part after the origin
 // (e.g. "/api/py/users/robert/games"); `tags` are the cache tags the entry is
 // stored under — the caller owns tag naming, this helper only fetches+caches.
+// Two shapes, one implementation. Without `allowMissing` a 404 is a thrown
+// error like any other bad status; with it, a 404 becomes null so the caller
+// can distinguish "no such user" from "the API is unwell". Overloads (rather
+// than a boolean returning `T | null` for everyone) keep the common callers
+// free of a null they can never receive.
 async function fetchFromApi<T>(
   origin: string,
   path: string,
   what: string,
   tags: string[]
-): Promise<T> {
+): Promise<T>;
+async function fetchFromApi<T>(
+  origin: string,
+  path: string,
+  what: string,
+  tags: string[],
+  allowMissing: true
+): Promise<T | null>;
+async function fetchFromApi<T>(
+  origin: string,
+  path: string,
+  what: string,
+  tags: string[],
+  allowMissing = false
+): Promise<T | null> {
   const url = `${origin}${path}`;
   let res: Response;
   try {
@@ -98,8 +118,11 @@ async function fetchFromApi<T>(
         `Is the API running? Start it with \`npm run dev:api\`.`
     );
   }
+  // An expected outcome, not a failure: /u/{username} for a username nobody
+  // owns. The caller turns this into a 404 page.
+  if (res.status === 404 && allowMissing) return null;
   if (!res.ok) {
-    // Same policy for HTTP errors (404 unknown user, 500, ...): loud, actionable.
+    // Same policy for the rest (500, 502, an unexpected 404, ...): loud, actionable.
     throw new Error(
       `${url} returned ${res.status} ${res.statusText} while fetching ${what}. ` +
         `Check the API logs (\`npm run dev:api\`).`
@@ -111,8 +134,8 @@ async function fetchFromApi<T>(
   return (await res.json()) as T;
 }
 
-// encodeURIComponent: harmless for the current constant "robert", but Phase 4's
-// /u/[username] routes will pass user-shaped input into these URLs.
+// encodeURIComponent throughout: /u/[username] puts user-shaped input into
+// these URLs, so the segment is escaped rather than trusted.
 export function fetchGamesFromApi(origin: string, username: string): Promise<Game[]> {
   return fetchFromApi<Game[]>(
     origin,
@@ -128,5 +151,21 @@ export function fetchWishlistFromApi(origin: string, username: string): Promise<
     `/api/py/users/${encodeURIComponent(username)}/wishlist`,
     "wishlist",
     [libraryCacheTag(username)]
+  );
+}
+
+// null = no such user. Shares the library cache tag with games and wishlist:
+// one tag per user covers everything a library page renders, so a single
+// revalidateTag after a write refreshes all three.
+export function fetchProfileFromApi(
+  origin: string,
+  username: string
+): Promise<LibraryProfile | null> {
+  return fetchFromApi<LibraryProfile>(
+    origin,
+    `/api/py/users/${encodeURIComponent(username)}`,
+    "profile",
+    [libraryCacheTag(username)],
+    true
   );
 }

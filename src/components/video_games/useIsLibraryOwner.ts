@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 
-// Resolves "is the current viewer the owner of this library?" client-side,
+// Resolves "is the current viewer the owner of THIS library?" client-side,
 // after hydration. This is deliberate: the page itself is static and its
 // cached HTML must be identical for every viewer, so per-viewer state can
 // never be server-rendered into it. The cost is a brief window where edit
@@ -12,7 +11,12 @@ import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 //
 // Logged-out viewers (the overwhelmingly common case) pay no network cost:
 // getSession() reads local cookies, and without a session we stop there.
-export function useIsLibraryOwner(): boolean {
+//
+// `ownerUsername` is the library being viewed. Comparing against it rather
+// than a module-level constant is what makes this work on /u/[username]:
+// the same signed-in viewer is the owner of exactly one library and a visitor
+// on every other.
+export function useIsLibraryOwner(ownerUsername: string): boolean {
   const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
@@ -36,7 +40,9 @@ export function useIsLibraryOwner(): boolean {
       if (!res.ok) return; // 404 = not onboarded; anything else = not owner
 
       const profile = (await res.json()) as { username?: string };
-      if (!cancelled && profile.username?.toLowerCase() === LIBRARY_OWNER_USERNAME) {
+      // Both sides lowercased: usernames are citext in Postgres, so /u/RGrassian
+      // and /u/rgrassian are the same library and must both grant edit controls.
+      if (!cancelled && profile.username?.toLowerCase() === ownerUsername.toLowerCase()) {
         setIsOwner(true);
       }
     }
@@ -46,7 +52,9 @@ export function useIsLibraryOwner(): boolean {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // Re-runs if the viewer navigates between two library pages without a
+    // full reload — otherwise the previous page's answer would stick.
+  }, [ownerUsername]);
 
   return isOwner;
 }

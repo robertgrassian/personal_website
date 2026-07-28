@@ -14,6 +14,7 @@ import {
   createMyWishlistItem,
   deleteMyGame,
   deleteMyWishlistItem,
+  fetchMyProfile,
   promoteMyWishlistItem,
   searchIgdb,
   updateMyGameRating,
@@ -22,8 +23,24 @@ import {
   type SearchIgdbResult,
 } from "@/lib/meApi";
 import { libraryCacheTag } from "@/lib/libraryApi";
-import { LIBRARY_OWNER_USERNAME, RATINGS, type NewGame, type Rating } from "@/lib/games";
+import { RATINGS, type NewGame, type Rating } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
+
+/** Purge the cached reads for the library the CALLER owns, after a successful
+ *  write of theirs.
+ *
+ *  The username is resolved from the caller's own token, never taken as an
+ *  argument: Server Actions are a public HTTP surface, so a username parameter
+ *  would let anyone invalidate anyone else's cache. Every write below targets
+ *  /me/* endpoints, which act on the authenticated user's rows — so "whose
+ *  library changed?" always has exactly this answer.
+ *
+ *  A missing profile is not an error here: the write already succeeded, so the
+ *  worst case is a stale page until the next revalidation. */
+async function revalidateMyLibrary(): Promise<void> {
+  const profile = await fetchMyProfile();
+  if (profile) revalidateTag(libraryCacheTag(profile.username));
+}
 
 // The API validates dates for real (parsing, ordering); this only rejects
 // obviously malformed input before it leaves the Next server.
@@ -71,7 +88,7 @@ export async function addGame(game: NewGame): Promise<MutateGameResult> {
     genres: game.genres.map((g) => g.trim()).filter(Boolean),
   });
   if (result.ok) {
-    revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+    await revalidateMyLibrary();
   }
   return result;
 }
@@ -84,7 +101,7 @@ export async function deleteGame(gameId: number): Promise<MutateGameResult> {
 
   const result = await deleteMyGame(gameId);
   if (result.ok) {
-    revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+    await revalidateMyLibrary();
   }
   return result;
 }
@@ -111,7 +128,7 @@ export async function addWishlistItem(item: NewWishlistItem): Promise<MutateGame
     genres: item.genres.map((g) => g.trim()).filter(Boolean),
   });
   if (result.ok) {
-    revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+    await revalidateMyLibrary();
   }
   return result;
 }
@@ -127,7 +144,7 @@ export async function updateWishlistItem(
 
   const result = await updateMyWishlistItem(itemId, fields);
   if (result.ok) {
-    revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+    await revalidateMyLibrary();
   }
   return result;
 }
@@ -140,7 +157,7 @@ export async function deleteWishlistItem(itemId: number): Promise<MutateGameResu
 
   const result = await deleteMyWishlistItem(itemId);
   if (result.ok) {
-    revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+    await revalidateMyLibrary();
   }
   return result;
 }
@@ -156,7 +173,7 @@ export async function promoteWishlistItem(
 
   const result = await promoteMyWishlistItem(itemId, system.trim());
   if (result.ok) {
-    revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+    await revalidateMyLibrary();
   }
   return result;
 }
@@ -176,7 +193,7 @@ export async function updateGameRating(
   if (result.ok) {
     // Purge every cached read (games + wishlist) and re-render the static
     // pages built from them on their next request.
-    revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+    await revalidateMyLibrary();
   }
   return result;
 }
@@ -198,7 +215,7 @@ export async function logSession(
 
   const result = await createMySession(gameId, startDate, endDate);
   if (result.ok) {
-    revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+    await revalidateMyLibrary();
   }
   return result;
 }
@@ -220,7 +237,7 @@ export async function stopSession(
 
   const result = await closeMySession(sessionId, endDate, rating);
   if (result.ok) {
-    revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+    await revalidateMyLibrary();
   }
   return result;
 }

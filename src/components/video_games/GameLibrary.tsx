@@ -33,6 +33,9 @@ type GameLibraryProps = {
   // reachable (and re-ratable) after a rating is cleared. Defaults to [] for
   // callers that predate it.
   unratedGames?: Game[];
+  // Whose library this is. Only used to answer "may the viewer edit it?" —
+  // the shelves themselves render the same for everyone.
+  ownerUsername: string;
 };
 
 export function GameLibrary({
@@ -40,6 +43,7 @@ export function GameLibrary({
   wishlist,
   currentlyPlayingGames,
   unratedGames = [],
+  ownerUsername,
 }: GameLibraryProps) {
   const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -47,7 +51,7 @@ export function GameLibrary({
   // Owner check resolves client-side after hydration (the page HTML is
   // static and shared by all viewers). false until proven otherwise, so
   // visitors never see a flash of edit controls.
-  const canEdit = useIsLibraryOwner();
+  const canEdit = useIsLibraryOwner(ownerUsername);
 
   // The game being edited, tracked by id (not object) so the open dialog
   // always reflects the latest server data after a revalidation replaces the
