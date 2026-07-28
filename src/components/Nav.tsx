@@ -7,9 +7,13 @@ import { usePathname } from "next/navigation";
 import { caveat } from "../lib/fonts";
 import { AuthButton } from "./AuthButton";
 
-const links = [
+// `activePaths` exists because the link target and the page you end up on are
+// not always the same URL. /library is a redirect-only resolver (it sends you
+// to /video_games or /u/{you}), so matching the active state against its own
+// href would never highlight it. Defaults to [href] for the ordinary links.
+const links: { href: string; label: string; activePaths?: string[] }[] = [
   { href: "/about", label: "About" },
-  { href: "/video_games", label: "Game Library" },
+  { href: "/library", label: "Game Library", activePaths: ["/library", "/video_games", "/u/"] },
   { href: "/resume", label: "Resume" },
 ];
 
@@ -42,13 +46,13 @@ export function Nav() {
 
         {/* Page links — active route gets the amber accent color */}
         <ul className="flex items-center gap-3 sm:gap-6 list-none">
-          {links.map(({ href, label }) => (
+          {links.map(({ href, label, activePaths }) => (
             <li key={href}>
               <Link
                 href={href}
-                // pathname.startsWith handles nested routes (e.g. /video_games/some-game)
+                // startsWith handles nested routes (e.g. /video_games/login)
                 className={`text-xs sm:text-sm whitespace-nowrap transition-colors duration-150 ${
-                  pathname.startsWith(href)
+                  (activePaths ?? [href]).some((p) => pathname.startsWith(p))
                     ? "text-link font-medium"
                     : "text-subtle hover:text-link"
                 }`}

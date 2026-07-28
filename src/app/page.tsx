@@ -12,7 +12,10 @@ const sections = [
     description: "LA → SF → NYC",
   },
   {
-    href: "/video_games",
+    // The resolver, not /video_games directly: signed-in visitors land on
+    // their own library, everyone else on Robert's. Keeps this page static —
+    // see src/app/library/page.tsx.
+    href: "/library",
     title: "Video Game Library",
     description: "Every game I've ever played",
   },

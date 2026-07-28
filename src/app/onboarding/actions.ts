@@ -28,6 +28,11 @@ export async function submitOnboarding(
   // Success: profile created. redirect() throws NEXT_REDIRECT, which Next
   // turns into a client navigation — so nothing after this line runs, and the
   // function's declared return type is never actually reached on success.
-  // (Phase 4 will send them to /u/{username}; for now, home.)
-  redirect("/");
+  //
+  // Straight into the brand-new (empty) library rather than the portfolio
+  // home: the library is what they just signed up for, and landing on
+  // rgrassian.com instead reads as "nothing happened". Uses the created
+  // profile's username rather than the submitted string so the casing is the
+  // canonical one the API stored.
+  redirect(`/u/${encodeURIComponent(result.profile.username)}`);
 }
