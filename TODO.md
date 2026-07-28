@@ -7,8 +7,15 @@
 - [ ] **Vercel → add `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET`** (Production scope, from a
       Twitch application at dev.twitch.tv) → redeploy. Until then `/api/py/igdb/search`
       answers 503 and the add-game picker cannot search.
-- [ ] **Local dev**: add the same `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` to the
-      gitignored `.env` so the add-game IGDB search works locally (503 until then)
+- [x] ~~**Local dev**: add `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` to the gitignored
+      `.env`~~ — done, and verified returning real IGDB results (2026-07-28).<br>
+      **Gotcha if search ever 503s again: restart the API.** `Settings` reads `.env` once at
+      construction and is `lru_cache`d, so a uvicorn process started before a var was added
+      never sees it. The 503 that surfaced here came from a server that had been up for three
+      days, predating the creds — and because it was started without `--reload`, it wasn't
+      from `npm run dev:api`, so every later `npm run dev:full` had its API half die silently
+      with `EADDRINUSE` while Next came up fine. Check with
+      `lsof -nP -iTCP:8000 -sTCP:LISTEN` and `ps -o lstart= -p <pid>`.
 - [ ] **Google OAuth brand verification** (only after PR #68 is in production, since it needs
       the live CTA banner). Google Cloud console → OAuth consent screen → Branding:
       App name → `Robert's Game Library` (must match `APP_NAME` in
