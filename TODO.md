@@ -2,22 +2,11 @@
 
 ## Up Next
 
-**Pending manual steps (dashboards / prod DB).** Nothing blocks merging PR #68 any more.
+**Phase 4 is merged and in production (PR #68).** What's left here is one dashboard step and
+two verification passes.
 
-- [ ] **Vercel → add `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET`** (Production scope, from a
-      Twitch application at dev.twitch.tv) → redeploy. Until then `/api/py/igdb/search`
-      answers 503 and the add-game picker cannot search.
-- [x] ~~**Local dev**: add `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` to the gitignored
-      `.env`~~ — done, and verified returning real IGDB results (2026-07-28).<br>
-      **Gotcha if search ever 503s again: restart the API.** `Settings` reads `.env` once at
-      construction and is `lru_cache`d, so a uvicorn process started before a var was added
-      never sees it. The 503 that surfaced here came from a server that had been up for three
-      days, predating the creds — and because it was started without `--reload`, it wasn't
-      from `npm run dev:api`, so every later `npm run dev:full` had its API half die silently
-      with `EADDRINUSE` while Next came up fine. Check with
-      `lsof -nP -iTCP:8000 -sTCP:LISTEN` and `ps -o lstart= -p <pid>`.
-- [ ] **Google OAuth brand verification** (only after PR #68 is in production, since it needs
-      the live CTA banner). Google Cloud console → OAuth consent screen → Branding:
+- [ ] **Google OAuth brand verification** — _in progress 2026-07-28._ Unblocked: PR #68 is
+      merged, so the CTA banner Google needs to see is live. Google Cloud console → OAuth consent screen → Branding:
       App name → `Video Game Library` (must match `APP_NAME` in
       `src/components/video_games/SignupCta.tsx` **byte for byte**);
       App homepage → `https://rgrassian.com/video_games`;
@@ -26,32 +15,10 @@
       Done = the consent screen shows the app name instead of the `supabase.co` host.
       _Contingency:_ if Google also demands a Terms of Service URL, add `/terms` mirroring
       the existing `/privacy` page.
-- [ ] **Preview deploys can't authenticate — set the Supabase env vars for Preview scope.**
-      Visiting a preview URL returned `500 MIDDLEWARE_INVOCATION_FAILED`, because
-      `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` appear to be scoped to
-      Production only. The middleware matches every non-asset path, so one missing var
-      took down the whole deployment. Reproduced locally — the throw is
-      "Your project's URL and Key are required to create a Supabase client!".<br>
-      **Quick fix:** Vercel → Settings →
-      Environment Variables → tick **Preview** for both (same values; both are public by
-      design — the browser needs them for the OAuth dance) → redeploy. `NEXT_PUBLIC_*` is
-      inlined at build time, so an already-built deploy won't pick them up; it needs a new
-      build.<br>
-      **Caveat this accepts:** previews would then authenticate against _production_
-      Supabase, so signing in on a preview uses your real account. Writes are still refused
-      (`targetsForeignEnvironmentApi`), so it's reads + a real session. That's the spec's
-      known no-staging trade-off (§7.5).<br>
-      **Long-term fix: a real staging environment** — a second Supabase project (or
-      Supabase branching) with its own auth + DB, so previews stop borrowing production's
-      identity system entirely. Already tracked as a backlog item below; this is the
-      concrete reason to promote it.<br>
-      _Already mitigated in code (PR #68):_ the middleware and the two session-reading
-      pages now degrade instead of throwing when the vars are absent — auth stops working
-      but every page still renders, so a missing var can't take the site down again.
 - [ ] **Browser pass on the Phase 4 UI (PR #68)** — these are all client-rendered, so they
-      are invisible to `curl` and were _not_ verified during implementation. Do this after
-      the Preview env vars above are set (or just run `npm run dev:full` locally and sign in
-      with a magic link via Mailpit at `http://127.0.0.1:54324`): 1. **Sign-up CTA banner** (`/video_games`, signed out) — appearance, and that it
+      are invisible to `curl` and were _not_ verified during implementation. Preview deploys
+      can authenticate now, so use one — or run `npm run dev:full` locally and sign in with a
+      magic link via Mailpit at `http://127.0.0.1:54324`: 1. **Sign-up CTA banner** (`/video_games`, signed out) — appearance, and that it
       disappears once signed in. Confirm the app name reads exactly
       "Video Game Library" on screen; it must match the Google Cloud console string
       or brand verification falls back to the `supabase.co` host. 2. **`AuthButton` in the library header** (`components/video_games/LibraryPage.tsx`) —
@@ -62,10 +29,76 @@
       `/video_games/login?error=oauth_failed` and `?error=link_invalid` and confirm both
       messages render. 4. While you are there: the owner edit affordances on `/u/rgrassian` (pencils, Add
       game, Unrated shelf) should appear only on your own library and never on someone
-      else's.
+      else's. 5. **IGDB search actually works in production** — open the add-game picker on
+      `rgrassian.com` and search for a game. This is the only real confirmation that the
+      Twitch creds took effect; a 503 here means the API process predates the env vars and
+      needs a redeploy (see the `Settings` `lru_cache` gotcha in Recently Completed).
+
+- [ ] **Signed-in viewers see the sign-up CTA banner flash on `/video_games`.** Load the page
+      with a session and refresh: the banner paints, then vanishes. It should never be visible
+      to a signed-in viewer at all.<br>
+      **Root cause (not a bug — a deliberate trade-off that turned out wrong).**
+      `SignupCta.tsx` renders by default and hides itself in a `useEffect` once
+      `onAuthStateChange` reports a session. That is the correct default for the
+      _majority_ case (logged-out visitors get the banner with zero delay), but it means
+      signed-in viewers necessarily see one frame of it — hydration cannot run before first
+      paint. Flipping the default is **not** the fix: it just moves the flash onto the
+      logged-out visitors this banner exists for, and they are the larger audience.<br>
+      **The constraint any fix has to respect:** `/video_games` is statically cached and its
+      HTML must stay byte-identical for every viewer (spec §7.2, decision #21). So "just read
+      the cookie server-side and skip rendering it" is off the table — that makes the page
+      dynamic and gives up the cache for a cosmetic win.<br>
+      **Suggested direction: decide before first paint, not after hydration.** A small
+      render-blocking inline `<script>` in the root layout can read `document.cookie`, look
+      for the Supabase session cookie, and stamp a class (e.g. `data-authed`) on
+      `<html>`; CSS then hides the banner with `html[data-authed] .signup-cta { display:none }`.
+      The script runs before the browser paints, so there is no frame where the banner is
+      visible, and the served HTML is still identical for everyone — only the script's
+      _output_ differs per viewer. Same technique the no-flash dark-mode toggles use.
+      Verified viable: `@supabase/ssr` sets its cookies with `httpOnly: false`
+      (`node_modules/@supabase/ssr/dist/main/utils/constants.js`) and nothing in
+      `src/lib/supabase/` overrides it, so the cookie is readable from JS.<br>
+      _Two things to get right:_ the cookie name is `sb-<project-ref>-auth-token` and is
+      **chunked** into `.0`, `.1`, … when the JWT is large, so match by prefix rather than
+      exact name. And this is a presence check, not verification — fine here, because the
+      decision is purely cosmetic and every real authorization check stays server-side. A
+      forged cookie would hide a marketing banner from its own owner and nothing else.<br>
+      _Same root cause, worth fixing in the same pass:_ `AuthButton` and the owner edit
+      affordances behind `useIsLibraryOwner` resolve after hydration too, so they pop in the
+      same way. If the pre-paint class works, it generalizes to all three.
 
 ## Recently Completed
 
+_Newest first, capped at 20 — drop the oldest when adding past that._
+
+- [x] **Vercel → `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` set for Production**
+      (2026-07-28). **Not confirmed end to end:** `/api/py/igdb/search` checks auth before it
+      ever calls Twitch, so an unauthenticated probe returns 401 whether the creds are good or
+      absent. Real confirmation is searching in the add-game picker on prod — item 5 of the
+      browser pass in "Up Next"
+- [x] **Vercel → Supabase env vars scoped to Preview** (2026-07-28), fixing preview deploys
+      that returned `500 MIDDLEWARE_INVOCATION_FAILED`. `NEXT_PUBLIC_SUPABASE_URL` /
+      `NEXT_PUBLIC_SUPABASE_ANON_KEY` were Production-only, and the middleware matches every
+      non-asset path, so one missing var took down the whole deployment (the throw:
+      "Your project's URL and Key are required to create a Supabase client!"). Both vars are
+      public by design — the browser needs them for the OAuth dance. `NEXT_PUBLIC_*` is
+      inlined at build time, so this needed a fresh build, not just a redeploy.<br>
+      **Caveat now live:** previews authenticate against _production_ Supabase, so signing in
+      on a preview URL uses your real account. Writes are still refused
+      (`targetsForeignEnvironmentApi`), so it's reads plus a real session — the spec's known
+      no-staging trade-off (§7.5). The real fix is the staging-environment backlog item.<br>
+      _Also mitigated in code (PR #68):_ the middleware and the two session-reading pages
+      degrade instead of throwing when the vars are absent, so a missing var can no longer
+      take the site down
+- [x] **Local dev**: `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` added to the gitignored `.env`,
+      verified returning real IGDB results (2026-07-28).<br>
+      **Gotcha if search ever 503s again: restart the API.** `Settings` reads `.env` once at
+      construction and is `lru_cache`d, so a uvicorn process started before a var was added
+      never sees it. The 503 that surfaced here came from a server up for three days,
+      predating the creds — and because it was started without `--reload`, it wasn't from
+      `npm run dev:api`, so every later `npm run dev:full` had its API half die silently with
+      `EADDRINUSE` while Next came up fine. Check with `lsof -nP -iTCP:8000 -sTCP:LISTEN` and
+      `ps -o lstart= -p <pid>`
 - [x] Prod DB confirmed at migration `8f881f29b261` (2026-07-28, via `alembic current`), so
       `rate_limits` and `igdb_tokens` exist in production. This was the merge blocker for
       PR #68: slice 6 charges every write against `rate_limits`, so an unmigrated prod would
@@ -117,6 +150,14 @@
       expected to back up. Note `rate_limits` has no FK to `profiles`, so those rows will not
       cascade and need deleting explicitly.
 
+- [ ] **If a username-rename feature is ever built, delete or invalidate the `usernameByUserId`
+      memo** in `src/lib/meApi.ts` (`fetchMyUsername`). It caches user id → username in module
+      scope to keep the write path from spending an API round trip per mutation just to learn
+      which cache tag to purge, and it is only safe because usernames are assigned once at
+      onboarding with no way to change them. A rename would leave it revalidating the old tag,
+      so the renamed library's pages would go stale instead. Added 2026-07-28 during the PR #68
+      review.
+
 - [ ] Make wishlist items fully editable, the same way library games are — today
       `EditWishlistModal.tsx` only supports delete + promote (the promote step is the only
       place name/system get touched), while `EditGameModal.tsx` can edit a game's fields.
@@ -135,6 +176,61 @@
       IGDB's `draft.platforms` for the selected game into the shelf-system list, but the
       promote form in `EditWishlistModal` only offers existing shelf systems — thread the
       IGDB platforms through there too, and consider doing the same for genres.
+- [ ] **A username rename feature must delete `usernameByUserId` (`src/lib/meApi.ts`).** That
+      module-scope map memoizes user id → username so the ten write paths don't each pay an
+      API round trip to learn whose cache tag to purge. It is correct only because usernames
+      are assigned once at onboarding and there is no rename endpoint. Add renaming without
+      touching it and a stale entry revalidates the _old_ username's tag — the renamed
+      library then serves stale pages indefinitely, with no error anywhere to explain why.
+      There is a shouty comment on the map itself; this is the second place to trip over it.<br>
+      _Second constraint on the same map:_ it is keyed on the user id from `getSession()`,
+      which does not verify the JWT, so it is only sound because every caller sits behind a
+      write FastAPI already accepted. If `revalidateMyLibrary()` ever gets called somewhere
+      that isn't gated on a successful write, a forged cookie chooses which user's cache tag
+      gets purged. Both constraints disappear if the memo does — dropping it costs one extra
+      round trip per write and nothing else.
+- [ ] **Show the "Unrated" shelf to everyone, not just the owner.** `GameLibrary.tsx:332`
+      gates it on `canEdit`, so visitors to `/u/{username}` never see games you have played
+      but not rated. It was built as an owner utility (every unrated game keeps a case and a
+      pencil, so clearing a rating stays reversible from the UI) and that framing is what
+      needs to change: an unrated game is still part of the library.<br>
+      _Cheap part:_ the data is already there. `LibraryPage` passes `unratedGames` to every
+      viewer and only the client-side `canEdit` check hides the shelf, so the cached HTML
+      doesn't change and nothing about the caching design is affected. Drop `canEdit` from
+      that condition, and keep passing `onEditGame` **only** when `canEdit` so visitors get
+      cases without pencils.<br>
+      _Three things that stop being invisible once visitors can see it:_
+      **(1)** The shelf sits deliberately outside the filter/group/sort pipeline
+      (`GameLibrary.tsx:328-334`), so it ignores search, system and genre filters. Tolerable
+      for a private utility strip; confusing in public browsing, where filtering to "SNES"
+      would still leave unrelated unrated games on screen. Decide whether it joins the
+      pipeline as a real group or stays appended.
+      **(2)** The headline count disagrees. `playedCount` (`LibraryPage.tsx:62`) is rated
+      games plus currently-playing, so an unrated game you're not playing is on a visible
+      shelf but not in "N games". Either widen the count or accept and document the gap.
+      **(3)** Unrated in-progress games would appear both on the CRT and on this shelf. That
+      double-billing already happens for the owner, so it may be fine — just decide on
+      purpose rather than by accident.
+- [ ] **Restrict the add-game "system" suggestions to the platforms the game actually released
+      on.** Today `AddGameModal.tsx:156` builds the `<datalist>` as a _union_ —
+      `[...new Set([...existingSystems, ...(draft?.platforms ?? [])])]` — with every shelf
+      system you already own listed **first**, so the picked game's real IGDB platforms are
+      buried at the bottom of a long list. Want: once a game is picked from IGDB, the
+      suggestions are just that game's platforms, so you can't accidentally file Chrono
+      Trigger under Xbox.<br>
+      _Keep the fallback:_ when there is no IGDB pick (manual entry — `draft.platforms` is
+      empty) the list must fall back to `existingSystems`, or the field offers nothing at all.<br>
+      _The wrinkle that makes this more than a one-line change:_ IGDB platform names are
+      verbose and won't match your shelf labels (IGDB says "Nintendo Entertainment System",
+      the shelf says "NES"). Restricting to IGDB names alone would start writing a second
+      spelling of a system you already have, and since the library groups shelves by exact
+      system string, that silently splits one shelf into two. So this needs a normalization
+      step: map IGDB platform names onto existing shelf systems where one matches, and only
+      offer the raw IGDB name when it's genuinely a system you don't own yet. Worth deciding
+      the mapping alongside the genre-vocabulary normalization below, since it's the same
+      problem one column over.<br>
+      Same change applies to the promote form in `EditWishlistModal.tsx`, which today offers
+      only existing shelf systems and no IGDB platforms at all (see the item above).
 
 - [ ] Backfill existing games' genres to IGDB's vocabulary — the current genres came from the old Wikipedia-scraping `add-game` skill (retired in Phase 3), so they won't match what the new IGDB add flow (`/api/py/igdb/search`) suggests for future games. Normalizing now means future adds match up and skip the manual genre-editing step. Approach: for each library game with an `igdb_id` (or matched by name), pull its IGDB genres and overwrite the row's `genres`. Note: genre editing isn't in the write path yet (`GameUpdate`/`PATCH /me/games/{id}` is rating-only), so this needs either a one-off backfill script in `api/scripts/` (query IGDB per game, update `games.genres` directly) or extending the edit UI to support genres first. Decide whether to also map IGDB's verbose names (e.g. "Role-playing (RPG)") to shorter shelf labels while backfilling.<br>
       **Do the case/duplicate normalization in the same pass:** `clean_genres` (`api/app/schemas/me.py`) trims and drops blanks but does not dedupe or normalize case, so `"RPG, rpg"` stores both and `"RPG, RPG"` stores it twice — and the filter dropdown, built from `new Set(...)`, then shows them as separate options. Fix belongs in `clean_genres` (dedupe preserving first-seen casing) rather than the modal, so it also covers direct Server Action calls that bypass the UI. Same normalization problem as the backfill, one size larger, so the vocabulary decision above should settle the casing rule too.

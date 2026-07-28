@@ -95,7 +95,17 @@ const usernameByUserId = new Map<string, string>();
  *
  *  Same answer as `fetchMyProfile()?.username`, but usually free: the session
  *  read is a local cookie parse, and only the first call per user per instance
- *  reaches the API. */
+ *  reaches the API.
+ *
+ *  ONLY SAFE AFTER A WRITE THE API ALREADY ACCEPTED. The map is keyed on the
+ *  user id from getSession(), which reads the cookie without verifying the JWT
+ *  — so on a warm entry this returns a username derived from unverified input,
+ *  where fetchMyProfile() would have had FastAPI verify the token first. Every
+ *  current caller sits behind an `if (result.ok)` on a mutation FastAPI
+ *  accepted, which is what makes the shortcut sound: a forged cookie never
+ *  reaches this code, because the write it would have to accompany fails 401
+ *  first. Call this somewhere that is not gated that way and a forged cookie
+ *  picks which user's cache tag gets purged. */
 export async function fetchMyUsername(): Promise<string | null> {
   const supabase = await createClient();
   const {
