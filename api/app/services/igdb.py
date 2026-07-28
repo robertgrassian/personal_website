@@ -2,7 +2,8 @@
 
 The proxy exists so IGDB credentials never reach the browser and so IGDB's
 global 4 req/s budget sits behind a per-user rate limit. Domain exceptions
-(no HTTP knowledge) map in the router: RateLimitedError → 429,
+(no HTTP knowledge) map in the router: RateLimitedError (shared, from
+services/rate_limit.py) → 429,
 IgdbNotConfiguredError → 503, IgdbUpstreamError → 502.
 
 Outbound HTTP lives in the small module-level functions ``_fetch_twitch_token``
@@ -19,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.repositories import igdb as igdb_repo
 from app.schemas.igdb import IgdbSearchResult
+from app.services import rate_limit
 
 RATE_LIMIT_BUCKET = "igdb_search"
 RATE_LIMIT_MAX = 30
@@ -34,16 +36,6 @@ SEARCH_LIMIT = 10
 _TWITCH_TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 _IGDB_GAMES_URL = "https://api.igdb.com/v4/games"
 _HTTP_TIMEOUT = 10.0
-
-
-class RateLimitedError(Exception):
-    """The caller exceeded their search budget for the current window."""
-
-    def __init__(self) -> None:
-        super().__init__(
-            f"Too many searches — limited to {RATE_LIMIT_MAX} per minute. "
-            "Wait a moment and try again."
-        )
 
 
 class IgdbNotConfiguredError(Exception):
@@ -180,9 +172,15 @@ def search_games(db: Session, user_id: uuid.UUID, query: str) -> list[IgdbSearch
     if not settings.twitch_client_id or not settings.twitch_client_secret:
         raise IgdbNotConfiguredError()
 
-    count = igdb_repo.increment_rate_limit(db, user_id, RATE_LIMIT_BUCKET, RATE_LIMIT_WINDOW)
-    if count > RATE_LIMIT_MAX:
-        raise RateLimitedError()
+    rate_limit.enforce(
+        db,
+        user_id,
+        RATE_LIMIT_BUCKET,
+        RATE_LIMIT_MAX,
+        RATE_LIMIT_WINDOW,
+        f"Too many searches — limited to {RATE_LIMIT_MAX} per minute. "
+        "Wait a moment and try again.",
+    )
 
     body = (
         f'search "{_escape_apicalypse(query)}"; '

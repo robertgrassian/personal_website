@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import CurrentUser
 from app.core.config import API_PREFIX
 from app.core.db import get_db
-from app.core.guards import forbid_in_preview
+from app.core.guards import forbid_in_preview, rate_limit_writes
 from app.schemas.me import (
     GameCreate,
     GameUpdate,
@@ -31,6 +31,7 @@ from app.services.me import (
     AlreadyPlayingError,
     GameExistsError,
     GameNotFoundError,
+    LibraryFullError,
     OnboardingRequiredError,
     ProfileExistsError,
     SessionAlreadyClosedError,
@@ -66,7 +67,7 @@ def read_my_profile(user: CurrentUser, db: DbSession) -> MyProfileRead:
     "/me/profile",
     status_code=status.HTTP_201_CREATED,
     # First mutating endpoint: refuse writes on preview deploys.
-    dependencies=[Depends(forbid_in_preview)],
+    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
 )
 def create_my_profile(user: CurrentUser, db: DbSession, payload: ProfileCreate) -> MyProfileRead:
     """Complete onboarding by creating the caller's profile.
@@ -96,7 +97,7 @@ def create_my_profile(user: CurrentUser, db: DbSession, payload: ProfileCreate) 
 @router.post(
     "/me/games",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(forbid_in_preview)],
+    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
 )
 def create_my_game(user: CurrentUser, db: DbSession, payload: GameCreate) -> GameRead:
     """Add a game to the caller's library (from an IGDB pick or entered by
@@ -104,21 +105,21 @@ def create_my_game(user: CurrentUser, db: DbSession, payload: GameCreate) -> Gam
 
     Status mapping:
     - 409 same (name, system) already in the library
-    - 403 authenticated but not onboarded yet
+    - 403 authenticated but not onboarded yet, or the library is at MAX_GAMES
     - 422 blank name/system, unknown rating, non-IGDB imageUrl (schema)
     """
     try:
         return me_service.create_my_game(db, user, payload)
     except GameExistsError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    except OnboardingRequiredError as exc:
+    except (OnboardingRequiredError, LibraryFullError) as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
 
 
 @router.delete(
     "/me/games/{game_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(forbid_in_preview)],
+    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
 )
 def delete_my_game(user: CurrentUser, db: DbSession, game_id: int) -> None:
     """Remove a game and (via cascade) its play sessions. 404 covers both a
@@ -129,7 +130,10 @@ def delete_my_game(user: CurrentUser, db: DbSession, game_id: int) -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.patch("/me/games/{game_id}", dependencies=[Depends(forbid_in_preview)])
+@router.patch(
+    "/me/games/{game_id}",
+    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+)
 def update_my_game(
     user: CurrentUser, db: DbSession, game_id: int, payload: GameUpdate
 ) -> GameRead:
@@ -148,7 +152,7 @@ def update_my_game(
 @router.post(
     "/me/wishlist",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(forbid_in_preview)],
+    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
 )
 def create_my_wishlist_item(
     user: CurrentUser, db: DbSession, payload: WishlistCreate
@@ -166,7 +170,10 @@ def create_my_wishlist_item(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
 
 
-@router.patch("/me/wishlist/{item_id}", dependencies=[Depends(forbid_in_preview)])
+@router.patch(
+    "/me/wishlist/{item_id}",
+    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+)
 def update_my_wishlist_item(
     user: CurrentUser, db: DbSession, item_id: int, payload: WishlistUpdate
 ) -> WishlistGameRead:
@@ -181,7 +188,7 @@ def update_my_wishlist_item(
 @router.delete(
     "/me/wishlist/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(forbid_in_preview)],
+    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
 )
 def delete_my_wishlist_item(user: CurrentUser, db: DbSession, item_id: int) -> None:
     """Remove a wishlist entry. 404 = nonexistent or someone else's."""
@@ -194,7 +201,7 @@ def delete_my_wishlist_item(user: CurrentUser, db: DbSession, item_id: int) -> N
 @router.post(
     "/me/wishlist/{item_id}/promote",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(forbid_in_preview)],
+    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
 )
 def promote_my_wishlist_item(
     user: CurrentUser, db: DbSession, item_id: int, payload: WishlistPromote
@@ -204,7 +211,8 @@ def promote_my_wishlist_item(
     new library game (unrated, no sessions).
 
     Status mapping: 404 item not found / 409 (name, system) already in the
-    library / 422 no system anywhere (games require one).
+    library / 422 no system anywhere (games require one) / 403 library at
+    MAX_GAMES.
     """
     try:
         return me_service.promote_my_wishlist_item(db, user, item_id, payload)
@@ -212,6 +220,8 @@ def promote_my_wishlist_item(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except GameExistsError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except LibraryFullError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except SystemRequiredError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
@@ -221,7 +231,7 @@ def promote_my_wishlist_item(
 @router.post(
     "/me/games/{game_id}/sessions",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(forbid_in_preview)],
+    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
 )
 def create_my_session(
     user: CurrentUser, db: DbSession, game_id: int, payload: SessionCreate
@@ -243,7 +253,10 @@ def create_my_session(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
-@router.patch("/me/sessions/{session_id}", dependencies=[Depends(forbid_in_preview)])
+@router.patch(
+    "/me/sessions/{session_id}",
+    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+)
 def close_my_session(
     user: CurrentUser, db: DbSession, session_id: int, payload: SessionClose
 ) -> GameRead:

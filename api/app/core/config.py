@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     # Free-tier abuse insurance, adjustable without a deploy.
     max_users: int = 100
 
+    # Per-library row cap: adding a game refuses once a user holds this many.
+    # The companion to max_users — that one bounds how many libraries exist,
+    # this one bounds how large any single library can get. Set well above a
+    # realistic collection (the founder's is ~155), so it only ever stops a
+    # script.
+    max_games: int = 2000
+
     # --- IGDB proxy ------------------------------------------------------------
     # Twitch application credentials (IGDB authenticates via Twitch OAuth).
     # Server-side only, never exposed to clients; unset → /igdb/search

@@ -100,6 +100,16 @@ class SignupCapReachedError(Exception):
     """MAX_USERS reached — signup is closed."""
 
 
+class LibraryFullError(Exception):
+    """MAX_GAMES reached — this library can't take another game."""
+
+    def __init__(self, limit: int) -> None:
+        super().__init__(
+            f"Library is full — {limit} games is the maximum. "
+            "Remove something before adding more."
+        )
+
+
 class GameNotFoundError(Exception):
     """No such game in the caller's library. Deliberately covers both "id
     doesn't exist" and "id belongs to someone else" — /me/* treats the
@@ -265,6 +275,13 @@ def create_my_game(db: Session, user: AuthenticatedUser, payload: GameCreate) ->
     for a concurrent double-submit (same pattern as onboarding)."""
     if me_repo.get_profile_by_id(db, user.id) is None:
         raise OnboardingRequiredError()
+    # Checked before the duplicate lookup so a full library says so plainly
+    # rather than reporting whichever problem happens to be found first. Same
+    # count-then-insert race as the signup cap: a burst of concurrent adds can
+    # overshoot by a few. Accepted — this bounds abuse, it isn't an invariant.
+    limit = get_settings().max_games
+    if me_repo.count_games(db, user.id) >= limit:
+        raise LibraryFullError(limit)
     if me_repo.find_game_by_name_and_system(db, user.id, payload.name, payload.system):
         raise GameExistsError(payload.name, payload.system)
 
@@ -395,6 +412,11 @@ def promote_my_wishlist_item(
     system = payload.system.strip() or (item.system or "").strip()
     if not system:
         raise SystemRequiredError()
+    # The other door into the games table — capped identically, or the limit
+    # would be trivially bypassed by wishlisting first and promoting.
+    limit = get_settings().max_games
+    if me_repo.count_games(db, user.id) >= limit:
+        raise LibraryFullError(limit)
     if me_repo.find_game_by_name_and_system(db, user.id, item.name, system):
         raise GameExistsError(item.name, system)
 

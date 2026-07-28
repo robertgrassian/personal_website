@@ -18,7 +18,8 @@ from app.core.db import get_db
 from app.core.guards import forbid_in_preview
 from app.schemas.igdb import IgdbSearchResult
 from app.services import igdb as igdb_service
-from app.services.igdb import IgdbNotConfiguredError, IgdbUpstreamError, RateLimitedError
+from app.services.igdb import IgdbNotConfiguredError, IgdbUpstreamError
+from app.services.rate_limit import RateLimitedError
 
 router = APIRouter(prefix=API_PREFIX, tags=["igdb"])
 

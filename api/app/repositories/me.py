@@ -218,6 +218,12 @@ def count_profiles(db: Session) -> int:
     return db.execute(select(func.count()).select_from(Profile)).scalar_one()
 
 
+def count_games(db: Session, user_id: uuid.UUID) -> int:
+    return db.execute(
+        select(func.count()).select_from(Game).where(Game.user_id == user_id)
+    ).scalar_one()
+
+
 def create_profile(db: Session, *, user_id: uuid.UUID, username: str, display_name: str) -> Profile:
     profile = Profile(id=user_id, username=username, display_name=display_name)
     db.add(profile)
