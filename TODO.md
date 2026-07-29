@@ -2,27 +2,14 @@
 
 ## Up Next
 
-**Phase 4 is done and in production**, and Google's OAuth brand verification has passed, so
-signup works for people who are not Robert. What's left is one browser pass and one bug.
-
-- [ ] **Browser pass on the Phase 4 UI (PR #68)** — these are all client-rendered, so they
-      are invisible to `curl` and were _not_ verified during implementation. Preview deploys
-      can authenticate now, so use one — or run `npm run dev:full` locally and sign in with a
-      magic link via Mailpit at `http://127.0.0.1:54324`: 1. **Sign-up CTA banner** (`/video-games`, signed out) — appearance, and that it
-      disappears once signed in. Confirm the app name reads exactly
-      "Video Game Library" on screen; it must match the Google Cloud console string
-      or brand verification falls back to the `supabase.co` host. 2. **`AuthButton` in the library header** (`components/video_games/LibraryPage.tsx`) —
-      it moved out of the global nav in slice 3. Check alignment against the `<h1>`
-      (especially when a long display name wraps), contrast on the shelf background, and
-      **both light and dark mode**. 3. **Login page `?error=` copy** (`/video-games/start`) — rendered client-side via
-      `useSearchParams`, so it never appears in server HTML. Hit
-      `/video-games/start?error=oauth_failed` and `?error=link_invalid` and confirm both
-      messages render. 4. While you are there: the owner edit affordances on `/u/rgrassian` (pencils, Add
-      game, Unrated shelf) should appear only on your own library and never on someone
-      else's. 5. **IGDB search actually works in production** — open the add-game picker on
-      `rgrassian.com` and search for a game. This is the only real confirmation that the
-      Twitch creds took effect; a 503 here means the API process predates the env vars and
-      needs a redeploy (see the `Settings` `lru_cache` gotcha in Recently Completed). 6. **The new landing page** (`/video-games/start`) in **dark mode** — the only part of PR #70 never checked in a browser. Its prose deliberately uses `text-foreground` rather than `text-subtle`, because `--subtle` measures 4.1:1 in dark mode (see the contrast item in the backlog), so this is confirming that call looks right and not just measures right.
+**Phase 4 is done, in production, and verified in a browser**, and Google's OAuth brand
+verification has passed, so signup works for people who are not Robert. One known bug is left;
+after that the next spec phase is **Phase 5 (social graph)**: `follows` endpoints, auto-follow
+on signup, follower/following counts and lists, a follow button, user search (pg_trgm), and a
+"Back to my library" control on other people's libraries. The counts already come back on
+`ProfileRead` and the `follows` table exists; there are no endpoints and no UI yet. Worth doing
+reasonably soon: `/video-games/start` advertises browsing other people's libraries, which today
+only works if you already know their username.
 
 - [ ] **Signed-in viewers see the sign-up CTA banner flash on `/video-games`.** Load the page
       with a session and refresh: the banner paints, then vanishes. It should never be visible
@@ -61,6 +48,19 @@ signup works for people who are not Robert. What's left is one browser pass and 
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Browser pass on the Phase 4 UI completed** (2026-07-29) — the client-rendered surfaces
+      that `curl` cannot see and that shipped unverified in PR #68: the sign-up CTA banner, the
+      `AuthButton` relocated into the library header, the `?error=oauth_failed` /
+      `?error=link_invalid` copy on `/video-games/start`, owner edit affordances appearing only
+      on your own library, IGDB search in the add-game picker on prod, and the landing page in
+      dark mode. Of these, the IGDB search check was the load-bearing one: it is the only thing
+      that distinguishes working Twitch creds from absent ones, since
+      `/api/py/igdb/search` returns 401 to an unauthenticated probe either way.<br>
+      Only the known CTA banner flash is still outstanding, and it has its own item in "Up Next".
+- [x] **Per-user library size cap shipped** (Phase 4 slice 6, PR #68) — `max_games` on
+      `Settings` (`api/app/core/config.py:65`, default 2000, overridable by env var), enforced
+      in `api/app/services/me.py` on both the game and wishlist create paths with a dedicated 403. The per-user write rate limits landed in the same slice, not in Phase 3 as an
+      earlier note here claimed. Spec §9 decision #3 is therefore closed
 - [x] **Google OAuth brand verification passed** (2026-07-28). Rejected on the first
       submission for two reasons, both fair: the home page did not explain the app's purpose,
       and its visible name disagreed with the console. `/video_games` was a shelf of cover art
@@ -79,8 +79,8 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
 - [x] **Vercel → `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` set for Production**
       (2026-07-28). **Not confirmed end to end:** `/api/py/igdb/search` checks auth before it
       ever calls Twitch, so an unauthenticated probe returns 401 whether the creds are good or
-      absent. Real confirmation is searching in the add-game picker on prod — item 5 of the
-      browser pass in "Up Next"
+      absent. Real confirmation was searching in the add-game picker on prod, done as part of
+      the browser pass above
 - [x] **Vercel → Supabase env vars scoped to Preview** (2026-07-28), fixing preview deploys
       that returned `500 MIDDLEWARE_INVOCATION_FAILED`. `NEXT_PUBLIC_SUPABASE_URL` /
       `NEXT_PUBLIC_SUPABASE_ANON_KEY` were Production-only, and the middleware matches every
@@ -189,12 +189,11 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       touching it and a stale entry revalidates the _old_ username's tag — the renamed
       library then serves stale pages indefinitely, with no error anywhere to explain why.
       There is a shouty comment on the map itself; this is the second place to trip over it.<br>
-      _Second constraint on the same map:_ it is keyed on the user id from `getSession()`,
-      which does not verify the JWT, so it is only sound because every caller sits behind a
-      write FastAPI already accepted. If `revalidateMyLibrary()` ever gets called somewhere
-      that isn't gated on a successful write, a forged cookie chooses which user's cache tag
-      gets purged. Both constraints disappear if the memo does — dropping it costs one extra
-      round trip per write and nothing else.
+      _The map's other constraint_ (unverified `getSession()` user id, so it is only sound
+      behind a write FastAPI already accepted) is documented on the map and on
+      `revalidateMyLibrary()` in `src/app/video-games/actions.ts` as of PR #69, so it does not
+      need restating here. Both constraints disappear if the memo does — dropping it costs one
+      extra round trip per write and nothing else.
 - [ ] **Show the "Unrated" shelf to everyone, not just the owner.** `GameLibrary.tsx:332`
       gates it on `canEdit`, so visitors to `/u/{username}` never see games you have played
       but not rated. It was built as an owner utility (every unrated game keeps a case and a
@@ -269,7 +268,6 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       IGDB platforms through there too, and consider doing the same for genres.
 - [ ] Backfill existing games' genres to IGDB's vocabulary — the current genres came from the old Wikipedia-scraping `add-game` skill (retired in Phase 3), so they won't match what the new IGDB add flow (`/api/py/igdb/search`) suggests for future games. Normalizing now means future adds match up and skip the manual genre-editing step. Approach: for each library game with an `igdb_id` (or matched by name), pull its IGDB genres and overwrite the row's `genres`. Note: genre editing isn't in the write path yet (`GameUpdate`/`PATCH /me/games/{id}` is rating-only), so this needs either a one-off backfill script in `api/scripts/` (query IGDB per game, update `games.genres` directly) or extending the edit UI to support genres first. Decide whether to also map IGDB's verbose names (e.g. "Role-playing (RPG)") to shorter shelf labels while backfilling.<br>
       **Do the case/duplicate normalization in the same pass:** `clean_genres` (`api/app/schemas/me.py`) trims and drops blanks but does not dedupe or normalize case, so `"RPG, rpg"` stores both and `"RPG, RPG"` stores it twice — and the filter dropdown, built from `new Set(...)`, then shows them as separate options. Fix belongs in `clean_genres` (dedupe preserving first-seen casing) rather than the modal, so it also covers direct Server Action calls that bypass the UI. Same normalization problem as the backfill, one size larger, so the vocabulary decision above should settle the casing rule too.
-- [ ] Enforce a per-user library size cap (~2k games) before multi-user signup opens (spec §9 decision #3 bundles row caps with the abuse guardrails; Phase 3 shipped the per-user rate limits but not this cap). Safe to defer while signup is closed and only the founder writes, but wire it into `create_my_game` (a cheap `count_games >= MAX_GAMES` check, MAX_GAMES as an env var like MAX_USERS) as part of Phase 4 so it isn't forgotten when writes open to others.
 - [ ] Library-level "create session" button (owner-only) — start or log a session for any game without opening that game's pencil/edit modal: a game picker (search the library) + the same start-now / past-dates form the modal has. Stretch goal: accept a game NOT in the library yet ("I just started something new") — the flow would add the game to the library (IGDB search, Phase 3 slice 4's proxy) and open its session in one go. Backend already supports everything except add+start-in-one; UI is the work. Keep simple, iterate later.
 - [ ] Normalize game metadata into a shared catalog (a `game_metadata` table + per-user `played_games`/`wishlist_games` link tables) — today `games` and `wishlist_items` each carry their own copy of name/system/genres/release_date/image_url. Spec §4.2 deliberately chose denormalized-with-`igdb_id` for v1 (canonical rows need an ownership/moderation story; user-entered games lack a canonical key). Revisit at Phase 4 when cross-user duplication actually exists — the `igdb_id` column on both tables is the planned backfill key (group by it, extract canonical rows, repoint).
 - [ ] Profile pictures for user accounts (instanced game libraries follow-up, post-v1 — see `docs/plans/instanced-game-libraries.md`; likely Supabase Storage + upload/crop flow, shown in the library profile header and follower lists)
