@@ -23,14 +23,14 @@ function suggestUsername(email: string | undefined): string {
 
 export default async function OnboardingPage() {
   // Same degradation as /library: unconfigured means nobody is signed in.
-  if (!isSupabaseConfigured()) redirect("/video_games/login");
+  if (!isSupabaseConfigured()) redirect("/video-games/start");
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/video_games/login");
+  if (!user) redirect("/video-games/start");
 
   // Already has a profile? Then onboarding is done — send them to their
   // library, the same place a successful submission lands.

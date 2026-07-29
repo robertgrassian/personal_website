@@ -6,7 +6,7 @@ import {
   deleteWishlistItem,
   promoteWishlistItem,
   updateWishlistItem,
-} from "@/app/video_games/actions";
+} from "@/app/video-games/actions";
 import { CloseIcon } from "@/components/Icon";
 import { useModalChrome } from "./useModalChrome";
 import { inputClass, labelClass } from "./formStyles";

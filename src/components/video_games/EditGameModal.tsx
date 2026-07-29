@@ -2,7 +2,7 @@
 
 import { useOptimistic, useRef, useState, useTransition } from "react";
 import { localToday, RATINGS, type Game, type Rating } from "@/lib/games";
-import { deleteGame, logSession, stopSession, updateGameRating } from "@/app/video_games/actions";
+import { deleteGame, logSession, stopSession, updateGameRating } from "@/app/video-games/actions";
 import { CloseIcon } from "@/components/Icon";
 import { useModalChrome } from "./useModalChrome";
 

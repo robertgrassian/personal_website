@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { localToday, RATINGS, type IgdbSearchResult, type NewGame, type Rating } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
-import { addGame, addWishlistItem, searchGames } from "@/app/video_games/actions";
+import { addGame, addWishlistItem, searchGames } from "@/app/video-games/actions";
 import { CloseIcon } from "@/components/Icon";
 import { useModalChrome } from "./useModalChrome";
 import { inputClass, labelClass } from "./formStyles";

@@ -69,7 +69,7 @@
   --color-link: var(--link);
   --color-link-hover: var(--link-hover);
 
-  /* Shelf tokens — defined on .shelf-theme in video_games/video_games.css.
+  /* Shelf tokens — defined on .shelf-theme in video-games/video-games.css.
      Registered here so Tailwind generates utility classes (bg-shelf-bg, text-shelf-label, etc.).
      The var() references resolve at runtime via CSS cascade, so they correctly
      pick up whichever value .shelf-theme sets for the active color scheme. */

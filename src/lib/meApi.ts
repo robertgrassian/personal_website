@@ -78,7 +78,7 @@ export async function fetchMyProfile(): Promise<MyProfile | null> {
 
 // Memoized user id → username, so the write path doesn't pay a Node→Python
 // round trip just to learn whose cache tag to purge. Every mutation needs the
-// answer (revalidateMyLibrary in video_games/actions.ts) and the answer never
+// answer (revalidateMyLibrary in video-games/actions.ts) and the answer never
 // changes: usernames are assigned once at onboarding and there is no rename
 // endpoint.
 //

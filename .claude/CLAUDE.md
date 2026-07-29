@@ -33,7 +33,7 @@ Bio, social links (GitHub, LinkedIn), and a masonry photo grid. Content and desi
 
 Work history, skills, and a PDF download link.
 
-### 4. Video Game Library (`/video_games`) — Built
+### 4. Video Game Library (`/video-games`) — Built
 
 A showcase of every video game I've ever played, backed by Postgres (Supabase) and served by the FastAPI backend. The UI is **"video game shelves"** — game cover art displayed on shelf planks, styled to evoke a home collection or Blockbuster. This section is largely complete:
 
@@ -46,7 +46,7 @@ A showcase of every video game I've ever played, backed by Postgres (Supabase) a
 - Play state is derived by the API from `play_sessions` rows. An **open session** (NULL `end_date`) is the source of truth for "currently playing"; the newest `end_date` is "last played". Each `Game` arrives with `currentlyPlaying`, `lastPlayed`, `playingSince`, `openSessionId`, and `sessionCount` already derived
 - "Currently playing" CRT TV above the view tabs (`CurrentlyPlaying.tsx`) shows the first game with an open session, labeled "playing since {start}". Unrated games appear only on the CRT, not the shelves
 
-Owner writes follow the BFF pattern: browser → Server Action (`src/app/video_games/actions.ts`) → `src/lib/meApi.ts` (cookie → Bearer) → FastAPI `/api/py/me/*` → on success `revalidateTag(libraryCacheTag(...))`. The full backend lives in `api/` (routers → services → repositories); migrations via Alembic. A frozen CSV snapshot in `api/scripts/fixtures/` seeds a local dev DB (`cd api && uv run python scripts/seed.py`) and is not read by the running site.
+Owner writes follow the BFF pattern: browser → Server Action (`src/app/video-games/actions.ts`) → `src/lib/meApi.ts` (cookie → Bearer) → FastAPI `/api/py/me/*` → on success `revalidateTag(libraryCacheTag(...))`. The full backend lives in `api/` (routers → services → repositories); migrations via Alembic. A frozen CSV snapshot in `api/scripts/fixtures/` seeds a local dev DB (`cd api && uv run python scripts/seed.py`) and is not read by the running site.
 
 Remaining ideas are tracked in `TODO.md` (backlog).
 
@@ -60,6 +60,7 @@ Remaining ideas are tracked in `TODO.md` (backlog).
 - **`TODO.md` structure rules apply to every edit, not just `/todo` invocations.** Marking something done means _moving_ it to the top of **Recently Completed**, not ticking it in place — a `- [x]` left in "Up Next" or "Backlog" is a bug. Recently Completed is newest-first and capped at **20**; drop the oldest past that, but first check whether it holds reference material still cited elsewhere in the file. Compress items as they move: keep the detail that stays useful (gotchas, accepted trade-offs, follow-ups), drop the planning detail that only mattered while pending. Fix any "see above" cross-reference the move breaks. The `/todo` skill (`.claude/skills/todo/SKILL.md`) restates these, but it only loads when invoked — most TODO edits happen mid-conversation without it, which is exactly how drift gets in.
 - **Never add "Co-Authored-By: Claude" (or any Claude/Anthropic attribution) to git commit messages.**
 - **Use `ggp` instead of `git push` when pushing branches.**
+- **Routes use kebab-case, never snake_case** (`/video-games`, `/currently-playing`, `/video-games/start`). Renamed from underscores 2026-07-28; the old URLs are kept alive by permanent redirects in `next.config.ts`, which must stay. Note this is a _URL_ convention — `src/components/video_games/` and snake_case SQL column names (`currently_playing`) are deliberately untouched.
 - **Always support both light and dark mode.** The site uses `@media (prefers-color-scheme: dark)` CSS variables in `globals.css` and Tailwind `dark:` variants in components — both must be addressed for any new UI. Never add color classes that only work in one mode.
 
 ## Repository
@@ -79,7 +80,7 @@ Remaining ideas are tracked in `TODO.md` (backlog).
 - `npm run dev:api` — Start the FastAPI backend (uvicorn, port 8000)
 - `npm run dev:full` — Both of the above at once
 - `npm run build` — Production build. **Requires the library API to be running** (`npm run dev:api`):
-  `/video_games` and its OG image prerender from it, and an unreachable origin fails the build by
+  `/video-games` and its OG image prerender from it, and an unreachable origin fails the build by
   design rather than shipping an empty library
 - `npm run lint` — Run ESLint
 - `cd api && uv run pytest` — Python test suite (integration tests need `DATABASE_URL`)

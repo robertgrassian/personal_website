@@ -1,12 +1,12 @@
 // Shared color palette for OG image generation.
 //
-// CSS variables (globals.css, video_games.css) are not available inside
+// CSS variables (globals.css, video-games.css) are not available inside
 // ImageResponse — Satori renders JSX to a PNG with no browser, so there is
 // no cascade or var() resolution. This file mirrors the relevant site tokens
 // so OG images stay visually coherent with the live site without duplicating
 // magic strings across multiple opengraph-image.tsx files.
 //
-// When updating a color in globals.css or video_games.css, update it here too.
+// When updating a color in globals.css or video-games.css, update it here too.
 
 export const OG = {
   // ── Text ───────────────────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ export const OG = {
   // ── Page background ────────────────────────────────────────────────────────
   pageDark: "#0a0a0a", // --background (dark)
 
-  // ── Shelf (dark mode values from video_games.css .shelf-theme) ─────────────
+  // ── Shelf (dark mode values from video-games.css .shelf-theme) ─────────────
   shelfBg: "#0f0d0b", // --shelf-bg
   shelfPlank: "#2a1a0e", // --shelf-plank
   shelfEdge: "#8b5e3c", // --shelf-edge

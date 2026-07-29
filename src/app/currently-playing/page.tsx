@@ -14,7 +14,7 @@ export const metadata = {
 // data to the client CRT. Async because getGames() may now fetch from the
 // library API — App Router server components can be async and await data.
 export default async function CurrentlyPlayingPage() {
-  // Same filter the game library uses (video_games/page.tsx): a game is
+  // Same filter the game library uses (video-games/page.tsx): a game is
   // "currently playing" when it has an open session (empty end_date).
   // Robert's own page, so the owner is pinned — this route is not part of the
   // /u/[username] family.

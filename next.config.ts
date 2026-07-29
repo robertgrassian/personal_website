@@ -18,6 +18,33 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Routes moved from snake_case to kebab-case. These are permanent (308), so
+  // search engines transfer the old URLs' standing to the new ones rather than
+  // treating them as separate pages — /video_games in particular has been the
+  // library's public URL since launch and is what Google has indexed.
+  //
+  // `:path*` forwards anything nested underneath, and query strings survive a
+  // redirect automatically — which matters for /video_games/login?error=…,
+  // the URL Supabase's callback handlers bounced through before this rename.
+  //
+  // Next.js convention: redirects() is config, evaluated once at build; the
+  // matching happens at the edge before any page code runs.
+  async redirects() {
+    return [
+      { source: "/video_games/login", destination: "/video-games/start", permanent: true },
+      { source: "/video_games/:path*", destination: "/video-games/:path*", permanent: true },
+      { source: "/video_games", destination: "/video-games", permanent: true },
+      {
+        source: "/currently_playing/:path*",
+        destination: "/currently-playing/:path*",
+        permanent: true,
+      },
+      { source: "/currently_playing", destination: "/currently-playing", permanent: true },
+      // The old login URL under its new prefix, for anything bookmarked
+      // between the Phase 4 auth move and this rename.
+      { source: "/video-games/login", destination: "/video-games/start", permanent: true },
+    ];
+  },
   async rewrites() {
     return [
       {

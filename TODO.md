@@ -5,28 +5,37 @@
 **Phase 4 is merged and in production (PR #68).** What's left here is one dashboard step and
 two verification passes.
 
-- [ ] **Google OAuth brand verification** — _in progress 2026-07-28._ Unblocked: PR #68 is
-      merged, so the CTA banner Google needs to see is live. Google Cloud console → OAuth consent screen → Branding:
+- [ ] **Google OAuth brand verification** — _rejected once on 2026-07-28, fix built, resubmit
+      after the landing-page PR deploys._ Google's two complaints were that the home page did
+      not explain the app's purpose and that its visible name disagreed with the console. Both
+      were fair: `/video_games` showed a shelf of cover art under the heading "Robert's Video
+      Game Library". The fix is a real landing page at `/video-games/start` whose `<h1>` is
+      exactly `Video Game Library`, with the purpose in prose and sign-in as a section on it.
+      Google Cloud console → OAuth consent screen → Branding:
       App name → `Video Game Library` (must match `APP_NAME` in
-      `src/components/video_games/SignupCta.tsx` **byte for byte**);
-      App homepage → `https://rgrassian.com/video_games`;
+      `src/lib/appName.ts` **byte for byte**);
+      App homepage → `https://rgrassian.com/video-games/start` (**changed** — no longer
+      `/video_games`);
       Privacy policy → `https://rgrassian.com/privacy`;
-      add `rgrassian.com` as an authorized domain; resubmit.
-      Done = the consent screen shows the app name instead of the `supabase.co` host.
+      authorized domains → keep the existing `jbgmptlxoozfyzulhpbn.supabase.co` (it covers the
+      OAuth callback; removing it risks breaking sign-in) and **add** `rgrassian.com`. Resubmit.
+      Done = the consent screen shows the app name instead of the `supabase.co` host. Note the
+      URL bar during the redirect still shows the supabase.co host either way — only a Supabase
+      custom auth domain changes that, which would mean redoing the redirect URIs.
       _Contingency:_ if Google also demands a Terms of Service URL, add `/terms` mirroring
       the existing `/privacy` page.
 - [ ] **Browser pass on the Phase 4 UI (PR #68)** — these are all client-rendered, so they
       are invisible to `curl` and were _not_ verified during implementation. Preview deploys
       can authenticate now, so use one — or run `npm run dev:full` locally and sign in with a
-      magic link via Mailpit at `http://127.0.0.1:54324`: 1. **Sign-up CTA banner** (`/video_games`, signed out) — appearance, and that it
+      magic link via Mailpit at `http://127.0.0.1:54324`: 1. **Sign-up CTA banner** (`/video-games`, signed out) — appearance, and that it
       disappears once signed in. Confirm the app name reads exactly
       "Video Game Library" on screen; it must match the Google Cloud console string
       or brand verification falls back to the `supabase.co` host. 2. **`AuthButton` in the library header** (`components/video_games/LibraryPage.tsx`) —
       it moved out of the global nav in slice 3. Check alignment against the `<h1>`
       (especially when a long display name wraps), contrast on the shelf background, and
-      **both light and dark mode**. 3. **Login page `?error=` copy** (`/video_games/login`) — rendered client-side via
+      **both light and dark mode**. 3. **Login page `?error=` copy** (`/video-games/start`) — rendered client-side via
       `useSearchParams`, so it never appears in server HTML. Hit
-      `/video_games/login?error=oauth_failed` and `?error=link_invalid` and confirm both
+      `/video-games/start?error=oauth_failed` and `?error=link_invalid` and confirm both
       messages render. 4. While you are there: the owner edit affordances on `/u/rgrassian` (pencils, Add
       game, Unrated shelf) should appear only on your own library and never on someone
       else's. 5. **IGDB search actually works in production** — open the add-game picker on
@@ -34,7 +43,7 @@ two verification passes.
       Twitch creds took effect; a 503 here means the API process predates the env vars and
       needs a redeploy (see the `Settings` `lru_cache` gotcha in Recently Completed).
 
-- [ ] **Signed-in viewers see the sign-up CTA banner flash on `/video_games`.** Load the page
+- [ ] **Signed-in viewers see the sign-up CTA banner flash on `/video-games`.** Load the page
       with a session and refresh: the banner paints, then vanishes. It should never be visible
       to a signed-in viewer at all.<br>
       **Root cause (not a bug — a deliberate trade-off that turned out wrong).**
@@ -44,7 +53,7 @@ two verification passes.
       signed-in viewers necessarily see one frame of it — hydration cannot run before first
       paint. Flipping the default is **not** the fix: it just moves the flash onto the
       logged-out visitors this banner exists for, and they are the larger audience.<br>
-      **The constraint any fix has to respect:** `/video_games` is statically cached and its
+      **The constraint any fix has to respect:** `/video-games` is statically cached and its
       HTML must stay byte-identical for every viewer (spec §7.2, decision #21). So "just read
       the cookie server-side and skip rendering it" is off the table — that makes the page
       dynamic and gives up the cache for a cosmetic win.<br>
@@ -110,7 +119,7 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       auth surfaces moved under the game library; the sign-up CTA banner; profile header
       and real empty states; per-user write limits and a `MAX_GAMES` cap. 173 tests.
       Remaining manual steps are in "Up Next" above
-- [x] Prod CSV → Postgres cutover confirmed serving: `https://rgrassian.com/video_games`
+- [x] Prod CSV → Postgres cutover confirmed serving: `https://rgrassian.com/video-games`
       returns 200 and `/api/py/health` reports `{"status":"ok","env":"prod","db":"ok"}`.
       (The optimistic-UI click-through and the first-write cold-start timing were not
       measured — do those next time you edit something in prod)
@@ -132,8 +141,8 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
 
 - [x] CRT metadata block is height-stable across channel changes (`components/crt/CrtTv.tsx`) — the auto-cycle used to resize the block per game, and since `.pcrt-stage--compact` is a bottom-aligned flex row, a taller block pushed the TV and the page below it down on a timer. Three causes, all fixed by reserving the worst case instead of truncating: the title now reserves and clamps two lines (`min-h-[2lh] line-clamp-2` — long names wrap into reserved space on mobile rather than growing the block), the system/genres line clamps to one, and the "playing since" line always renders (empty when a game has no open-session date) instead of disappearing
 - [x] Mobile nav no longer cramped by the auth control (`components/Nav.tsx`, `components/AuthButton.tsx`) — type, gaps, and horizontal padding scale down below `sm` only, so desktop is unchanged. `AuthButton` shares the links' responsive scale so the row shrinks as one unit. Row height still comes from `--nav-height`, so `FilterBar`/`StatsPanel` sticky offsets are untouched
-- [x] Game library page now uses the photorealistic CRT (`components/crt/CrtTv.tsx`, relocated out of `currently_playing/` since it's shared by two routes) instead of the wood-paneled TV; `/currently_playing` still works standalone. Old wood TV (`components/video_games/CurrentlyPlaying.tsx`) and its `crt-*` styles in `video_games.css` are left in place, unused
-- [x] Dedicated `/currently_playing` route rendering a photorealistic '90s black-plastic CRT (hand-built CSS/SVG: molded cabinet, phosphor RGB mask, scanlines, roll bar, glare, speaker grille, dials, power LED) with the `▶ PLAY`/`CH 0N` OSD and channel-flicking; permanent "NO SIGNAL" snow when nothing is playing. Unlinked for now (URL-only). New component `components/currently_playing/CrtTv.tsx`; existing library TV untouched
+- [x] Game library page now uses the photorealistic CRT (`components/crt/CrtTv.tsx`, relocated out of `currently-playing/` since it's shared by two routes) instead of the wood-paneled TV; `/currently-playing` still works standalone. Old wood TV (`components/video_games/CurrentlyPlaying.tsx`) and its `crt-*` styles in `video-games.css` are left in place, unused
+- [x] Dedicated `/currently-playing` route rendering a photorealistic '90s black-plastic CRT (hand-built CSS/SVG: molded cabinet, phosphor RGB mask, scanlines, roll bar, glare, speaker grille, dials, power LED) with the `▶ PLAY`/`CH 0N` OSD and channel-flicking; permanent "NO SIGNAL" snow when nothing is playing. Unlinked for now (URL-only). New component `components/currently-playing/CrtTv.tsx`; existing library TV untouched
 - [x] Multiple currently-playing games on the CRT: channel-flicking — auto-cycle between in-progress games with a static/noise burst and `CH 0N` OSD, plus a clickable channel knob to advance manually and channel pips in the metadata (CurrentlyPlaying is now a client component)
 - [x] Fix `.claude/tools/wikipedia.py` truncating nested templates (platforms/released_raw cut off mid-`{{collapsible list}}`) + add-game guidance for enhanced editions/ports (original NA date wins)
 
@@ -164,7 +173,7 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       Want: edit a wishlist item's name, system, genres, release date, cover art in place,
       without having to promote it first. Needs a `WishlistItemUpdate` schema plus a
       `PATCH /api/py/me/wishlist/{id}` endpoint (routers → services → repositories, mirroring
-      the games write path), a Server Action in `video_games/actions.ts` with the usual
+      the games write path), a Server Action in `video-games/actions.ts` with the usual
       `revalidateTag(libraryCacheTag(...))`, and the edit form fields lifted out of
       `EditGameModal` so both modals share one implementation instead of duplicating it.
 - [ ] Field suggestions (system, genre, …) should work on mobile, not just desktop — the
@@ -240,7 +249,7 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
 - [ ] Profile pictures for user accounts (instanced game libraries follow-up, post-v1 — see `docs/plans/instanced-game-libraries.md`; likely Supabase Storage + upload/crop flow, shown in the library profile header and follower lists)
 - [ ] Homepage customization per user (instanced game libraries follow-up, post-v1 — let users personalize their library page: hero/backdrop, shelf styling, featured games, etc. Scope TBD)
 - [ ] Staging environment (instanced game libraries follow-up — the spec accepts a "no staging" caveat (§7.5: previews are read-only against prod, writes first run for real in prod); revisit with a second Supabase project or branching once the write path exists). **Promoted in priority 2026-07-28:** the preview 500 in "Up Next" is this caveat biting for real. Pointing Preview at production's Supabase is the stopgap, but it means preview sign-ins are production accounts. A second Supabase project (own DB + own GoTrue + own Google OAuth client) would give previews a real identity system and finally let the write path be exercised somewhere that isn't prod
-- [ ] Decide the routing/namespace strategy as the site grows into multiple apps. Today auth is top-level (`/login`, `/onboarding`, `/auth/*`) because it's a site-wide identity system, while the game library lives under `/video_games`. Options once more apps exist: (a) keep everything on `rgrassian.com` with top-level auth + per-app route prefixes — simplest, one shared session across apps; (b) split an app onto a subdomain like `games.rgrassian.com` — cleaner isolation and independent deploys, but subdomains are separate cookie origins, so sharing the login session needs a `.rgrassian.com` cookie domain plus Supabase/Vercel redirect wiring, which works against cross-app SSO. Leaning toward (a) until an app genuinely needs isolation.
+- [ ] Decide the routing/namespace strategy as the site grows into multiple apps. Today auth is top-level (`/login`, `/onboarding`, `/auth/*`) because it's a site-wide identity system, while the game library lives under `/video-games`. Options once more apps exist: (a) keep everything on `rgrassian.com` with top-level auth + per-app route prefixes — simplest, one shared session across apps; (b) split an app onto a subdomain like `games.rgrassian.com` — cleaner isolation and independent deploys, but subdomains are separate cookie origins, so sharing the login session needs a `.rgrassian.com` cookie domain plus Supabase/Vercel redirect wiring, which works against cross-app SSO. Leaning toward (a) until an app genuinely needs isolation.
 - [ ] "Current Hobbies" section on `/about` — start with currently-playing games (reusing the CRT/session data from the game library), with room to extend to books currently being read and other hobbies later. Design not decided yet (what it looks like, whether it reuses `CrtTv` directly or needs its own compact treatment).
 - [ ] Alternate "currently playing" display: Marquee Banner (Option 2 from the mockups) — full-width banner using the game's blurred cover as the backdrop (same recipe as GameCaseBack: dominant color base + blurred art + dark overlay), sharp cover on the left, system/genre chips and "last played" on the right. Build it as a sibling of `CurrentlyPlaying` (same `Game` prop) and add a display-mode switch (config const, or URL param for fun) to swap between the CRT and the marquee. Mockups: https://claude.ai/code/artifact/2e891385-8fc9-4c9b-b8da-469658de243d
 - [ ] Make an "improve" skill that runs a code review on recent changes, follows up on obviously actionable items, cleans up comments, and ensures code is clean / using best practices

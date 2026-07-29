@@ -59,7 +59,7 @@ export function AuthButton() {
 
   if (!user) {
     return (
-      <Link href="/video_games/login" className={linkClass}>
+      <Link href="/video-games/start" className={linkClass}>
         Sign in
       </Link>
     );
