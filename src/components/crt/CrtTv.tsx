@@ -389,7 +389,7 @@ export function CrtTv({ games, compact = false }: CrtTvProps) {
           <>
             <h2 className="mt-1 text-2xl font-bold text-foreground">Nothing playing</h2>
             <p className="mt-0.5 text-sm text-muted">
-              Nothing&rsquo;s on right now — check back when a game is in progress.
+              Nothing&rsquo;s on right now. Check back when a game is in progress.
             </p>
           </>
         )}

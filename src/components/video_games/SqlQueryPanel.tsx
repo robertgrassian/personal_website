@@ -51,7 +51,7 @@ function toGameGenreRows(game: Game): GameGenreRow[] {
 const GAMES_COLUMNS = [
   { name: "name", desc: "Game title" },
   { name: "system", desc: "Console or platform" },
-  { name: "rating", desc: "S / A / B / C / F — or NULL if unrated" },
+  { name: "rating", desc: "S / A / B / C / F, or NULL if unrated" },
   { name: "genres", desc: 'Comma-separated; e.g. "Platform, Fighting"' },
   { name: "release_date", desc: "ISO date (YYYY-MM-DD) or NULL" },
   { name: "release_year", desc: "Year as integer, e.g. 2024" },
@@ -63,7 +63,7 @@ const GAMES_COLUMNS = [
 // game_genres is the exploded version of games.genres — one row per game-genre pair.
 // Multi-genre games appear once per genre. Join to games on name.
 const GAME_GENRES_COLUMNS = [
-  { name: "name", desc: "Game title — joins to games.name" },
+  { name: "name", desc: "Game title, joins to games.name" },
   { name: "genre", desc: "Single genre value" },
 ];
 
@@ -268,7 +268,7 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
         <div>
           <p className="text-xs font-mono text-muted mb-1.5">
             <span className="text-link">game_genres</span>
-            <span className="text-subtle ml-2">— join to games on name</span>
+            <span className="text-subtle ml-2">joins to games on name</span>
           </p>
           <div className="flex flex-wrap gap-1.5">
             {GAME_GENRES_COLUMNS.map((col) => (
@@ -360,7 +360,7 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
       {results !== null && (
         <section>
           <h3 className="text-xs font-semibold uppercase tracking-widest text-subtle mb-3">
-            Results —{" "}
+            Results:{" "}
             <span className="tabular-nums">{truncated ? `${ROW_LIMIT}+` : results.length}</span>{" "}
             {results.length === 1 && !truncated ? "row" : "rows"}
           </h3>

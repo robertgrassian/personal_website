@@ -164,7 +164,7 @@ export function GameCase({ game, onEdit }: GameCaseProps) {
             {!ratingLetter && game.starred && showBadge && (
               <div
                 role="img"
-                aria-label="Starred — priority wishlist pick"
+                aria-label="Starred: priority wishlist pick"
                 className="absolute top-1 right-1 z-10 text-xl leading-none select-none cursor-default"
                 style={{
                   color: "#fde047", // tailwind yellow-300

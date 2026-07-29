@@ -219,7 +219,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
               </button>
             ) : (
               <div className="mt-2">
-                <p className="text-xs text-shelf-text-muted">Finished — how was it?</p>
+                <p className="text-xs text-shelf-text-muted">Finished: how was it?</p>
                 <div className="mt-1.5 grid grid-cols-5 gap-1.5">
                   {RATINGS.map((r) => (
                     <button

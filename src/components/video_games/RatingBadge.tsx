@@ -46,7 +46,7 @@ export function RatingBadge({ rank }: RatingBadgeProps) {
   return (
     <div
       role="img"
-      aria-label={`${rank} — ${label}`}
+      aria-label={`${rank}: ${label}`}
       className="absolute top-1.5 right-1.5 z-10 w-4 h-4 text-[10px] flex items-center justify-center rounded-sm font-bold leading-none select-none cursor-default"
       style={{
         background: bg,

@@ -26,9 +26,9 @@ export const metadata: Metadata = {
   // and the <title> is the first place a reviewer looks.
   title: `${APP_NAME} | Robert Grassian`,
   description:
-    `${APP_NAME} is a place to track every video game you have ever played — ` +
-    `what you finished, how you rated it, what you are playing now, and what ` +
-    `you want to play next.`,
+    `${APP_NAME} keeps track of every video game you have played: what you ` +
+    `finished, how you rated it, what you are playing now, and what you want ` +
+    `to play next.`,
 };
 
 export default function StartPage() {
@@ -42,41 +42,42 @@ export default function StartPage() {
           person's name or a tagline. */}
       <h1 className="text-4xl font-bold text-foreground">{APP_NAME}</h1>
 
+      {/* Body copy uses text-foreground, not text-subtle. In dark mode
+          --subtle is #6b7280 on a #0a0a0a background, which measures 4.1:1
+          against the 4.5:1 WCAG AA minimum for body text, so it is too low
+          for prose. Reserved below for the one line of small print. */}
       <p className="mt-4 text-lg leading-relaxed text-foreground">
-        A place to keep every video game you have ever played — what you finished, how you rated it,
-        what you are playing right now, and what you want to play next.
+        Keep track of every video game you have played: what you finished, how you rated it, what
+        you are playing now, and what you want to play next.
       </p>
 
-      <div className="mt-6 flex flex-col gap-4 text-subtle">
-        <p className="leading-relaxed">
-          Your games sit on shelves you can group and sort however you like: by system, by rating,
-          by genre, by decade. Rate them, log when you start and finish a playthrough, and keep a
-          wishlist of what is next.
-        </p>
-        <p className="leading-relaxed">
-          Every library has its own public page, so you can share yours with a link. Signing in with
-          Google is all it takes to start one.
-        </p>
-      </div>
-
-      {/* A live example does more than a screenshot to explain the product,
-          and it costs nothing to maintain — it is the real library. */}
-      <p className="mt-6 text-subtle">
-        Not sure what it looks like?{" "}
-        <Link
-          href={`/u/${LIBRARY_OWNER_USERNAME}`}
-          className="text-link underline underline-offset-4"
-        >
-          Browse Robert&apos;s library
-        </Link>{" "}
-        — every game he has played, which is what this app was built to keep track of.
-      </p>
-
-      <div className="mt-10 border-t border-divider pt-8">
+      {/* Sign-in sits high, but never above the h1 and the purpose line. A
+          page that opens with a sign-in form is what Google's brand review
+          rejected the first time, and the reviewer reads top down. */}
+      <div className="mt-8">
         <h2 className="text-lg font-semibold text-foreground">Start your library</h2>
         <div className="mt-4 max-w-sm">
           <SignInPanel />
         </div>
+      </div>
+
+      <div className="mt-10 border-t border-divider pt-8">
+        <p className="leading-relaxed text-foreground">
+          Your games sit on shelves you can group and sort by system, rating, genre, or decade.
+          Every library has its own public page, so you can share yours with a link.
+        </p>
+
+        {/* A live example explains the product better than a screenshot, and
+            costs nothing to maintain, because it is the real library. */}
+        <p className="mt-4 leading-relaxed text-foreground">
+          <Link
+            href={`/u/${LIBRARY_OWNER_USERNAME}`}
+            className="text-link underline underline-offset-4"
+          >
+            See an example library
+          </Link>
+          .
+        </p>
       </div>
 
       {/* Google's brand review expects the privacy policy reachable from the

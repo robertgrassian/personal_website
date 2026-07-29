@@ -46,7 +46,7 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
     if (username.toLowerCase() === LIBRARY_OWNER_USERNAME) {
       throw new Error(
         `The library API has no profile for '${LIBRARY_OWNER_USERNAME}', the seeded owner. ` +
-          `That is a backend misconfiguration, not a missing user — check that the database ` +
+          `That is a backend misconfiguration, not a missing user. Check that the database ` +
           `is migrated and seeded (\`cd api && uv run python scripts/seed.py\`).`
       );
     }
