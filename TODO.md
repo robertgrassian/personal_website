@@ -2,28 +2,9 @@
 
 ## Up Next
 
-**Phase 4 is merged and in production (PR #68).** What's left here is one dashboard step and
-two verification passes.
+**Phase 4 is done and in production**, and Google's OAuth brand verification has passed, so
+signup works for people who are not Robert. What's left is one browser pass and one bug.
 
-- [ ] **Google OAuth brand verification** — _rejected once on 2026-07-28, fix built, resubmit
-      after the landing-page PR deploys._ Google's two complaints were that the home page did
-      not explain the app's purpose and that its visible name disagreed with the console. Both
-      were fair: `/video_games` showed a shelf of cover art under the heading "Robert's Video
-      Game Library". The fix is a real landing page at `/video-games/start` whose `<h1>` is
-      exactly `Video Game Library`, with the purpose in prose and sign-in as a section on it.
-      Google Cloud console → OAuth consent screen → Branding:
-      App name → `Video Game Library` (must match `APP_NAME` in
-      `src/lib/appName.ts` **byte for byte**);
-      App homepage → `https://rgrassian.com/video-games/start` (**changed** — no longer
-      `/video_games`);
-      Privacy policy → `https://rgrassian.com/privacy`;
-      authorized domains → keep the existing `jbgmptlxoozfyzulhpbn.supabase.co` (it covers the
-      OAuth callback; removing it risks breaking sign-in) and **add** `rgrassian.com`. Resubmit.
-      Done = the consent screen shows the app name instead of the `supabase.co` host. Note the
-      URL bar during the redirect still shows the supabase.co host either way — only a Supabase
-      custom auth domain changes that, which would mean redoing the redirect URIs.
-      _Contingency:_ if Google also demands a Terms of Service URL, add `/terms` mirroring
-      the existing `/privacy` page.
 - [ ] **Browser pass on the Phase 4 UI (PR #68)** — these are all client-rendered, so they
       are invisible to `curl` and were _not_ verified during implementation. Preview deploys
       can authenticate now, so use one — or run `npm run dev:full` locally and sign in with a
@@ -41,7 +22,7 @@ two verification passes.
       else's. 5. **IGDB search actually works in production** — open the add-game picker on
       `rgrassian.com` and search for a game. This is the only real confirmation that the
       Twitch creds took effect; a 503 here means the API process predates the env vars and
-      needs a redeploy (see the `Settings` `lru_cache` gotcha in Recently Completed).
+      needs a redeploy (see the `Settings` `lru_cache` gotcha in Recently Completed). 6. **The new landing page** (`/video-games/start`) in **dark mode** — the only part of PR #70 never checked in a browser. Its prose deliberately uses `text-foreground` rather than `text-subtle`, because `--subtle` measures 4.1:1 in dark mode (see the contrast item in the backlog), so this is confirming that call looks right and not just measures right.
 
 - [ ] **Signed-in viewers see the sign-up CTA banner flash on `/video-games`.** Load the page
       with a session and refresh: the banner paints, then vanishes. It should never be visible
@@ -80,6 +61,21 @@ two verification passes.
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Google OAuth brand verification passed** (2026-07-28). Rejected on the first
+      submission for two reasons, both fair: the home page did not explain the app's purpose,
+      and its visible name disagreed with the console. `/video_games` was a shelf of cover art
+      under the heading "Robert's Video Game Library" while the console said "Video Game
+      Library" — Robert's personal library was doubling as the product's front door.<br>
+      Fixed by building a real front door at `/video-games/start` (PR #70): `<h1>` is exactly
+      the app name, purpose in prose, sign-in as a section rather than the whole page, privacy
+      policy linked. The console's App homepage moved to that URL.<br>
+      **Constraints worth keeping:** the app name must stay byte-identical to `APP_NAME` in
+      `src/lib/appName.ts`, which both the landing page and the sign-up banner render. And
+      `jbgmptlxoozfyzulhpbn.supabase.co` must stay in authorized domains — it covers the OAuth
+      callback, so removing it risks breaking sign-in. `rgrassian.com` sits alongside it.<br>
+      _Cosmetic thing this does not fix:_ the URL bar during the redirect still shows the
+      supabase.co host. Only a Supabase custom auth domain changes that, which would mean
+      redoing the redirect URIs and this domain list.
 - [x] **Vercel → `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` set for Production**
       (2026-07-28). **Not confirmed end to end:** `/api/py/igdb/search` checks auth before it
       ever calls Twitch, so an unauthenticated probe returns 401 whether the creds are good or
