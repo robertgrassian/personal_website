@@ -1,6 +1,12 @@
 "use client";
 
-// Sign-in page. Two paths, gated by environment:
+// The sign-in half of the landing page (page.tsx renders the prose above it).
+// Split out as its own client component for two reasons: the parent stays a
+// server component so it can export `metadata` (client components cannot), and
+// useSearchParams — needed to read the ?error flag the auth routes bounce back
+// with — only works in a client component, behind a Suspense boundary.
+//
+// Two sign-in paths, gated by environment:
 //   - Production: "Continue with Google" (OAuth) — the only sign-in method for
 //     real users.
 //   - Local dev: a magic-link form, because the local Supabase stack has no
@@ -117,8 +123,14 @@ function MagicLinkForm() {
   );
 }
 
-function LoginContent() {
-  // Both route handlers bounce back here with an ?error flag on failure.
+// Isolated in its own component for one reason: useSearchParams opts a page
+// out of static HTML for everything inside its Suspense boundary. Keeping that
+// boundary around the error message alone means the sign-in button below still
+// ships in the prerendered HTML — which matters here, because this page is
+// what Google's brand reviewer fetches, and a crawler that does not run JS
+// would otherwise find "Start your library" with nothing under it.
+function AuthError() {
+  // Both auth route handlers bounce back here with an ?error flag on failure.
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
   const errorMessage =
@@ -128,34 +140,36 @@ function LoginContent() {
         ? "Google sign-in didn't complete. Please try again."
         : null;
 
+  if (!errorMessage) return null;
+
   return (
-    <div>
-      <h1 className="text-2xl font-semibold text-foreground">Sign in</h1>
-      <p className="mt-2 text-subtle">Sign in to build and manage your game library.</p>
-
-      {errorMessage && (
-        <p className="mt-4 rounded-md border border-divider bg-background px-3 py-2 text-sm text-subtle">
-          {errorMessage}
-        </p>
-      )}
-
-      <div className="mt-6">
-        <GoogleSignIn />
-      </div>
-
-      {/* Dev-only escape hatch; never rendered (and never invocable) in prod. */}
-      {IS_DEV && <MagicLinkForm />}
-    </div>
+    <p className="mb-4 rounded-md border border-divider bg-background px-3 py-2 text-sm text-subtle">
+      {errorMessage}
+    </p>
   );
 }
 
-export default function LoginPage() {
-  // useSearchParams requires a Suspense boundary in the App Router.
+export function SignInPanel() {
   return (
-    <main className="mx-auto flex min-h-[60vh] max-w-md flex-col justify-center px-6 py-16">
+    <div>
+      {/* No fallback height: the error is absent on every normal visit, so
+          reserving space for it would leave a permanent gap. It appears only
+          on a redirect back from a failed sign-in, where the layout shifting
+          slightly is not worth a gap the other 99% of the time. */}
       <Suspense fallback={null}>
-        <LoginContent />
+        <AuthError />
       </Suspense>
-    </main>
+
+      <GoogleSignIn />
+
+      {/* Dev-only escape hatch; never rendered (and never invocable) in prod. */}
+      {IS_DEV && <MagicLinkForm />}
+
+      {/* No data-disclosure line under the button. Google's brand review does
+          not ask for one, and in-app disclosure is only required for sensitive
+          or restricted scopes; this requests basic profile and email. What the
+          app reads is covered by the privacy policy linked at the foot of the
+          page. If the scopes ever widen, that changes. */}
+    </div>
   );
 }

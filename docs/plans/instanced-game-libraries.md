@@ -286,7 +286,7 @@ feels clunky in the spike.
 - **Writes are owner-only**: every mutating endpoint checks `jwt.sub == row.user_id`.
   Enforced in FastAPI (the API is the only writer). Supabase Row-Level Security is available
   as a defense-in-depth layer but optional since clients never talk to the DB directly.
-- **No admin tier needed for v1**; Robert is just a user whose username owns `/video_games`.
+- **No admin tier needed for v1**; Robert is just a user whose username owns `/video-games`.
 
 ## 6. API Design (FastAPI)
 
@@ -369,11 +369,11 @@ pattern is a tiny **resolver route**:
 - The homepage tile (and the nav link) point at `/library`.
 - `/library` is a page that renders nothing: its server component reads the session cookie
   and immediately issues a `redirect()` — logged in → `/u/{your-username}`, logged out →
-  `/video_games`.
+  `/video-games`.
 - Why the extra hop instead of checking the cookie on the homepage itself: reading cookies
   in a Next.js page opts that page into **dynamic rendering** (rebuilt per-request instead
   of served static from the CDN). Quarantining the cookie read into a redirect-only route
-  keeps `/` and `/video_games` fully static and fast, and only the invisible `/library` hop
+  keeps `/` and `/video-games` fully static and fast, and only the invisible `/library` hop
   is dynamic. (The alternative — conditionally rendering the tile's href server-side — works
   but makes the whole homepage dynamic for one link.)
 
@@ -383,7 +383,7 @@ Routes:
   (display name, follower/following counts, follow button). **Decided:** this URL renders
   the library _directly_ — no `/u/[username]/games` nesting; if movie/book libraries
   (TODO backlog) materialize later, `/u/[username]` evolves into a profile hub then.
-- `/video_games` — **decided: stays Robert's library** at its stable URL (existing
+- `/video-games` — **decided: stays Robert's library** at its stable URL (existing
   links/SEO keep working, no redirect); doubles as the logged-out demo with the sign-up CTA.
 - `/library` — the resolver redirect described above.
 - Login/account: **the sign-in surface lives inside the game library, not the global
@@ -406,8 +406,8 @@ interim, and nothing is blocked by waiting.
 **Google OAuth brand verification is deferred to Phase 4.** To show the app name on the
 Google consent screen instead of the raw `*.supabase.co` redirect host, Google requires an
 "App homepage" URL that names the app, states its purpose in text, and links the privacy
-policy. The logged-out `/video_games` **sign-up CTA banner** above is exactly such a page —
-so we point Google's App homepage at `https://rgrassian.com/video_games` and let the banner
+policy. The logged-out `/video-games` **sign-up CTA banner** above is exactly such a page —
+so we point Google's App homepage at `https://rgrassian.com/video-games` and let the banner
 satisfy verification as a byproduct of building it (no throwaway content, no change to the
 portfolio home — a bare login page or the photo-only home both fail Google's "explain the
 purpose" check, learned 2026-07-22). **App name: "Video Game Library"** (updated
@@ -421,15 +421,15 @@ privacy URL now.
 **Open items — Phase 4 (deferred 2026-07-22; code items shipped 2026-07-28 in PR #68).**
 Concrete, trackable tasks for the two decisions above:
 
-- [x] **Build the logged-out sign-up CTA banner** on `/video_games` — names the app
+- [x] **Build the logged-out sign-up CTA banner** on `/video-games` — names the app
       ("Video Game Library"), states its purpose, links `/privacy`. This page becomes
       Google's App homepage, so the app-name string shown here must match the consent screen
       exactly. _Shipped:_ `src/components/video_games/SignupCta.tsx`, gated by a
-      `showSignupCta` prop only `/video_games` passes. The app name is a named constant
+      `showSignupCta` prop only `/video-games` passes. The app name is a named constant
       (`APP_NAME`) precisely because it must stay byte-identical to the console string.
 - [ ] **Update Google Cloud OAuth config and re-run brand verification** (manual dashboard
       step, _after_ the banner deploys): App name → "Video Game Library"; App homepage →
-      `https://rgrassian.com/video_games`; Privacy policy → `https://rgrassian.com/privacy`;
+      `https://rgrassian.com/video-games`; Privacy policy → `https://rgrassian.com/privacy`;
       add `rgrassian.com` as an authorized domain; resubmit. Done = the consent screen shows
       the app name, not the `supabase.co` host. **Still open — the only item here that is not
       code.** Tracked in `TODO.md`; blocked until PR #68 reaches production.
@@ -437,7 +437,7 @@ Concrete, trackable tasks for the two decisions above:
       library, and give logged-in users a sign-out control there too (it no longer lives in
       the nav). _Shipped:_ `AuthButton` moved into the library header in `LibraryPage.tsx`,
       restyled onto the shelf tokens.
-- [x] **Move the login surface under the game library** (`/video_games/login`, or a
+- [x] **Move the login surface under the game library** (`/video-games/start`, or a
       library-local sign-in affordance); update every link/redirect that points at `/login`,
       including the `/auth/confirm` and `/auth/callback` error redirects (`/login?error=…`).
       _Shipped:_ all three redirects verified landing on the new path.
@@ -632,7 +632,7 @@ Cloud re-verification in the §7.1 checklist.
 
 - [x] `/u/[username]` public routes, signup open, empty states, per-user rate limits.
       Signup needed no new switch — it was only ever bounded by `MAX_USERS`.
-- [x] The `/library` resolver route + sign-up CTA banner on `/video_games` (§7.1).
+- [x] The `/library` resolver route + sign-up CTA banner on `/video-games` (§7.1).
 - [x] Entry experience and auth-surface scoping — see the **Open items checklist in §7.1**.
       Google brand verification is the one item still open there.
 - [x] Light abuse guardrails (§9): shared per-user write budget (60/min, `writes` bucket,
@@ -645,7 +645,7 @@ Two things learned during the slices, recorded because they cost real time:
   client-side owner comparison, and the `revalidateTag` key. Only the first two are
   interchangeable. The tag must be resolved from the caller's own token server-side —
   taking it as a Server Action argument would let anyone purge anyone else's cache.
-- **`next build` prerenders `/video_games` against production's API**, so the fetch timeout
+- **`next build` prerenders `/video-games` against production's API**, so the fetch timeout
   is a deploy-time concern, not just a runtime one. A 5s bound sized for page renders turned
   a serverless cold start into failed deployments; it is now phase-aware (30s + one retry
   while prerendering, 5s when serving).
@@ -681,7 +681,7 @@ Two things learned during the slices, recorded because they cost real time:
 | 2   | **Cover images**               | **Hotlink IGDB's CDN** (exactly what the CSVs do). Zero egress/storage cost to us; revisit only if IGDB URLs break or ToS enforcement appears.                                                                                                                                                                                                                                                                                                                                                         |
 | 3   | **Abuse / spam guardrails**    | OAuth-only signup, per-user rate limits, row caps (~2k games), IGDB-URLs-only for images, reserved-username list — plus the signup cap (#13).                                                                                                                                                                                                                                                                                                                                                          |
 | 4   | **Ratings taxonomy**           | Global 5-tier S–F scale for all users in v1; per-user scales deferred indefinitely.                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 5   | **`/video_games` identity**    | **Stays Robert's shelf** at its stable URL, doubling as the logged-out demo with the sign-up CTA. No redirect.                                                                                                                                                                                                                                                                                                                                                                                         |
+| 5   | **`/video-games` identity**    | **Stays Robert's shelf** at its stable URL, doubling as the logged-out demo with the sign-up CTA. No redirect.                                                                                                                                                                                                                                                                                                                                                                                         |
 | 6   | **Private libraries**          | **None in v1** — all libraries and follower lists are public.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | 7   | **Local dev**                  | **Supabase CLI local stack only** (§7.5): Alembic against local Postgres, magic-link auth via Mailpit. No second cloud project; previews hit prod via a locked-down read-only role with mutations disabled (`APP_ENV=preview`); no-staging caveat accepted (§7.5).                                                                                                                                                                                                                                     |
 | 8   | **Two toolchains**             | Python gets ruff + pytest and a CI job alongside ESLint/Prettier; husky/lint-staged covers both.                                                                                                                                                                                                                                                                                                                                                                                                       |

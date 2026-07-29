@@ -1,4 +1,4 @@
-// Preview at: /video_games/opengraph-image
+// Preview at: /video-games/opengraph-image
 // Dynamically generated OG image for the Game Library page.
 // Title section on a dark background, game cases sitting on a walnut shelf plank.
 import { ImageResponse } from "next/og";
@@ -28,7 +28,7 @@ const PADDING_X = 23;
 // of the actual game library shelf where a strip of wood shows above the covers.
 const PLANK_OVERHANG = 24;
 
-// Grain background for the plank, ported from .shelf-plank-grain in video_games.css.
+// Grain background for the plank, ported from .shelf-plank-grain in video-games.css.
 // CSS variables resolved to their dark-mode values.
 const PLANK_BACKGROUND = [
   // Fine grain rhythm 1 — tight 9px repeat
@@ -49,7 +49,7 @@ const PLANK_BACKGROUND = [
 // Async is fine here — Next.js awaits metadata image route handlers, and
 // getGames() is now async (it may fetch from the library API).
 export default async function OGImage() {
-  // The OG image for /video_games specifically, so the owner is pinned.
+  // The OG image for /video-games specifically, so the owner is pinned.
   // /u/[username] has no OG image of its own yet.
   const games = await getGames(LIBRARY_OWNER_USERNAME);
   const totalCount = games.length;

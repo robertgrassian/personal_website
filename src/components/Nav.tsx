@@ -8,11 +8,11 @@ import { caveat } from "../lib/fonts";
 
 // `activePaths` exists because the link target and the page you end up on are
 // not always the same URL. /library is a redirect-only resolver (it sends you
-// to /video_games or /u/{you}), so matching the active state against its own
+// to /video-games or /u/{you}), so matching the active state against its own
 // href would never highlight it. Defaults to [href] for the ordinary links.
 const links: { href: string; label: string; activePaths?: string[] }[] = [
   { href: "/about", label: "About" },
-  { href: "/library", label: "Game Library", activePaths: ["/library", "/video_games", "/u/"] },
+  { href: "/library", label: "Game Library", activePaths: ["/library", "/video-games", "/u/"] },
   { href: "/resume", label: "Resume" },
 ];
 
@@ -50,7 +50,7 @@ export function Nav() {
             <li key={href}>
               <Link
                 href={href}
-                // startsWith handles nested routes (e.g. /video_games/login)
+                // startsWith handles nested routes (e.g. /video-games/start)
                 className={`text-xs sm:text-sm whitespace-nowrap transition-colors duration-150 ${
                   (activePaths ?? [href]).some((p) => pathname.startsWith(p))
                     ? "text-link font-medium"

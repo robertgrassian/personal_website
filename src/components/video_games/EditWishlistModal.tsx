@@ -6,7 +6,7 @@ import {
   deleteWishlistItem,
   promoteWishlistItem,
   updateWishlistItem,
-} from "@/app/video_games/actions";
+} from "@/app/video-games/actions";
 import { CloseIcon } from "@/components/Icon";
 import { useModalChrome } from "./useModalChrome";
 import { inputClass, labelClass } from "./formStyles";
@@ -168,7 +168,7 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
               disabled={isPending || item.id === undefined}
               className="rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
             >
-              I bought it — move to library
+              I bought it, move to library
             </button>
           ) : (
             <div>
@@ -189,7 +189,7 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
                 ))}
               </datalist>
               <p className="mt-1.5 text-[11px] text-shelf-text-muted">
-                It lands on the Unrated shelf — rate it once you&rsquo;ve played.
+                It lands on the Unrated shelf. Rate it once you&rsquo;ve played.
               </p>
               <div className="mt-2 flex gap-2">
                 <button

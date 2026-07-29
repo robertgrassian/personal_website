@@ -3,29 +3,29 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { APP_NAME } from "@/lib/appName";
 
-// Sign-up call to action for logged-out visitors on /video_games.
+// Sign-up call to action for logged-out visitors on /video-games.
 //
-// This banner does double duty. It is the pitch on the public demo shelf, and
-// it is also the page Google's OAuth brand verification points at as the "App
-// homepage" — which requires a page that names the app, explains in text what
-// it does, and links a privacy policy. All three are below, so keep them:
-// APP_NAME in particular must stay byte-identical to the app name configured
-// in the Google Cloud console, or the consent screen falls back to showing the
-// raw supabase.co host.
+// The pitch on the public demo shelf, and the top of the funnel into
+// /video-games/start, which is the page Google's OAuth brand verification
+// points at as the "App homepage".
 //
-// The app is "Video Game Library"; "Robert's" belongs to a particular library,
-// not to the product someone signs into. Rendered inside the heading and the
-// first sentence rather than alone, because the page heading directly above
-// already reads "Robert's Video Game Library" and a bare repeat looks like a
-// mistake.
-const APP_NAME = "Video Game Library";
+// This banner used to carry that role itself, and Google rejected it: a shelf
+// of cover art with one sentence of prose does not read as a page explaining
+// an app, and the h1 above it says "Robert's Video Game Library" where the
+// console says "Video Game Library". Both jobs moved to the landing page. What
+// stays here is the invitation.
+//
+// Rendered inside the heading rather than alone, because the page heading
+// directly above already reads "Robert's Video Game Library" and a bare repeat
+// looks like a mistake.
 
 // Rendered by default and hidden after hydration if a session turns up, rather
 // than the reverse. Two reasons. Logged-out visitors are both the overwhelming
 // majority and the entire audience for this banner, so they get it instantly
 // with no layout shift. And a signed-in viewer very rarely lands here at all:
-// /library sends them to their own /u/{username}, so reaching /video_games
+// /library sends them to their own /u/{username}, so reaching /video-games
 // while signed in means typing the URL or following an old link.
 //
 // The static HTML is identical for every viewer either way, which is what the
@@ -66,7 +66,7 @@ export function SignupCta() {
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
         <Link
-          href="/video_games/login"
+          href="/video-games/start"
           // bg-link is the site's amber accent, paired with text-background as
           // on the login page: the accent flips amber-700 → amber-500 between
           // light and dark, and the background token flips with it, so the

@@ -5,7 +5,7 @@ import type { BaseGame } from "./baseGame";
 // Re-export under the old name so existing `gameGenres` imports keep working.
 export { baseGameGenres as gameGenres } from "./baseGame";
 
-// Owner of the /video_games shelf. Client-safe on purpose: the server read
+// Owner of the /video-games shelf. Client-safe on purpose: the server read
 // path uses it as the API username, the browser uses it to decide whether the
 // signed-in viewer owns this library (edit affordances), and write actions
 // use it to build the cache tag to revalidate.

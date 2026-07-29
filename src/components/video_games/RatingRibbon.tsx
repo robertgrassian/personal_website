@@ -23,7 +23,7 @@ export function RatingRibbon() {
       // xMidYMid centers it vertically inside the taller cover div, shifting the ribbon down.
       preserveAspectRatio="xMinYMin meet"
       role="img"
-      aria-label="S — Perfect"
+      aria-label="S: Perfect"
     >
       <defs>
         <filter id={filterId} x="-30%" y="-30%" width="160%" height="160%">

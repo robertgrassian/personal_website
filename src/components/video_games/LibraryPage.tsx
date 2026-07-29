@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 // route's layout: two routes render this shell now, and a per-route import
 // would be two places to remember. App Router allows CSS imports from any
 // component, unlike the Pages Router's global-CSS restriction.
-import "@/app/video_games/video_games.css";
+import "@/app/video-games/video-games.css";
 import "@/components/crt/crt.css";
 import { getGames } from "@/lib/gamesServer";
 import { getWishlist } from "@/lib/wishlistServer";
@@ -16,7 +16,7 @@ import { LibraryCount } from "@/components/video_games/LibraryCount";
 import { AuthButton } from "@/components/AuthButton";
 import { SignupCta } from "@/components/video_games/SignupCta";
 
-// One library page, two routes: /video_games (Robert's shelf, at its stable
+// One library page, two routes: /video-games (Robert's shelf, at its stable
 // URL) and /u/[username] (anyone's). Extracted so the two can never drift —
 // the only difference between them is which username they pass in.
 //
@@ -24,7 +24,7 @@ import { SignupCta } from "@/components/video_games/SignupCta";
 // may be async functions and `await` data before rendering.
 type LibraryPageProps = {
   username: string;
-  // Show the logged-out sign-up pitch. Only /video_games sets this: that page
+  // Show the logged-out sign-up pitch. Only /video-games sets this: that page
   // is the public demo shelf and the URL Google's OAuth brand verification
   // points at. A user's own /u/{username} is not a marketing surface.
   showSignupCta?: boolean;
@@ -46,7 +46,7 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
     if (username.toLowerCase() === LIBRARY_OWNER_USERNAME) {
       throw new Error(
         `The library API has no profile for '${LIBRARY_OWNER_USERNAME}', the seeded owner. ` +
-          `That is a backend misconfiguration, not a missing user — check that the database ` +
+          `That is a backend misconfiguration, not a missing user. Check that the database ` +
           `is migrated and seeded (\`cd api && uv run python scripts/seed.py\`).`
       );
     }
@@ -96,7 +96,7 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
             </h1>
             {/* Whose library this is. On /u/[username] the heading already
                 carries the display name, so the handle is what adds
-                information; on /video_games the heading is generic and this is
+                information; on /video-games the heading is generic and this is
                 the only thing naming the owner. Rendered from the profile, so
                 the casing is the stored one rather than whatever the URL used.
                 Follower/following counts belong here too, but not until Phase 5

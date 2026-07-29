@@ -1,5 +1,5 @@
-// A from-scratch, photorealistic CRT television, shared by the /video_games
-// library page and the standalone /currently_playing route. Unlike the older
+// A from-scratch, photorealistic CRT television, shared by the /video-games
+// library page and the standalone /currently-playing route. Unlike the older
 // stylized wood-cabinet TV (components/video_games/CurrentlyPlaying.tsx, now
 // unused), this is a '90s black-plastic set rendered entirely in CSS/SVG (see
 // ./crt.css). It cycles through the currently-playing games like TV channels
@@ -46,7 +46,7 @@ type CrtTvProps = {
   // fold. The full-size cabinet is scaled down uniformly via CSS transform
   // (see .pcrt-tv--compact in crt.css) rather than re-tuned rule by rule, so
   // it reads as a miniature of the same TV. Omitted (false) on the standalone
-  // /currently_playing route, which keeps the full-size hero treatment.
+  // /currently-playing route, which keeps the full-size hero treatment.
   compact?: boolean;
 };
 
@@ -389,7 +389,7 @@ export function CrtTv({ games, compact = false }: CrtTvProps) {
           <>
             <h2 className="mt-1 text-2xl font-bold text-foreground">Nothing playing</h2>
             <p className="mt-0.5 text-sm text-muted">
-              Nothing&rsquo;s on right now — check back when a game is in progress.
+              Nothing&rsquo;s on right now. Check back when a game is in progress.
             </p>
           </>
         )}

@@ -39,5 +39,5 @@ export async function GET(request: NextRequest) {
   }
 
   // Invalid or expired link → a friendly error page rather than a raw 4xx.
-  return NextResponse.redirect(`${origin}/video_games/login?error=link_invalid`);
+  return NextResponse.redirect(`${origin}/video-games/start?error=link_invalid`);
 }
