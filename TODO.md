@@ -185,6 +185,20 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       IGDB's `draft.platforms` for the selected game into the shelf-system list, but the
       promote form in `EditWishlistModal` only offers existing shelf systems — thread the
       IGDB platforms through there too, and consider doing the same for genres.
+- [ ] **`--subtle` fails WCAG AA for body text in both color schemes.** Measured 2026-07-28
+      while fixing the landing page: dark mode is `#6b7280` on `#0a0a0a` = **4.1:1**, light mode
+      is `#9ca3af` on `#ffffff` = **2.5:1**. The AA minimum for normal-size text is 4.5:1, so
+      the light value is the worse of the two by a wide margin. Fine for genuinely decorative
+      text; not fine for the prose it currently carries in several places.<br>
+      The landing page was fixed by moving its copy to `text-foreground`, which is a workaround
+      rather than a fix: the token is still wrong everywhere else it holds real sentences.
+      Proper fix is darkening the light value and lightening the dark one, then walking the
+      pages that use it (`about`, `resume`, the shelf UI, `StatsPanel`, `SqlQueryPanel`) to
+      confirm nothing that was meant to recede now shouts. Worth doing as its own pass with
+      before/after screenshots, since it touches the look of the whole site.<br>
+      _Note the dark value is currently darker than the light one_ (gray-500 vs gray-400),
+      which is backwards: muted text on a dark background needs to be lighter, not darker.
+      That inversion is probably the original mistake.
 - [ ] **A username rename feature must delete `usernameByUserId` (`src/lib/meApi.ts`).** That
       module-scope map memoizes user id → username so the ten write paths don't each pay an
       API round trip to learn whose cache tag to purge. It is correct only because usernames
