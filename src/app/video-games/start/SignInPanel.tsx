@@ -165,12 +165,11 @@ export function SignInPanel() {
       {/* Dev-only escape hatch; never rendered (and never invocable) in prod. */}
       {IS_DEV && <MagicLinkForm />}
 
-      {/* text-foreground rather than text-subtle: in dark mode --subtle
-          measures 4.1:1 on the page background, under the 4.5:1 AA minimum,
-          and small text is where that hurts most. Sized down instead. */}
-      <p className="mt-3 text-xs text-foreground">
-        Signing in reads only your name and email address from Google.
-      </p>
+      {/* No data-disclosure line under the button. Google's brand review does
+          not ask for one, and in-app disclosure is only required for sensitive
+          or restricted scopes; this requests basic profile and email. What the
+          app reads is covered by the privacy policy linked at the foot of the
+          page. If the scopes ever widen, that changes. */}
     </div>
   );
 }
