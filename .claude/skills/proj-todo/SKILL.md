@@ -1,5 +1,5 @@
 ---
-name: project-todo
+name: proj-todo
 description: "Owns the project backlog in TODO.md at the repo root — NOT the in-session task tracker (TaskCreate/TaskUpdate), which is unrelated. Invoke for every interaction with that file, reads included: 'add to my todos', 'what should I work on next', 'mark X done', 'is X on my list?', 'drop that item', 'clean up the todo list', and any time you would otherwise read or edit TODO.md yourself."
 argument-hint: "[what you want to do]"
 disable-model-invocation: false
