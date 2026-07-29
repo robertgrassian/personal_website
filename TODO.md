@@ -144,6 +144,49 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
 
 ## Backlog / Ideas
 
+- [ ] **Nest the whole game library under `/video-games`.** A user's library is at
+      `/u/rgrassian`; it should be `/video-games/u/rgrassian`, so the app owns one prefix
+      instead of leaking a top-level `/u` namespace. This is the concrete first instance of the
+      routing/namespace decision already in this backlog ("Decide the routing/namespace strategy
+      as the site grows into multiple apps") and effectively settles it in favour of option (a),
+      per-app route prefixes on one domain.<br>
+      **Do it soon.** `/u/` shipped days ago (Phase 4) and no one but Robert has a library yet,
+      so almost nothing links to those URLs. Every week of signups makes the rename more
+      expensive, since a user's public library page is the thing people share.<br>
+      _Google is unaffected:_ the App homepage is `/video-games/start`, which does not move. No
+      resubmission needed. Worth double-checking the console afterwards anyway.<br>
+      _The work:_ move `src/app/u/[username]/` under `src/app/video-games/`; add a permanent
+      redirect `/u/:username` → `/video-games/u/:username` next to the kebab-case ones in
+      `next.config.ts`; update the five places that build the URL (`video-games/start/page.tsx`,
+      `library/page.tsx`, `onboarding/page.tsx`, `onboarding/actions.ts`, and the `activePaths`
+      array in `Nav.tsx`); add it to `sitemap.ts`.<br>
+      _Two API details:_ `RESERVED_USERNAMES` (`api/app/services/me.py`) can stop reserving `u`
+      once nothing lives at the top level, though keeping it costs nothing. More usefully, that
+      set still lists `video_games` with an underscore, which is stale after the kebab rename —
+      and since `USERNAME_RE` allows hyphens, `video-games` is a claimable username today that
+      would be confusing next to the route. Fix that in the same pass.<br>
+      _The one cost:_ `/u/rgrassian` is shorter and reads better when shared than
+      `/video-games/u/rgrassian`. If that matters more than the namespacing, the alternative is
+      keeping `/u/` as the canonical public URL and accepting the inconsistency.
+- [ ] **Put the CRT on the landing page (`/video-games/start`), cycling through games.** Same
+      channel-flicking treatment `CrtTv` already does on a user's library: it takes
+      `games: Game[]` and a `compact?: boolean`, auto-cycles with a static burst, and already
+      respects `prefers-reduced-motion` by not auto-cycling. Needs `@/components/crt/crt.css`
+      imported wherever it renders, the way `LibraryPage` does.<br>
+      **Where the games come from, cheapest first.** A hardcoded array is easiest and safest:
+      cover art can point at `images.igdb.com`, already allowed in `next.config.ts`
+      `remotePatterns`. Better and barely harder is reading five real games from the existing
+      public endpoint the site already uses (`getGames(LIBRARY_OWNER_USERNAME)`), which keeps
+      the page honest, needs no new dependency, and follows the prerender-and-cache pattern
+      `/video-games` already uses.<br>
+      _Think twice about the Steam idea._ This page is Google's OAuth App homepage. A live call
+      to a third-party API introduces a failure mode on the one URL that must always render and
+      describe the app, and adds an external dependency to a page that is currently static.
+      If it is wanted for its own sake, treat it as a separate feature with a cached fallback
+      rather than as the CRT's data source.<br>
+      _Watch the layout:_ the page's job is to state the name and purpose above the fold for a
+      reviewer reading top down. A TV pushing the copy down would undo what PR #70 fixed, so
+      the CRT probably belongs below the sign-in section, not above it.
 - [ ] **Implement account deletion (`DELETE /api/py/me/account`)** — spec decision #22 planned
       it (cascade down from `profiles` + `auth.users` removal via the Supabase Admin API,
       which `core/supabase_admin.py` already wraps for the over-cap cleanup), but it was never
