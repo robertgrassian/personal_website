@@ -1,22 +1,38 @@
 ---
 name: todo
-description: "Read, add, complete, reorder, or reword anything in TODO.md. Invoke this for EVERY TODO interaction, not just explicit /todo commands — including phrasings like 'add to my todos', 'add that to the todo list', 'what should I work on next', 'what's next', 'mark X done', 'that's finished', and any request to reorganize or clean up the TODO. Also invoke it before editing TODO.md directly for any reason: this skill owns that file's structure, and a manual edit will drift from it."
+description: "Read, add, complete, reorder, or reword anything in TODO.md. Invoke this for EVERY TODO interaction, reads included, not just explicit /todo commands — 'add to my todos', 'what should I work on next', 'what's next', 'mark X done', 'is X on my list?', 'what did we say about X?', and any request to reorganize or clean up the TODO. Invoke it before reading or editing TODO.md directly for any reason, including when you need its contents to answer something. This skill owns that file's structure; reads through it are read-only and never modify the file."
 argument-hint: "[list | done | do] [description of the task]"
 disable-model-invocation: false
 ---
 
 Check the first word of `$ARGUMENTS` (case-insensitive) to determine the mode: `list`, `done`, `do`, or a new item.
 
-## Always: reconcile the file first
+## Always: check the file's structure first
 
-Before doing anything else, in every mode, fix the file's structure. TODO.md is edited outside this skill too (directly, mid-conversation), and those edits don't follow the rules below — so the skill is where drift gets corrected rather than assumed absent.
+TODO.md gets edited outside this skill too, and those edits drift from the rules below — so this skill is where drift gets caught.
+
+**What to do about drift depends on whether this invocation is already a write.**
+
+- **Writing anyway** (`done`, `do`, adding, reorganizing): fix the drift silently as part of the change, and only mention it if something non-obvious moved.
+- **Read-only** ("what's next", `list`, answering a question about the list): **do not modify the file.** A read must not leave a diff in the working tree — the user may be mid-change on an unrelated branch, and a surprise modification to a tracked file is worse than a slightly untidy TODO. Mention what is out of place in a sentence at the end and offer to fix it.
+
+The drift to look for:
 
 1. **Any `- [x]` item outside "Recently Completed" is misplaced.** Move it to the top of Recently Completed. Compress it while moving: keep detail that stays useful as reference (a debugging gotcha, an accepted trade-off, a follow-up someone will need), drop the planning detail that only mattered while it was pending (step-by-step dashboard instructions, "quick fix vs long-term fix" framing).
 2. **Fix cross-references broken by the move.** A remaining open item that said "see the gotcha above" needs repointing once that text moves to another section.
 3. **Trim Recently Completed to 20 entries**, dropping the oldest from the bottom. Before dropping one, check whether it carries reference material still cited elsewhere in the file; if so, fold that detail into whatever item cites it rather than losing it.
 4. **Prune stale framing in section headers and open items** — a note saying work is blocked on something that has since shipped is worse than no note.
 
-Do this silently as part of whatever was asked. Only report it if something non-obvious moved.
+## If reading or answering a question about the list
+
+Any request to consult the TODO that is not "what's next" or `list`: "is X on my list?", "what did we say about the wishlist work?", "read me the backlog". Also use this when _you_ need the file's contents to answer something, rather than reading it directly.
+
+Read `TODO.md`, answer the question, quote or summarize only the relevant entries. **Read-only: do not edit the file.**
+
+Two things worth doing while you have it open, because they are cheap and the user cannot see them from a summary:
+
+- If an entry's premise has gone stale (it describes behavior that has since changed, or cites a file that has moved), say so rather than repeating it as though it were current. An entry is only as good as its last verification.
+- If the answer is "no, that is not on the list", say that plainly and offer to add it, rather than stretching a loosely-related item to fit.
 
 ## If asked what to work on next
 
