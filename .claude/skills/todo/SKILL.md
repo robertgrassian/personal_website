@@ -1,11 +1,23 @@
 ---
 name: todo
 description: "Read, add, complete, reorder, or reword anything in TODO.md. Invoke this for EVERY TODO interaction, reads included, not just explicit /todo commands — 'add to my todos', 'what should I work on next', 'what's next', 'mark X done', 'is X on my list?', 'what did we say about X?', and any request to reorganize or clean up the TODO. Invoke it before reading or editing TODO.md directly for any reason, including when you need its contents to answer something. This skill owns that file's structure; reads through it are read-only and never modify the file."
-argument-hint: "[list | done | do] [description of the task]"
+argument-hint: "what you want to do with the TODO list, in plain words"
 disable-model-invocation: false
 ---
 
-Check the first word of `$ARGUMENTS` (case-insensitive) to determine the mode: `list`, `done`, `do`, or a new item.
+**Work out what was meant from the request itself. There is no command syntax to parse.** The user talks to this skill in ordinary language, whether they typed `/todo` or just said something in passing, so route on intent:
+
+| What they want                             | Section                         |
+| ------------------------------------------ | ------------------------------- |
+| Consult the list, or you need its contents | Reading or answering a question |
+| Pick something to work on                  | What to work on next            |
+| A quick overview                           | Showing the list                |
+| Something is finished                      | Marking done                    |
+| Do one of the items now                    | Implementing a task             |
+| Capture something new                      | Adding a new item               |
+| Reorganize, prune, fix the file            | Reorganizing                    |
+
+Keyword prefixes like "done" or "list" are a hint, never a rule: "the wishlist thing is done" is a completion, and "add a todo to list the systems on each shelf" is a new item despite both words appearing. When the request genuinely fits two sections, prefer the non-destructive one and say what you assumed. A bare invocation with nothing after it means show the list.
 
 ## Always: check the file's structure first
 
@@ -13,8 +25,8 @@ TODO.md gets edited outside this skill too, and those edits drift from the rules
 
 **What to do about drift depends on whether this invocation is already a write.**
 
-- **Writing anyway** (`done`, `do`, adding, reorganizing): fix the drift silently as part of the change, and only mention it if something non-obvious moved.
-- **Read-only** ("what's next", `list`, answering a question about the list): **do not modify the file.** A read must not leave a diff in the working tree — the user may be mid-change on an unrelated branch, and a surprise modification to a tracked file is worse than a slightly untidy TODO. Mention what is out of place in a sentence at the end and offer to fix it.
+- **Writing anyway** (marking done, implementing, adding, reorganizing): fix the drift silently as part of the change, and only mention it if something non-obvious moved.
+- **Read-only** (answering a question, what to work on next, showing the list): **do not modify the file.** A read must not leave a diff in the working tree — the user may be mid-change on an unrelated branch, and a surprise modification to a tracked file is worse than a slightly untidy TODO. Mention what is out of place in a sentence at the end and offer to fix it.
 
 The drift to look for:
 
@@ -23,9 +35,9 @@ The drift to look for:
 3. **Trim Recently Completed to 20 entries**, dropping the oldest from the bottom. Before dropping one, check whether it carries reference material still cited elsewhere in the file; if so, fold that detail into whatever item cites it rather than losing it.
 4. **Prune stale framing in section headers and open items** — a note saying work is blocked on something that has since shipped is worse than no note.
 
-## If reading or answering a question about the list
+## Reading or answering a question
 
-Any request to consult the TODO that is not "what's next" or `list`: "is X on my list?", "what did we say about the wishlist work?", "read me the backlog". Also use this when _you_ need the file's contents to answer something, rather than reading it directly.
+Any request to consult the TODO that is not "what should I work on" or a request to see the whole list: "is X on my list?", "what did we say about the wishlist work?", "read me the backlog". Also use this when _you_ need the file's contents to answer something, rather than reading it directly.
 
 Read `TODO.md`, answer the question, quote or summarize only the relevant entries. **Read-only: do not edit the file.**
 
@@ -34,13 +46,13 @@ Two things worth doing while you have it open, because they are cheap and the us
 - If an entry's premise has gone stale (it describes behavior that has since changed, or cites a file that has moved), say so rather than repeating it as though it were current. An entry is only as good as its last verification.
 - If the answer is "no, that is not on the list", say that plainly and offer to add it, rather than stretching a loosely-related item to fit.
 
-## If asked what to work on next
+## What to work on next
 
 "What's next", "what should I work on", and similar. **Answer from `TODO.md` alone — do not explore the codebase.** Read the file, summarize what is in **Up Next**, and recommend one thing to start with.
 
 Give a recommendation rather than a menu. If items block each other, say so and order them; if something is cheap now and expensive later, that is usually the one to lead with. Note when an item's stated blocker has since cleared.
 
-## If listing (`/todo list`)
+## Showing the list
 
 Read `TODO.md` in full, then output two sections:
 
@@ -72,18 +84,18 @@ Format:
 
 Keep the output short and scannable. Do **not** show all sections or every item unless the user asks.
 
-## If marking done (`/todo done <description>`)
+## Marking done
 
-The description after "done" identifies which task to complete. Find the matching item across all sections of `TODO.md` (it may not be an exact match — use the description to find the best match).
+Identify which task from what they said. Find the matching item across all sections of `TODO.md` (it may not be an exact match — use the description to find the best match).
 
 1. **Remove** the matching `- [ ]` line from whatever section it's in.
 2. **Add** it to the **Recently Completed** section as `- [x] <task description>`, inserted at the **top** of that section (newest first).
 3. If **Recently Completed** now exceeds **20** entries, remove from the **bottom** (oldest) until it's back to 20.
 4. If no matching item is found, let the user know.
 
-## If implementing a task (`/todo do <description>`)
+## Implementing a task
 
-The description after "do" identifies which task to implement. Find the best-matching `- [ ]` item across all sections of `TODO.md`.
+Identify which task from what they said. Find the best-matching `- [ ]` item across all sections of `TODO.md`.
 
 1. Read `TODO.md` to find the matching task. If no match is found, let the user know and stop.
 2. Implement the task — read whatever files are needed, make the changes, and explain what you did.
@@ -91,7 +103,19 @@ The description after "do" identifies which task to implement. Find the best-mat
 
 Do **not** ask the user whether the changes look good before marking done. The act of applying changes to the codebase (whether auto-accepted or manually accepted by the user) is sufficient — mark it done as the final step of the implementation.
 
-## If adding a new item (no recognized prefix)
+## Reorganizing
+
+"Fix the todo list", "clean this up", "these should be grouped differently", or a change to the rules themselves (the cap, the sections, what belongs where).
+
+Run the full structure check above and apply it, since this is a write. Then do whatever was actually asked, which is usually one of:
+
+- **Items in the wrong section.** Completed work still sitting in Up Next, or something in Backlog that has become the next thing to do.
+- **A rule change.** If the user changes one of the rules in this file, edit this file too, not just `TODO.md`. A rule followed once and not written down will not survive the session.
+- **Entries that have gone stale.** An item whose premise no longer holds, or whose stated blocker has since cleared. Correct it rather than deleting it, and say what changed.
+
+Report what moved and why, briefly. This is the one mode where the user cannot see the result at a glance, so a two-line summary of the structural changes is worth more than a diff they have to read.
+
+## Adding a new item
 
 Before adding, read `TODO.md` and check whether a similar item already exists in any section.
 
@@ -104,7 +128,7 @@ Before adding, read `TODO.md` and check whether a similar item already exists in
 **If no similar item exists:**
 Insert a new item as the **first** entry of the "Backlog / Ideas" section (right after the heading). Do not modify any other section.
 
-**Do not just paste `$ARGUMENTS` as a one-liner.** The user's phrasing is the starting point, not the entry. Before writing, spend a moment in the codebase confirming what is actually true — the file and line the item concerns, whether the thing described is really the current behavior, whether a related feature already exists. Then write an entry that will still make sense in three months to someone who has forgotten this conversation:
+**Do not just paste their words in as a one-liner.** The phrasing is the starting point, not the entry. Before writing, spend a moment in the codebase confirming what is actually true — the file and line the item concerns, whether the thing described is really the current behavior, whether a related feature already exists. Then write an entry that will still make sense in three months to someone who has forgotten this conversation:
 
 - **Lead with the ask** in bold, in the user's terms.
 - **Correct the premise if it is wrong.** If the user describes current behavior inaccurately, say what the code actually does, with a `file.ts:line` reference. This is the single most valuable thing the entry can carry.
