@@ -1,6 +1,6 @@
 ---
 name: todo
-description: "Manage the project TODO list. Add: /todo [task]. Done: /todo done [task]. Do: /todo do [task]. List: /todo list."
+description: "Read, add, complete, reorder, or reword anything in TODO.md. Invoke this for EVERY TODO interaction, not just explicit /todo commands — including phrasings like 'add to my todos', 'add that to the todo list', 'what should I work on next', 'what's next', 'mark X done', 'that's finished', and any request to reorganize or clean up the TODO. Also invoke it before editing TODO.md directly for any reason: this skill owns that file's structure, and a manual edit will drift from it."
 argument-hint: "[list | done | do] [description of the task]"
 disable-model-invocation: false
 ---
@@ -17,6 +17,12 @@ Before doing anything else, in every mode, fix the file's structure. TODO.md is 
 4. **Prune stale framing in section headers and open items** — a note saying work is blocked on something that has since shipped is worse than no note.
 
 Do this silently as part of whatever was asked. Only report it if something non-obvious moved.
+
+## If asked what to work on next
+
+"What's next", "what should I work on", and similar. **Answer from `TODO.md` alone — do not explore the codebase.** Read the file, summarize what is in **Up Next**, and recommend one thing to start with.
+
+Give a recommendation rather than a menu. If items block each other, say so and order them; if something is cheap now and expensive later, that is usually the one to lead with. Note when an item's stated blocker has since cleared.
 
 ## If listing (`/todo list`)
 
@@ -80,10 +86,16 @@ Before adding, read `TODO.md` and check whether a similar item already exists in
 - Tell the user what you found and what (if anything) you changed.
 
 **If no similar item exists:**
-Add the following item to the **Backlog / Ideas** section of `TODO.md`:
+Insert a new item as the **first** entry of the "Backlog / Ideas" section (right after the heading). Do not modify any other section.
 
-```
-- [ ] $ARGUMENTS
-```
+**Do not just paste `$ARGUMENTS` as a one-liner.** The user's phrasing is the starting point, not the entry. Before writing, spend a moment in the codebase confirming what is actually true — the file and line the item concerns, whether the thing described is really the current behavior, whether a related feature already exists. Then write an entry that will still make sense in three months to someone who has forgotten this conversation:
 
-Insert it as the **first** line of the "Backlog / Ideas" section (top of the list, right after the heading). Do not modify any other section.
+- **Lead with the ask** in bold, in the user's terms.
+- **Correct the premise if it is wrong.** If the user describes current behavior inaccurately, say what the code actually does, with a `file.ts:line` reference. This is the single most valuable thing the entry can carry.
+- **Name what makes it harder than it looks** — the constraint, the coupling, the thing that breaks if done naively. If it is genuinely a one-liner, say that instead; a short entry beats invented complexity.
+- **Record the counter-argument** when there is a real trade-off, so the decision can be re-made rather than re-litigated.
+- **Cross-reference related items** by name when one exists.
+
+Aim for a few sentences to a short paragraph. `<br>` separates sub-points within an item. Match the density of the entries already in the file.
+
+Keep the user's own words for the _want_, especially their phrasing of the problem — but never preserve a factual claim you have checked and found wrong. Say so in the entry and tell the user when you report back.
