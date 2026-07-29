@@ -1,7 +1,7 @@
 ---
-name: todo
-description: "Read, add, complete, reorder, or reword anything in TODO.md. Invoke this for EVERY TODO interaction, reads included, not just explicit /todo commands — 'add to my todos', 'what should I work on next', 'what's next', 'mark X done', 'is X on my list?', 'what did we say about X?', and any request to reorganize or clean up the TODO. Invoke it before reading or editing TODO.md directly for any reason, including when you need its contents to answer something. This skill owns that file's structure; reads through it are read-only and never modify the file."
-argument-hint: "what you want to do with the TODO list, in plain words"
+name: project-todo
+description: "Owns the project backlog in TODO.md at the repo root — NOT the in-session task tracker (TaskCreate/TaskUpdate), which is unrelated. Invoke for every interaction with that file, reads included: 'add to my todos', 'what should I work on next', 'mark X done', 'is X on my list?', 'drop that item', 'clean up the todo list', and any time you would otherwise read or edit TODO.md yourself."
+argument-hint: "[what you want to do]"
 disable-model-invocation: false
 ---
 
@@ -15,15 +15,21 @@ disable-model-invocation: false
 | Something is finished                      | Marking done                    |
 | Do one of the items now                    | Implementing a task             |
 | Capture something new                      | Adding a new item               |
+| Drop an item no longer wanted              | Removing an item                |
 | Reorganize, prune, fix the file            | Reorganizing                    |
 
 Keyword prefixes like "done" or "list" are a hint, never a rule: "the wishlist thing is done" is a completion, and "add a todo to list the systems on each shelf" is a new item despite both words appearing. When the request genuinely fits two sections, prefer the non-destructive one and say what you assumed. A bare invocation with nothing after it means show the list.
 
-## Always: check the file's structure first
+**What the two open sections mean**, since almost every decision below depends on it:
 
-TODO.md gets edited outside this skill too, and those edits drift from the rules below — so this skill is where drift gets caught.
+- **Up Next** — work that is actually queued: confirmed bugs, in-flight work, and steps someone is waiting on. If it would be reasonable to start it today, it belongs here. Keep it short enough to read at a glance; a dozen entries means it has become a second backlog.
+- **Backlog / Ideas** — everything else. Ideas, nice-to-haves, and work that is real but not scheduled. No ordering guarantee beyond newest-first.
 
-**What to do about drift depends on whether this invocation is already a write.**
+## Check the file's structure
+
+Do this after deciding the mode, before acting. TODO.md gets edited outside this skill too, and those edits drift from the rules below — so this skill is where drift gets caught.
+
+**What to do about drift depends on whether the mode is a write.**
 
 - **Writing anyway** (marking done, implementing, adding, reorganizing): fix the drift silently as part of the change, and only mention it if something non-obvious moved.
 - **Read-only** (answering a question, what to work on next, showing the list): **do not modify the file.** A read must not leave a diff in the working tree — the user may be mid-change on an unrelated branch, and a surprise modification to a tracked file is worse than a slightly untidy TODO. Mention what is out of place in a sentence at the end and offer to fix it.
@@ -54,44 +60,20 @@ Give a recommendation rather than a menu. If items block each other, say so and 
 
 ## Showing the list
 
-Read `TODO.md` in full, then output two sections:
+Read `TODO.md` in full, then give two short groups:
 
-### 1. Claude's Picks (3 items)
+1. **Three you'd recommend**, each with a one-line reason. Weigh what unblocks other work, what is cheap now and expensive later, and what the user would enjoy building. Say why you picked, not just what.
+2. **Three most recently added** — the top three entries in Backlog / Ideas, which is where new items land.
 
-Scan every `- [ ]` item across all sections. Choose 3 that you'd most recommend tackling next. Consider: quick wins, high user-visible impact, things that would be impressive to a visitor, things that seem fun or satisfying to build, and items that unblock other work. For each pick, include a one-line reason why you're recommending it.
-
-Format:
-
-```
-**Claude's Picks**
-- [ ] <task> — <one-line reason>
-- [ ] <task> — <one-line reason>
-- [ ] <task> — <one-line reason>
-```
-
-### 2. Recently Added (3 items)
-
-New items are always inserted at the **top** of the **Backlog / Ideas** section. Show the first 3 `- [ ]` items from that section as a proxy for most recently added.
-
-Format:
-
-```
-**Recently Added**
-- [ ] <task>
-- [ ] <task>
-- [ ] <task>
-```
-
-Keep the output short and scannable. Do **not** show all sections or every item unless the user asks.
+Keep it scannable. Show everything only if asked, and prefer summarizing a long section over dumping it.
 
 ## Marking done
 
 Identify which task from what they said. Find the matching item across all sections of `TODO.md` (it may not be an exact match — use the description to find the best match).
 
-1. **Remove** the matching `- [ ]` line from whatever section it's in.
-2. **Add** it to the **Recently Completed** section as `- [x] <task description>`, inserted at the **top** of that section (newest first).
-3. If **Recently Completed** now exceeds **20** entries, remove from the **bottom** (oldest) until it's back to 20.
-4. If no matching item is found, let the user know.
+Flip it to `- [x]`. The structure check above then moves it, compresses it, and enforces the cap — do not repeat that work here.
+
+If no matching item is found, say so rather than guessing; the thing they finished may never have been written down, in which case offer to add it as already-done.
 
 ## Implementing a task
 
@@ -101,7 +83,9 @@ Identify which task from what they said. Find the best-matching `- [ ]` item acr
 2. Implement the task — read whatever files are needed, make the changes, and explain what you did.
 3. Immediately after writing the changes to the codebase, mark the item done: remove the `- [ ]` line and add it as `- [x]` at the top of **Recently Completed**, keeping that section at 20 entries max.
 
-Do **not** ask the user whether the changes look good before marking done. The act of applying changes to the codebase (whether auto-accepted or manually accepted by the user) is sufficient — mark it done as the final step of the implementation.
+Do **not** ask whether the changes look good before marking done. Applying them is sufficient — mark it done as the final step.
+
+**Size the approach to the item first, though.** Some entries in this file describe a directory move plus a redirect plus five call-site edits. For anything touching more than a couple of files, say what you intend to do and confirm before starting, then implement and mark done without a second check. The no-confirmation rule is about not seeking reassurance on finished work, not about skipping a plan on work that has real blast radius.
 
 ## Reorganizing
 
@@ -115,6 +99,18 @@ Run the full structure check above and apply it, since this is a write. Then do 
 
 Report what moved and why, briefly. This is the one mode where the user cannot see the result at a glance, so a two-line summary of the structural changes is worth more than a diff they have to read.
 
+## Removing an item
+
+"Drop that", "we don't need that anymore", "skip the CRT idea". Deleting an entry you have decided against is a normal operation, distinct from correcting one that has gone stale.
+
+1. **Identify exactly one entry** and say which, in a few words, before removing it. If more than one plausibly matches, ask.
+2. **Remove that entry and nothing else.** Entries here run to twenty lines, so an entry is a `- [ ]` line plus its indented continuation lines, up to the next line-initial `- [ ]`. Anchoring a deletion on the _next_ heading or entry title will silently swallow everything in between.
+3. **Verify the count.** Open items before minus one equals open items after. This takes a second and is the only thing that reliably catches an over-broad delete.
+4. **Repoint anything that referenced it** — "see the item above", and comments in the codebase that point at a tracked item.
+5. **Say what was dropped and why**, so it can be reinstated from the transcript if it turns out to have been wanted.
+
+This mode exists because it went wrong: a "remove one idea" edit anchored on the following entry's title and deleted four unrelated entries with it, including one that a comment in `src/app/privacy/page.tsx` still pointed at.
+
 ## Adding a new item
 
 Before adding, read `TODO.md` and check whether a similar item already exists in any section.
@@ -125,8 +121,12 @@ Before adding, read `TODO.md` and check whether a similar item already exists in
 - If the new request contains meaningful additional detail (more specifics, edge cases, clarification) that the existing item lacks, update the existing item's text to incorporate it — keep it concise.
 - Tell the user what you found and what (if anything) you changed.
 
-**If no similar item exists:**
-Insert a new item as the **first** entry of the "Backlog / Ideas" section (right after the heading). Do not modify any other section.
+**If no similar item exists:** pick the section by what the item _is_, using the definitions at the top.
+
+- **Backlog / Ideas** by default, inserted as the first entry right after the heading.
+- **Up Next** when it is a confirmed bug, work already in flight, or something someone is waiting on. Say that you put it there, so a wrong call is easy to correct.
+
+Do not modify any section other than the one you are adding to.
 
 **Do not just paste their words in as a one-liner.** The phrasing is the starting point, not the entry. Before writing, spend a moment in the codebase confirming what is actually true — the file and line the item concerns, whether the thing described is really the current behavior, whether a related feature already exists. Then write an entry that will still make sense in three months to someone who has forgotten this conversation:
 

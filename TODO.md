@@ -236,8 +236,37 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       the mapping alongside the genre-vocabulary normalization below, since it's the same
       problem one column over.<br>
       Same change applies to the promote form in `EditWishlistModal.tsx`, which today offers
-      only existing shelf systems and no IGDB platforms at all (see the item above).
+      only existing shelf systems and no IGDB platforms at all (see the mobile field-suggestions
+      item below, which covers the same form).
 
+- [ ] **Implement account deletion (`DELETE /api/py/me/account`)** — spec decision #22 planned
+      it (cascade down from `profiles` + `auth.users` removal via the Supabase Admin API,
+      which `core/supabase_admin.py` already wraps for the over-cap cleanup), but it was never
+      built. Noticed 2026-07-28 while editing `/privacy`: the policy described deleting your
+      account as though it were self-serve, so the copy now points at email instead, which is
+      the only mechanism that actually exists. Once the endpoint and a UI control ship,
+      update that paragraph (there is a comment in `src/app/privacy/page.tsx` marking it).
+      Worth doing before signup opens widely: it is the kind of thing a privacy policy is
+      expected to back up. Note `rate_limits` has no FK to `profiles`, so those rows will not
+      cascade and need deleting explicitly.
+- [ ] Make wishlist items fully editable, the same way library games are — today
+      `EditWishlistModal.tsx` only supports delete + promote (the promote step is the only
+      place name/system get touched), while `EditGameModal.tsx` can edit a game's fields.
+      Want: edit a wishlist item's name, system, genres, release date, cover art in place,
+      without having to promote it first. Needs a `WishlistItemUpdate` schema plus a
+      `PATCH /api/py/me/wishlist/{id}` endpoint (routers → services → repositories, mirroring
+      the games write path), a Server Action in `video-games/actions.ts` with the usual
+      `revalidateTag(libraryCacheTag(...))`, and the edit form fields lifted out of
+      `EditGameModal` so both modals share one implementation instead of duplicating it.
+- [ ] Field suggestions (system, genre, …) should work on mobile, not just desktop — the
+      add/promote forms use a native `<datalist>` (`AddGameModal.tsx`, `EditWishlistModal.tsx`),
+      which mobile Safari/Chrome either render poorly or ignore, so on a phone the system
+      field is a bare free-text input. Replace the datalist with a real combobox (controlled
+      input + filtered dropdown list, keyboard + touch friendly) so suggestions appear on
+      every device. Also make the suggestions game-specific: `AddGameModal` already merges
+      IGDB's `draft.platforms` for the selected game into the shelf-system list, but the
+      promote form in `EditWishlistModal` only offers existing shelf systems — thread the
+      IGDB platforms through there too, and consider doing the same for genres.
 - [ ] Backfill existing games' genres to IGDB's vocabulary — the current genres came from the old Wikipedia-scraping `add-game` skill (retired in Phase 3), so they won't match what the new IGDB add flow (`/api/py/igdb/search`) suggests for future games. Normalizing now means future adds match up and skip the manual genre-editing step. Approach: for each library game with an `igdb_id` (or matched by name), pull its IGDB genres and overwrite the row's `genres`. Note: genre editing isn't in the write path yet (`GameUpdate`/`PATCH /me/games/{id}` is rating-only), so this needs either a one-off backfill script in `api/scripts/` (query IGDB per game, update `games.genres` directly) or extending the edit UI to support genres first. Decide whether to also map IGDB's verbose names (e.g. "Role-playing (RPG)") to shorter shelf labels while backfilling.<br>
       **Do the case/duplicate normalization in the same pass:** `clean_genres` (`api/app/schemas/me.py`) trims and drops blanks but does not dedupe or normalize case, so `"RPG, rpg"` stores both and `"RPG, RPG"` stores it twice — and the filter dropdown, built from `new Set(...)`, then shows them as separate options. Fix belongs in `clean_genres` (dedupe preserving first-seen casing) rather than the modal, so it also covers direct Server Action calls that bypass the UI. Same normalization problem as the backfill, one size larger, so the vocabulary decision above should settle the casing rule too.
 - [ ] Enforce a per-user library size cap (~2k games) before multi-user signup opens (spec §9 decision #3 bundles row caps with the abuse guardrails; Phase 3 shipped the per-user rate limits but not this cap). Safe to defer while signup is closed and only the founder writes, but wire it into `create_my_game` (a cheap `count_games >= MAX_GAMES` check, MAX_GAMES as an env var like MAX_USERS) as part of Phase 4 so it isn't forgotten when writes open to others.
