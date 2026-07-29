@@ -62,9 +62,17 @@ export default function StartPage() {
       </div>
 
       <div className="mt-10 border-t border-divider pt-8">
+        {/* Every capability named here has to exist. This page is under
+            review for whether it describes the app accurately, and a reader
+            who signs up looking for one of these should find it. Following
+            is deliberately absent: the follows table and the profile counts
+            are in place, but there are no endpoints and no UI yet, so
+            "friends" would be a promise. "Other people's libraries" is the
+            true version of it today, since every library is public. */}
         <p className="leading-relaxed text-foreground">
-          Your games sit on shelves you can group and sort by system, rating, genre, or decade.
-          Every library has its own public page, so you can share yours with a link.
+          Visualize your library by grouping and sorting by system, rating, genre, or decade. Save
+          games you want to play next, run ad-hoc SQL queries over your collection, and browse other
+          people&apos;s libraries.
         </p>
 
         {/* A live example explains the product better than a screenshot, and
