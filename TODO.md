@@ -2,28 +2,9 @@
 
 ## Up Next
 
-**Phase 4 is merged and in production (PR #68).** What's left here is one dashboard step and
-two verification passes.
+**Phase 4 is done and in production**, and Google's OAuth brand verification has passed, so
+signup works for people who are not Robert. What's left is one browser pass and one bug.
 
-- [ ] **Google OAuth brand verification** — _rejected once on 2026-07-28, fix built, resubmit
-      after the landing-page PR deploys._ Google's two complaints were that the home page did
-      not explain the app's purpose and that its visible name disagreed with the console. Both
-      were fair: `/video_games` showed a shelf of cover art under the heading "Robert's Video
-      Game Library". The fix is a real landing page at `/video-games/start` whose `<h1>` is
-      exactly `Video Game Library`, with the purpose in prose and sign-in as a section on it.
-      Google Cloud console → OAuth consent screen → Branding:
-      App name → `Video Game Library` (must match `APP_NAME` in
-      `src/lib/appName.ts` **byte for byte**);
-      App homepage → `https://rgrassian.com/video-games/start` (**changed** — no longer
-      `/video_games`);
-      Privacy policy → `https://rgrassian.com/privacy`;
-      authorized domains → keep the existing `jbgmptlxoozfyzulhpbn.supabase.co` (it covers the
-      OAuth callback; removing it risks breaking sign-in) and **add** `rgrassian.com`. Resubmit.
-      Done = the consent screen shows the app name instead of the `supabase.co` host. Note the
-      URL bar during the redirect still shows the supabase.co host either way — only a Supabase
-      custom auth domain changes that, which would mean redoing the redirect URIs.
-      _Contingency:_ if Google also demands a Terms of Service URL, add `/terms` mirroring
-      the existing `/privacy` page.
 - [ ] **Browser pass on the Phase 4 UI (PR #68)** — these are all client-rendered, so they
       are invisible to `curl` and were _not_ verified during implementation. Preview deploys
       can authenticate now, so use one — or run `npm run dev:full` locally and sign in with a
@@ -41,7 +22,7 @@ two verification passes.
       else's. 5. **IGDB search actually works in production** — open the add-game picker on
       `rgrassian.com` and search for a game. This is the only real confirmation that the
       Twitch creds took effect; a 503 here means the API process predates the env vars and
-      needs a redeploy (see the `Settings` `lru_cache` gotcha in Recently Completed).
+      needs a redeploy (see the `Settings` `lru_cache` gotcha in Recently Completed). 6. **The new landing page** (`/video-games/start`) in **dark mode** — the only part of PR #70 never checked in a browser. Its prose deliberately uses `text-foreground` rather than `text-subtle`, because `--subtle` measures 4.1:1 in dark mode (see the contrast item in the backlog), so this is confirming that call looks right and not just measures right.
 
 - [ ] **Signed-in viewers see the sign-up CTA banner flash on `/video-games`.** Load the page
       with a session and refresh: the banner paints, then vanishes. It should never be visible
@@ -80,6 +61,21 @@ two verification passes.
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Google OAuth brand verification passed** (2026-07-28). Rejected on the first
+      submission for two reasons, both fair: the home page did not explain the app's purpose,
+      and its visible name disagreed with the console. `/video_games` was a shelf of cover art
+      under the heading "Robert's Video Game Library" while the console said "Video Game
+      Library" — Robert's personal library was doubling as the product's front door.<br>
+      Fixed by building a real front door at `/video-games/start` (PR #70): `<h1>` is exactly
+      the app name, purpose in prose, sign-in as a section rather than the whole page, privacy
+      policy linked. The console's App homepage moved to that URL.<br>
+      **Constraints worth keeping:** the app name must stay byte-identical to `APP_NAME` in
+      `src/lib/appName.ts`, which both the landing page and the sign-up banner render. And
+      `jbgmptlxoozfyzulhpbn.supabase.co` must stay in authorized domains — it covers the OAuth
+      callback, so removing it risks breaking sign-in. `rgrassian.com` sits alongside it.<br>
+      _Cosmetic thing this does not fix:_ the URL bar during the redirect still shows the
+      supabase.co host. Only a Supabase custom auth domain changes that, which would mean
+      redoing the redirect URIs and this domain list.
 - [x] **Vercel → `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` set for Production**
       (2026-07-28). **Not confirmed end to end:** `/api/py/igdb/search` checks auth before it
       ever calls Twitch, so an unauthenticated probe returns 401 whether the creds are good or
@@ -148,43 +144,30 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
 
 ## Backlog / Ideas
 
-- [ ] **Implement account deletion (`DELETE /api/py/me/account`)** — spec decision #22 planned
-      it (cascade down from `profiles` + `auth.users` removal via the Supabase Admin API,
-      which `core/supabase_admin.py` already wraps for the over-cap cleanup), but it was never
-      built. Noticed 2026-07-28 while editing `/privacy`: the policy described deleting your
-      account as though it were self-serve, so the copy now points at email instead, which is
-      the only mechanism that actually exists. Once the endpoint and a UI control ship,
-      update that paragraph (there is a comment in `src/app/privacy/page.tsx` marking it).
-      Worth doing before signup opens widely: it is the kind of thing a privacy policy is
-      expected to back up. Note `rate_limits` has no FK to `profiles`, so those rows will not
-      cascade and need deleting explicitly.
-
-- [ ] **If a username-rename feature is ever built, delete or invalidate the `usernameByUserId`
-      memo** in `src/lib/meApi.ts` (`fetchMyUsername`). It caches user id → username in module
-      scope to keep the write path from spending an API round trip per mutation just to learn
-      which cache tag to purge, and it is only safe because usernames are assigned once at
-      onboarding with no way to change them. A rename would leave it revalidating the old tag,
-      so the renamed library's pages would go stale instead. Added 2026-07-28 during the PR #68
-      review.
-
-- [ ] Make wishlist items fully editable, the same way library games are — today
-      `EditWishlistModal.tsx` only supports delete + promote (the promote step is the only
-      place name/system get touched), while `EditGameModal.tsx` can edit a game's fields.
-      Want: edit a wishlist item's name, system, genres, release date, cover art in place,
-      without having to promote it first. Needs a `WishlistItemUpdate` schema plus a
-      `PATCH /api/py/me/wishlist/{id}` endpoint (routers → services → repositories, mirroring
-      the games write path), a Server Action in `video-games/actions.ts` with the usual
-      `revalidateTag(libraryCacheTag(...))`, and the edit form fields lifted out of
-      `EditGameModal` so both modals share one implementation instead of duplicating it.
-- [ ] Field suggestions (system, genre, …) should work on mobile, not just desktop — the
-      add/promote forms use a native `<datalist>` (`AddGameModal.tsx`, `EditWishlistModal.tsx`),
-      which mobile Safari/Chrome either render poorly or ignore, so on a phone the system
-      field is a bare free-text input. Replace the datalist with a real combobox (controlled
-      input + filtered dropdown list, keyboard + touch friendly) so suggestions appear on
-      every device. Also make the suggestions game-specific: `AddGameModal` already merges
-      IGDB's `draft.platforms` for the selected game into the shelf-system list, but the
-      promote form in `EditWishlistModal` only offers existing shelf systems — thread the
-      IGDB platforms through there too, and consider doing the same for genres.
+- [ ] **Nest the whole game library under `/video-games`.** A user's library is at
+      `/u/rgrassian`; it should be `/video-games/u/rgrassian`, so the app owns one prefix
+      instead of leaking a top-level `/u` namespace. This is the concrete first instance of the
+      routing/namespace decision already in this backlog ("Decide the routing/namespace strategy
+      as the site grows into multiple apps") and effectively settles it in favour of option (a),
+      per-app route prefixes on one domain.<br>
+      **Do it soon.** `/u/` shipped days ago (Phase 4) and no one but Robert has a library yet,
+      so almost nothing links to those URLs. Every week of signups makes the rename more
+      expensive, since a user's public library page is the thing people share.<br>
+      _Google is unaffected:_ the App homepage is `/video-games/start`, which does not move. No
+      resubmission needed. Worth double-checking the console afterwards anyway.<br>
+      _The work:_ move `src/app/u/[username]/` under `src/app/video-games/`; add a permanent
+      redirect `/u/:username` → `/video-games/u/:username` next to the kebab-case ones in
+      `next.config.ts`; update the five places that build the URL (`video-games/start/page.tsx`,
+      `library/page.tsx`, `onboarding/page.tsx`, `onboarding/actions.ts`, and the `activePaths`
+      array in `Nav.tsx`); add it to `sitemap.ts`.<br>
+      _Two API details:_ `RESERVED_USERNAMES` (`api/app/services/me.py`) can stop reserving `u`
+      once nothing lives at the top level, though keeping it costs nothing. More usefully, that
+      set still lists `video_games` with an underscore, which is stale after the kebab rename —
+      and since `USERNAME_RE` allows hyphens, `video-games` is a claimable username today that
+      would be confusing next to the route. Fix that in the same pass.<br>
+      _The one cost:_ `/u/rgrassian` is shorter and reads better when shared than
+      `/video-games/u/rgrassian`. If that matters more than the namespacing, the alternative is
+      keeping `/u/` as the canonical public URL and accepting the inconsistency.
 - [ ] **`--subtle` fails WCAG AA for body text in both color schemes.** Measured 2026-07-28
       while fixing the landing page: dark mode is `#6b7280` on `#0a0a0a` = **4.1:1**, light mode
       is `#9ca3af` on `#ffffff` = **2.5:1**. The AA minimum for normal-size text is 4.5:1, so
@@ -253,8 +236,37 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       the mapping alongside the genre-vocabulary normalization below, since it's the same
       problem one column over.<br>
       Same change applies to the promote form in `EditWishlistModal.tsx`, which today offers
-      only existing shelf systems and no IGDB platforms at all (see the item above).
+      only existing shelf systems and no IGDB platforms at all (see the mobile field-suggestions
+      item below, which covers the same form).
 
+- [ ] **Implement account deletion (`DELETE /api/py/me/account`)** — spec decision #22 planned
+      it (cascade down from `profiles` + `auth.users` removal via the Supabase Admin API,
+      which `core/supabase_admin.py` already wraps for the over-cap cleanup), but it was never
+      built. Noticed 2026-07-28 while editing `/privacy`: the policy described deleting your
+      account as though it were self-serve, so the copy now points at email instead, which is
+      the only mechanism that actually exists. Once the endpoint and a UI control ship,
+      update that paragraph (there is a comment in `src/app/privacy/page.tsx` marking it).
+      Worth doing before signup opens widely: it is the kind of thing a privacy policy is
+      expected to back up. Note `rate_limits` has no FK to `profiles`, so those rows will not
+      cascade and need deleting explicitly.
+- [ ] Make wishlist items fully editable, the same way library games are — today
+      `EditWishlistModal.tsx` only supports delete + promote (the promote step is the only
+      place name/system get touched), while `EditGameModal.tsx` can edit a game's fields.
+      Want: edit a wishlist item's name, system, genres, release date, cover art in place,
+      without having to promote it first. Needs a `WishlistItemUpdate` schema plus a
+      `PATCH /api/py/me/wishlist/{id}` endpoint (routers → services → repositories, mirroring
+      the games write path), a Server Action in `video-games/actions.ts` with the usual
+      `revalidateTag(libraryCacheTag(...))`, and the edit form fields lifted out of
+      `EditGameModal` so both modals share one implementation instead of duplicating it.
+- [ ] Field suggestions (system, genre, …) should work on mobile, not just desktop — the
+      add/promote forms use a native `<datalist>` (`AddGameModal.tsx`, `EditWishlistModal.tsx`),
+      which mobile Safari/Chrome either render poorly or ignore, so on a phone the system
+      field is a bare free-text input. Replace the datalist with a real combobox (controlled
+      input + filtered dropdown list, keyboard + touch friendly) so suggestions appear on
+      every device. Also make the suggestions game-specific: `AddGameModal` already merges
+      IGDB's `draft.platforms` for the selected game into the shelf-system list, but the
+      promote form in `EditWishlistModal` only offers existing shelf systems — thread the
+      IGDB platforms through there too, and consider doing the same for genres.
 - [ ] Backfill existing games' genres to IGDB's vocabulary — the current genres came from the old Wikipedia-scraping `add-game` skill (retired in Phase 3), so they won't match what the new IGDB add flow (`/api/py/igdb/search`) suggests for future games. Normalizing now means future adds match up and skip the manual genre-editing step. Approach: for each library game with an `igdb_id` (or matched by name), pull its IGDB genres and overwrite the row's `genres`. Note: genre editing isn't in the write path yet (`GameUpdate`/`PATCH /me/games/{id}` is rating-only), so this needs either a one-off backfill script in `api/scripts/` (query IGDB per game, update `games.genres` directly) or extending the edit UI to support genres first. Decide whether to also map IGDB's verbose names (e.g. "Role-playing (RPG)") to shorter shelf labels while backfilling.<br>
       **Do the case/duplicate normalization in the same pass:** `clean_genres` (`api/app/schemas/me.py`) trims and drops blanks but does not dedupe or normalize case, so `"RPG, rpg"` stores both and `"RPG, RPG"` stores it twice — and the filter dropdown, built from `new Set(...)`, then shows them as separate options. Fix belongs in `clean_genres` (dedupe preserving first-seen casing) rather than the modal, so it also covers direct Server Action calls that bypass the UI. Same normalization problem as the backfill, one size larger, so the vocabulary decision above should settle the casing rule too.
 - [ ] Enforce a per-user library size cap (~2k games) before multi-user signup opens (spec §9 decision #3 bundles row caps with the abuse guardrails; Phase 3 shipped the per-user rate limits but not this cap). Safe to defer while signup is closed and only the founder writes, but wire it into `create_my_game` (a cheap `count_games >= MAX_GAMES` check, MAX_GAMES as an env var like MAX_USERS) as part of Phase 4 so it isn't forgotten when writes open to others.
