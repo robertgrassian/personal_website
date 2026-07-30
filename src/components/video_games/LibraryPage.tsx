@@ -15,6 +15,7 @@ import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { CrtTv } from "@/components/crt/CrtTv";
 import { LibraryCount } from "@/components/video_games/LibraryCount";
 import { AuthButton } from "@/components/AuthButton";
+import { FollowControls } from "@/components/video_games/FollowControls";
 import { SignupCta } from "@/components/video_games/SignupCta";
 
 // One library page, two routes: /video-games (Robert's shelf, at its stable
@@ -122,7 +123,13 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
               {profile.followingCount} following
             </p>
           </div>
-          <AuthButton />
+          {/* Both per-viewer: AuthButton is driven by the pre-paint flag, and
+              FollowControls resolves after hydration. items-center so the
+              follow button and the sign-out link share a baseline. */}
+          <div className="flex items-center gap-3">
+            <FollowControls ownerUsername={profile.username} />
+            <AuthButton />
+          </div>
         </div>
         {/* useSearchParams (inside LibraryCount) requires a Suspense boundary.
             The fallback shows the default-view count so there's no flash. */}
