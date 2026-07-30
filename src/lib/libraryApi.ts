@@ -192,22 +192,51 @@ export function fetchWishlistFromApi(origin: string, username: string): Promise<
 // Follower/following lists. Same cache tag as everything else on the page: a
 // follow changes the counts and lists on BOTH users' pages, so both tags get
 // revalidated after the write (see the follow actions).
-export function fetchFollowersFromApi(origin: string, username: string): Promise<UserSummary[]> {
-  return fetchFromApi<UserSummary[]>(
+//
+// A 404 degrades to an empty list instead of throwing, which is what makes
+// these endpoints deployable at all. `next build` prerenders /video-games
+// against the CURRENTLY DEPLOYED API — production's, even from a preview
+// container — so during the very deploy that ships a new public endpoint, the
+// API being built against does not have it yet. Failing loudly on 404 means the
+// build that would ship the endpoint cannot complete, and no later build can
+// either: a deadlock, not a transient error.
+//
+// Safe because of the order LibraryPage fetches in. The profile read runs first
+// and 404s the page for a username nobody owns, so by the time these run the
+// user is known to exist — a 404 here cannot mean "no such user" and can only
+// mean the route is absent. Self-healing: once this deploy is live, production
+// serves the route and later builds get real data.
+async function fetchFollowList(
+  origin: string,
+  username: string,
+  kind: "followers" | "following"
+): Promise<UserSummary[]> {
+  const list = await fetchFromApi<UserSummary[]>(
     origin,
-    `/api/py/users/${encodeURIComponent(username)}/followers`,
-    "followers",
-    [libraryCacheTag(username)]
+    `/api/py/users/${encodeURIComponent(username)}/${kind}`,
+    kind,
+    [libraryCacheTag(username)],
+    true
   );
+  if (list === null) {
+    // Warn rather than stay silent: after this feature's first deploy, a 404
+    // here means something genuinely wrong, and an empty follower list is
+    // otherwise indistinguishable from a real one.
+    console.warn(
+      `[followsApi] ${origin} has no /${kind} endpoint for '${username}' (404). ` +
+        `Treating as empty. Expected only while deploying the endpoint for the first time.`
+    );
+    return [];
+  }
+  return list;
+}
+
+export function fetchFollowersFromApi(origin: string, username: string): Promise<UserSummary[]> {
+  return fetchFollowList(origin, username, "followers");
 }
 
 export function fetchFollowingFromApi(origin: string, username: string): Promise<UserSummary[]> {
-  return fetchFromApi<UserSummary[]>(
-    origin,
-    `/api/py/users/${encodeURIComponent(username)}/following`,
-    "following",
-    [libraryCacheTag(username)]
-  );
+  return fetchFollowList(origin, username, "following");
 }
 
 // null = no such user. Shares the library cache tag with games and wishlist:

@@ -702,6 +702,19 @@ Three decisions that departed from the sketch above, and one bug worth rememberi
   both profiles loaded.
 - **`UserSummary` carries no per-row follow counts**, though §6's sketch mentioned them:
   they turn one join into a correlated aggregate for numbers no list row displays.
+- **A new public endpoint consumed by a prerendered page must tolerate its own deploy.**
+  Caught by the Vercel preview build, which failed with
+  `https://rgrassian.com/api/py/users/rgrassian/followers returned 404`. `next build`
+  prerenders `/video-games` against the **currently deployed** API — production's, even from a
+  preview container — so during the deploy that ships a new endpoint, the API being built
+  against does not have it yet. Failing loudly on 404 means the build that would ship the
+  endpoint cannot complete, and neither can any later one: a deadlock, not a transient error,
+  and it would have hit the production deploy exactly as hard. The follow-list reads now
+  degrade a 404 to an empty list with a `console.warn`. That is safe here only because
+  `LibraryPage` fetches the profile first and 404s the page for an unknown username, so by the
+  time these run the user is known to exist and a 404 can only mean "route absent".
+  **Generalize this before adding the next public read**: either make it tolerate 404 the same
+  way, or accept that its first deploy needs the API shipped ahead of the page that reads it.
 - **The auto-follow insert needs an explicit `flush()`.** `Follow` declares no ORM
   relationship to `Profile`, so SQLAlchemy's unit of work had no mapper dependency between
   them and emitted the `follows` INSERT first, violating the `follower_id` FK. Compounding
