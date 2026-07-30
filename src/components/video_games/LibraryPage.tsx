@@ -9,6 +9,7 @@ import "@/components/crt/crt.css";
 import { getGames } from "@/lib/gamesServer";
 import { getWishlist } from "@/lib/wishlistServer";
 import { getProfile } from "@/lib/profileServer";
+import { getFollowers, getFollowing } from "@/lib/followsServer";
 import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { CrtTv } from "@/components/crt/CrtTv";
@@ -53,9 +54,17 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
     notFound();
   }
 
-  // Independent, so Promise.all runs them concurrently instead of
-  // serializing two API round-trips.
-  const [games, wishlist] = await Promise.all([getGames(username), getWishlist(username)]);
+  // Independent, so Promise.all runs them concurrently instead of serializing
+  // the API round-trips. The follow lists ride along here rather than being
+  // fetched when their tab is opened: they're public data on the same cache
+  // tag, so they cost nothing after the first render and switching to the
+  // Following tab needs no network at all.
+  const [games, wishlist, followers, following] = await Promise.all([
+    getGames(username),
+    getWishlist(username),
+    getFollowers(username),
+    getFollowing(username),
+  ]);
   // All in-progress games — the CRT cycles through them like TV channels, and
   // the stats panel uses them so "Recently Played" can include a currently-playing
   // game even when it's unrated (and thus absent from the rated shelves below).
@@ -99,10 +108,19 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
                 already carries the display name, so the handle is what adds
                 information; on /video-games the heading is generic and this is
                 the only thing naming the owner. Rendered from the profile, so
-                the casing is the stored one rather than whatever the URL used.
-                Follower/following counts belong here too, but not until Phase 5
-                gives them a follow button and lists to be actionable with. */}
-            <p className="mt-1 text-sm text-shelf-text-muted">@{profile.username}</p>
+                the casing is the stored one rather than whatever the URL used. */}
+            <p className="mt-1 text-sm text-shelf-text-muted">
+              @{profile.username}
+              {/* Follow counts sit here, not in the headline count row below,
+                  so they stay visible on every tab. The Followers/Following
+                  tabs are what makes them actionable; these are the at-a-glance
+                  numbers. Straight from the profile payload, which has carried
+                  them since the schema was written. */}
+              <span aria-hidden="true"> · </span>
+              {profile.followerCount} {profile.followerCount === 1 ? "follower" : "followers"}
+              <span aria-hidden="true"> · </span>
+              {profile.followingCount} following
+            </p>
           </div>
           <AuthButton />
         </div>
@@ -126,6 +144,8 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
             // Which library this is. GameLibrary hands it to useIsLibraryOwner
             // so the viewer's own username can be compared against it.
             ownerUsername={profile.username}
+            followers={followers}
+            following={following}
           />
         </Suspense>
       </div>

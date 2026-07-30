@@ -10,7 +10,8 @@ import {
   type View,
   type GroupBy,
   type SortOrder,
-  VIEW_CONFIG,
+  viewConfig,
+  isGameView,
   VALID_VIEW,
   DEFAULT_VIEW,
 } from "./libraryConfig";
@@ -77,7 +78,7 @@ export function useGameLibraryUrlState(): UrlState {
 
   const rawView = searchParams.get("view");
   const view: View = VALID_VIEW.includes(rawView as View) ? (rawView as View) : DEFAULT_VIEW;
-  const config = VIEW_CONFIG[view];
+  const config = viewConfig(view);
 
   const rawGroupBy = searchParams.get("groupBy");
   const groupBy: GroupBy = config.validGroupBy.includes(rawGroupBy as GroupBy)
@@ -130,7 +131,7 @@ export function useGameLibraryUrlState(): UrlState {
       const currentView: View = VALID_VIEW.includes(rawViewInUrl as View)
         ? (rawViewInUrl as View)
         : DEFAULT_VIEW;
-      const currentConfig = VIEW_CONFIG[currentView];
+      const currentConfig = viewConfig(currentView);
       const isDefault =
         value === "" ||
         (key === "groupBy" && value === currentConfig.defaultGroupBy) ||
@@ -159,7 +160,21 @@ export function useGameLibraryUrlState(): UrlState {
       } else {
         params.set("view", value);
       }
-      const newConfig = VIEW_CONFIG[value];
+      if (!isGameView(value)) {
+        // People tabs have no filter/group/sort UI, so leaving these in the URL
+        // would strand params with nothing to clear them and silently re-apply
+        // them on the way back to a game tab.
+        for (const key of ["groupBy", "sortOrder", "search", "rating", "system", "genre"]) {
+          params.delete(key);
+        }
+        setSearchInput("");
+        const peopleQs = params.toString();
+        startTransition(() => {
+          router.replace(peopleQs ? `${pathname}?${peopleQs}` : pathname, { scroll: false });
+        });
+        return;
+      }
+      const newConfig = viewConfig(value);
       const currentGroupBy = params.get("groupBy");
       if (currentGroupBy && !newConfig.validGroupBy.includes(currentGroupBy as GroupBy)) {
         params.delete("groupBy");

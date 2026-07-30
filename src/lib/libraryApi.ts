@@ -4,6 +4,7 @@ import "server-only";
 import type { Game } from "./games";
 import type { WishlistGame } from "./wishlist";
 import type { LibraryProfile } from "./profile";
+import type { UserSummary } from "./follows";
 
 // This module owns the FastAPI origin and the fetch mechanics for the library
 // read path — the site's only data source since the CSVs were retired.
@@ -184,6 +185,27 @@ export function fetchWishlistFromApi(origin: string, username: string): Promise<
     origin,
     `/api/py/users/${encodeURIComponent(username)}/wishlist`,
     "wishlist",
+    [libraryCacheTag(username)]
+  );
+}
+
+// Follower/following lists. Same cache tag as everything else on the page: a
+// follow changes the counts and lists on BOTH users' pages, so both tags get
+// revalidated after the write (see the follow actions).
+export function fetchFollowersFromApi(origin: string, username: string): Promise<UserSummary[]> {
+  return fetchFromApi<UserSummary[]>(
+    origin,
+    `/api/py/users/${encodeURIComponent(username)}/followers`,
+    "followers",
+    [libraryCacheTag(username)]
+  );
+}
+
+export function fetchFollowingFromApi(origin: string, username: string): Promise<UserSummary[]> {
+  return fetchFromApi<UserSummary[]>(
+    origin,
+    `/api/py/users/${encodeURIComponent(username)}/following`,
+    "following",
     [libraryCacheTag(username)]
   );
 }

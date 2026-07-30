@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { APP_NAME } from "@/lib/appName";
 import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
+import { userLibraryPath } from "@/lib/profile";
 import { SignInPanel } from "./SignInPanel";
 
 // The product's front door, and the URL configured as "App homepage" in
@@ -79,7 +80,7 @@ export default function StartPage() {
             costs nothing to maintain, because it is the real library. */}
         <p className="mt-4 leading-relaxed text-foreground">
           <Link
-            href={`/video-games/u/${LIBRARY_OWNER_USERNAME}`}
+            href={userLibraryPath(LIBRARY_OWNER_USERNAME)}
             className="text-link underline underline-offset-4"
           >
             See an example library

@@ -9,6 +9,7 @@ import { redirect } from "next/navigation";
 import { revalidateTag } from "next/cache";
 import { createMyProfile } from "@/lib/meApi";
 import { libraryCacheTag } from "@/lib/libraryApi";
+import { userLibraryPath } from "@/lib/profile";
 
 // The shape useActionState threads between submissions. null = untouched.
 export type OnboardingState = { error: string } | null;
@@ -57,5 +58,5 @@ export async function submitOnboarding(
   // rgrassian.com instead reads as "nothing happened". Uses the created
   // profile's username rather than the submitted string so the casing is the
   // canonical one the API stored.
-  redirect(`/video-games/u/${encodeURIComponent(result.profile.username)}`);
+  redirect(userLibraryPath(result.profile.username));
 }

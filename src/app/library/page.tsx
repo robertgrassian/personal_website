@@ -14,6 +14,7 @@
 import { redirect } from "next/navigation";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import { fetchMyProfile } from "@/lib/meApi";
+import { userLibraryPath } from "@/lib/profile";
 
 // Per-request (reads the session cookie) — never statically rendered.
 export const dynamic = "force-dynamic";
@@ -40,5 +41,5 @@ export default async function LibraryResolverPage() {
 
   // redirect() throws NEXT_REDIRECT, so nothing after this line runs and the
   // component never actually returns JSX.
-  redirect(`/video-games/u/${encodeURIComponent(profile.username)}`);
+  redirect(userLibraryPath(profile.username));
 }
