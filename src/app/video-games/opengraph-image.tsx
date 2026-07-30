@@ -50,7 +50,7 @@ const PLANK_BACKGROUND = [
 // getGames() is now async (it may fetch from the library API).
 export default async function OGImage() {
   // The OG image for /video-games specifically, so the owner is pinned.
-  // /u/[username] has no OG image of its own yet.
+  // /video-games/u/[username] has no OG image of its own yet.
   const games = await getGames(LIBRARY_OWNER_USERNAME);
   const totalCount = games.length;
   // Build a name→game map for fast lookup, then pull featured games in order.

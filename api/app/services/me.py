@@ -41,44 +41,69 @@ from app.services.users import derive_play_state, to_game_read, to_wishlist_read
 # backstops. Input is lowercased before this runs, so the class is safe.
 USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{2,29}$")
 
+def _both_spellings(names: set[str]) -> set[str]:
+    """Every name in the set, in both its snake_case and kebab-case spelling.
+
+    USERNAME_RE accepts ``_`` and ``-`` alike, so a name reserved in one
+    spelling stays claimable in the other. Listing both by hand only works
+    while someone remembers to; deriving them means a name added in either
+    spelling is reserved in both. Names without a separator pass through
+    unchanged.
+    """
+    return {n.replace("_", "-") for n in names} | {n.replace("-", "_") for n in names}
+
+
 # Reserved handles rejected regardless of format. Two categories:
 #   1. API-colliding tokens — /users/{username} shares its namespace with
 #      /users/search and the /me alias, so those MUST be reserved.
 #   2. Route/branding/abuse names that shouldn't become public library URLs.
+#
+# Category 1 is now defensive rather than load-bearing on the web side, since
+# usernames appear only under /video-games/u/, where they cannot shadow a site
+# route at any depth. It still matters for the API's own /users namespace.
+#
+# Write each name once, in the spelling the route actually uses;
+# _both_spellings() covers the other. Reserving only "video_games" is what
+# left "video-games" claimable after the kebab-case route rename.
 RESERVED_USERNAMES = frozenset(
-    {
-        # API/route collisions
-        "me",
-        "search",
-        "users",
-        "user",
-        "api",
-        "library",
-        "login",
-        "logout",
-        "signup",
-        "signin",
-        "auth",
-        "onboarding",
-        "u",
-        # site sections (would shadow real routes / confuse)
-        "about",
-        "resume",
-        "video_games",
-        "admin",
-        "settings",
-        "account",
-        # branding / impersonation
-        "rgrassian",  # the founder handle (seeded); un-claimable by others
-        "robert",  # kept reserved too (former founder-handle candidate)
-        "grassian",
-        "official",
-        "support",
-        "help",
-        "root",
-        "null",
-        "undefined",
-    }
+    _both_spellings(
+        {
+            # API/route collisions
+            "me",
+            "search",
+            "users",
+            "user",
+            "api",
+            "library",
+            "login",
+            "logout",
+            "signup",
+            "signin",
+            "auth",
+            "onboarding",
+            "u",
+            # site sections (would shadow real routes / confuse)
+            "about",
+            "resume",
+            "video-games",
+            "currently-playing",
+            "privacy",
+            "start",
+            "admin",
+            "settings",
+            "account",
+            # branding / impersonation
+            "rgrassian",  # the founder handle (seeded); un-claimable by others
+            "robert",  # kept reserved too (former founder-handle candidate)
+            "grassian",
+            "official",
+            "support",
+            "help",
+            "root",
+            "null",
+            "undefined",
+        }
+    )
 )
 
 

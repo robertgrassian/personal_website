@@ -8,11 +8,17 @@ import { caveat } from "../lib/fonts";
 
 // `activePaths` exists because the link target and the page you end up on are
 // not always the same URL. /library is a redirect-only resolver (it sends you
-// to /video-games or /u/{you}), so matching the active state against its own
-// href would never highlight it. Defaults to [href] for the ordinary links.
+// to /video-games or /video-games/u/{you}), so matching the active state
+// against its own href would never highlight it. Defaults to [href] for the
+// ordinary links.
+//
+// Two entries cover the library now that per-user pages are nested: matching is
+// startsWith, so /video-games also catches /video-games/u/{username} and
+// /video-games/start. A third entry for /u/ was needed while those pages lived
+// at the top level.
 const links: { href: string; label: string; activePaths?: string[] }[] = [
   { href: "/about", label: "About" },
-  { href: "/library", label: "Game Library", activePaths: ["/library", "/video-games", "/u/"] },
+  { href: "/library", label: "Game Library", activePaths: ["/library", "/video-games"] },
   { href: "/resume", label: "Resume" },
 ];
 

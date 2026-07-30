@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.services.me import UsernameError, _validate_username
+from app.services.me import RESERVED_USERNAMES, UsernameError, _validate_username
 
 
 class TestValidateUsername:
@@ -42,6 +42,32 @@ class TestValidateUsername:
         # "me" can never be reached — they fail the 3-char minimum first — which
         # is fine: they're un-creatable either way.)
         for reserved in ("search", "rgrassian", "robert", "admin", "library"):
+            with pytest.raises(UsernameError) as exc:
+                _validate_username(reserved)
+            assert exc.value.reason == "reserved", reserved
+
+    def test_every_reserved_name_covers_both_spellings(self):
+        # The invariant, asserted over the whole set rather than a few literals:
+        # USERNAME_RE accepts "_" and "-" alike, so a name reserved in one
+        # spelling stays claimable in the other. Checking the set itself means a
+        # name added later in either spelling is covered without anyone
+        # remembering this rule. Membership rather than _validate_username here,
+        # since short entries like "u" fail the 3-char minimum first and raise
+        # "format" before the reserved check ever runs.
+        for reserved in RESERVED_USERNAMES:
+            assert reserved.replace("_", "-") in RESERVED_USERNAMES, reserved
+            assert reserved.replace("-", "_") in RESERVED_USERNAMES, reserved
+
+    def test_kebab_and_snake_route_names_are_both_rejected(self):
+        # The regression that motivated the rule: only "video_games" was listed,
+        # leaving "video-games" claimable after the routes moved to kebab-case —
+        # the spelling that now matches a real URL.
+        for reserved in (
+            "video_games",
+            "video-games",
+            "currently_playing",
+            "currently-playing",
+        ):
             with pytest.raises(UsernameError) as exc:
                 _validate_username(reserved)
             assert exc.value.reason == "reserved", reserved

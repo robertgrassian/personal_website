@@ -3,7 +3,7 @@
 // Self-resolving so /auth/confirm can always land here (the "authenticated but
 // no profile yet" state):
 //   - not signed in        → /login
-//   - signed in, onboarded → /u/{username} (nothing to do here)
+//   - signed in, onboarded → /video-games/u/{username} (nothing to do here)
 //   - signed in, no profile→ render the username picker
 import { redirect } from "next/navigation";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
@@ -35,7 +35,7 @@ export default async function OnboardingPage() {
   // Already has a profile? Then onboarding is done — send them to their
   // library, the same place a successful submission lands.
   const existing = await fetchMyProfile();
-  if (existing) redirect(`/u/${encodeURIComponent(existing.username)}`);
+  if (existing) redirect(`/video-games/u/${encodeURIComponent(existing.username)}`);
 
   return (
     <main className="mx-auto flex min-h-[60vh] max-w-md flex-col justify-center px-6 py-16">

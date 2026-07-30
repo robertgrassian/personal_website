@@ -25,6 +25,8 @@ Keyword prefixes like "done" or "list" are a hint, never a rule: "the wishlist t
 - **Up Next** — work that is actually queued: confirmed bugs, in-flight work, and steps someone is waiting on. If it would be reasonable to start it today, it belongs here. Keep it short enough to read at a glance; a dozen entries means it has become a second backlog.
 - **Backlog / Ideas** — everything else. Ideas, nice-to-haves, and work that is real but not scheduled. No ordering guarantee beyond newest-first.
 
+**File order is Up Next, then Backlog / Ideas, then Recently Completed** — open work first, the archive last, because the archive is the longest section and the least often read. Moved there 2026-07-30; do not "fix" it back. Every rule below finds its section by heading name, never by position, so the order is a readability choice rather than something the logic depends on.
+
 ## Check the file's structure
 
 Do this after deciding the mode, before acting. TODO.md gets edited outside this skill too, and those edits drift from the rules below — so this skill is where drift gets caught.
@@ -104,7 +106,10 @@ Report what moved and why, briefly. This is the one mode where the user cannot s
 "Drop that", "we don't need that anymore", "skip the CRT idea". Deleting an entry you have decided against is a normal operation, distinct from correcting one that has gone stale.
 
 1. **Identify exactly one entry** and say which, in a few words, before removing it. If more than one plausibly matches, ask.
-2. **Remove that entry and nothing else.** Entries here run to twenty lines, so an entry is a `- [ ]` line plus its indented continuation lines, up to the next line-initial `- [ ]`. Anchoring a deletion on the _next_ heading or entry title will silently swallow everything in between.
+2. **Remove that entry and nothing else.** Entries here run to twenty lines, so an entry is its `- [` line plus the indented continuation lines under it. It ends at whichever of these comes **first**: the next line-initial `- [` (either `- [ ]` or `- [x]`), the next `##` heading, or end of file. Anchoring on the _next_ heading or entry title instead will silently swallow everything in between.
+
+   **All three terminators matter, and getting this wrong is how the accident below happened.** Watching only for `- [ ]` skips straight over a whole section of `- [x]` entries: with Recently Completed sitting between the two open sections, deleting the last open item in the section above it would scan past every completed entry to find the next open one. The `##` and EOF terminators are what stop that, and they are why this rule does not care which order the sections are in.
+
 3. **Verify the count.** Open items before minus one equals open items after. This takes a second and is the only thing that reliably catches an over-broad delete.
 4. **Repoint anything that referenced it** — "see the item above", and comments in the codebase that point at a tracked item.
 5. **Say what was dropped and why**, so it can be reinstated from the transcript if it turns out to have been wanted.

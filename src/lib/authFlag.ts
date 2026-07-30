@@ -6,8 +6,9 @@
 // "Sign in"/"Sign out" popping in late).
 //
 // Same constraint, two different reasons: /video-games is prerendered static,
-// so per-viewer markup is impossible. /u/[username] is dynamic but reads no
-// session, which is what keeps its response cacheable under libraryCacheTag.
+// so per-viewer markup is impossible. /video-games/u/[username] is dynamic but
+// reads no session, which is what keeps its response cacheable under
+// libraryCacheTag.
 //
 // Instead of changing the HTML, this moves the decision earlier: a synchronous
 // script (authFlagScript) reads the session cookie and stamps data-authed on

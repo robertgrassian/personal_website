@@ -17,8 +17,8 @@ import { AuthButton } from "@/components/AuthButton";
 import { SignupCta } from "@/components/video_games/SignupCta";
 
 // One library page, two routes: /video-games (Robert's shelf, at its stable
-// URL) and /u/[username] (anyone's). Extracted so the two can never drift —
-// the only difference between them is which username they pass in.
+// URL) and /video-games/u/[username] (anyone's). Extracted so the two can never
+// drift — the only difference between them is which username they pass in.
 //
 // Async Server Component — a Next.js App Router convention: server components
 // may be async functions and `await` data before rendering.
@@ -26,7 +26,7 @@ type LibraryPageProps = {
   username: string;
   // Show the logged-out sign-up pitch. Only /video-games sets this: that page
   // is the public demo shelf and the URL Google's OAuth brand verification
-  // points at. A user's own /u/{username} is not a marketing surface.
+  // points at. A user's own /video-games/u/{username} is not a marketing surface.
   showSignupCta?: boolean;
 };
 
@@ -90,12 +90,13 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
             {/* Same wording on both routes, since both show the same library.
                 The display name comes from the profile rather than the URL
                 segment so the casing is canonical (usernames are citext, so
-                /u/RGrassian resolves to the same user as /u/rgrassian). */}
+                /video-games/u/RGrassian resolves to the same user as
+                /video-games/u/rgrassian). */}
             <h1 className="text-4xl font-bold text-shelf-text">
               {profile.displayName}&apos;s Video Game Library
             </h1>
-            {/* Whose library this is. On /u/[username] the heading already
-                carries the display name, so the handle is what adds
+            {/* Whose library this is. On /video-games/u/[username] the heading
+                already carries the display name, so the handle is what adds
                 information; on /video-games the heading is generic and this is
                 the only thing naming the owner. Rendered from the profile, so
                 the casing is the stored one rather than whatever the URL used.
