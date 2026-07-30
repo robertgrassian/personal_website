@@ -28,7 +28,9 @@ type FollowCountLinksProps = {
 // when hydration swaps one for the other.
 const BASE = "underline underline-offset-2 decoration-shelf-plank transition-colors";
 const ACTIVE = "text-link decoration-link";
-const INACTIVE = "hover:text-shelf-text";
+// Same amber hover as the view tabs and the Add game / Stats buttons, so every
+// interactive thing on this page answers to one color.
+const INACTIVE = "hover:text-link hover:decoration-link";
 
 export function FollowCountLinks({ followerCount, followingCount }: FollowCountLinksProps) {
   const pathname = usePathname();

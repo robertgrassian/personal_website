@@ -30,8 +30,17 @@ import { setAuthFlag } from "@/lib/authFlag";
 // Shelf tokens, not the global ones: this sits on the library's own background
 // (.shelf-theme), where text-subtle would be low-contrast. Both tokens carry
 // light and dark values.
+//
+// Amber on hover, matching the view tabs, the Add game / Stats buttons and the
+// follow-count links, so every interactive element in the library header and
+// tab strip highlights the same way.
+//
+// cursor-pointer is not redundant: Tailwind v4's preflight sets buttons to
+// cursor: default, so "Sign out" would otherwise show an arrow while the
+// "Sign in" anchor beside it shows a hand. Every other button in the library
+// opts back in the same way.
 const linkClass =
-  "text-sm whitespace-nowrap text-shelf-text-muted hover:text-shelf-text " +
+  "text-sm whitespace-nowrap text-shelf-text-muted hover:text-link cursor-pointer " +
   "underline underline-offset-4 transition-colors duration-150";
 
 export function AuthButton() {

@@ -133,7 +133,7 @@ export function BackToMyLibrary() {
   return (
     <Link
       href="/library"
-      className="text-sm whitespace-nowrap text-shelf-text-muted hover:text-shelf-text underline underline-offset-4 transition-colors duration-150"
+      className="text-sm whitespace-nowrap text-shelf-text-muted hover:text-link underline underline-offset-4 transition-colors duration-150"
     >
       Back to my library
     </Link>
