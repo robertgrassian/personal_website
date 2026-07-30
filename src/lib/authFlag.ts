@@ -1,9 +1,13 @@
 // The "is this viewer signed in?" flag, decided BEFORE first paint.
 //
-// /video-games and /u/[username] are statically cached and their HTML must be
-// identical for every viewer, so auth-dependent controls used to resolve after
-// hydration — which paints one frame of the wrong state (the sign-up banner
-// flashing at signed-in viewers, "Sign in"/"Sign out" popping in late).
+// The library pages must render HTML that is identical for every viewer, so
+// auth-dependent controls used to resolve after hydration — which paints one
+// frame of the wrong state (the sign-up banner flashing at signed-in viewers,
+// "Sign in"/"Sign out" popping in late).
+//
+// Same constraint, two different reasons: /video-games is prerendered static,
+// so per-viewer markup is impossible. /u/[username] is dynamic but reads no
+// session, which is what keeps its response cacheable under libraryCacheTag.
 //
 // Instead of changing the HTML, this moves the decision earlier: a synchronous
 // script (authFlagScript) reads the session cookie and stamps data-authed on
@@ -19,6 +23,11 @@
 // /me/profile round trip and still resolves after hydration.
 
 // Presence-style, so CSS matches html[data-authed] regardless of value.
+//
+// Not a single source of truth despite looking like one: globals.css hardcodes
+// this, and data-hide-authed/data-hide-anon are literals there and in
+// AuthButton/SignupCta. CSS cannot import a TS constant, so a rename type-checks
+// and builds clean while silently disabling the mechanism. Grep, don't rename.
 export const AUTHED_ATTR = "data-authed";
 
 // Mirrors supabase-js's own derivation. Duplicating a library internal is a
@@ -43,26 +52,25 @@ export function authFlagScript(supabaseUrl: string | undefined): string {
     return "";
   }
 
-  // JSON-encoded rather than interpolated raw: it comes from our own env var,
-  // but an unescaped quote would silently break the script.
-  const keyLiteral = JSON.stringify(key);
+  // The key can only hold [a-z0-9-] today; escaping costs a line and removes the
+  // need to re-check that if the derivation ever widens.
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-  // Self-invoking so `return` can bail on the first match; try/catch because a
-  // throw here would abort parsing and take the page down for a cosmetic fix.
-  //
-  // Matching is exact on purpose. @supabase/ssr also writes
-  // `<key>-code-verifier` during the OAuth handshake, so a "contains
-  // -auth-token" test would treat someone who opened the Google consent screen
-  // and backed out as signed in, hiding the banner from its own audience.
-  // Accepted: the key itself, or the key plus a numeric chunk suffix (`.0`,
-  // `.1`, …) as used when a session is too large for one cookie.
-  return `(function(){try{
-var k=${keyLiteral},c=document.cookie?document.cookie.split("; "):[];
-for(var i=0;i<c.length;i++){var e=c[i].indexOf("="),n=e<0?c[i]:c[i].slice(0,e);
-if(e<0||!c[i].slice(e+1))continue;
-if(n===k||(n.slice(0,k.length+1)===k+"."&&/^[0-9]+$/.test(n.slice(k.length+1)))){
-document.documentElement.setAttribute(${JSON.stringify(AUTHED_ATTR)},"1");return;}}
-}catch(e){}})();`;
+  // Every piece is load-bearing:
+  //   (?:^|;\s*)  name boundary, so `xsb-…` cannot match. \s* rather than a
+  //               literal "; " because engines all emit that but the spec does
+  //               not require it.
+  //   (?:\.\d+)?  the chunk suffix used when a session exceeds one cookie.
+  //   =[^;]       non-empty value, so a cleared `key=` is not a session.
+  // The boundary and the `=` together are what reject `<key>-code-verifier`,
+  // which @supabase/ssr writes mid-OAuth: without them, someone who opened the
+  // consent screen and backed out would read as signed in, hiding the banner
+  // from exactly the visitor it exists for.
+  const pattern = `(?:^|;\\s*)${escapedKey}(?:\\.\\d+)?=[^;]`;
+
+  // try/catch: a throw here would abort parsing and take the page down.
+  return `(function(){try{if(new RegExp(${JSON.stringify(pattern)}).test(document.cookie))\
+document.documentElement.setAttribute(${JSON.stringify(AUTHED_ATTR)},"1");}catch(e){}})();`;
 }
 
 // Keeps the flag honest after load: the script runs once, so a sign-out,

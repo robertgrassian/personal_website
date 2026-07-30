@@ -4,10 +4,15 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 // Resolves "is the current viewer the owner of THIS library?" client-side,
-// after hydration. This is deliberate: the page itself is static and its
-// cached HTML must be identical for every viewer, so per-viewer state can
-// never be server-rendered into it. The cost is a brief window where edit
-// controls haven't appeared yet on your own page.
+// after hydration. Deliberate: the page's HTML must be identical for every
+// viewer, so per-viewer state can never be server-rendered into it
+// (/video-games is prerendered static; /u/[username] is dynamic but reads no
+// session, keeping it cacheable under libraryCacheTag). The cost is a brief
+// window where edit controls haven't appeared yet on your own page.
+//
+// Unlike the banner and AuthButton, this cannot use the pre-paint data-authed
+// flag (src/lib/authFlag.ts): a cookie proves a session exists, not whose it is,
+// and the JWT's `sub` is a user id, not a username. Tracked in TODO.md.
 //
 // Logged-out viewers (the overwhelmingly common case) pay no network cost:
 // getSession() reads local cookies, and without a session we stop there.

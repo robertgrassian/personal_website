@@ -33,9 +33,13 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       _Two costs accepted:_ `sessionCookieKey` duplicates supabase-js's own storage-key
       derivation (`sb-${hostname.split(".")[0]}-auth-token`), so if that ever changes the flag
       silently stops setting and the flash quietly returns — it degrades rather than breaks, but
-      nothing reports it. And a cookie present with an invalid session (revoked, or a refresh
-      token expired after long inactivity) now shows "Sign out" for a frame before the
-      subscription corrects it, where before it showed nothing. Also note the cookie key is
+      nothing reports it. And a cookie present with an invalid session shows "Sign out" for a
+      frame before the subscription corrects it, where before it showed nothing. That second one
+      is narrower than it first looked: `src/middleware.ts` matches `/video-games` and
+      `updateSession` calls `getUser()`, so a revoked or long-expired session has its cookie
+      deleted by `Set-Cookie` on the same document response, before the script runs. The window
+      only survives when the refresh fails for a network reason, since auth-js keeps the session
+      then. Also note the cookie key is
       inlined at build time from `NEXT_PUBLIC_SUPABASE_URL`, so a local build bakes in
       `sb-127-auth-token` and Vercel bakes in the project ref.<br>
       _Bonus:_ `SignupCta` dropped `"use client"` entirely and now ships zero JavaScript.
