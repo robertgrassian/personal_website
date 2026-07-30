@@ -31,6 +31,51 @@ Routers get a DB session via the `get_db` dependency in `app/core/db.py`
 parameter both enforces a valid Bearer JWT (401 otherwise) and hands the handler
 the verified `AuthenticatedUser` (id from the `sub` claim). See `routers/me.py`.
 
+## Data model
+
+Six tables in the `public` schema: `profiles`, `games`, `play_sessions`,
+`wishlist_items`, `follows`, `rate_limits`. The SQLAlchemy models in `app/models/`
+are the source of truth for their columns — the notes here are the reasoning behind
+the shape, which the models themselves don't record.
+
+- **Everything cascades from `profiles`**, whose `id` is an FK to `auth.users` with
+  `ON DELETE CASCADE`. Deleting a profile takes that user's games, sessions, wishlist,
+  and follow edges with it. `rate_limits` is the exception: it has no FK to `profiles`,
+  so those rows must be deleted explicitly.
+- **Per-user game rows, not a shared catalog.** `games` and `wishlist_items` each carry
+  their own copy of name/system/genres/release_date/image_url, so two users owning the
+  same game store it twice. The normalized alternative was rejected for v1: users can add
+  games IGDB doesn't have, metadata disagreements get thorny ("my copy is the Switch
+  port"), and the join complicates every query. The nullable `igdb_id` on both tables is
+  the escape hatch — it is the intended grouping key if this is ever normalized.
+- **`play_sessions.game_id` is a real FK.** The CSVs joined sessions to games by exact
+  name, which is the correctness bug this schema exists to fix.
+- **`genres` is `text[]`, not a join table.** The only query is "contains genre", which
+  arrays plus a GIN index handle, and it matches the `genres: string[]` type on the
+  frontend.
+- **`rating` is a CHECK constraint** mirroring `RATINGS` in `src/lib/games.ts`. Two
+  sources of truth for five values is an accepted duplication; the API validates and the
+  DB backstops. NULL means unrated.
+- **`username` is `citext`** so `/u/Robert` and `/u/robert` are one person, with a format
+  CHECK (URL-safe, 3-30 chars) and an app-level reserved list. That list must include
+  API-colliding tokens: `me` and `search` would otherwise shadow `GET /users/{username}`.
+- **`follows` is a bare directed edge table** with a composite PK making duplicate edges
+  impossible and a CHECK rejecting self-follows. Counts are `COUNT(*)`; denormalized
+  counter columns are a later optimization if ever needed. `ix_follows_followee_id` exists
+  because the composite PK cannot answer "who follows X?".
+- **Auto-follow at signup lives in application code, not a DB trigger** — the profile row
+  and both founder edges are inserted in one transaction (`repositories/me.py`). It needs
+  an explicit `flush()` between them: `Follow` declares no ORM relationship to `Profile`,
+  so the unit of work has no mapper dependency and will otherwise emit the `follows` INSERT
+  first and violate the FK.
+- **Play state is derived in Python**, not SQL: an open session (NULL `end_date`) means
+  currently playing, and the newest `end_date` is last played, merged in the service layer
+  from two queries. Window functions are a profiling-driven optimization only.
+- **Alembic is scoped to the `public` schema.** The `auth` schema belongs to Supabase's
+  GoTrue, and autogenerate would otherwise see those tables as undeclared and try to drop
+  them. The `profiles → auth.users` FK is declared in a migration, but that table is never
+  managed here.
+
 ## Adding a new endpoint
 
 1. **Schema** — define request/response models in `app/schemas/`.

@@ -2,12 +2,51 @@
 
 ## Up Next
 
-**Phase 5 (social graph) is shipped and verified in a browser** (PR #77, 2026-07-30), which
-closes out the instanced-libraries spec through Phase 5. No phase is in flight. Phase 6 in
-`docs/plans/instanced-game-libraries.md` is "hardening / polish, as needed" rather than a
-planned body of work, so the next thing is whatever is worth doing from Backlog / Ideas —
-**account deletion** is the strongest candidate, since `/privacy` describes it as self-serve
-and it isn't built yet.
+**The instanced game libraries project is done** (Phases 0-6, finished 2026-07-30 with PR #77).
+Its spec, `docs/plans/instanced-game-libraries.md`, was **deleted on 2026-07-30** now that
+everything in it either shipped or is tracked here: the durable parts moved into the root
+`README.md` (auth model, the design decisions that still explain the code) and `api/README.md`
+(the data model and its rationale), and `docs/supabase-primer.md` survives as the "why not
+backend-as-a-service" argument. Nothing is mid-flight, so from here this file is the only plan.
+
+The organizing goal is **sharing the site with people**, so Up Next holds what should be true
+before that happens.
+
+- [ ] **Implement account deletion (`DELETE /api/py/me/account`).** Promoted from Backlog
+      2026-07-30: the last unbuilt thing the spec actually committed to, and the one item here
+      that is a promise rather than a polish. Spec decision #22 planned it (cascade down from
+      `profiles` + `auth.users` removal via the Supabase Admin API, which
+      `core/supabase_admin.py` already wraps for the over-cap cleanup), but it was never built.
+      Noticed 2026-07-28 while editing `/privacy`: the policy described deleting your account
+      as though it were self-serve, so the copy now points at email instead, which is the only
+      mechanism that actually exists. Once the endpoint and a UI control ship, update that
+      paragraph (there is a comment in `src/app/privacy/page.tsx` marking it). Note
+      `rate_limits` has no FK to `profiles`, so those rows will not cascade and need deleting
+      explicitly.
+
+- [ ] **Backfill existing games' genres to IGDB's vocabulary.** Promoted from Backlog
+      2026-07-30: wanted before the site is shared, since the genre filter is a visitor-facing
+      surface and it currently offers a vocabulary nobody else's library will use. The current
+      genres came from the old Wikipedia-scraping `add-game` skill (retired in Phase 3), so
+      they won't match what the new IGDB add flow (`/api/py/igdb/search`) suggests for future
+      games. Normalizing now means future adds match up and skip the manual genre-editing step.
+      Approach: for each library game with an `igdb_id` (or matched by name), pull its IGDB
+      genres and overwrite the row's `genres`. Note: genre editing isn't in the write path yet
+      (`GameUpdate`/`PATCH /me/games/{id}` is rating-only), so this needs either a one-off
+      backfill script in `api/scripts/` (query IGDB per game, update `games.genres` directly)
+      or extending the edit UI to support genres first. Decide whether to also map IGDB's
+      verbose names (e.g. "Role-playing (RPG)") to shorter shelf labels while backfilling.<br>
+      **Do the case/duplicate normalization in the same pass:** `clean_genres`
+      (`api/app/schemas/me.py`) trims and drops blanks but does not dedupe or normalize case,
+      so `"RPG, rpg"` stores both and `"RPG, RPG"` stores it twice — and the filter dropdown,
+      built from `new Set(...)`, then shows them as separate options. Fix belongs in
+      `clean_genres` (dedupe preserving first-seen casing) rather than the modal, so it also
+      covers direct Server Action calls that bypass the UI. Same normalization problem as the
+      backfill, one size larger, so the vocabulary decision above should settle the casing rule
+      too.<br>
+      Related, and worth deciding together: the backlog item about restricting add-game system
+      suggestions to real IGDB platforms notes the same "thread IGDB's vocabulary through the
+      edit UI" question for genres.
 
 - [ ] **The "Unrated" shelf has a big gap above it.** Confirmed cause: the grouped shelves
       render inside `<div className="mt-6 pb-24">` (`GameLibrary.tsx:316`) and the Unrated
@@ -20,6 +59,33 @@ and it isn't built yet.
       group pipeline, this gap disappears on its own.
 
 ## Backlog / Ideas
+
+- [ ] **Document the database restore procedure.** Supabase takes daily backups on the free
+      tier, so the backup half is already handled and needs no work; what does not exist is any
+      written answer to "the data is gone, now what". Carried over from the spec's Phase 6
+      when that document was deleted (2026-07-30). An untested restore is not a backup: the
+      useful version of this is running one against a scratch project once and writing down
+      what actually happened, in `docs/dev-setup.md` or beside it. Note the free tier's
+      retention window is short (days, not months), which is the real limit worth knowing
+      before it matters.
+
+- [ ] **Add public libraries to `sitemap.ts`.** Carried over from the spec's Phase 6
+      (2026-07-30). Today the sitemap lists static routes only; `/video-games/u/[username]`
+      pages are public and indexable but unlisted, so search engines reach them only by
+      crawling follower lists. Deliberately skipped once already (2026-07-29, recorded in
+      Recently Completed) on the grounds that one hardcoded username in a sitemap is worse
+      than none. With real signups that reasoning inverts: the entry becomes a generated list.
+      Wants a decision on whether users can opt out of indexing, since spec decision #6 made
+      every library public with no privacy setting, and "public" and "indexed by Google" are
+      not the same promise.
+
+- [ ] **Analytics on signups.** Carried over from the spec's Phase 6 (2026-07-30), and the
+      only Phase 6 item with no groundwork at all. The narrow question worth answering is how
+      far people get: land on `/video-games` → click sign in → complete OAuth → pick a username
+      → add a first game. The onboarding funnel is several hops and any of them can silently
+      lose someone. Weigh against the privacy policy, which is currently short and honest
+      partly because there is no third-party analytics to disclose: a self-hosted counter or
+      Vercel's own analytics keeps it that way, a third-party script means updating `/privacy`.
 
 - [ ] **Collapse the two per-viewer API calls on a library page into one.** Loading any library
       fires two independent authenticated requests that overlap: `useIsLibraryOwner`
@@ -209,16 +275,6 @@ and it isn't built yet.
       Same change applies to the promote form in `EditWishlistModal.tsx`, which today offers
       only existing shelf systems and no IGDB platforms at all (see the mobile field-suggestions
       item below, which covers the same form).
-- [ ] **Implement account deletion (`DELETE /api/py/me/account`)** — spec decision #22 planned
-      it (cascade down from `profiles` + `auth.users` removal via the Supabase Admin API,
-      which `core/supabase_admin.py` already wraps for the over-cap cleanup), but it was never
-      built. Noticed 2026-07-28 while editing `/privacy`: the policy described deleting your
-      account as though it were self-serve, so the copy now points at email instead, which is
-      the only mechanism that actually exists. Once the endpoint and a UI control ship,
-      update that paragraph (there is a comment in `src/app/privacy/page.tsx` marking it).
-      Worth doing before signup opens widely: it is the kind of thing a privacy policy is
-      expected to back up. Note `rate_limits` has no FK to `profiles`, so those rows will not
-      cascade and need deleting explicitly.
 - [ ] Field suggestions (system, genre, …) should work on mobile, not just desktop — the
       add/promote forms use a native `<datalist>` (`AddGameModal.tsx`, `EditWishlistModal.tsx`),
       which mobile Safari/Chrome either render poorly or ignore, so on a phone the system
@@ -228,13 +284,11 @@ and it isn't built yet.
       IGDB's `draft.platforms` for the selected game into the shelf-system list, but the
       promote form in `EditWishlistModal` only offers existing shelf systems — thread the
       IGDB platforms through there too, and consider doing the same for genres.
-- [ ] Backfill existing games' genres to IGDB's vocabulary — the current genres came from the old Wikipedia-scraping `add-game` skill (retired in Phase 3), so they won't match what the new IGDB add flow (`/api/py/igdb/search`) suggests for future games. Normalizing now means future adds match up and skip the manual genre-editing step. Approach: for each library game with an `igdb_id` (or matched by name), pull its IGDB genres and overwrite the row's `genres`. Note: genre editing isn't in the write path yet (`GameUpdate`/`PATCH /me/games/{id}` is rating-only), so this needs either a one-off backfill script in `api/scripts/` (query IGDB per game, update `games.genres` directly) or extending the edit UI to support genres first. Decide whether to also map IGDB's verbose names (e.g. "Role-playing (RPG)") to shorter shelf labels while backfilling.<br>
-      **Do the case/duplicate normalization in the same pass:** `clean_genres` (`api/app/schemas/me.py`) trims and drops blanks but does not dedupe or normalize case, so `"RPG, rpg"` stores both and `"RPG, RPG"` stores it twice — and the filter dropdown, built from `new Set(...)`, then shows them as separate options. Fix belongs in `clean_genres` (dedupe preserving first-seen casing) rather than the modal, so it also covers direct Server Action calls that bypass the UI. Same normalization problem as the backfill, one size larger, so the vocabulary decision above should settle the casing rule too.
 - [ ] Library-level "create session" button (owner-only) — start or log a session for any game without opening that game's pencil/edit modal: a game picker (search the library) + the same start-now / past-dates form the modal has. Stretch goal: accept a game NOT in the library yet ("I just started something new") — the flow would add the game to the library (IGDB search, Phase 3 slice 4's proxy) and open its session in one go. Backend already supports everything except add+start-in-one; UI is the work. Keep simple, iterate later.
 - [ ] Normalize game metadata into a shared catalog (a `game_metadata` table + per-user `played_games`/`wishlist_games` link tables) — today `games` and `wishlist_items` each carry their own copy of name/system/genres/release_date/image_url. Spec §4.2 deliberately chose denormalized-with-`igdb_id` for v1 (canonical rows need an ownership/moderation story; user-entered games lack a canonical key). Revisit at Phase 4 when cross-user duplication actually exists — the `igdb_id` column on both tables is the planned backfill key (group by it, extract canonical rows, repoint).
-- [ ] Profile pictures for user accounts (instanced game libraries follow-up, post-v1 — see `docs/plans/instanced-game-libraries.md`; likely Supabase Storage + upload/crop flow, shown in the library profile header and follower lists)
+- [ ] Profile pictures for user accounts (instanced game libraries follow-up, post-v1 — likely Supabase Storage + upload/crop flow, shown in the library profile header and follower lists)
 - [ ] Homepage customization per user (instanced game libraries follow-up, post-v1 — let users personalize their library page: hero/backdrop, shelf styling, featured games, etc. Scope TBD)
-- [ ] Staging environment (instanced game libraries follow-up — the spec accepts a "no staging" caveat (§7.5: previews are read-only against prod, writes first run for real in prod); revisit with a second Supabase project or branching once the write path exists). **Promoted in priority 2026-07-28:** the preview `500 MIDDLEWARE_INVOCATION_FAILED` (since fixed — see Recently Completed) was this caveat biting for real. Pointing Preview at production's Supabase is the stopgap, but it means preview sign-ins are production accounts. A second Supabase project (own DB + own GoTrue + own Google OAuth client) would give previews a real identity system and finally let the write path be exercised somewhere that isn't prod
+- [ ] Staging environment (instanced game libraries follow-up — the project deliberately accepted a "no staging" caveat: previews are read-only against prod, so writes first run for real in prod; revisit with a second Supabase project or branching once the write path exists). **Promoted in priority 2026-07-28:** the preview `500 MIDDLEWARE_INVOCATION_FAILED` (since fixed — see Recently Completed) was this caveat biting for real. Pointing Preview at production's Supabase is the stopgap, but it means preview sign-ins are production accounts. A second Supabase project (own DB + own GoTrue + own Google OAuth client) would give previews a real identity system and finally let the write path be exercised somewhere that isn't prod
 - [ ] Decide the routing/namespace strategy as the site grows into multiple apps. **Half-settled
       2026-07-29:** nesting per-user libraries under `/video-games/u/` committed to per-app route
       prefixes on one domain, i.e. option (a) below, for the game library. What is still open is
@@ -293,7 +347,7 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       FK to `profiles`, and the relationship read deliberately answered "not following" for those
       users — which is exactly what rendered the button that 500'd); and signup's auto-follow
       never purged the founder's cache tag, so `/video-games` kept serving a stale follower count.
-      Both now fixed and tested. Lesson recorded in the spec: any write that creates a follow edge
+      Both now fixed and tested. Lesson, now recorded in `api/README.md`: any write that creates a follow edge
       changes both endpoints of it.<br>
       _Three deliberate departures from the spec's sketch:_ follow/unfollow are **idempotent**
       (204, not 409) because the button is a plain toggle with no conflict state to render;
@@ -412,8 +466,8 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       inlined at build time, so this needed a fresh build, not just a redeploy.<br>
       **Caveat now live:** previews authenticate against _production_ Supabase, so signing in
       on a preview URL uses your real account. Writes are still refused
-      (`targetsForeignEnvironmentApi`), so it's reads plus a real session — the spec's known
-      no-staging trade-off (§7.5). The real fix is the staging-environment backlog item.<br>
+      (`targetsForeignEnvironmentApi`), so it's reads plus a real session — the known
+      no-staging trade-off. The real fix is the staging-environment backlog item.<br>
       _Also mitigated in code (PR #68):_ the middleware and the two session-reading pages
       degrade instead of throwing when the vars are absent, so a missing var can no longer
       take the site down
