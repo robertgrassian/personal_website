@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.auth import AuthenticatedUser
-from app.core.config import get_settings
+from app.core.config import FOUNDER_USERNAME, get_settings
 from app.core.supabase_admin import delete_auth_user
 from app.models import Profile
 from app.repositories import me as me_repo
@@ -157,13 +157,16 @@ class GameExistsError(Exception):
 
 
 class OnboardingRequiredError(Exception):
-    """Authenticated but no profile row yet — games.user_id references
-    profiles, so creating library rows before onboarding is impossible. The
-    explicit check turns what would be an FK-violation 500 (misread as a
-    duplicate by the IntegrityError backstop) into a clear 403."""
+    """Authenticated but no profile row yet. Several tables reference profiles
+    (games.user_id, follows.follower_id), so writing any of them before
+    onboarding is an FK violation. The explicit check turns what would be a 500
+    — misread as a duplicate by the IntegrityError backstop — into a clear 403.
 
-    def __init__(self) -> None:
-        super().__init__("Complete onboarding before adding games.")
+    ``action`` names what was attempted, so a follow is not told to complete
+    onboarding "before adding games"."""
+
+    def __init__(self, action: str = "doing that") -> None:
+        super().__init__(f"Complete onboarding before {action}.")
 
 
 class WishlistItemExistsError(Exception):
@@ -241,23 +244,25 @@ def _validate_username(username: str) -> str:
     return normalized
 
 
-def _resolve_founder_id(db: Session, configured_id: uuid.UUID | None) -> uuid.UUID | None:
-    """The founder id to auto-follow, or None to skip auto-follow entirely.
+def _resolve_founder_id(db: Session, configured_username: str | None) -> uuid.UUID | None:
+    """The founder's profile id to auto-follow, or None to skip auto-follow.
 
-    Verifies the configured id actually names a profile. Without this check a
-    typo in FOUNDER_PROFILE_ID would make the follow edges violate their
-    foreign key, rolling back the profile insert with it — every signup would
-    fail, and the IntegrityError handling below would misreport it as "username
-    taken". Auto-follow is a nicety; it must never be able to close signup.
+    Resolving through the username is also what verifies the founder exists.
+    Without that check, a founder handle with no profile row (a bare local DB,
+    CI, a future rename) would make the follow edges violate their foreign key,
+    rolling back the profile insert with them — every signup would fail, and the
+    IntegrityError handling below would misreport it as "username taken".
+    Auto-follow is a nicety; it must never be able to close signup.
     """
-    if configured_id is None:
+    if not configured_username:
         return None
-    if me_repo.get_profile_by_id(db, configured_id) is None:
+    founder = users_repo.get_profile_by_username(db, configured_username)
+    if founder is None:
         logger.warning(
-            "FOUNDER_PROFILE_ID %s has no profile row; skipping auto-follow.", configured_id
+            "Founder %r has no profile row; skipping auto-follow.", configured_username
         )
         return None
-    return configured_id
+    return founder.id
 
 
 def create_my_profile(
@@ -304,7 +309,7 @@ def create_my_profile(
             user_id=user.id,
             username=username,
             display_name=display_name,
-            founder_id=_resolve_founder_id(db, settings.founder_profile_id),
+            founder_id=_resolve_founder_id(db, FOUNDER_USERNAME),
         )
     except IntegrityError as exc:
         # A concurrent onboarding POST committed between our checks above and
@@ -326,7 +331,7 @@ def create_my_game(db: Session, user: AuthenticatedUser, payload: GameCreate) ->
     case, the uq_games_user_id_name_system constraint is the real backstop
     for a concurrent double-submit (same pattern as onboarding)."""
     if me_repo.get_profile_by_id(db, user.id) is None:
-        raise OnboardingRequiredError()
+        raise OnboardingRequiredError("adding games")
     # Checked before the duplicate lookup so a full library says so plainly
     # rather than reporting whichever problem happens to be found first. Same
     # count-then-insert race as the signup cap: a burst of concurrent adds can
@@ -399,7 +404,7 @@ def create_my_wishlist_item(
     first (FK), then a friendly name-dedupe 409 with the unique constraint as
     the concurrency backstop."""
     if me_repo.get_profile_by_id(db, user.id) is None:
-        raise OnboardingRequiredError()
+        raise OnboardingRequiredError("using your wishlist")
     if me_repo.find_wishlist_item_by_name(db, user.id, payload.name):
         raise WishlistItemExistsError(payload.name)
 

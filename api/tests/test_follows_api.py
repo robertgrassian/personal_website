@@ -7,9 +7,10 @@ every user is a throwaway auth.users row whose teardown cascades the profile
 and its follow edges away (ON DELETE CASCADE from profiles). Two users are the
 minimum interesting case here, so most tests build a pair.
 
-Auto-follow is off unless FOUNDER_PROFILE_ID is configured, so the tests that
-care about it set founder_profile_id explicitly rather than depending on
-whatever the local .env happens to hold.
+FOUNDER_USERNAME is a constant, and the local dev DB is seeded with that very
+profile — so auto-follow is ON by default here. Tests that do not care about it
+use the no_auto_follow fixture to point the founder at a handle nobody owns,
+which keeps each test's graph to what the test itself created.
 """
 
 import uuid
@@ -22,6 +23,7 @@ from app.core.auth import AuthenticatedUser, get_current_user
 from app.core.config import get_settings
 from app.core.db import get_sessionmaker
 from app.main import create_app
+from app.services import me as me_service
 
 requires_db = pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
 
@@ -115,8 +117,12 @@ def make_user():
 def no_auto_follow(monkeypatch: pytest.MonkeyPatch):
     """Signup creates no follow edges, so a test's graph contains only what the
     test itself put there. The default for everything except the auto-follow
-    tests below."""
-    monkeypatch.setattr(get_settings(), "founder_profile_id", None)
+    tests below.
+
+    Patches the name as imported into the service module, not the one in
+    app.core.config: `from ... import FOUNDER_USERNAME` binds a separate name,
+    and the service reads its own module global at call time."""
+    monkeypatch.setattr(me_service, "FOUNDER_USERNAME", "no-such-founder")
 
 
 # --- follow / unfollow ----------------------------------------------------
@@ -221,12 +227,27 @@ def test_relationship_with_self_reports_is_me(make_user, no_auto_follow) -> None
 
 
 @requires_db
-def test_relationship_works_before_onboarding(no_auto_follow) -> None:
-    """A signed-in user with no profile follows nobody. Answering that plainly
-    keeps the follow button from needing a not-onboarded branch."""
-    response = client_as(uuid.uuid4()).get("/api/py/me/relationship/rgrassian")
-    assert response.status_code == 200
-    assert response.json() == {"amIFollowing": False, "isMe": False}
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("get", "/api/py/me/relationship/rgrassian"),
+        ("post", "/api/py/me/following/rgrassian"),
+        ("delete", "/api/py/me/following/rgrassian"),
+    ],
+)
+def test_not_onboarded_caller_is_403(no_auto_follow, method: str, path: str) -> None:
+    """Authenticated but no profile row yet. follows.follower_id is a foreign
+    key to profiles, so following without one is an FK violation — a 500 unless
+    it is refused here, as every other mutating /me route already does.
+
+    The relationship read refuses too, and that is the half that matters for
+    the UI: an earlier version answered "not following, not you", which is
+    exactly what made the button render enabled and then 500 on click. A
+    non-OK response leaves useViewerRelationship at "unknown", so no controls
+    appear at all."""
+    response = getattr(client_as(uuid.uuid4()), method)(path)
+    assert response.status_code == 403, response.text
+    assert "onboarding" in response.json()["detail"].lower()
 
 
 @requires_db
@@ -304,7 +325,7 @@ def test_signup_auto_follows_founder_in_both_directions(
     """The point of auto-follow: a brand-new account has a non-empty Following
     list and shows up in the founder's Followers list."""
     founder = make_user()
-    monkeypatch.setattr(get_settings(), "founder_profile_id", founder.id)
+    monkeypatch.setattr(me_service, "FOUNDER_USERNAME", founder.username)
 
     newcomer = make_user()
     assert _edge_count(newcomer.id, founder.id) == 1
@@ -328,11 +349,10 @@ def test_founder_signing_up_does_not_self_follow(monkeypatch: pytest.MonkeyPatch
     user's id. Skipping the edges is what keeps that from tripping the
     no_self_follow check constraint and failing the signup."""
     user_id = _make_auth_user()
-    monkeypatch.setattr(get_settings(), "founder_profile_id", user_id)
+    username = f"founder-{str(user_id)[:8]}"
+    monkeypatch.setattr(me_service, "FOUNDER_USERNAME", username)
     try:
-        response = client_as(user_id).post(
-            "/api/py/me/profile", json={"username": f"founder-{str(user_id)[:8]}"}
-        )
+        response = client_as(user_id).post("/api/py/me/profile", json={"username": username})
         assert response.status_code == 201
         assert _edge_count(user_id, user_id) == 0
     finally:
@@ -340,11 +360,11 @@ def test_founder_signing_up_does_not_self_follow(monkeypatch: pytest.MonkeyPatch
 
 
 @requires_db
-def test_misconfigured_founder_id_still_allows_signup(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A FOUNDER_PROFILE_ID naming no profile must not close signup. Without
-    the existence check, the follow edges would violate their foreign key and
-    roll the profile insert back with them, reporting a bogus "username taken"."""
-    monkeypatch.setattr(get_settings(), "founder_profile_id", uuid.uuid4())
+def test_misconfigured_founder_still_allows_signup(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A founder handle naming no profile must not close signup. Without the
+    existence check, the follow edges would violate their foreign key and roll
+    the profile insert back with them, reporting a bogus "username taken"."""
+    monkeypatch.setattr(me_service, "FOUNDER_USERNAME", "nobody-owns-this")
     user_id = _make_auth_user()
     try:
         response = client_as(user_id).post(
@@ -353,3 +373,58 @@ def test_misconfigured_founder_id_still_allows_signup(monkeypatch: pytest.Monkey
         assert response.status_code == 201
     finally:
         _delete_auth_user(user_id)
+
+
+@requires_db
+def test_lists_are_newest_edge_first(make_user, no_auto_follow) -> None:
+    """Ordering is part of the contract — a follower list that shuffled between
+    renders would look broken. Single-element lists cannot catch a regression."""
+    target, first, second = make_user(), make_user(), make_user()
+    first.client.post(f"/api/py/me/following/{target.username}")
+    second.client.post(f"/api/py/me/following/{target.username}")
+
+    rows = TestClient(create_app()).get(f"/api/py/users/{target.username}/followers").json()
+    assert [u["username"] for u in rows] == [second.username, first.username]
+
+
+@requires_db
+def test_founder_edge_can_be_unfollowed(monkeypatch: pytest.MonkeyPatch, make_user) -> None:
+    """The auto-follow edge is an ordinary row with no special-case protection
+    (spec decision #10) — the docstring on unfollow_user promises this."""
+    founder = make_user()
+    monkeypatch.setattr(me_service, "FOUNDER_USERNAME", founder.username)
+    newcomer = make_user()
+    assert _edge_count(newcomer.id, founder.id) == 1
+
+    assert newcomer.client.delete(f"/api/py/me/following/{founder.username}").status_code == 204
+    assert _edge_count(newcomer.id, founder.id) == 0
+    # The founder still follows them; unfollowing is one-directional.
+    assert _edge_count(founder.id, newcomer.id) == 1
+
+
+@requires_db
+def test_signup_moves_the_founders_counts(monkeypatch: pytest.MonkeyPatch, make_user) -> None:
+    """Auto-follow changes the FOUNDER's page as much as the new user's, which
+    is why onboarding revalidates both cache tags."""
+    # The founder itself must be created with auto-follow pointed elsewhere,
+    # or it signs up following the seeded rgrassian and starts at (1, 1).
+    monkeypatch.setattr(me_service, "FOUNDER_USERNAME", "no-such-founder")
+    founder = make_user()
+    monkeypatch.setattr(me_service, "FOUNDER_USERNAME", founder.username)
+    client = TestClient(create_app())
+    before = client.get(f"/api/py/users/{founder.username}").json()
+    assert (before["followerCount"], before["followingCount"]) == (0, 0)
+
+    newcomer = make_user()
+    after = client.get(f"/api/py/users/{founder.username}").json()
+    assert (after["followerCount"], after["followingCount"]) == (1, 1)
+    rows = client.get(f"/api/py/users/{founder.username}/followers").json()
+    assert [u["username"] for u in rows] == [newcomer.username]
+
+
+@requires_db
+def test_unfollow_self_says_unfollow(make_user, no_auto_follow) -> None:
+    """The message names the action actually attempted."""
+    a = make_user()
+    detail = a.client.delete(f"/api/py/me/following/{a.username}").json()["detail"]
+    assert "unfollow yourself" in detail

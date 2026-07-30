@@ -62,9 +62,17 @@ async function revalidateMyLibrary(): Promise<void> {
  *  Taking the username as an argument is the thing revalidateMyLibrary warns
  *  about, so the difference matters: the caller's tag decides whose PRIVATE
  *  writes get published, while this one only forces a re-fetch of a page that
- *  is already public to everyone. The worst an attacker achieves by calling
- *  this with an arbitrary username is making us re-request a public URL, which
- *  is why a client-supplied value is acceptable here and nowhere else. */
+ *  is already public to everyone. No data leaks either way.
+ *
+ *  It is still a cache-purge primitive, not merely "a re-request": toggling
+ *  follow on one username at the write budget's ceiling (60/min, rate_limit_
+ *  writes) purges that tag twice that often, and each purge costs a full
+ *  re-render plus four API round trips. Bounded rather than harmless — it needs
+ *  a session, is rate-limited, and signup is capped — but worth naming so the
+ *  next person weighing a client-supplied tag has the real number.
+ *
+ *  Case is not a hazard here: libraryCacheTag lowercases, and usernames are
+ *  citext, so `RGrassian` and `rgrassian` purge the same tag. */
 function revalidateOtherLibrary(username: string): void {
   revalidateTag(libraryCacheTag(username));
 }

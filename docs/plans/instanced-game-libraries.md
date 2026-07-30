@@ -671,8 +671,18 @@ discovery path, so search is an enhancement rather than a prerequisite.
 - [x] `follows` endpoints + auto-follow wiring in the signup flow. The table itself already
       existed from the baseline migration; this phase added `ix_follows_followee_id`, since
       the composite PK cannot answer "who follows X?".
-- [x] Backfill: `api/scripts/backfill_founder_follows.py`, idempotent so a rerun cannot
-      resurrect an edge someone deliberately unfollowed. Gated on `FOUNDER_PROFILE_ID`.
+- [x] ~~Backfill: create follow edges between Robert and any Phase 4 signups.~~ **Dropped
+      2026-07-30 as unnecessary.** A script was written and then deleted: production holds
+      exactly one account (Robert's), and the founder cannot follow himself, so it would
+      have created zero edges. Auto-follow covers every signup from here. Only worth
+      reinstating if accounts ever exist that predate auto-follow.
+- [x] The founder is `FOUNDER_USERNAME` in `api/app/core/config.py`, a constant mirroring
+      `LIBRARY_OWNER_USERNAME` in `src/lib/games.ts` — not an env var. It is the same value
+      in every environment, so a var would be three places to set one answer and a way for
+      them to disagree. A handle rather than the profile id because the id differs per
+      database (so it could not be a constant), and resolving it costs the one query the
+      existence check already needed. Signup auto-follow is a no-op if that handle has no
+      profile row, which is what keeps a bare local DB and CI working.
 - [x] Profile headers with follower/following counts, and **Following / Followers tabs**
       beside Played and Want to Play, each listing users as links to their libraries.
 - [x] Follow button: amber "Follow" ↔ outlined checkmark "Following".
@@ -702,6 +712,23 @@ Three decisions that departed from the sketch above, and one bug worth rememberi
   both profiles loaded.
 - **`UserSummary` carries no per-row follow counts**, though §6's sketch mentioned them:
   they turn one join into a correlated aggregate for numbers no list row displays.
+- **Every write that touches `profiles` needs the onboarding check, including the reads that
+  gate it.** `follows.follower_id` is a foreign key to `profiles`, so a signed-in caller who
+  abandoned onboarding got a 500 from an FK violation. Worse, the relationship read
+  deliberately _didn't_ check, on the reasoning that answering "not following, not you" saved
+  the button a special case — and that answer is precisely what rendered an enabled Follow
+  button for exactly the users whose click would 500. A comment defending the choice made it
+  look intentional. All three follow routes now raise `OnboardingRequiredError` → 403, and the
+  button disappears because a non-OK relationship response leaves the hook at "unknown".
+- **Auto-follow at signup changes two libraries, so it must purge two cache tags.** The follow
+  _actions_ got this right; the signup path did not, because the edges are created deep in the
+  API while the revalidation happens in a Next Server Action that only knew the new user's
+  handle. Fixed by revalidating `LIBRARY_OWNER_USERNAME`'s tag too. Generalize: any write that
+  creates a follow edge affects both endpoints of it.
+- **One number, one source.** The follow counts were read from `ProfileRead` while the lists
+  came from two other endpoints, so a 404 degrading to an empty list could render "3 followers"
+  above a tab saying nobody follows this user. The counts are now `followers.length` — a single
+  source cannot contradict itself. Revisit if these lists are ever paginated.
 - **A new public endpoint consumed by a prerendered page must tolerate its own deploy.**
   Caught by the Vercel preview build, which failed with
   `https://rgrassian.com/api/py/users/rgrassian/followers returned 404`. `next build`

@@ -291,10 +291,13 @@ def read_my_relationship(user: CurrentUser, db: DbSession, username: str) -> Rel
     differs per viewer and must never be cached (spec §7.2).
 
     Status mapping:
+    - 403 authenticated but not onboarded yet
     - 404 no such username
     """
     try:
         return follows_service.get_relationship(db, user.id, username)
+    except OnboardingRequiredError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except UserNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -309,11 +312,14 @@ def follow_user(user: CurrentUser, db: DbSession, username: str) -> None:
     not a conflict, so a double-fired toggle needs no special handling.
 
     Status mapping:
+    - 403 authenticated but not onboarded yet
     - 404 no such username
     - 422 following yourself
     """
     try:
         follows_service.follow_user(db, user.id, username)
+    except OnboardingRequiredError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except UserNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except SelfFollowError as exc:
@@ -332,11 +338,14 @@ def unfollow_user(user: CurrentUser, db: DbSession, username: str) -> None:
     signup is an ordinary row and can be removed here like any other.
 
     Status mapping:
+    - 403 authenticated but not onboarded yet
     - 404 no such username
     - 422 unfollowing yourself
     """
     try:
         follows_service.unfollow_user(db, user.id, username)
+    except OnboardingRequiredError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except UserNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except SelfFollowError as exc:

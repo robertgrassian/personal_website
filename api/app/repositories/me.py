@@ -224,14 +224,6 @@ def count_games(db: Session, user_id: uuid.UUID) -> int:
     ).scalar_one()
 
 
-def create_profile(db: Session, *, user_id: uuid.UUID, username: str, display_name: str) -> Profile:
-    profile = Profile(id=user_id, username=username, display_name=display_name)
-    db.add(profile)
-    db.commit()
-    db.refresh(profile)
-    return profile
-
-
 def create_profile_with_follows(
     db: Session,
     *,

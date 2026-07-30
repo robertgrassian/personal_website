@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 // Resolves the viewer's relationship to the library they're looking at, so the
@@ -18,10 +18,29 @@ import { createClient } from "@/lib/supabase/client";
 // from flashing on your own page.
 export type ViewerRelationship = "unknown" | "me" | "following" | "not-following";
 
+// The setter takes the username the caller believes it is writing about, and
+// drops the update if the viewer has since navigated to a different library.
+// Necessary because the follow button's optimistic revert fires after an
+// awaited request: click Follow on A, click through to B, then A's write fails
+// — an unguarded revert would write A's answer into B's page, showing
+// "Following" for someone you have never followed and offering to unfollow
+// them. Same hazard the effect's reset below guards on the read side.
+export type SetViewerRelationship = (forUsername: string, next: ViewerRelationship) => void;
+
 export function useViewerRelationship(
   ownerUsername: string
-): [ViewerRelationship, (next: ViewerRelationship) => void] {
+): [ViewerRelationship, SetViewerRelationship] {
   const [relationship, setRelationship] = useState<ViewerRelationship>("unknown");
+
+  // A ref, not the prop: the setter is handed to callers that captured it in an
+  // async closure, so it has to read the CURRENT owner, not the one that was
+  // current when the closure was made.
+  const ownerRef = useRef(ownerUsername);
+  ownerRef.current = ownerUsername;
+
+  const setForOwner = useCallback<SetViewerRelationship>((forUsername, next) => {
+    if (forUsername === ownerRef.current) setRelationship(next);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,5 +83,5 @@ export function useViewerRelationship(
     };
   }, [ownerUsername]);
 
-  return [relationship, setRelationship];
+  return [relationship, setForOwner];
 }

@@ -6,7 +6,6 @@ committed; ``.env.example`` at the repo root documents the variable names.
 """
 
 import logging
-import uuid
 from functools import lru_cache
 from pathlib import Path
 
@@ -18,6 +17,21 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # dev the Next.js rewrite proxies the same path to uvicorn — so FastAPI must
 # route on the full path rather than being mounted behind a stripped prefix.
 API_PREFIX = "/api/py"
+
+# The founder's handle. New signups auto-follow this account and it auto-follows
+# them back, so nobody's lists start empty and every new user has somewhere to
+# navigate from day one.
+#
+# A constant rather than an env var, mirroring LIBRARY_OWNER_USERNAME in
+# src/lib/games.ts: it is the same value in every environment, so an env var
+# would be three places to set the one answer and a way for them to disagree.
+# A username rather than the profile id, even though the follow edges join on
+# id — the id differs per database, so it could not be a constant at all, and
+# resolving the handle costs the one query the existence check already needed.
+#
+# If the founder has no profile row (a bare local DB, CI), auto-follow is
+# skipped rather than failing: it is a nicety and must never block signup.
+FOUNDER_USERNAME = "rgrassian"
 
 # Resolve the repo-root .env by file location, not cwd: uvicorn runs with
 # cwd=api/ locally while Vercel runs from the repo root. Missing files are
@@ -65,16 +79,6 @@ class Settings(BaseSettings):
     # script.
     max_games: int = 2000
 
-    # --- Social graph ----------------------------------------------------------
-    # The founder's profile id. New signups auto-follow this account and it
-    # auto-follows them back, so nobody's follower lists start empty and every
-    # new user has somewhere to navigate from day one.
-    #
-    # Optional on purpose: unset means no auto-follow edges at all, which keeps
-    # tests and a bare local DB working without seeding a founder. Kept as an
-    # id rather than a username because it is the join key the edges need, and
-    # a username can in principle change.
-    founder_profile_id: uuid.UUID | None = None
 
     # --- IGDB proxy ------------------------------------------------------------
     # Twitch application credentials (IGDB authenticates via Twitch OAuth).

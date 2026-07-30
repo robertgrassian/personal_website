@@ -4,26 +4,11 @@
 
 **Phase 5 (social graph) is built and merged**: follow/unfollow endpoints, auto-follow at signup,
 Following/Followers tabs, a follow button, and "Back to my library". User search was deliberately
-held back and is in Backlog / Ideas. What is left is the two production steps below, then a
-browser pass — the same shape as Phase 4, where the client-rendered surfaces were the ones no
-test covered.
+held back and is in Backlog / Ideas. Nothing needs configuring to ship it: the founder is a
+code constant, not an env var, and the planned backfill turned out to be unnecessary. All that
+is left is a browser pass — the same shape as Phase 4, where the client-rendered surfaces were
+the ones no test covered.
 
-- [ ] **Set `FOUNDER_PROFILE_ID` in Vercel and run the follow backfill.** Auto-follow is a no-op
-      until the env var is set (`api/app/core/config.py`), so without this every new signup still
-      lands with empty follower and following lists.<br>
-      _Two steps, in order:_ (1) Vercel → Settings → Environment Variables → `FOUNDER_PROFILE_ID`
-      = Robert's **production** profile id, which is his `auth.users` id and is _not_ the local
-      seed's `00000000-0000-4000-8000-000000000001`; read it with
-      `select id, username from profiles where username = 'rgrassian'`. Then redeploy — this one
-      is read at runtime by `Settings`, not inlined at build like the `NEXT_PUBLIC_*` vars, but
-      the running function still caches it (`lru_cache`), so it needs a new deployment.
-      (2) `DATABASE_URL="$(cat ~/prod-db-url.txt)" FOUNDER_PROFILE_ID=<that-id> uv run python
-    scripts/backfill_founder_follows.py` from `api/`, which creates the edges for accounts that
-      onboarded before auto-follow existed.<br>
-      _Safe to rerun:_ every insert is `ON CONFLICT DO NOTHING`. That also means it will **not**
-      resurrect an edge someone deliberately unfollowed, so a rerun is not a way to re-follow
-      everyone. Verified locally against the two-profile dev DB, including the guards for an
-      unset and a nonexistent founder id.
 - [ ] **Browser pass on the Phase 5 UI.** Everything per-viewer resolves after hydration, so
       `curl` proves almost nothing about it — the same reason Phase 4 needed its own pass. Check:
       the Follow button toggles and survives a reload; it is absent on your own library and when
@@ -47,6 +32,24 @@ test covered.
 
 ## Backlog / Ideas
 
+- [ ] **Collapse the two per-viewer API calls on a library page into one.** Loading any library
+      fires two independent authenticated requests that overlap: `useIsLibraryOwner`
+      (`src/components/video_games/useIsLibraryOwner.ts`) fetches `/api/py/me/profile` to answer
+      "is this mine?", and `useViewerRelationship`
+      (`src/components/video_games/useViewerRelationship.ts`) fetches
+      `/api/py/me/relationship/{username}` to answer "am I following them?". Each also calls
+      `supabase.auth.getSession()` separately.<br>
+      _The overlap is exact:_ `RelationshipRead` already returns `isMe`
+      (`api/app/schemas/me.py`), which is precisely what `useIsLibraryOwner` computes by
+      comparing usernames. So the relationship response can answer both questions and the
+      profile fetch can go — no API change needed.<br>
+      _What makes it more than deleting a hook:_ the two live in different component trees.
+      `useIsLibraryOwner` is called inside `GameLibrary`, while `useViewerRelationship` sits in
+      `FollowStateProvider` around the header, so sharing one answer means either lifting the
+      provider to wrap both or moving the owner check into that context — and `GameLibrary`'s
+      `canEdit` threads into pencils, the Unrated shelf and the empty states, so the blast radius
+      is wider than the fetch itself. Cross-reference the pop-in item below: whoever fixes that
+      is in the same code and should do both at once.
 - [ ] **User search, so you can find people to follow without knowing their username.** Held back
       from Phase 5 (2026-07-30) to keep that MVP small; the follow graph itself shipped, and with
       auto-follow seeding both lists, browsing Following/Followers is a working discovery path, so
@@ -266,9 +269,11 @@ test covered.
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
 - [x] **Instanced libraries Phase 5 — social graph** (2026-07-30, branch `phase5/social-graph`).
-      Three slices: follow endpoints + auto-follow + backfill; Following/Followers tabs; the
-      follow button and "Back to my library". 200 pytest, up from 175. User search was held back
-      on purpose and has its own backlog item. Production steps are in "Up Next".<br>
+      Three slices: follow endpoints + auto-follow; Following/Followers tabs; the follow button
+      and "Back to my library". 206 pytest, up from 175. User search was held back on purpose and
+      has its own backlog item. Nothing to configure to ship it — the founder is a code constant
+      (`FOUNDER_USERNAME`, mirroring `LIBRARY_OWNER_USERNAME`), and the planned backfill was
+      written then deleted once it was clear prod has one account and so would gain zero edges.<br>
       **Far less new code than expected.** The `follows` table already existed from the baseline
       migration (composite PK, `no_self_follow` check, cascade from `profiles`), and `ProfileRead`
       already returned live `COUNT(*)` follower/following numbers — they read 0 only because the
@@ -282,9 +287,15 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       adding the edges (still one transaction, so the commit stays all-or-nothing). It was
       disguised because `create_my_profile`'s `IntegrityError` handler re-derives the cause and
       reported it as **"username taken"** — so the symptom named the wrong column entirely. A
-      misconfigured `FOUNDER_PROFILE_ID` hit the same path, which is why the id is now verified to
-      name a real profile before use: auto-follow is a nicety and must never be able to close
-      signup.<br>
+      founder handle naming no profile hits the same path, which is why it is resolved and
+      verified before use: auto-follow is a nicety and must never be able to close signup.<br>
+      **A review pass caught two more before merge**, both invisible to the tests that were
+      passing: following while signed in but not onboarded was a 500 (`follows.follower_id` is an
+      FK to `profiles`, and the relationship read deliberately answered "not following" for those
+      users — which is exactly what rendered the button that 500'd); and signup's auto-follow
+      never purged the founder's cache tag, so `/video-games` kept serving a stale follower count.
+      Both now fixed and tested. Lesson recorded in the spec: any write that creates a follow edge
+      changes both endpoints of it.<br>
       _Three deliberate departures from the spec's sketch:_ follow/unfollow are **idempotent**
       (204, not 409) because the button is a plain toggle with no conflict state to render;
       `/me/relationship/{username}` also returns `is_me`, letting the button decide

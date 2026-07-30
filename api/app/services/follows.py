@@ -17,17 +17,20 @@ from sqlalchemy.orm import Session
 
 from app.models import Profile
 from app.repositories import follows as follows_repo
+from app.repositories import me as me_repo
 from app.repositories import users as users_repo
 from app.schemas.me import RelationshipRead
 from app.schemas.users import UserSummary
+from app.services.me import OnboardingRequiredError
 from app.services.users import UserNotFoundError
 
 
 class SelfFollowError(Exception):
-    """A user tried to follow their own account."""
+    """A user tried to follow or unfollow their own account. Carries the verb
+    so unfollowing yourself doesn't get told you can't follow yourself."""
 
-    def __init__(self) -> None:
-        super().__init__("You can't follow yourself.")
+    def __init__(self, action: str = "follow") -> None:
+        super().__init__(f"You can't {action} yourself.")
 
 
 def _require_profile(db: Session, username: str) -> Profile:
@@ -58,13 +61,27 @@ def get_following(db: Session, username: str) -> list[UserSummary]:
     return [_to_summary(p) for p in follows_repo.list_following(db, profile.id)]
 
 
-def get_relationship(db: Session, viewer_id: uuid.UUID, username: str) -> RelationshipRead:
-    """The caller's relationship to ``username``.
+def _require_onboarded(db: Session, viewer_id: uuid.UUID) -> None:
+    """Refuse callers who are authenticated but have no profile yet.
 
-    Deliberately does NOT require the caller to be onboarded: a signed-in user
-    with no profile yet simply follows nobody, so answering "not following,
-    not you" is more useful than a 403 the button would have to special-case.
+    Every mutating /me route makes this check, and following needs it for a
+    concrete reason: follows.follower_id is a foreign key to profiles, so a
+    profile-less caller's insert fails on the constraint and surfaces as a 500.
+
+    The relationship read makes the same check even though it only reads. An
+    earlier version answered "not following, not you" for these callers on the
+    grounds that it saved the button a special case — but that answer is
+    exactly what told the UI to render an enabled Follow button, which then
+    500'd on click. Refusing here means the button never appears, because
+    useViewerRelationship leaves its state "unknown" on any non-OK response.
     """
+    if me_repo.get_profile_by_id(db, viewer_id) is None:
+        raise OnboardingRequiredError("following people")
+
+
+def get_relationship(db: Session, viewer_id: uuid.UUID, username: str) -> RelationshipRead:
+    """The caller's relationship to ``username``."""
+    _require_onboarded(db, viewer_id)
     target = _require_profile(db, username)
     if target.id == viewer_id:
         return RelationshipRead(am_i_following=False, is_me=True)
@@ -77,9 +94,10 @@ def get_relationship(db: Session, viewer_id: uuid.UUID, username: str) -> Relati
 def follow_user(db: Session, viewer_id: uuid.UUID, username: str) -> None:
     """Follow ``username`` on the caller's behalf. Already following is a
     no-op, not a conflict."""
+    _require_onboarded(db, viewer_id)
     target = _require_profile(db, username)
     if target.id == viewer_id:
-        raise SelfFollowError()
+        raise SelfFollowError("follow")
     follows_repo.follow(db, viewer_id, target.id)
 
 
@@ -89,7 +107,8 @@ def unfollow_user(db: Session, viewer_id: uuid.UUID, username: str) -> None:
     Applies to the founder edge like any other: it is an ordinary row with no
     special-case protection.
     """
+    _require_onboarded(db, viewer_id)
     target = _require_profile(db, username)
     if target.id == viewer_id:
-        raise SelfFollowError()
+        raise SelfFollowError("unfollow")
     follows_repo.unfollow(db, viewer_id, target.id)

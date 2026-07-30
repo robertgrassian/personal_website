@@ -131,17 +131,27 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
                     lists, which is why they are not tabs: those list people,
                     while the tab strip slices this library's games. Suspense
                     because the active state reads ?view via useSearchParams. */}
+                {/* Counted from the lists rather than read off the profile
+                    payload, which also carries followerCount/followingCount.
+                    Two sources for one number can disagree, and here they
+                    genuinely can: the counts come from /users/{name} while the
+                    lists come from two other endpoints, and a 404 from those
+                    degrades to an empty list (see fetchFollowList). That would
+                    render "3 followers" above a tab saying nobody follows this
+                    user. One source cannot contradict itself.
+                    Revisit if these lists are ever paginated, when length stops
+                    meaning total. */}
                 <Suspense
                   fallback={
                     <FollowCountLinksFallback
-                      followerCount={profile.followerCount}
-                      followingCount={profile.followingCount}
+                      followerCount={followers.length}
+                      followingCount={following.length}
                     />
                   }
                 >
                   <FollowCountLinks
-                    followerCount={profile.followerCount}
-                    followingCount={profile.followingCount}
+                    followerCount={followers.length}
+                    followingCount={following.length}
                   />
                 </Suspense>
               </p>

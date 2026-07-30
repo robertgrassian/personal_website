@@ -20,12 +20,16 @@ import Link from "next/link";
 import { createContext, useContext, useState, useTransition, type ReactNode } from "react";
 import { CheckIcon } from "@/components/Icon";
 import { followUserAction, unfollowUserAction } from "@/app/video-games/actions";
-import { useViewerRelationship, type ViewerRelationship } from "./useViewerRelationship";
+import {
+  useViewerRelationship,
+  type SetViewerRelationship,
+  type ViewerRelationship,
+} from "./useViewerRelationship";
 
 type FollowState = {
   ownerUsername: string;
   relationship: ViewerRelationship;
-  setRelationship: (next: ViewerRelationship) => void;
+  setRelationship: SetViewerRelationship;
 };
 
 // null default = "no provider above me", which both controls treat as "render
@@ -73,12 +77,16 @@ export function FollowButton() {
       // usable here: it converges by falling back to a prop, and this state has
       // no prop to fall back to — it was fetched, not passed in. So the revert
       // below is manual.
-      setRelationship(next);
+      //
+      // Both writes name the user they are about, so neither lands if the
+      // viewer has navigated to a different library while the request was in
+      // flight (see SetViewerRelationship).
+      setRelationship(ownerUsername, next);
       const result = isFollowing
         ? await unfollowUserAction(ownerUsername)
         : await followUserAction(ownerUsername);
       if (!result.ok) {
-        setRelationship(relationship);
+        setRelationship(ownerUsername, relationship);
         setError(result.message);
       }
     });
