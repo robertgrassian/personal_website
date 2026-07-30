@@ -11,159 +11,6 @@ follower/following counts and lists, a follow button, user search (pg_trgm), and
 reasonably soon: `/video-games/start` advertises browsing other people's libraries, which today
 only works if you already know their username.
 
-## Recently Completed
-
-_Newest first, capped at 20 — drop the oldest when adding past that._
-
-- [x] **Game library nested under `/video-games`** (2026-07-29) — per-user libraries moved from
-      `/u/{username}` to `/video-games/u/{username}`, so the app owns one prefix instead of
-      leaking a top-level `/u` namespace. Settles the routing/namespace backlog item in favour of
-      per-app route prefixes on one domain. Redirect added in `next.config.ts` next to the
-      kebab-case ones, but **temporary (307), not permanent** — a 308 is cached by browsers
-      more or less forever, and the spec plans for `/u/[username]` to become a cross-library
-      profile hub if movie/book libraries materialize, which a permanent redirect would fight
-      with no way to reach browsers holding the cached answer. There is no ranking to preserve
-      on a URL that was live for two days. It is worth having at all only because
-      `/u/{username}` was linked from `/video-games/start`, which is in `sitemap.ts` and is
-      Google's App homepage, so crawlers have plausibly seen it.<br>
-      Verified against `next start` that `/u/rgrassian`,
-      `/u/RGrassian` and `/u/nosuchuser` all forward, that the unknown user still 404s after
-      forwarding, and that the older snake*case redirects still chain to 200.<br>
-      **Closed a real hole while in there:** `USERNAME_RE` accepts `*`and`-`alike, but
- `RESERVED*USERNAMES`only listed`video_games`, so **`video-games` was a claimable
-  username** and would have sat confusingly beside the route. Route names are now reserved in
-  both spellings (`currently_playing`/`currently-playing`too, plus`privacy`and`start`),
-      with a test locking it in.<br>
-      \_Deliberately not done, contra the original entry:* no `sitemap.ts` change. The sitemap
-      already lists `/video-games`, which **is** Robert's library, so adding
-      `/video-games/u/rgrassian` would submit two URLs for identical content. If that duplication
-      bothers anyone the fix is a canonical link, which is its own concern.<br>
-      _Worth knowing:_ the route-collision half of `RESERVED_USERNAMES` is now defensive rather
-      than load-bearing on the web side, since a username can only appear under
-      `/video-games/u/` and cannot shadow a site route at any depth. It still matters for the
-      API's own `/users` namespace, so it stays.
-- [x] **Auth UI now decides before first paint, not after hydration** (2026-07-29) — fixes both
-      the sign-up CTA banner flashing at signed-in viewers and the `AuthButton` popping in a beat
-      late. An inline `<script>` first in `<body>` (`src/app/layout.tsx`) reads the session cookie
-      and stamps `data-authed` on `<html>`; two rules in `globals.css` drop whichever half of the
-      auth UI does not apply. Both halves stay in the cached HTML for every viewer, so
-      `/video-games` is still prerendered static: the served markup is identical and only the
-      script's output differs. Logic in `src/lib/authFlag.ts`.<br>
-      **The banner was the least valuable of the three things the original entry named.** The
-      flash is nearly unreachable in practice: `/library` sends signed-in users to
-      `/u/{username}`, so hitting `/video-games` with a session takes a typed URL, an old
-      bookmark, or a shared link to Robert's library. The `AuthButton` pop-in is what justified
-      the work: it hit every viewer on every load of both library routes.<br>
-      _What it cannot fix, contrary to the original entry:_ the owner edit affordances. A cookie
-      says a session exists, not whose it is (the JWT's `sub` is a user id, not a username), so
-      `useIsLibraryOwner` still needs its `/me/profile` round trip. Own backlog item now.<br>
-      _Two costs accepted:_ `sessionCookieKey` duplicates supabase-js's own storage-key
-      derivation (`sb-${hostname.split(".")[0]}-auth-token`), so if that ever changes the flag
-      silently stops setting and the flash quietly returns — it degrades rather than breaks, but
-      nothing reports it. And a cookie present with an invalid session shows "Sign out" for a
-      frame before the subscription corrects it, where before it showed nothing. That second one
-      is narrower than it first looked: `src/middleware.ts` matches `/video-games` and
-      `updateSession` calls `getUser()`, so a revoked or long-expired session has its cookie
-      deleted by `Set-Cookie` on the same document response, before the script runs. The window
-      only survives when the refresh fails for a network reason, since auth-js keeps the session
-      then. Also note the cookie key is
-      inlined at build time from `NEXT_PUBLIC_SUPABASE_URL`, so a local build bakes in
-      `sb-127-auth-token` and Vercel bakes in the project ref.<br>
-      _Bonus:_ `SignupCta` dropped `"use client"` entirely and now ships zero JavaScript.
-- [x] **Browser pass on the Phase 4 UI completed** (2026-07-29) — the client-rendered surfaces
-      that `curl` cannot see and that shipped unverified in PR #68: the sign-up CTA banner, the
-      `AuthButton` relocated into the library header, the `?error=oauth_failed` /
-      `?error=link_invalid` copy on `/video-games/start`, owner edit affordances appearing only
-      on your own library, IGDB search in the add-game picker on prod, and the landing page in
-      dark mode. Of these, the IGDB search check was the load-bearing one: it is the only thing
-      that distinguishes working Twitch creds from absent ones, since
-      `/api/py/igdb/search` returns 401 to an unauthenticated probe either way.<br>
-      Only the known CTA banner flash is still outstanding, and it has its own item in "Up Next".
-- [x] **Per-user library size cap shipped** (Phase 4 slice 6, PR #68) — `max_games` on
-      `Settings` (`api/app/core/config.py:65`, default 2000, overridable by env var), enforced
-      in `api/app/services/me.py` on both the game and wishlist create paths with a dedicated 403. The per-user write rate limits landed in the same slice, not in Phase 3 as an
-      earlier note here claimed. Spec §9 decision #3 is therefore closed
-- [x] **Google OAuth brand verification passed** (2026-07-28). Rejected on the first
-      submission for two reasons, both fair: the home page did not explain the app's purpose,
-      and its visible name disagreed with the console. `/video_games` was a shelf of cover art
-      under the heading "Robert's Video Game Library" while the console said "Video Game
-      Library" — Robert's personal library was doubling as the product's front door.<br>
-      Fixed by building a real front door at `/video-games/start` (PR #70): `<h1>` is exactly
-      the app name, purpose in prose, sign-in as a section rather than the whole page, privacy
-      policy linked. The console's App homepage moved to that URL.<br>
-      **Constraints worth keeping:** the app name must stay byte-identical to `APP_NAME` in
-      `src/lib/appName.ts`, which both the landing page and the sign-up banner render. And
-      `jbgmptlxoozfyzulhpbn.supabase.co` must stay in authorized domains — it covers the OAuth
-      callback, so removing it risks breaking sign-in. `rgrassian.com` sits alongside it.<br>
-      _Cosmetic thing this does not fix:_ the URL bar during the redirect still shows the
-      supabase.co host. Only a Supabase custom auth domain changes that, which would mean
-      redoing the redirect URIs and this domain list.
-- [x] **Vercel → `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` set for Production**
-      (2026-07-28). **Not confirmed end to end:** `/api/py/igdb/search` checks auth before it
-      ever calls Twitch, so an unauthenticated probe returns 401 whether the creds are good or
-      absent. Real confirmation was searching in the add-game picker on prod, done as part of
-      the browser pass above
-- [x] **Vercel → Supabase env vars scoped to Preview** (2026-07-28), fixing preview deploys
-      that returned `500 MIDDLEWARE_INVOCATION_FAILED`. `NEXT_PUBLIC_SUPABASE_URL` /
-      `NEXT_PUBLIC_SUPABASE_ANON_KEY` were Production-only, and the middleware matches every
-      non-asset path, so one missing var took down the whole deployment (the throw:
-      "Your project's URL and Key are required to create a Supabase client!"). Both vars are
-      public by design — the browser needs them for the OAuth dance. `NEXT_PUBLIC_*` is
-      inlined at build time, so this needed a fresh build, not just a redeploy.<br>
-      **Caveat now live:** previews authenticate against _production_ Supabase, so signing in
-      on a preview URL uses your real account. Writes are still refused
-      (`targetsForeignEnvironmentApi`), so it's reads plus a real session — the spec's known
-      no-staging trade-off (§7.5). The real fix is the staging-environment backlog item.<br>
-      _Also mitigated in code (PR #68):_ the middleware and the two session-reading pages
-      degrade instead of throwing when the vars are absent, so a missing var can no longer
-      take the site down
-- [x] **Local dev**: `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` added to the gitignored `.env`,
-      verified returning real IGDB results (2026-07-28).<br>
-      **Gotcha if search ever 503s again: restart the API.** `Settings` reads `.env` once at
-      construction and is `lru_cache`d, so a uvicorn process started before a var was added
-      never sees it. The 503 that surfaced here came from a server up for three days,
-      predating the creds — and because it was started without `--reload`, it wasn't from
-      `npm run dev:api`, so every later `npm run dev:full` had its API half die silently with
-      `EADDRINUSE` while Next came up fine. Check with `lsof -nP -iTCP:8000 -sTCP:LISTEN` and
-      `ps -o lstart= -p <pid>`
-- [x] Prod DB confirmed at migration `8f881f29b261` (2026-07-28, via `alembic current`), so
-      `rate_limits` and `igdb_tokens` exist in production. This was the merge blocker for
-      PR #68: slice 6 charges every write against `rate_limits`, so an unmigrated prod would
-      have 500'd every add/rating/session/wishlist edit rather than only failing game search
-- [x] **Instanced libraries Phase 4 — multi-user** (PR #68, branch `phase4/multi-user`,
-      2026-07-28). Seven slices: CI running ruff + the full pytest suite against a real
-      Postgres; `/u/[username]` public libraries with the username threaded through the
-      three places it was hardcoded; the `/library` resolver and post-login redirects;
-      auth surfaces moved under the game library; the sign-up CTA banner; profile header
-      and real empty states; per-user write limits and a `MAX_GAMES` cap. 173 tests.
-      Remaining manual steps are in "Up Next" above
-- [x] Prod CSV → Postgres cutover confirmed serving: `https://rgrassian.com/video-games`
-      returns 200 and `/api/py/health` reports `{"status":"ok","env":"prod","db":"ok"}`.
-      (The optimistic-UI click-through and the first-write cold-start timing were not
-      measured — do those next time you edit something in prod)
-
-- [x] `npm run build` investigated — **not broken**. It is green on `main` (17/17 pages); it
-      fails only when the library API is unreachable at build time, which is deliberate:
-      `requireLibraryApiOrigin()` (`src/lib/libraryApi.ts`) documents that an unresolvable
-      origin must fail loudly rather than prerender an empty library, and the error already
-      says "Is the API running? Start it with `npm run dev:api`." Start the API before
-      building locally
-- [x] CI now runs the Python half of the toolchain (spec decision #8) — a second `api` job in
-      `.github/workflows/ci.yml` runs `ruff check` + the full `pytest` suite against a
-      postgres:16 service container. Previously 107 of 161 tests silently skipped in CI for
-      want of a `DATABASE_URL`. Needed one new file, `api/scripts/ci_auth_schema.sql`: a
-      minimal stand-in for Supabase's `auth.users`/`auth.identities`. GoTrue owns those
-      tables everywhere else, so Alembic never creates them — but migration
-      `f985740c0df9` adds a real FK to `auth.users`, so migrations can't run on bare
-      Postgres without it
-
-- [x] CRT metadata block is height-stable across channel changes (`components/crt/CrtTv.tsx`) — the auto-cycle used to resize the block per game, and since `.pcrt-stage--compact` is a bottom-aligned flex row, a taller block pushed the TV and the page below it down on a timer. Three causes, all fixed by reserving the worst case instead of truncating: the title now reserves and clamps two lines (`min-h-[2lh] line-clamp-2` — long names wrap into reserved space on mobile rather than growing the block), the system/genres line clamps to one, and the "playing since" line always renders (empty when a game has no open-session date) instead of disappearing
-- [x] Mobile nav no longer cramped by the auth control (`components/Nav.tsx`, `components/AuthButton.tsx`) — type, gaps, and horizontal padding scale down below `sm` only, so desktop is unchanged. `AuthButton` shares the links' responsive scale so the row shrinks as one unit. Row height still comes from `--nav-height`, so `FilterBar`/`StatsPanel` sticky offsets are untouched
-- [x] Game library page now uses the photorealistic CRT (`components/crt/CrtTv.tsx`, relocated out of `currently-playing/` since it's shared by two routes) instead of the wood-paneled TV; `/currently-playing` still works standalone. Old wood TV (`components/video_games/CurrentlyPlaying.tsx`) and its `crt-*` styles in `video-games.css` are left in place, unused
-- [x] Dedicated `/currently-playing` route rendering a photorealistic '90s black-plastic CRT (hand-built CSS/SVG: molded cabinet, phosphor RGB mask, scanlines, roll bar, glare, speaker grille, dials, power LED) with the `▶ PLAY`/`CH 0N` OSD and channel-flicking; permanent "NO SIGNAL" snow when nothing is playing. Unlinked for now (URL-only). New component `components/currently-playing/CrtTv.tsx`; existing library TV untouched
-- [x] Multiple currently-playing games on the CRT: channel-flicking — auto-cycle between in-progress games with a static/noise burst and `CH 0N` OSD, plus a clickable channel knob to advance manually and channel pips in the metadata (CurrentlyPlaying is now a client component)
-- [x] Fix `.claude/tools/wikipedia.py` truncating nested templates (platforms/released_raw cut off mid-`{{collapsible list}}`) + add-game guidance for enhanced editions/ports (original NA date wins)
-
 ## Backlog / Ideas
 
 - [ ] **Owner edit affordances still pop in after hydration.** The pencils, "Add game" and the
@@ -301,3 +148,156 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
 - [ ] Game library "want to play"
 - [ ] Movie library want to watch list, maybe a whole movie's seen section too...
 - [ ] similar to the movie library idea, book library would be cool too. I wonder, if i had that many, maybe the route would just become "Library" and then i have my 3 sub libraries (games, movies, books) as sub routes of it. If I did, I would have to think how that library landing page would look like. would i: default to game library, have a page that has a card for all 3 (but then the user needs to make an extra click to start seeing, which i think is an issue), something else?
+
+## Recently Completed
+
+_Newest first, capped at 20 — drop the oldest when adding past that._
+
+- [x] **Game library nested under `/video-games`** (2026-07-29) — per-user libraries moved from
+      `/u/{username}` to `/video-games/u/{username}`, so the app owns one prefix instead of
+      leaking a top-level `/u` namespace. Settles the routing/namespace backlog item in favour of
+      per-app route prefixes on one domain. Redirect added in `next.config.ts` next to the
+      kebab-case ones, but **temporary (307), not permanent** — a 308 is cached by browsers
+      more or less forever, and the spec plans for `/u/[username]` to become a cross-library
+      profile hub if movie/book libraries materialize, which a permanent redirect would fight
+      with no way to reach browsers holding the cached answer. There is no ranking to preserve
+      on a URL that was live for two days. It is worth having at all only because
+      `/u/{username}` was linked from `/video-games/start`, which is in `sitemap.ts` and is
+      Google's App homepage, so crawlers have plausibly seen it.<br>
+      Verified against `next start` that `/u/rgrassian`,
+      `/u/RGrassian` and `/u/nosuchuser` all forward, that the unknown user still 404s after
+      forwarding, and that the older snake*case redirects still chain to 200.<br>
+      **Closed a real hole while in there:** `USERNAME_RE` accepts `*`and`-`alike, but
+`RESERVED*USERNAMES`only listed`video_games`, so **`video-games` was a claimable
+ username** and would have sat confusingly beside the route. Route names are now reserved in
+ both spellings (`currently_playing`/`currently-playing`too, plus`privacy`and`start`),
+      with a test locking it in.<br>
+      \_Deliberately not done, contra the original entry:* no `sitemap.ts` change. The sitemap
+      already lists `/video-games`, which **is** Robert's library, so adding
+      `/video-games/u/rgrassian` would submit two URLs for identical content. If that duplication
+      bothers anyone the fix is a canonical link, which is its own concern.<br>
+      _Worth knowing:_ the route-collision half of `RESERVED_USERNAMES` is now defensive rather
+      than load-bearing on the web side, since a username can only appear under
+      `/video-games/u/` and cannot shadow a site route at any depth. It still matters for the
+      API's own `/users` namespace, so it stays.
+- [x] **Auth UI now decides before first paint, not after hydration** (2026-07-29) — fixes both
+      the sign-up CTA banner flashing at signed-in viewers and the `AuthButton` popping in a beat
+      late. An inline `<script>` first in `<body>` (`src/app/layout.tsx`) reads the session cookie
+      and stamps `data-authed` on `<html>`; two rules in `globals.css` drop whichever half of the
+      auth UI does not apply. Both halves stay in the cached HTML for every viewer, so
+      `/video-games` is still prerendered static: the served markup is identical and only the
+      script's output differs. Logic in `src/lib/authFlag.ts`.<br>
+      **The banner was the least valuable of the three things the original entry named.** The
+      flash is nearly unreachable in practice: `/library` sends signed-in users to
+      `/u/{username}`, so hitting `/video-games` with a session takes a typed URL, an old
+      bookmark, or a shared link to Robert's library. The `AuthButton` pop-in is what justified
+      the work: it hit every viewer on every load of both library routes.<br>
+      _What it cannot fix, contrary to the original entry:_ the owner edit affordances. A cookie
+      says a session exists, not whose it is (the JWT's `sub` is a user id, not a username), so
+      `useIsLibraryOwner` still needs its `/me/profile` round trip. Own backlog item now.<br>
+      _Two costs accepted:_ `sessionCookieKey` duplicates supabase-js's own storage-key
+      derivation (`sb-${hostname.split(".")[0]}-auth-token`), so if that ever changes the flag
+      silently stops setting and the flash quietly returns — it degrades rather than breaks, but
+      nothing reports it. And a cookie present with an invalid session shows "Sign out" for a
+      frame before the subscription corrects it, where before it showed nothing. That second one
+      is narrower than it first looked: `src/middleware.ts` matches `/video-games` and
+      `updateSession` calls `getUser()`, so a revoked or long-expired session has its cookie
+      deleted by `Set-Cookie` on the same document response, before the script runs. The window
+      only survives when the refresh fails for a network reason, since auth-js keeps the session
+      then. Also note the cookie key is
+      inlined at build time from `NEXT_PUBLIC_SUPABASE_URL`, so a local build bakes in
+      `sb-127-auth-token` and Vercel bakes in the project ref.<br>
+      _Bonus:_ `SignupCta` dropped `"use client"` entirely and now ships zero JavaScript.
+- [x] **Browser pass on the Phase 4 UI completed** (2026-07-29) — the client-rendered surfaces
+      that `curl` cannot see and that shipped unverified in PR #68: the sign-up CTA banner, the
+      `AuthButton` relocated into the library header, the `?error=oauth_failed` /
+      `?error=link_invalid` copy on `/video-games/start`, owner edit affordances appearing only
+      on your own library, IGDB search in the add-game picker on prod, and the landing page in
+      dark mode. Of these, the IGDB search check was the load-bearing one: it is the only thing
+      that distinguishes working Twitch creds from absent ones, since
+      `/api/py/igdb/search` returns 401 to an unauthenticated probe either way.<br>
+      Only the known CTA banner flash is still outstanding, and it has its own item in "Up Next".
+- [x] **Per-user library size cap shipped** (Phase 4 slice 6, PR #68) — `max_games` on
+      `Settings` (`api/app/core/config.py:65`, default 2000, overridable by env var), enforced
+      in `api/app/services/me.py` on both the game and wishlist create paths with a dedicated 403. The per-user write rate limits landed in the same slice, not in Phase 3 as an
+      earlier note here claimed. Spec §9 decision #3 is therefore closed
+- [x] **Google OAuth brand verification passed** (2026-07-28). Rejected on the first
+      submission for two reasons, both fair: the home page did not explain the app's purpose,
+      and its visible name disagreed with the console. `/video_games` was a shelf of cover art
+      under the heading "Robert's Video Game Library" while the console said "Video Game
+      Library" — Robert's personal library was doubling as the product's front door.<br>
+      Fixed by building a real front door at `/video-games/start` (PR #70): `<h1>` is exactly
+      the app name, purpose in prose, sign-in as a section rather than the whole page, privacy
+      policy linked. The console's App homepage moved to that URL.<br>
+      **Constraints worth keeping:** the app name must stay byte-identical to `APP_NAME` in
+      `src/lib/appName.ts`, which both the landing page and the sign-up banner render. And
+      `jbgmptlxoozfyzulhpbn.supabase.co` must stay in authorized domains — it covers the OAuth
+      callback, so removing it risks breaking sign-in. `rgrassian.com` sits alongside it.<br>
+      _Cosmetic thing this does not fix:_ the URL bar during the redirect still shows the
+      supabase.co host. Only a Supabase custom auth domain changes that, which would mean
+      redoing the redirect URIs and this domain list.
+- [x] **Vercel → `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` set for Production**
+      (2026-07-28). **Not confirmed end to end:** `/api/py/igdb/search` checks auth before it
+      ever calls Twitch, so an unauthenticated probe returns 401 whether the creds are good or
+      absent. Real confirmation was searching in the add-game picker on prod, done as part of
+      the browser pass above
+- [x] **Vercel → Supabase env vars scoped to Preview** (2026-07-28), fixing preview deploys
+      that returned `500 MIDDLEWARE_INVOCATION_FAILED`. `NEXT_PUBLIC_SUPABASE_URL` /
+      `NEXT_PUBLIC_SUPABASE_ANON_KEY` were Production-only, and the middleware matches every
+      non-asset path, so one missing var took down the whole deployment (the throw:
+      "Your project's URL and Key are required to create a Supabase client!"). Both vars are
+      public by design — the browser needs them for the OAuth dance. `NEXT_PUBLIC_*` is
+      inlined at build time, so this needed a fresh build, not just a redeploy.<br>
+      **Caveat now live:** previews authenticate against _production_ Supabase, so signing in
+      on a preview URL uses your real account. Writes are still refused
+      (`targetsForeignEnvironmentApi`), so it's reads plus a real session — the spec's known
+      no-staging trade-off (§7.5). The real fix is the staging-environment backlog item.<br>
+      _Also mitigated in code (PR #68):_ the middleware and the two session-reading pages
+      degrade instead of throwing when the vars are absent, so a missing var can no longer
+      take the site down
+- [x] **Local dev**: `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` added to the gitignored `.env`,
+      verified returning real IGDB results (2026-07-28).<br>
+      **Gotcha if search ever 503s again: restart the API.** `Settings` reads `.env` once at
+      construction and is `lru_cache`d, so a uvicorn process started before a var was added
+      never sees it. The 503 that surfaced here came from a server up for three days,
+      predating the creds — and because it was started without `--reload`, it wasn't from
+      `npm run dev:api`, so every later `npm run dev:full` had its API half die silently with
+      `EADDRINUSE` while Next came up fine. Check with `lsof -nP -iTCP:8000 -sTCP:LISTEN` and
+      `ps -o lstart= -p <pid>`
+- [x] Prod DB confirmed at migration `8f881f29b261` (2026-07-28, via `alembic current`), so
+      `rate_limits` and `igdb_tokens` exist in production. This was the merge blocker for
+      PR #68: slice 6 charges every write against `rate_limits`, so an unmigrated prod would
+      have 500'd every add/rating/session/wishlist edit rather than only failing game search
+- [x] **Instanced libraries Phase 4 — multi-user** (PR #68, branch `phase4/multi-user`,
+      2026-07-28). Seven slices: CI running ruff + the full pytest suite against a real
+      Postgres; `/u/[username]` public libraries with the username threaded through the
+      three places it was hardcoded; the `/library` resolver and post-login redirects;
+      auth surfaces moved under the game library; the sign-up CTA banner; profile header
+      and real empty states; per-user write limits and a `MAX_GAMES` cap. 173 tests.
+      Remaining manual steps are in "Up Next" above
+- [x] Prod CSV → Postgres cutover confirmed serving: `https://rgrassian.com/video-games`
+      returns 200 and `/api/py/health` reports `{"status":"ok","env":"prod","db":"ok"}`.
+      (The optimistic-UI click-through and the first-write cold-start timing were not
+      measured — do those next time you edit something in prod)
+
+- [x] `npm run build` investigated — **not broken**. It is green on `main` (17/17 pages); it
+      fails only when the library API is unreachable at build time, which is deliberate:
+      `requireLibraryApiOrigin()` (`src/lib/libraryApi.ts`) documents that an unresolvable
+      origin must fail loudly rather than prerender an empty library, and the error already
+      says "Is the API running? Start it with `npm run dev:api`." Start the API before
+      building locally
+- [x] CI now runs the Python half of the toolchain (spec decision #8) — a second `api` job in
+      `.github/workflows/ci.yml` runs `ruff check` + the full `pytest` suite against a
+      postgres:16 service container. Previously 107 of 161 tests silently skipped in CI for
+      want of a `DATABASE_URL`. Needed one new file, `api/scripts/ci_auth_schema.sql`: a
+      minimal stand-in for Supabase's `auth.users`/`auth.identities`. GoTrue owns those
+      tables everywhere else, so Alembic never creates them — but migration
+      `f985740c0df9` adds a real FK to `auth.users`, so migrations can't run on bare
+      Postgres without it
+
+- [x] CRT metadata block is height-stable across channel changes (`components/crt/CrtTv.tsx`) — the auto-cycle used to resize the block per game, and since `.pcrt-stage--compact` is a bottom-aligned flex row, a taller block pushed the TV and the page below it down on a timer. Three causes, all fixed by reserving the worst case instead of truncating: the title now reserves and clamps two lines (`min-h-[2lh] line-clamp-2` — long names wrap into reserved space on mobile rather than growing the block), the system/genres line clamps to one, and the "playing since" line always renders (empty when a game has no open-session date) instead of disappearing
+- [x] Mobile nav no longer cramped by the auth control (`components/Nav.tsx`, `components/AuthButton.tsx`) — type, gaps, and horizontal padding scale down below `sm` only, so desktop is unchanged. `AuthButton` shares the links' responsive scale so the row shrinks as one unit. Row height still comes from `--nav-height`, so `FilterBar`/`StatsPanel` sticky offsets are untouched
+- [x] Game library page now uses the photorealistic CRT (`components/crt/CrtTv.tsx`, relocated out of `currently-playing/` since it's shared by two routes) instead of the wood-paneled TV; `/currently-playing` still works standalone. Old wood TV (`components/video_games/CurrentlyPlaying.tsx`) and its `crt-*` styles in `video-games.css` are left in place, unused
+- [x] Dedicated `/currently-playing` route rendering a photorealistic '90s black-plastic CRT (hand-built CSS/SVG: molded cabinet, phosphor RGB mask, scanlines, roll bar, glare, speaker grille, dials, power LED) with the `▶ PLAY`/`CH 0N` OSD and channel-flicking; permanent "NO SIGNAL" snow when nothing is playing. Unlinked for now (URL-only). New component `components/currently-playing/CrtTv.tsx`; existing library TV untouched
+- [x] Multiple currently-playing games on the CRT: channel-flicking — auto-cycle between in-progress games with a static/noise burst and `CH 0N` OSD, plus a clickable channel knob to advance manually and channel pips in the metadata (CurrentlyPlaying is now a client component)
+- [x] Fix `.claude/tools/wikipedia.py` truncating nested templates (platforms/released_raw cut off mid-`{{collapsible list}}`) + add-game guidance for enhanced editions/ports (original NA date wins)
