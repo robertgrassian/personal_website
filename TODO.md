@@ -164,15 +164,17 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       on a URL that was live for two days. It is worth having at all only because
       `/u/{username}` was linked from `/video-games/start`, which is in `sitemap.ts` and is
       Google's App homepage, so crawlers have plausibly seen it.<br>
-      Verified against `next start` that `/u/rgrassian`,
-      `/u/RGrassian` and `/u/nosuchuser` all forward, that the unknown user still 404s after
-      forwarding, and that the older snake*case redirects still chain to 200.<br>
-      **Closed a real hole while in there:** `USERNAME_RE` accepts `*`and`-`alike, but
-`RESERVED*USERNAMES`only listed`video_games`, so **`video-games` was a claimable
- username** and would have sat confusingly beside the route. Route names are now reserved in
- both spellings (`currently_playing`/`currently-playing`too, plus`privacy`and`start`),
-      with a test locking it in.<br>
-      \_Deliberately not done, contra the original entry:* no `sitemap.ts` change. The sitemap
+      Verified against `next start` that `/u/rgrassian`, `/u/RGrassian` and `/u/nosuchuser` all
+      forward, that the unknown user still 404s after forwarding, and that the older snake-case
+      redirects still chain to 200.<br>
+      **Closed a real hole while in there:** `USERNAME_RE` accepts underscores and hyphens
+      alike, but the reserved-username set only listed the underscore spelling of
+      `video_games`, so **`video-games` was a claimable username** and would have sat
+      confusingly beside the route. Rather than listing both spellings by hand, a
+      `_both_spellings()` helper in `api/app/services/me.py` derives them, so a route name
+      added later in either spelling is reserved in both. A test asserts that invariant over
+      the whole set instead of over a few literals.<br>
+      _Deliberately not done, contra the original entry:_ no `sitemap.ts` change. The sitemap
       already lists `/video-games`, which **is** Robert's library, so adding
       `/video-games/u/rgrassian` would submit two URLs for identical content. If that duplication
       bothers anyone the fix is a canonical link, which is its own concern.<br>

@@ -381,7 +381,10 @@ Routes:
 
 > **Superseded 2026-07-29:** per-user libraries moved from `/u/[username]` to
 > `/video-games/u/[username]`, so the game library owns one route prefix instead of leaking a
-> top-level `/u` namespace. A permanent redirect in `next.config.ts` keeps the old URLs alive.
+> top-level `/u` namespace. A redirect in `next.config.ts` keeps the old URLs alive, and it is
+> **temporary (307) rather than permanent, deliberately**: the profile-hub idea described below
+> would want `/u/[username]` back, and a 308 sits in browser caches indefinitely with no way to
+> reach the clients holding it. There was no ranking to preserve on a URL two days old.
 > The `/u/…` paths written throughout this document are the original design and are left as
 > written; read them as `/video-games/u/…`.
 
