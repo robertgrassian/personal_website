@@ -11,8 +11,90 @@ follower/following counts and lists, a follow button, user search (pg_trgm), and
 reasonably soon: `/video-games/start` advertises browsing other people's libraries, which today
 only works if you already know their username.
 
+- [ ] **The "Unrated" shelf has a big gap above it.** Confirmed cause: the grouped shelves
+      render inside `<div className="mt-6 pb-24">` (`GameLibrary.tsx:316`) and the Unrated
+      shelf sits _outside_ that wrapper (`GameLibrary.tsx:332`), so the wrapper's 6rem bottom
+      padding lands between the last shelf and Unrated. Want it spaced like every other shelf.
+      The `pb-24` is there to keep the last shelf clear of the viewport bottom, so the fix is
+      to move that padding to whichever element is genuinely last (or wrap both shelf groups
+      in one padded container) rather than just deleting it. Overlaps with the backlog item
+      about showing Unrated to visitors: if that one lands and Unrated joins the normal
+      group pipeline, this gap disappears on its own.
+
 ## Backlog / Ideas
 
+- [ ] **Give library games a "notes" field, like wishlist entries already have, then grow it
+      into a real play journal.** Today notes exist only on the wishlist side:
+      `wishlist_items.notes` (`api/app/models/wishlist_item.py:41`, `max_length=1000` in
+      `api/app/schemas/me.py:144`) with a 2-row textarea plus a "Save notes" button in
+      `EditWishlistModal.tsx:141-161`. The `games` table has no notes column at all.<br>
+      _The want:_ "when I play a game I usually keep an md file to track progress and write
+      notes; I want to do that from the site instead of another app." So the quick-entry
+      textarea stays for one-liners, and both modals also get a larger popup view for writing
+      and reading properly. Wishlist behaves the same, for simplicity.<br>
+      _What makes it more than a column add:_ 1000 chars is a note, not a journal, so the cap
+      needs revisiting (and with it the per-user size story that `max_games` covers for rows).
+      A save-button-per-keystroke textarea is already the compromise on the wishlist side; a
+      full-screen editor wants explicit save/dirty handling and probably autosave. Decide
+      early whether this is one free-text blob or timestamped entries — the second is much
+      closer to what an md file actually is, and retrofitting it later means a migration.
+      Related: the session model already knows when you played, so dated entries could hang
+      off `play_sessions` rather than the game row.
+- [ ] **Overhaul the wishlist promote flow: it is "played", not "bought".** Today
+      `EditWishlistModal.tsx:171` offers "I bought it, move to library" and the promote step
+      just asks for a system (`WishlistPromote`), landing the game on the Unrated shelf.
+      Two premises are wrong: moving to the library means you _played_ it (which might be a
+      current session or a past one), and a wishlist entry may be a game already in the
+      library that you want to replay.<br>
+      _Want:_ rename the button to "Played, move to the library" and show it **only** when the
+      game is not already in the library. Either way, follow up with "Track a play session?".
+      When the game is already in the library and the move button is hidden, offer "Track a
+      play session?" straight away.<br>
+      _The wiring:_ the modal only receives `item` and `existingSystems`
+      (`EditWishlistModal.tsx:14-19`), so "is this already in the library?" needs the library
+      names threaded in from `GameLibrary` (which has `games` in hand) — and matching by name
+      alone will misfire across systems, so decide whether `igdb_id` is the key. Starting a
+      session from here means reaching the same `logSession` path `EditGameModal` uses.
+- [ ] **Make library and wishlist entries fully editable, and keep the two edit modals 1:1.**
+      Both sides are stuck today: `GameUpdate` (`api/app/schemas/me.py:82-96`) is
+      **rating-only** by design ("future metadata edits extend this model"), so
+      `EditGameModal` cannot touch name, system, genres, release date or cover art either —
+      the earlier framing that only the wishlist was limited was wrong. `EditWishlistModal`
+      supports starred/notes/system plus promote and delete
+      (`PATCH /api/py/me/wishlist/{id}`), and the promote step is still the only place a
+      wishlist item's system gets set.<br>
+      _Want:_ edit essentially every field from either modal, with the same form in both.
+      Keep only the genuinely mode-specific bits apart: rating on the library side, starred on
+      the wishlist side.<br>
+      _Work:_ extend `GameUpdate` past rating and add the matching service/repository handling
+      (routers → services → repositories), extend `WishlistUpdate` past starred/notes/system,
+      then lift the shared field set out of `EditGameModal` into one component both modals
+      render, with Server Actions in `video-games/actions.ts` doing the usual
+      `revalidateTag(libraryCacheTag(...))`. Cover art edits must keep
+      `validate_igdb_image_url` (`GameCreate` restricts `imageUrl` to IGDB CDN URLs so nobody
+      uses their library as free image hosting) — an "edit image" field that accepts arbitrary
+      URLs would reopen exactly that. Genre editing here also unblocks the genre-vocabulary
+      backlog item below, which currently needs a one-off script for want of a write path.
+- [ ] **Fold "+ Add to wishlist" into a single "+ Add game" that picks its destination.**
+      `GameLibrary.tsx:211` swaps the button label by view, and `AddGameModal` already takes a
+      `target: "library" | "wishlist"` prop (`AddGameModal.tsx:26`) that swaps the rating
+      picker for a star checkbox and makes the system optional. So the modal can already do
+      both: what is missing is a destination switcher (two tabs) inside it, defaulted to
+      whichever view the button was clicked from.<br>
+      _Watch:_ `target` currently changes required fields, so the switcher has to re-validate
+      rather than just re-label — flipping from wishlist to library with an empty system must
+      block submit, not silently post.
+- [ ] **Make the view tabs and the add button sticky, like the filter bar.** The
+      "Played" / "Want to Play" strip and the "+ Add game" / "Stats" row
+      (`GameLibrary.tsx:184-226`) scroll away, while `FilterBar` sticks at
+      `top-[var(--nav-height)]` (`FilterBar.tsx:263`).<br>
+      _Not just adding `sticky`:_ the filter bar's offset is `--nav-height` exactly, so a
+      sticky tab strip above it either overlaps or has to be part of the same sticky block,
+      with the filter bar's `top` becoming nav height plus strip height. `FilterBar` also
+      snapshots its document-relative top once in a `useLayoutEffect`
+      (`FilterBar.tsx:161-168`) to drive the mobile hide-on-scroll-down behavior, and that
+      measurement assumes nothing sticky sits above it. Simplest shape is probably one sticky
+      container holding both, so they hide and show as a unit on mobile.
 - [ ] **Owner edit affordances still pop in after hydration.** The pencils, "Add game" and the
       Unrated shelf appear a beat after first paint on your own library, because
       `useIsLibraryOwner` (`src/components/video_games/useIsLibraryOwner.ts`) resolves in a
@@ -106,15 +188,6 @@ only works if you already know their username.
       Worth doing before signup opens widely: it is the kind of thing a privacy policy is
       expected to back up. Note `rate_limits` has no FK to `profiles`, so those rows will not
       cascade and need deleting explicitly.
-- [ ] Make wishlist items fully editable, the same way library games are — today
-      `EditWishlistModal.tsx` only supports delete + promote (the promote step is the only
-      place name/system get touched), while `EditGameModal.tsx` can edit a game's fields.
-      Want: edit a wishlist item's name, system, genres, release date, cover art in place,
-      without having to promote it first. Needs a `WishlistItemUpdate` schema plus a
-      `PATCH /api/py/me/wishlist/{id}` endpoint (routers → services → repositories, mirroring
-      the games write path), a Server Action in `video-games/actions.ts` with the usual
-      `revalidateTag(libraryCacheTag(...))`, and the edit form fields lifted out of
-      `EditGameModal` so both modals share one implementation instead of duplicating it.
 - [ ] Field suggestions (system, genre, …) should work on mobile, not just desktop — the
       add/promote forms use a native `<datalist>` (`AddGameModal.tsx`, `EditWishlistModal.tsx`),
       which mobile Safari/Chrome either render poorly or ignore, so on a phone the system
