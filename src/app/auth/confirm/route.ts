@@ -16,9 +16,9 @@ export async function GET(request: NextRequest) {
   // Redirect to the host the request came in on (not request.url's normalized
   // origin), so the session cookie just set by verifyOtp stays valid.
   const origin = requestOrigin(request);
-  // Where to send the user after a successful sign-in. Defaults to
-  // /onboarding, which self-resolves: it shows the username picker for a new
-  // account and redirects an already-onboarded user onward.
+  // Where to send the user after a successful sign-in. Defaults to /library,
+  // the resolver that picks the right destination for any account state: own
+  // library, onboarding, or the public shelf.
   //
   // Open-redirect guard: only accept a local path. Without it, `next=@evil.com`
   // would make `${origin}${next}` resolve to another host, and `//evil.com`
@@ -26,9 +26,7 @@ export async function GET(request: NextRequest) {
   // shipped email template never sets `next`, so this is defense-in-depth.
   const nextParam = searchParams.get("next");
   const next =
-    nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")
-      ? nextParam
-      : "/onboarding";
+    nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/library";
 
   if (token_hash && type) {
     const supabase = await createClient();
