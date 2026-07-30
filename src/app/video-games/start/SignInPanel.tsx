@@ -38,9 +38,19 @@ function GoogleSignIn() {
     // redirectTo must land on our /auth/callback route (which exchanges the
     // code for a session). window.location.origin keeps it correct across
     // localhost, preview, and prod without hardcoding a domain.
+    //
+    // next=/library, not /onboarding: /library is the resolver that knows all
+    // three post-sign-in destinations (own library, onboarding, public shelf),
+    // so signing in lands you in your own library. /onboarding also forwards an
+    // already-onboarded user, but it is a step in the flow rather than the
+    // router for it.
+    //
+    // This URL must be in Supabase's Redirect URLs allow-list. When it is not,
+    // Supabase silently falls back to the project's Site URL, which sends people
+    // to the homepage with an unexchanged ?code and no session.
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback?next=/onboarding` },
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=/library` },
     });
     // On success the browser is already navigating to Google; only re-enable
     // the button if kicking off the redirect itself failed.

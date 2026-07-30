@@ -20,11 +20,13 @@ export async function GET(request: NextRequest) {
 
   // Open-redirect guard, identical to /auth/confirm: only a local path is
   // accepted for post-login navigation.
+  //
+  // Falls back to /library, the resolver that picks the right destination for
+  // any account state. The sign-in button sends next=/library explicitly; this
+  // default covers a callback that arrives without it.
   const nextParam = searchParams.get("next");
   const next =
-    nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")
-      ? nextParam
-      : "/onboarding";
+    nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/library";
 
   if (code) {
     const supabase = await createClient();
