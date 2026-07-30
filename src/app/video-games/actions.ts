@@ -15,11 +15,13 @@ import {
   deleteMyGame,
   deleteMyWishlistItem,
   fetchMyUsername,
+  followUser,
   promoteMyWishlistItem,
   searchIgdb,
   updateMyGameRating,
+  unfollowUser,
   updateMyWishlistItem,
-  type MutateGameResult,
+  type MutateResult,
   type SearchIgdbResult,
 } from "@/lib/meApi";
 import { libraryCacheTag } from "@/lib/libraryApi";
@@ -48,6 +50,33 @@ async function revalidateMyLibrary(): Promise<void> {
   if (username) revalidateTag(libraryCacheTag(username));
 }
 
+/** Purge the cached reads for ANOTHER user's library, after a write of ours
+ *  changed something on their page.
+ *
+ *  Only follows need this. Every other write in this file touches one library —
+ *  the caller's — but a follow moves two numbers and two lists: the caller's
+ *  following count and list, and the target's follower count and list. Passing
+ *  the target's tag to revalidateMyLibrary()'s rules is impossible, since it
+ *  deliberately refuses to take a username.
+ *
+ *  Taking the username as an argument is the thing revalidateMyLibrary warns
+ *  about, so the difference matters: the caller's tag decides whose PRIVATE
+ *  writes get published, while this one only forces a re-fetch of a page that
+ *  is already public to everyone. No data leaks either way.
+ *
+ *  It is still a cache-purge primitive, not merely "a re-request": toggling
+ *  follow on one username at the write budget's ceiling (60/min, rate_limit_
+ *  writes) purges that tag twice that often, and each purge costs a full
+ *  re-render plus four API round trips. Bounded rather than harmless — it needs
+ *  a session, is rate-limited, and signup is capped — but worth naming so the
+ *  next person weighing a client-supplied tag has the real number.
+ *
+ *  Case is not a hazard here: libraryCacheTag lowercases, and usernames are
+ *  citext, so `RGrassian` and `rgrassian` purge the same tag. */
+function revalidateOtherLibrary(username: string): void {
+  revalidateTag(libraryCacheTag(username));
+}
+
 // The API validates dates for real (parsing, ordering); this only rejects
 // obviously malformed input before it leaves the Next server.
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -72,7 +101,7 @@ export async function searchGames(query: string): Promise<SearchIgdbResult> {
 }
 
 /** Add a game to the library (from an IGDB pick or manual entry). */
-export async function addGame(game: NewGame): Promise<MutateGameResult> {
+export async function addGame(game: NewGame): Promise<MutateResult> {
   const releaseDateOk = game.releaseDate === null || ISO_DATE_RE.test(game.releaseDate);
   const imageUrlOk = game.imageUrl === "" || game.imageUrl.startsWith("https://images.igdb.com/");
   if (
@@ -100,7 +129,7 @@ export async function addGame(game: NewGame): Promise<MutateGameResult> {
 }
 
 /** Remove a game from the library; its play sessions cascade away with it. */
-export async function deleteGame(gameId: number): Promise<MutateGameResult> {
+export async function deleteGame(gameId: number): Promise<MutateResult> {
   if (!Number.isInteger(gameId)) {
     return { ok: false, message: "Invalid delete request." };
   }
@@ -113,7 +142,7 @@ export async function deleteGame(gameId: number): Promise<MutateGameResult> {
 }
 
 /** Add a wishlist entry (IGDB pick or manual; only name is required). */
-export async function addWishlistItem(item: NewWishlistItem): Promise<MutateGameResult> {
+export async function addWishlistItem(item: NewWishlistItem): Promise<MutateResult> {
   const releaseDateOk = item.releaseDate === null || ISO_DATE_RE.test(item.releaseDate);
   const imageUrlOk = item.imageUrl === "" || item.imageUrl.startsWith("https://images.igdb.com/");
   if (
@@ -143,7 +172,7 @@ export async function addWishlistItem(item: NewWishlistItem): Promise<MutateGame
 export async function updateWishlistItem(
   itemId: number,
   fields: { starred?: boolean; notes?: string; system?: string }
-): Promise<MutateGameResult> {
+): Promise<MutateResult> {
   if (!Number.isInteger(itemId)) {
     return { ok: false, message: "Invalid wishlist request." };
   }
@@ -156,7 +185,7 @@ export async function updateWishlistItem(
 }
 
 /** Remove a wishlist entry. */
-export async function deleteWishlistItem(itemId: number): Promise<MutateGameResult> {
+export async function deleteWishlistItem(itemId: number): Promise<MutateResult> {
   if (!Number.isInteger(itemId)) {
     return { ok: false, message: "Invalid wishlist request." };
   }
@@ -169,10 +198,7 @@ export async function deleteWishlistItem(itemId: number): Promise<MutateGameResu
 }
 
 /** Promote a wishlist entry into the library ("" system = use the stored one). */
-export async function promoteWishlistItem(
-  itemId: number,
-  system: string
-): Promise<MutateGameResult> {
+export async function promoteWishlistItem(itemId: number, system: string): Promise<MutateResult> {
   if (!Number.isInteger(itemId)) {
     return { ok: false, message: "Invalid promote request." };
   }
@@ -184,10 +210,7 @@ export async function promoteWishlistItem(
   return result;
 }
 
-export async function updateGameRating(
-  gameId: number,
-  rating: Rating | ""
-): Promise<MutateGameResult> {
+export async function updateGameRating(gameId: number, rating: Rating | ""): Promise<MutateResult> {
   // Actions are a public HTTP surface (any client can invoke them with any
   // arguments), so re-check the input shape server-side before forwarding.
   // Authorization itself lives in FastAPI — a token for a non-owner gets a 404.
@@ -210,7 +233,7 @@ export async function logSession(
   gameId: number,
   startDate: string,
   endDate: string | null
-): Promise<MutateGameResult> {
+): Promise<MutateResult> {
   if (
     !Number.isInteger(gameId) ||
     !ISO_DATE_RE.test(startDate) ||
@@ -232,7 +255,7 @@ export async function stopSession(
   sessionId: number,
   endDate: string,
   rating?: Rating | ""
-): Promise<MutateGameResult> {
+): Promise<MutateResult> {
   if (
     !Number.isInteger(sessionId) ||
     !ISO_DATE_RE.test(endDate) ||
@@ -244,6 +267,34 @@ export async function stopSession(
   const result = await closeMySession(sessionId, endDate, rating);
   if (result.ok) {
     await revalidateMyLibrary();
+  }
+  return result;
+}
+
+/** Follow a user. Revalidates BOTH libraries: the caller's following list grew
+ *  and the target's follower list did too, and each page caches under its own
+ *  owner's tag. */
+export async function followUserAction(username: string): Promise<MutateResult> {
+  if (typeof username !== "string" || username === "") {
+    return { ok: false, message: "Invalid follow request." };
+  }
+  const result = await followUser(username);
+  if (result.ok) {
+    await revalidateMyLibrary();
+    revalidateOtherLibrary(username);
+  }
+  return result;
+}
+
+/** Unfollow a user. Same two-tag revalidation as following. */
+export async function unfollowUserAction(username: string): Promise<MutateResult> {
+  if (typeof username !== "string" || username === "") {
+    return { ok: false, message: "Invalid unfollow request." };
+  }
+  const result = await unfollowUser(username);
+  if (result.ok) {
+    await revalidateMyLibrary();
+    revalidateOtherLibrary(username);
   }
   return result;
 }

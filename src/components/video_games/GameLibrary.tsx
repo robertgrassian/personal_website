@@ -7,7 +7,9 @@ import { ShelfSection } from "./ShelfSection";
 import { FilterBar } from "./FilterBar";
 import { StatsPanel } from "./StatsPanel";
 import { ChartBarIcon } from "@/components/Icon";
-import { VIEW_CONFIG, VALID_VIEW } from "./libraryConfig";
+import { VIEW_LABEL, VALID_GAME_VIEW, isGameView } from "./libraryConfig";
+import { PeopleList } from "./PeopleList";
+import type { UserSummary } from "@/lib/follows";
 import {
   filterGames,
   groupGames,
@@ -36,6 +38,10 @@ type GameLibraryProps = {
   // Whose library this is. Only used to answer "may the viewer edit it?" —
   // the shelves themselves render the same for everyone.
   ownerUsername: string;
+  // The owner's follow graph, backing the Following/Followers tabs. Public
+  // data fetched server-side, so it is cached with the page like the games.
+  followers?: UserSummary[];
+  following?: UserSummary[];
 };
 
 export function GameLibrary({
@@ -44,6 +50,8 @@ export function GameLibrary({
   currentlyPlayingGames,
   unratedGames = [],
   ownerUsername,
+  followers = [],
+  following = [],
 }: GameLibraryProps) {
   const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -150,6 +158,9 @@ export function GameLibrary({
   // filter → group → sort, branched by view so each pipeline runs against
   // data of its own type (Game[] vs WishlistGame[]).
   const activeShelves = useMemo(() => {
+    // People tabs render no shelves at all; bail before the game pipelines so
+    // they don't run against data nothing is going to display.
+    if (!isGameView(view)) return [];
     if (view === "played") {
       const filtered = filterGames(games, activeFilters);
       const groups =
@@ -183,7 +194,7 @@ export function GameLibrary({
           tabs (played-only), keeping the strip a single compact line. */}
       <div className="flex items-center justify-between border-b border-shelf-plank mb-4">
         <div className="flex">
-          {VALID_VIEW.map((v) => (
+          {VALID_GAME_VIEW.map((v) => (
             <button
               key={v}
               type="button"
@@ -194,12 +205,12 @@ export function GameLibrary({
                   : "border-transparent text-shelf-text-muted hover:text-link hover:border-shelf-plank"
               }`}
             >
-              {VIEW_CONFIG[v].label}
+              {VIEW_LABEL[v]}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-1">
-          {canEdit && (
+          {canEdit && isGameView(view) && (
             <button
               type="button"
               onClick={() => setAddOpen(true)}
@@ -225,121 +236,136 @@ export function GameLibrary({
         </div>
       </div>
 
-      {/* Filter status — rendered only while filters are active, so the row
-          contributes no height (whitespace) the rest of the time. */}
-      {hasActiveFilters && (
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-shelf-text-muted text-sm">
-            {filteredCount} of {activeTotal} games
-          </span>
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="text-shelf-text-muted text-sm underline underline-offset-2 cursor-pointer hover:text-shelf-text transition-colors"
-          >
-            Clear filters
-          </button>
-        </div>
-      )}
-
-      {view === "played" ? (
-        <FilterBar
-          view="played"
-          filters={activeFilters}
-          onSharedFilterChange={setSharedFilter}
-          onRatingChange={setRating}
-          groupBy={groupBy}
-          sortOrder={sortOrder}
-          validGroupBy={validGroupBy}
-          validSortOrder={validSortOrder}
-          allSystems={allSystems}
-          allGenres={allGenres}
-          availableRatings={availableRatings}
-          availableSystems={availableSystems}
-          availableGenres={availableGenres}
-          onGroupByChange={setGroupBy}
-          onSortOrderChange={setSortOrder}
+      {/* One branch for the whole body: game tabs render the shelves and their
+          filter chrome, people tabs render a list of users. Everything below
+          this point in the game branch is unchanged from before the people
+          tabs existed — which is the reason for the GameView/PeopleView split,
+          since several of those blocks treat "not played" as "wishlist". */}
+      {!isGameView(view) ? (
+        <PeopleList
+          view={view}
+          users={view === "following" ? following : followers}
+          isOwner={canEdit}
         />
       ) : (
-        <FilterBar
-          view="wishlist"
-          filters={activeWishlistFilters}
-          onSharedFilterChange={setSharedFilter}
-          groupBy={groupBy}
-          sortOrder={sortOrder}
-          validGroupBy={validGroupBy}
-          validSortOrder={validSortOrder}
-          allSystems={allSystemsWishlist}
-          allGenres={allGenresWishlist}
-          availableSystems={availableSystemsWishlist}
-          availableGenres={availableGenresWishlist}
-          onGroupByChange={setGroupBy}
-          onSortOrderChange={setSortOrder}
-        />
-      )}
-
-      {activeShelves.length === 0 ? (
-        // Three different situations used to share one message. They call for
-        // different things: a brand-new owner needs a way in, a visitor to an
-        // empty library needs to know it's empty rather than broken, and a
-        // filtered-to-nothing shelf needs neither.
-        isNothingHere ? (
-          <div className="mt-24 flex flex-col items-center gap-4 text-center">
-            <p className="text-lg text-shelf-text-muted">
-              {canEdit
-                ? view === "played"
-                  ? "Your library is empty."
-                  : "Your wishlist is empty."
-                : view === "played"
-                  ? "This library is empty."
-                  : "This wishlist is empty."}
-            </p>
-            {canEdit && (
+        <>
+          {/* Filter status — rendered only while filters are active, so the row
+          contributes no height (whitespace) the rest of the time. */}
+          {hasActiveFilters && (
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-shelf-text-muted text-sm">
+                {filteredCount} of {activeTotal} games
+              </span>
               <button
                 type="button"
-                onClick={() => setAddOpen(true)}
-                // Site amber accent + text-background, the same pairing the
-                // login button and the sign-up CTA use, so it reads correctly
-                // in light and dark.
-                className="rounded-md bg-link px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 cursor-pointer"
+                onClick={clearFilters}
+                className="text-shelf-text-muted text-sm underline underline-offset-2 cursor-pointer hover:text-shelf-text transition-colors"
               >
-                {view === "played" ? "Add your first game" : "Add your first wish"}
+                Clear filters
               </button>
-            )}
-          </div>
-        ) : (
-          <p className="mt-24 text-center text-shelf-text-muted text-lg italic">
-            No games match your filters.
-          </p>
-        )
-      ) : (
-        <div className="mt-6 pb-24">
-          {activeShelves.map((shelf) => (
-            <ShelfSection
-              key={shelf.label}
-              label={shelf.label}
-              games={shelf.games}
-              onEditGame={canEdit ? handleEditGame : undefined}
+            </div>
+          )}
+
+          {view === "played" ? (
+            <FilterBar
+              view="played"
+              filters={activeFilters}
+              onSharedFilterChange={setSharedFilter}
+              onRatingChange={setRating}
+              groupBy={groupBy}
+              sortOrder={sortOrder}
+              validGroupBy={validGroupBy}
+              validSortOrder={validSortOrder}
+              allSystems={allSystems}
+              allGenres={allGenres}
+              availableRatings={availableRatings}
+              availableSystems={availableSystems}
+              availableGenres={availableGenres}
+              onGroupByChange={setGroupBy}
+              onSortOrderChange={setSortOrder}
             />
-          ))}
-        </div>
-      )}
+          ) : (
+            <FilterBar
+              view="wishlist"
+              filters={activeWishlistFilters}
+              onSharedFilterChange={setSharedFilter}
+              groupBy={groupBy}
+              sortOrder={sortOrder}
+              validGroupBy={validGroupBy}
+              validSortOrder={validSortOrder}
+              allSystems={allSystemsWishlist}
+              allGenres={allGenresWishlist}
+              availableSystems={availableSystemsWishlist}
+              availableGenres={availableGenresWishlist}
+              onGroupByChange={setGroupBy}
+              onSortOrderChange={setSortOrder}
+            />
+          )}
 
-      {/* Owner-only "Unrated" shelf: every unrated game keeps a case (and a
-          pencil), so clearing a rating is always reversible from the UI.
-          Deliberately outside the filter/group/sort pipeline — it's a small
-          owner utility surface, not part of the public browsing experience. */}
-      {view === "played" && canEdit && unratedGames.length > 0 && (
-        <ShelfSection label="Unrated" games={unratedGames} onEditGame={handleEditGame} />
-      )}
+          {activeShelves.length === 0 ? (
+            // Three different situations used to share one message. They call for
+            // different things: a brand-new owner needs a way in, a visitor to an
+            // empty library needs to know it's empty rather than broken, and a
+            // filtered-to-nothing shelf needs neither.
+            isNothingHere ? (
+              <div className="mt-24 flex flex-col items-center gap-4 text-center">
+                <p className="text-lg text-shelf-text-muted">
+                  {canEdit
+                    ? view === "played"
+                      ? "Your library is empty."
+                      : "Your wishlist is empty."
+                    : view === "played"
+                      ? "This library is empty."
+                      : "This wishlist is empty."}
+                </p>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => setAddOpen(true)}
+                    // Site amber accent + text-background, the same pairing the
+                    // login button and the sign-up CTA use, so it reads correctly
+                    // in light and dark.
+                    className="rounded-md bg-link px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 cursor-pointer"
+                  >
+                    {view === "played" ? "Add your first game" : "Add your first wish"}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <p className="mt-24 text-center text-shelf-text-muted text-lg italic">
+                No games match your filters.
+              </p>
+            )
+          ) : (
+            <div className="mt-6 pb-24">
+              {activeShelves.map((shelf) => (
+                <ShelfSection
+                  key={shelf.label}
+                  label={shelf.label}
+                  games={shelf.games}
+                  onEditGame={canEdit ? handleEditGame : undefined}
+                />
+              ))}
+            </div>
+          )}
 
-      {view === "played" && (
-        <StatsPanel
-          games={games}
-          currentlyPlayingGames={currentlyPlayingGames}
-          isOpen={statsOpen}
-          onClose={() => setStatsOpen(false)}
-        />
+          {/* Owner-only "Unrated" shelf: every unrated game keeps a case (and a
+              pencil), so clearing a rating is always reversible from the UI.
+              Deliberately outside the filter/group/sort pipeline — it's a small
+              owner utility surface, not part of the public browsing experience. */}
+          {view === "played" && canEdit && unratedGames.length > 0 && (
+            <ShelfSection label="Unrated" games={unratedGames} onEditGame={handleEditGame} />
+          )}
+
+          {view === "played" && (
+            <StatsPanel
+              games={games}
+              currentlyPlayingGames={currentlyPlayingGames}
+              isOpen={statsOpen}
+              onClose={() => setStatsOpen(false)}
+            />
+          )}
+        </>
       )}
 
       {editingGame && <EditGameModal game={editingGame} onClose={() => setEditingGameId(null)} />}

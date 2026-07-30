@@ -89,3 +89,16 @@ class ProfileRead(CamelModel):
     display_name: str
     follower_count: int
     following_count: int
+
+
+class UserSummary(CamelModel):
+    """One row in a follower/following list: enough to render a link to that
+    user's library and nothing more.
+
+    No per-row follow counts, though the endpoint sketch mentioned them: they
+    would turn one join into a correlated aggregate for numbers the list does
+    not show. Add them here if a row ever wants to display them.
+    """
+
+    username: str
+    display_name: str

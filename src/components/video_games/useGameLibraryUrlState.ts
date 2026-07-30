@@ -8,8 +8,10 @@ import type { Filters, Rating } from "@/lib/games";
 import type { WishlistFilters } from "@/lib/wishlist";
 import {
   type View,
+  type GameView,
   type GroupBy,
   type SortOrder,
+  viewConfig,
   VIEW_CONFIG,
   VALID_VIEW,
   DEFAULT_VIEW,
@@ -28,7 +30,7 @@ type UrlState = {
   activeWishlistFilters: WishlistFilters;
   validGroupBy: readonly GroupBy[];
   validSortOrder: readonly SortOrder[];
-  setView: (value: View) => void;
+  setView: (value: GameView) => void;
   setGroupBy: (value: GroupBy) => void;
   setSortOrder: (value: SortOrder) => void;
   setSharedFilter: (key: SharedFilterKey, value: string) => void;
@@ -77,7 +79,7 @@ export function useGameLibraryUrlState(): UrlState {
 
   const rawView = searchParams.get("view");
   const view: View = VALID_VIEW.includes(rawView as View) ? (rawView as View) : DEFAULT_VIEW;
-  const config = VIEW_CONFIG[view];
+  const config = viewConfig(view);
 
   const rawGroupBy = searchParams.get("groupBy");
   const groupBy: GroupBy = config.validGroupBy.includes(rawGroupBy as GroupBy)
@@ -130,7 +132,7 @@ export function useGameLibraryUrlState(): UrlState {
       const currentView: View = VALID_VIEW.includes(rawViewInUrl as View)
         ? (rawViewInUrl as View)
         : DEFAULT_VIEW;
-      const currentConfig = VIEW_CONFIG[currentView];
+      const currentConfig = viewConfig(currentView);
       const isDefault =
         value === "" ||
         (key === "groupBy" && value === currentConfig.defaultGroupBy) ||
@@ -151,8 +153,13 @@ export function useGameLibraryUrlState(): UrlState {
 
   // setView also strips groupBy/sortOrder values the new view doesn't support,
   // so e.g. `?sortOrder=added-newest` doesn't leak from wishlist to played.
+  //
+  // GameView, not View: the tab strip is the only caller and renders only game
+  // tabs. The people views are reached from the header counts, whose links build
+  // a fresh `?view=` and so drop the filter params by construction rather than
+  // needing to clear them here.
   const setView = useCallback(
-    (value: View) => {
+    (value: GameView) => {
       const params = new URLSearchParams(searchParams.toString());
       if (value === DEFAULT_VIEW) {
         params.delete("view");

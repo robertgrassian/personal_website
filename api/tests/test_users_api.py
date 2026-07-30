@@ -162,13 +162,18 @@ def test_wishlist_returns_all_items_with_camel_case_keys(client: TestClient) -> 
 def test_profile_returns_public_fields_and_counts(client: TestClient) -> None:
     response = client.get("/api/py/users/rgrassian")
     assert response.status_code == 200
-    # Exact payload: public data only, no per-viewer fields.
-    assert response.json() == {
-        "username": "rgrassian",
-        "displayName": "Robert",
-        "followerCount": 0,
-        "followingCount": 0,
-    }
+    body = response.json()
+    # Exact key set, which is the actual contract here: public data only, no
+    # per-viewer fields (amIFollowing and friends live on /me/relationship).
+    assert set(body) == {"username", "displayName", "followerCount", "followingCount"}
+    assert body["username"] == "rgrassian"
+    assert body["displayName"] == "Robert"
+    # The counts are live COUNT(*)s over the follow graph, so pinning them to 0
+    # would make this test depend on which other tests have signed users up
+    # (each signup auto-follows the founder). Assert the type, not a number;
+    # test_follows_api.py covers the counts moving.
+    assert isinstance(body["followerCount"], int)
+    assert isinstance(body["followingCount"], int)
 
 
 @requires_db
@@ -178,12 +183,14 @@ def test_profile_returns_public_fields_and_counts(client: TestClient) -> None:
         "/api/py/users/nobody",
         "/api/py/users/nobody/games",
         "/api/py/users/nobody/wishlist",
+        "/api/py/users/nobody/followers",
+        "/api/py/users/nobody/following",
     ],
 )
 def test_unknown_username_returns_404(client: TestClient, path: str) -> None:
     response = client.get(path)
     assert response.status_code == 404
-    # FastAPI's standard error shape, consistent across all three routes.
+    # FastAPI's standard error shape, consistent across every public read.
     assert response.json() == {"detail": "User 'nobody' not found"}
 
 

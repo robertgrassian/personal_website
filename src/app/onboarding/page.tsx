@@ -8,6 +8,7 @@
 import { redirect } from "next/navigation";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import { fetchMyProfile } from "@/lib/meApi";
+import { userLibraryPath } from "@/lib/profile";
 import { OnboardingForm } from "./OnboardingForm";
 
 // Per-request (reads the session cookie) — never statically rendered.
@@ -35,7 +36,7 @@ export default async function OnboardingPage() {
   // Already has a profile? Then onboarding is done — send them to their
   // library, the same place a successful submission lands.
   const existing = await fetchMyProfile();
-  if (existing) redirect(`/video-games/u/${encodeURIComponent(existing.username)}`);
+  if (existing) redirect(userLibraryPath(existing.username));
 
   return (
     <main className="mx-auto flex min-h-[60vh] max-w-md flex-col justify-center px-6 py-16">

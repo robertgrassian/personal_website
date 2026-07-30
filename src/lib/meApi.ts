@@ -187,20 +187,20 @@ export async function createMyProfile(
   return { ok: false, reason: "unknown", message: detail ?? "Something went wrong." };
 }
 
-// Simple ok/error result for game mutations — no reason discrimination yet
-// because the rating UI only shows a message; add reasons when a caller
-// actually branches on them.
-export type MutateGameResult = { ok: true } | { ok: false; message: string };
+// Simple ok/error result for /me mutations — no reason discrimination yet
+// because the callers only show a message; add reasons when one actually
+// branches on them.
+export type MutateResult = { ok: true } | { ok: false; message: string };
 
-/** Shared mechanics for the game/session mutations: token, JSON body, and the
- *  ok/message mapping. `what` names the operation in fallback error text.
- *  DELETE sends no body (the API answers 204). */
-async function mutateGame(
+/** Shared mechanics for every /me mutation (games, sessions, wishlist, follows):
+ *  token, JSON body, and the ok/message mapping. `what` names the operation in
+ *  fallback error text. DELETE sends no body (the API answers 204). */
+async function mutate(
   path: string,
   method: "POST" | "PATCH" | "DELETE",
   body: Record<string, unknown> | null,
   what: string
-): Promise<MutateGameResult> {
+): Promise<MutateResult> {
   if (targetsForeignEnvironmentApi()) {
     return { ok: false, message: FOREIGN_API_WRITE_MESSAGE };
   }
@@ -233,18 +233,18 @@ async function mutateGame(
 
 /** Add a game to the caller's library. `rating: ""` and `igdbId: null` etc.
  *  are sent as-is — the API treats ""/null as absent for optional fields. */
-export function createMyGame(game: NewGame): Promise<MutateGameResult> {
-  return mutateGame("/api/py/me/games", "POST", { ...game }, "add the game");
+export function createMyGame(game: NewGame): Promise<MutateResult> {
+  return mutate("/api/py/me/games", "POST", { ...game }, "add the game");
 }
 
 /** Remove a game (and, server-side via cascade, its play sessions). */
-export function deleteMyGame(gameId: number): Promise<MutateGameResult> {
-  return mutateGame(`/api/py/me/games/${gameId}`, "DELETE", null, "delete the game");
+export function deleteMyGame(gameId: number): Promise<MutateResult> {
+  return mutate(`/api/py/me/games/${gameId}`, "DELETE", null, "delete the game");
 }
 
 /** Add a wishlist entry. */
-export function createMyWishlistItem(item: NewWishlistItem): Promise<MutateGameResult> {
-  return mutateGame("/api/py/me/wishlist", "POST", { ...item }, "add to the wishlist");
+export function createMyWishlistItem(item: NewWishlistItem): Promise<MutateResult> {
+  return mutate("/api/py/me/wishlist", "POST", { ...item }, "add to the wishlist");
 }
 
 /** Partially edit a wishlist entry — pass only the fields to change
@@ -252,24 +252,19 @@ export function createMyWishlistItem(item: NewWishlistItem): Promise<MutateGameR
 export function updateMyWishlistItem(
   itemId: number,
   fields: { starred?: boolean; notes?: string; system?: string }
-): Promise<MutateGameResult> {
-  return mutateGame(`/api/py/me/wishlist/${itemId}`, "PATCH", fields, "update the wishlist");
+): Promise<MutateResult> {
+  return mutate(`/api/py/me/wishlist/${itemId}`, "PATCH", fields, "update the wishlist");
 }
 
 /** Remove a wishlist entry. */
-export function deleteMyWishlistItem(itemId: number): Promise<MutateGameResult> {
-  return mutateGame(`/api/py/me/wishlist/${itemId}`, "DELETE", null, "remove from the wishlist");
+export function deleteMyWishlistItem(itemId: number): Promise<MutateResult> {
+  return mutate(`/api/py/me/wishlist/${itemId}`, "DELETE", null, "remove from the wishlist");
 }
 
 /** Promote a wishlist entry into the library ("I bought it"). `system` wins
  *  over the stored one; "" defers to what the wishlist row already has. */
-export function promoteMyWishlistItem(itemId: number, system: string): Promise<MutateGameResult> {
-  return mutateGame(
-    `/api/py/me/wishlist/${itemId}/promote`,
-    "POST",
-    { system },
-    "move to the library"
-  );
+export function promoteMyWishlistItem(itemId: number, system: string): Promise<MutateResult> {
+  return mutate(`/api/py/me/wishlist/${itemId}/promote`, "POST", { system }, "move to the library");
 }
 
 // Search results ride in the ok branch; failures reuse the message shape so
@@ -310,8 +305,8 @@ export async function searchIgdb(query: string): Promise<SearchIgdbResult> {
 }
 
 /** Set or clear ("" = unrated) the rating on one of the caller's games. */
-export function updateMyGameRating(gameId: number, rating: string): Promise<MutateGameResult> {
-  return mutateGame(`/api/py/me/games/${gameId}`, "PATCH", { rating }, "update the rating");
+export function updateMyGameRating(gameId: number, rating: string): Promise<MutateResult> {
+  return mutate(`/api/py/me/games/${gameId}`, "PATCH", { rating }, "update the rating");
 }
 
 /** Start playing (endDate null → open session) or log a past playthrough
@@ -320,8 +315,8 @@ export function createMySession(
   gameId: number,
   startDate: string,
   endDate: string | null
-): Promise<MutateGameResult> {
-  return mutateGame(
+): Promise<MutateResult> {
+  return mutate(
     `/api/py/me/games/${gameId}/sessions`,
     "POST",
     { startDate, endDate },
@@ -336,9 +331,31 @@ export function closeMySession(
   sessionId: number,
   endDate: string,
   rating?: string
-): Promise<MutateGameResult> {
+): Promise<MutateResult> {
   // Omit the rating key entirely when not rating — the API's PATCH semantics
   // treat an absent field as "leave unchanged" and null/"" as "clear".
   const body: Record<string, unknown> = rating === undefined ? { endDate } : { endDate, rating };
-  return mutateGame(`/api/py/me/sessions/${sessionId}`, "PATCH", body, "stop the session");
+  return mutate(`/api/py/me/sessions/${sessionId}`, "PATCH", body, "stop the session");
+}
+
+/** Follow / unfollow a user. Both are idempotent server-side, so a
+ *  double-fired toggle is a 204 rather than a conflict the UI must explain.
+ *  The username is escaped: it comes from a link the viewer clicked, and the
+ *  API answers 404 for anything that isn't a real user. */
+export function followUser(username: string): Promise<MutateResult> {
+  return mutate(
+    `/api/py/me/following/${encodeURIComponent(username)}`,
+    "POST",
+    null,
+    "follow this user"
+  );
+}
+
+export function unfollowUser(username: string): Promise<MutateResult> {
+  return mutate(
+    `/api/py/me/following/${encodeURIComponent(username)}`,
+    "DELETE",
+    null,
+    "unfollow this user"
+  );
 }

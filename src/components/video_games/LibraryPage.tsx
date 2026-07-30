@@ -9,11 +9,21 @@ import "@/components/crt/crt.css";
 import { getGames } from "@/lib/gamesServer";
 import { getWishlist } from "@/lib/wishlistServer";
 import { getProfile } from "@/lib/profileServer";
+import { getFollowers, getFollowing } from "@/lib/followsServer";
 import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { CrtTv } from "@/components/crt/CrtTv";
 import { LibraryCount } from "@/components/video_games/LibraryCount";
 import { AuthButton } from "@/components/AuthButton";
+import {
+  FollowStateProvider,
+  FollowButton,
+  BackToMyLibrary,
+} from "@/components/video_games/FollowControls";
+import {
+  FollowCountLinks,
+  FollowCountLinksFallback,
+} from "@/components/video_games/FollowCountLinks";
 import { SignupCta } from "@/components/video_games/SignupCta";
 
 // One library page, two routes: /video-games (Robert's shelf, at its stable
@@ -53,9 +63,17 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
     notFound();
   }
 
-  // Independent, so Promise.all runs them concurrently instead of
-  // serializing two API round-trips.
-  const [games, wishlist] = await Promise.all([getGames(username), getWishlist(username)]);
+  // Independent, so Promise.all runs them concurrently instead of serializing
+  // the API round-trips. The follow lists ride along here rather than being
+  // fetched when their tab is opened: they're public data on the same cache
+  // tag, so they cost nothing after the first render and switching to the
+  // Following tab needs no network at all.
+  const [games, wishlist, followers, following] = await Promise.all([
+    getGames(username),
+    getWishlist(username),
+    getFollowers(username),
+    getFollowing(username),
+  ]);
   // All in-progress games — the CRT cycles through them like TV channels, and
   // the stats panel uses them so "Recently Played" can include a currently-playing
   // game even when it's unrated (and thus absent from the rated shelves below).
@@ -85,27 +103,69 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
             portfolio has no accounts, the library is the only app that does.
             items-start keeps it aligned to the heading's first line when a
             long display name wraps. */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            {/* Same wording on both routes, since both show the same library.
+        <FollowStateProvider ownerUsername={profile.username}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              {/* Same wording on both routes, since both show the same library.
                 The display name comes from the profile rather than the URL
                 segment so the casing is canonical (usernames are citext, so
                 /video-games/u/RGrassian resolves to the same user as
                 /video-games/u/rgrassian). */}
-            <h1 className="text-4xl font-bold text-shelf-text">
-              {profile.displayName}&apos;s Video Game Library
-            </h1>
-            {/* Whose library this is. On /video-games/u/[username] the heading
+              {/* Follow sits with the heading because it acts on the person the
+                  heading names. flex-wrap so a long display name pushes the
+                  button to its own line instead of squeezing the title. */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <h1 className="text-4xl font-bold text-shelf-text">
+                  {profile.displayName}&apos;s Video Game Library
+                </h1>
+                <FollowButton />
+              </div>
+              {/* Whose library this is. On /video-games/u/[username] the heading
                 already carries the display name, so the handle is what adds
                 information; on /video-games the heading is generic and this is
                 the only thing naming the owner. Rendered from the profile, so
-                the casing is the stored one rather than whatever the URL used.
-                Follower/following counts belong here too, but not until Phase 5
-                gives them a follow button and lists to be actionable with. */}
-            <p className="mt-1 text-sm text-shelf-text-muted">@{profile.username}</p>
+                the casing is the stored one rather than whatever the URL used. */}
+              <p className="mt-1 text-sm text-shelf-text-muted">
+                @{profile.username}
+                {/* The counts are also the way into the Following/Followers
+                    lists, which is why they are not tabs: those list people,
+                    while the tab strip slices this library's games. Suspense
+                    because the active state reads ?view via useSearchParams. */}
+                {/* Counted from the lists rather than read off the profile
+                    payload, which also carries followerCount/followingCount.
+                    Two sources for one number can disagree, and here they
+                    genuinely can: the counts come from /users/{name} while the
+                    lists come from two other endpoints, and a 404 from those
+                    degrades to an empty list (see fetchFollowList). That would
+                    render "3 followers" above a tab saying nobody follows this
+                    user. One source cannot contradict itself.
+                    Revisit if these lists are ever paginated, when length stops
+                    meaning total. */}
+                <Suspense
+                  fallback={
+                    <FollowCountLinksFallback
+                      followerCount={followers.length}
+                      followingCount={following.length}
+                    />
+                  }
+                >
+                  <FollowCountLinks
+                    followerCount={followers.length}
+                    followingCount={following.length}
+                  />
+                </Suspense>
+              </p>
+            </div>
+            {/* Viewer/navigation controls, as opposed to the Follow button,
+                which acts on the library's owner and so sits with the heading.
+                AuthButton is driven by the pre-paint flag; BackToMyLibrary
+                resolves after hydration from the same context. */}
+            <div className="flex items-center gap-3">
+              <BackToMyLibrary />
+              <AuthButton />
+            </div>
           </div>
-          <AuthButton />
-        </div>
+        </FollowStateProvider>
         {/* useSearchParams (inside LibraryCount) requires a Suspense boundary.
             The fallback shows the default-view count so there's no flash. */}
         <Suspense fallback={<p className="mt-2 text-shelf-text-muted">{playedCount} games</p>}>
@@ -126,6 +186,8 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
             // Which library this is. GameLibrary hands it to useIsLibraryOwner
             // so the viewer's own username can be compared against it.
             ownerUsername={profile.username}
+            followers={followers}
+            following={following}
           />
         </Suspense>
       </div>

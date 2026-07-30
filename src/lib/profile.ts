@@ -9,8 +9,14 @@
 export type LibraryProfile = {
   username: string;
   displayName: string;
-  // Populated by the API today, but not rendered until Phase 5 gives them a
-  // follow button and follower lists to be actionable with.
   followerCount: number;
   followingCount: number;
 };
+
+// The public URL of a user's library. Central because it is built in half a
+// dozen places (redirects, links, follower rows) and the /video-games prefix
+// has moved once already — usernames are user-supplied, so the encode is not
+// optional.
+export function userLibraryPath(username: string): string {
+  return `/video-games/u/${encodeURIComponent(username)}`;
+}

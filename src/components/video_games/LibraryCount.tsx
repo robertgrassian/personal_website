@@ -6,7 +6,7 @@
 // round-trip, so switching tabs flips the number instantly.
 
 import { useSearchParams } from "next/navigation";
-import { DEFAULT_VIEW, VALID_VIEW, type View } from "./libraryConfig";
+import { DEFAULT_VIEW, VALID_VIEW, isGameView, type View } from "./libraryConfig";
 
 type LibraryCountProps = {
   playedCount: number;
@@ -18,6 +18,9 @@ export function LibraryCount({ playedCount, wishlistCount }: LibraryCountProps) 
   // a missing or malformed ?view value.
   const raw = useSearchParams().get("view");
   const view: View = VALID_VIEW.includes(raw as View) ? (raw as View) : DEFAULT_VIEW;
+  // Nothing to headline on a people tab: the profile header states both follow
+  // counts permanently, so repeating one here would just say it twice.
+  if (!isGameView(view)) return null;
   const count = view === "wishlist" ? wishlistCount : playedCount;
 
   return <p className="mt-2 text-shelf-text-muted">{count} games</p>;
