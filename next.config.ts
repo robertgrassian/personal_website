@@ -43,6 +43,11 @@ const nextConfig: NextConfig = {
       // The old login URL under its new prefix, for anything bookmarked
       // between the Phase 4 auth move and this rename.
       { source: "/video-games/login", destination: "/video-games/start", permanent: true },
+      // Per-user libraries moved off the top-level /u namespace so the game
+      // library owns one prefix. Kept permanent for the same reason as the
+      // kebab renames: a user's library page is the thing people share, and
+      // /u/ was live for the days between Phase 4 and this change.
+      { source: "/u/:username", destination: "/video-games/u/:username", permanent: true },
     ];
   },
   async rewrites() {

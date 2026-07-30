@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 // Resolves "is the current viewer the owner of THIS library?" client-side,
 // after hydration. Deliberate: the page's HTML must be identical for every
 // viewer, so per-viewer state can never be server-rendered into it
-// (/video-games is prerendered static; /u/[username] is dynamic but reads no
+// (/video-games is prerendered static; /video-games/u/[username] is dynamic but reads no
 // session, keeping it cacheable under libraryCacheTag). The cost is a brief
 // window where edit controls haven't appeared yet on your own page.
 //
@@ -18,7 +18,7 @@ import { createClient } from "@/lib/supabase/client";
 // getSession() reads local cookies, and without a session we stop there.
 //
 // `ownerUsername` is the library being viewed. Comparing against it rather
-// than a module-level constant is what makes this work on /u/[username]:
+// than a module-level constant is what makes this work on /video-games/u/[username]:
 // the same signed-in viewer is the owner of exactly one library and a visitor
 // on every other.
 export function useIsLibraryOwner(ownerUsername: string): boolean {
@@ -30,7 +30,7 @@ export function useIsLibraryOwner(ownerUsername: string): boolean {
     let cancelled = false;
 
     // Clear the previous library's answer before resolving this one. Load-
-    // bearing, not defensive: navigating between two /u/[username] pages keeps
+    // bearing, not defensive: navigating between two /video-games/u/[username] pages keeps
     // this component mounted (same route segment, so React reconciles rather
     // than remounts), and without the reset an owner who clicks through to
     // someone else's library would keep their edit controls — pencils and "Add
@@ -54,8 +54,8 @@ export function useIsLibraryOwner(ownerUsername: string): boolean {
       if (!res.ok) return; // 404 = not onboarded; anything else = not owner
 
       const profile = (await res.json()) as { username?: string };
-      // Both sides lowercased: usernames are citext in Postgres, so /u/RGrassian
-      // and /u/rgrassian are the same library and must both grant edit controls.
+      // Both sides lowercased: usernames are citext in Postgres, so /video-games/u/RGrassian
+      // and /video-games/u/rgrassian are the same library and must both grant edit controls.
       if (!cancelled && profile.username?.toLowerCase() === ownerUsername.toLowerCase()) {
         setIsOwner(true);
       }

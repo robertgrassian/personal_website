@@ -152,7 +152,7 @@ async function fetchFromApi<T>(
       throw wrapFetchError(retryErr, what, url);
     }
   }
-  // An expected outcome, not a failure: /u/{username} for a username nobody
+  // An expected outcome, not a failure: /video-games/u/{username} for a username nobody
   // owns. The caller turns this into a 404 page.
   if (res.status === 404 && allowMissing) return null;
   if (!res.ok) {
@@ -168,7 +168,7 @@ async function fetchFromApi<T>(
   return (await res.json()) as T;
 }
 
-// encodeURIComponent throughout: /u/[username] puts user-shaped input into
+// encodeURIComponent throughout: /video-games/u/[username] puts user-shaped input into
 // these URLs, so the segment is escaped rather than trusted.
 export function fetchGamesFromApi(origin: string, username: string): Promise<Game[]> {
   return fetchFromApi<Game[]>(

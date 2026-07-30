@@ -17,7 +17,7 @@ export default async function CurrentlyPlayingPage() {
   // Same filter the game library uses (video-games/page.tsx): a game is
   // "currently playing" when it has an open session (empty end_date).
   // Robert's own page, so the owner is pinned — this route is not part of the
-  // /u/[username] family.
+  // /video-games/u/[username] family.
   const games = (await getGames(LIBRARY_OWNER_USERNAME)).filter((g) => g.currentlyPlaying);
 
   return (

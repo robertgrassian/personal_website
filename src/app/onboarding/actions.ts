@@ -57,5 +57,5 @@ export async function submitOnboarding(
   // rgrassian.com instead reads as "nothing happened". Uses the created
   // profile's username rather than the submitted string so the casing is the
   // canonical one the API stored.
-  redirect(`/u/${encodeURIComponent(result.profile.username)}`);
+  redirect(`/video-games/u/${encodeURIComponent(result.profile.username)}`);
 }

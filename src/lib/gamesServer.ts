@@ -11,7 +11,7 @@ import { fetchGamesFromApi, requireLibraryApiOrigin } from "./libraryApi";
 // derived by the API.
 //
 // `username` is required rather than defaulting to the /video-games owner:
-// with /u/[username] there is no single right library to fall back to, and a
+// with /video-games/u/[username] there is no single right library to fall back to, and a
 // silent default would be a bug that renders the wrong person's shelf.
 export function getGames(username: string): Promise<Game[]> {
   return fetchGamesFromApi(requireLibraryApiOrigin(), username);

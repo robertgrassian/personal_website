@@ -6,11 +6,11 @@ export const metadata = {
 };
 
 // Robert's shelf keeps this stable URL rather than redirecting to
-// /u/rgrassian (spec decision #5): existing links and SEO keep working, and
+// /video-games/u/rgrassian (spec decision #5): existing links and SEO keep working, and
 // it doubles as the logged-out demo. The page itself is now just the shared
 // library shell with the owner pinned.
 //
-// No `heading` override any more: this URL and /u/rgrassian show the same
+// No `heading` override any more: this URL and /video-games/u/rgrassian show the same
 // library, so they should say the same thing. LibraryPage's default —
 // "{displayName}'s Video Game Library" — is now correct for both, and dropping
 // the prop means there is one fewer place for them to drift apart.

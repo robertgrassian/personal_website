@@ -379,6 +379,12 @@ pattern is a tiny **resolver route**:
 
 Routes:
 
+> **Superseded 2026-07-29:** per-user libraries moved from `/u/[username]` to
+> `/video-games/u/[username]`, so the game library owns one route prefix instead of leaking a
+> top-level `/u` namespace. A permanent redirect in `next.config.ts` keeps the old URLs alive.
+> The `/u/…` paths written throughout this document are the original design and are left as
+> written; read them as `/video-games/u/…`.
+
 - `/u/[username]` — any user's library (public, dynamic route). Shelf UI + profile header
   (display name, follower/following counts, follow button). **Decided:** this URL renders
   the library _directly_ — no `/u/[username]/games` nesting; if movie/book libraries

@@ -45,6 +45,13 @@ USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{2,29}$")
 #   1. API-colliding tokens — /users/{username} shares its namespace with
 #      /users/search and the /me alias, so those MUST be reserved.
 #   2. Route/branding/abuse names that shouldn't become public library URLs.
+#
+# Route names are listed in BOTH spellings, because USERNAME_RE accepts `_` and
+# `-` alike: reserving only "video_games" left "video-games" claimable, which
+# after the kebab-case route rename was the confusing spelling of the two.
+# Category 1 is now defensive rather than load-bearing on the web side, since
+# usernames appear only under /video-games/u/, where they cannot shadow a site
+# route at any depth. It still matters for the API's own /users namespace.
 RESERVED_USERNAMES = frozenset(
     {
         # API/route collisions
@@ -65,6 +72,11 @@ RESERVED_USERNAMES = frozenset(
         "about",
         "resume",
         "video_games",
+        "video-games",
+        "currently_playing",
+        "currently-playing",
+        "privacy",
+        "start",
         "admin",
         "settings",
         "account",

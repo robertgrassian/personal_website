@@ -79,7 +79,7 @@ export default function StartPage() {
             costs nothing to maintain, because it is the real library. */}
         <p className="mt-4 leading-relaxed text-foreground">
           <Link
-            href={`/u/${LIBRARY_OWNER_USERNAME}`}
+            href={`/video-games/u/${LIBRARY_OWNER_USERNAME}`}
             className="text-link underline underline-offset-4"
           >
             See an example library

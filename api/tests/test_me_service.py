@@ -46,6 +46,21 @@ class TestValidateUsername:
                 _validate_username(reserved)
             assert exc.value.reason == "reserved", reserved
 
+    def test_route_names_are_reserved_in_both_spellings(self):
+        # USERNAME_RE accepts "_" and "-" alike, so a route name reserved in one
+        # spelling stays claimable in the other. That was a real gap: only
+        # "video_games" was listed, leaving "video-games" open after the routes
+        # moved to kebab-case — the spelling that now matches a real URL.
+        for reserved in (
+            "video_games",
+            "video-games",
+            "currently_playing",
+            "currently-playing",
+        ):
+            with pytest.raises(UsernameError) as exc:
+                _validate_username(reserved)
+            assert exc.value.reason == "reserved", reserved
+
     def test_reserved_check_is_case_insensitive(self):
         # Lowercased first, so "SEARCH" hits the reserved set too.
         with pytest.raises(UsernameError) as exc:

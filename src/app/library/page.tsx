@@ -2,7 +2,7 @@
 // read the session cookie and bounce you to the right place:
 //
 //   logged out              → /video-games (Robert's shelf, the public demo)
-//   logged in, onboarded    → /u/{your-username}
+//   logged in, onboarded    → /video-games/u/{your-username}
 //   logged in, no profile   → /onboarding
 //
 // Why a whole route for a redirect: reading cookies in a page opts that page
@@ -40,5 +40,5 @@ export default async function LibraryResolverPage() {
 
   // redirect() throws NEXT_REDIRECT, so nothing after this line runs and the
   // component never actually returns JSX.
-  redirect(`/u/${encodeURIComponent(profile.username)}`);
+  redirect(`/video-games/u/${encodeURIComponent(profile.username)}`);
 }

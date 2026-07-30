@@ -15,6 +15,26 @@ only works if you already know their username.
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Game library nested under `/video-games`** (2026-07-29) — per-user libraries moved from
+      `/u/{username}` to `/video-games/u/{username}`, so the app owns one prefix instead of
+      leaking a top-level `/u` namespace. Settles the routing/namespace backlog item in favour of
+      per-app route prefixes on one domain. Permanent (308) redirect added in `next.config.ts`
+      next to the kebab-case ones; verified against `next start` that `/u/rgrassian`,
+      `/u/RGrassian` and `/u/nosuchuser` all forward, that the unknown user still 404s after
+      forwarding, and that the older snake*case redirects still chain to 200.<br>
+      **Closed a real hole while in there:** `USERNAME_RE` accepts `*`and`-`alike, but
+   `RESERVED*USERNAMES`only listed`video_games`, so **`video-games` was a claimable
+    username** and would have sat confusingly beside the route. Route names are now reserved in
+    both spellings (`currently_playing`/`currently-playing`too, plus`privacy`and`start`),
+      with a test locking it in.<br>
+      \_Deliberately not done, contra the original entry:* no `sitemap.ts` change. The sitemap
+      already lists `/video-games`, which **is** Robert's library, so adding
+      `/video-games/u/rgrassian` would submit two URLs for identical content. If that duplication
+      bothers anyone the fix is a canonical link, which is its own concern.<br>
+      _Worth knowing:_ the route-collision half of `RESERVED_USERNAMES` is now defensive rather
+      than load-bearing on the web side, since a username can only appear under
+      `/video-games/u/` and cannot shadow a site route at any depth. It still matters for the
+      API's own `/users` namespace, so it stays.
 - [x] **Auth UI now decides before first paint, not after hydration** (2026-07-29) — fixes both
       the sign-up CTA banner flashing at signed-in viewers and the `AuthButton` popping in a beat
       late. An inline `<script>` first in `<body>` (`src/app/layout.tsx`) reads the session cookie
@@ -152,30 +172,6 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       rename); or accept the pop-in and make it less jarring by reserving space so nothing
       shifts. Lower priority than the two already fixed: this one only affects a viewer looking
       at their own library, who is about to interact with the page anyway.
-- [ ] **Nest the whole game library under `/video-games`.** A user's library is at
-      `/u/rgrassian`; it should be `/video-games/u/rgrassian`, so the app owns one prefix
-      instead of leaking a top-level `/u` namespace. This is the concrete first instance of the
-      routing/namespace decision already in this backlog ("Decide the routing/namespace strategy
-      as the site grows into multiple apps") and effectively settles it in favour of option (a),
-      per-app route prefixes on one domain.<br>
-      **Do it soon.** `/u/` shipped days ago (Phase 4) and no one but Robert has a library yet,
-      so almost nothing links to those URLs. Every week of signups makes the rename more
-      expensive, since a user's public library page is the thing people share.<br>
-      _Google is unaffected:_ the App homepage is `/video-games/start`, which does not move. No
-      resubmission needed. Worth double-checking the console afterwards anyway.<br>
-      _The work:_ move `src/app/u/[username]/` under `src/app/video-games/`; add a permanent
-      redirect `/u/:username` → `/video-games/u/:username` next to the kebab-case ones in
-      `next.config.ts`; update the five places that build the URL (`video-games/start/page.tsx`,
-      `library/page.tsx`, `onboarding/page.tsx`, `onboarding/actions.ts`, and the `activePaths`
-      array in `Nav.tsx`); add it to `sitemap.ts`.<br>
-      _Two API details:_ `RESERVED_USERNAMES` (`api/app/services/me.py`) can stop reserving `u`
-      once nothing lives at the top level, though keeping it costs nothing. More usefully, that
-      set still lists `video_games` with an underscore, which is stale after the kebab rename —
-      and since `USERNAME_RE` allows hyphens, `video-games` is a claimable username today that
-      would be confusing next to the route. Fix that in the same pass.<br>
-      _The one cost:_ `/u/rgrassian` is shorter and reads better when shared than
-      `/video-games/u/rgrassian`. If that matters more than the namespacing, the alternative is
-      keeping `/u/` as the canonical public URL and accepting the inconsistency.
 - [ ] **`--subtle` fails WCAG AA for body text in both color schemes.** Measured 2026-07-28
       while fixing the landing page: dark mode is `#6b7280` on `#0a0a0a` = **4.1:1**, light mode
       is `#9ca3af` on `#ffffff` = **2.5:1**. The AA minimum for normal-size text is 4.5:1, so
@@ -203,7 +199,7 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       need restating here. Both constraints disappear if the memo does — dropping it costs one
       extra round trip per write and nothing else.
 - [ ] **Show the "Unrated" shelf to everyone, not just the owner.** `GameLibrary.tsx:332`
-      gates it on `canEdit`, so visitors to `/u/{username}` never see games you have played
+      gates it on `canEdit`, so visitors to `/video-games/u/{username}` never see games you have played
       but not rated. It was built as an owner utility (every unrated game keeps a case and a
       pencil, so clearing a rating stays reversible from the UI) and that framing is what
       needs to change: an unrated game is still part of the library.<br>
@@ -281,7 +277,11 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
 - [ ] Profile pictures for user accounts (instanced game libraries follow-up, post-v1 — see `docs/plans/instanced-game-libraries.md`; likely Supabase Storage + upload/crop flow, shown in the library profile header and follower lists)
 - [ ] Homepage customization per user (instanced game libraries follow-up, post-v1 — let users personalize their library page: hero/backdrop, shelf styling, featured games, etc. Scope TBD)
 - [ ] Staging environment (instanced game libraries follow-up — the spec accepts a "no staging" caveat (§7.5: previews are read-only against prod, writes first run for real in prod); revisit with a second Supabase project or branching once the write path exists). **Promoted in priority 2026-07-28:** the preview 500 in "Up Next" is this caveat biting for real. Pointing Preview at production's Supabase is the stopgap, but it means preview sign-ins are production accounts. A second Supabase project (own DB + own GoTrue + own Google OAuth client) would give previews a real identity system and finally let the write path be exercised somewhere that isn't prod
-- [ ] Decide the routing/namespace strategy as the site grows into multiple apps. Today auth is top-level (`/login`, `/onboarding`, `/auth/*`) because it's a site-wide identity system, while the game library lives under `/video-games`. Options once more apps exist: (a) keep everything on `rgrassian.com` with top-level auth + per-app route prefixes — simplest, one shared session across apps; (b) split an app onto a subdomain like `games.rgrassian.com` — cleaner isolation and independent deploys, but subdomains are separate cookie origins, so sharing the login session needs a `.rgrassian.com` cookie domain plus Supabase/Vercel redirect wiring, which works against cross-app SSO. Leaning toward (a) until an app genuinely needs isolation.
+- [ ] Decide the routing/namespace strategy as the site grows into multiple apps. **Half-settled
+      2026-07-29:** nesting per-user libraries under `/video-games/u/` committed to per-app route
+      prefixes on one domain, i.e. option (a) below, for the game library. What is still open is
+      whether that holds when a _second_ app arrives, and auth is still top-level (`/onboarding`,
+      `/auth/*`) because it is a site-wide identity system. Options once more apps exist: (a) keep everything on `rgrassian.com` with top-level auth + per-app route prefixes — simplest, one shared session across apps; (b) split an app onto a subdomain like `games.rgrassian.com` — cleaner isolation and independent deploys, but subdomains are separate cookie origins, so sharing the login session needs a `.rgrassian.com` cookie domain plus Supabase/Vercel redirect wiring, which works against cross-app SSO. Leaning toward (a) until an app genuinely needs isolation.
 - [ ] "Current Hobbies" section on `/about` — start with currently-playing games (reusing the CRT/session data from the game library), with room to extend to books currently being read and other hobbies later. Design not decided yet (what it looks like, whether it reuses `CrtTv` directly or needs its own compact treatment).
 - [ ] Alternate "currently playing" display: Marquee Banner (Option 2 from the mockups) — full-width banner using the game's blurred cover as the backdrop (same recipe as GameCaseBack: dominant color base + blurred art + dark overlay), sharp cover on the left, system/genre chips and "last played" on the right. Build it as a sibling of `CurrentlyPlaying` (same `Game` prop) and add a display-mode switch (config const, or URL param for fun) to swap between the CRT and the marquee. Mockups: https://claude.ai/code/artifact/2e891385-8fc9-4c9b-b8da-469658de243d
 - [ ] Make an "improve" skill that runs a code review on recent changes, follows up on obviously actionable items, cleans up comments, and ensures code is clean / using best practices
