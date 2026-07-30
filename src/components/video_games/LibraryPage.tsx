@@ -15,7 +15,11 @@ import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { CrtTv } from "@/components/crt/CrtTv";
 import { LibraryCount } from "@/components/video_games/LibraryCount";
 import { AuthButton } from "@/components/AuthButton";
-import { FollowControls } from "@/components/video_games/FollowControls";
+import {
+  FollowStateProvider,
+  FollowButton,
+  BackToMyLibrary,
+} from "@/components/video_games/FollowControls";
 import { SignupCta } from "@/components/video_games/SignupCta";
 
 // One library page, two routes: /video-games (Robert's shelf, at its stable
@@ -95,42 +99,51 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
             portfolio has no accounts, the library is the only app that does.
             items-start keeps it aligned to the heading's first line when a
             long display name wraps. */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            {/* Same wording on both routes, since both show the same library.
+        <FollowStateProvider ownerUsername={profile.username}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              {/* Same wording on both routes, since both show the same library.
                 The display name comes from the profile rather than the URL
                 segment so the casing is canonical (usernames are citext, so
                 /video-games/u/RGrassian resolves to the same user as
                 /video-games/u/rgrassian). */}
-            <h1 className="text-4xl font-bold text-shelf-text">
-              {profile.displayName}&apos;s Video Game Library
-            </h1>
-            {/* Whose library this is. On /video-games/u/[username] the heading
+              {/* Follow sits with the heading because it acts on the person the
+                  heading names. flex-wrap so a long display name pushes the
+                  button to its own line instead of squeezing the title. */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <h1 className="text-4xl font-bold text-shelf-text">
+                  {profile.displayName}&apos;s Video Game Library
+                </h1>
+                <FollowButton />
+              </div>
+              {/* Whose library this is. On /video-games/u/[username] the heading
                 already carries the display name, so the handle is what adds
                 information; on /video-games the heading is generic and this is
                 the only thing naming the owner. Rendered from the profile, so
                 the casing is the stored one rather than whatever the URL used. */}
-            <p className="mt-1 text-sm text-shelf-text-muted">
-              @{profile.username}
-              {/* Follow counts sit here, not in the headline count row below,
+              <p className="mt-1 text-sm text-shelf-text-muted">
+                @{profile.username}
+                {/* Follow counts sit here, not in the headline count row below,
                   so they stay visible on every tab. The Followers/Following
                   tabs are what makes them actionable; these are the at-a-glance
                   numbers. Straight from the profile payload, which has carried
                   them since the schema was written. */}
-              <span aria-hidden="true"> · </span>
-              {profile.followerCount} {profile.followerCount === 1 ? "follower" : "followers"}
-              <span aria-hidden="true"> · </span>
-              {profile.followingCount} following
-            </p>
+                <span aria-hidden="true"> · </span>
+                {profile.followerCount} {profile.followerCount === 1 ? "follower" : "followers"}
+                <span aria-hidden="true"> · </span>
+                {profile.followingCount} following
+              </p>
+            </div>
+            {/* Viewer/navigation controls, as opposed to the Follow button,
+                which acts on the library's owner and so sits with the heading.
+                AuthButton is driven by the pre-paint flag; BackToMyLibrary
+                resolves after hydration from the same context. */}
+            <div className="flex items-center gap-3">
+              <BackToMyLibrary />
+              <AuthButton />
+            </div>
           </div>
-          {/* Both per-viewer: AuthButton is driven by the pre-paint flag, and
-              FollowControls resolves after hydration. items-center so the
-              follow button and the sign-out link share a baseline. */}
-          <div className="flex items-center gap-3">
-            <FollowControls ownerUsername={profile.username} />
-            <AuthButton />
-          </div>
-        </div>
+        </FollowStateProvider>
         {/* useSearchParams (inside LibraryCount) requires a Suspense boundary.
             The fallback shows the default-view count so there's no flash. */}
         <Suspense fallback={<p className="mt-2 text-shelf-text-muted">{playedCount} games</p>}>
