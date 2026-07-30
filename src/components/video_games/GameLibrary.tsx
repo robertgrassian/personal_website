@@ -7,7 +7,7 @@ import { ShelfSection } from "./ShelfSection";
 import { FilterBar } from "./FilterBar";
 import { StatsPanel } from "./StatsPanel";
 import { ChartBarIcon } from "@/components/Icon";
-import { VIEW_LABEL, VALID_VIEW, isGameView } from "./libraryConfig";
+import { VIEW_LABEL, VALID_GAME_VIEW, isGameView } from "./libraryConfig";
 import { PeopleList } from "./PeopleList";
 import type { UserSummary } from "@/lib/follows";
 import {
@@ -194,7 +194,7 @@ export function GameLibrary({
           tabs (played-only), keeping the strip a single compact line. */}
       <div className="flex items-center justify-between border-b border-shelf-plank mb-4">
         <div className="flex">
-          {VALID_VIEW.map((v) => (
+          {VALID_GAME_VIEW.map((v) => (
             <button
               key={v}
               type="button"

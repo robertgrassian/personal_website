@@ -78,8 +78,14 @@ export const VIEW_CONFIG: Record<GameView, ViewConfig> = {
   },
 };
 
-// Tab order in the strip, and the allow-list for ?view=.
+// Every value ?view= accepts. Broader than what the tab strip renders: the
+// people views are reached from the follow counts in the profile header, since
+// they list people rather than slicing the same collection of games. Both still
+// live in ?view because only one of them can be on screen at a time.
 export const VALID_VIEW: readonly View[] = ["played", "wishlist", "following", "followers"];
+
+// What the tab strip itself renders, in order.
+export const VALID_GAME_VIEW: readonly GameView[] = ["played", "wishlist"];
 export const DEFAULT_VIEW: GameView = "played";
 
 // The config to fall back on for a people view, which has none of its own.

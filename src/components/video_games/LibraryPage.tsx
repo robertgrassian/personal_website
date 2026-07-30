@@ -20,6 +20,10 @@ import {
   FollowButton,
   BackToMyLibrary,
 } from "@/components/video_games/FollowControls";
+import {
+  FollowCountLinks,
+  FollowCountLinksFallback,
+} from "@/components/video_games/FollowCountLinks";
 import { SignupCta } from "@/components/video_games/SignupCta";
 
 // One library page, two routes: /video-games (Robert's shelf, at its stable
@@ -123,15 +127,23 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
                 the casing is the stored one rather than whatever the URL used. */}
               <p className="mt-1 text-sm text-shelf-text-muted">
                 @{profile.username}
-                {/* Follow counts sit here, not in the headline count row below,
-                  so they stay visible on every tab. The Followers/Following
-                  tabs are what makes them actionable; these are the at-a-glance
-                  numbers. Straight from the profile payload, which has carried
-                  them since the schema was written. */}
-                <span aria-hidden="true"> · </span>
-                {profile.followerCount} {profile.followerCount === 1 ? "follower" : "followers"}
-                <span aria-hidden="true"> · </span>
-                {profile.followingCount} following
+                {/* The counts are also the way into the Following/Followers
+                    lists, which is why they are not tabs: those list people,
+                    while the tab strip slices this library's games. Suspense
+                    because the active state reads ?view via useSearchParams. */}
+                <Suspense
+                  fallback={
+                    <FollowCountLinksFallback
+                      followerCount={profile.followerCount}
+                      followingCount={profile.followingCount}
+                    />
+                  }
+                >
+                  <FollowCountLinks
+                    followerCount={profile.followerCount}
+                    followingCount={profile.followingCount}
+                  />
+                </Suspense>
               </p>
             </div>
             {/* Viewer/navigation controls, as opposed to the Follow button,

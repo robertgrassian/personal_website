@@ -7,7 +7,7 @@
 import Link from "next/link";
 import { userLibraryPath } from "@/lib/profile";
 import type { UserSummary } from "@/lib/follows";
-import type { PeopleView } from "./libraryConfig";
+import { VIEW_LABEL, type PeopleView } from "./libraryConfig";
 
 type PeopleListProps = {
   view: PeopleView;
@@ -32,28 +32,44 @@ const EMPTY_COPY: Record<PeopleView, { owner: string; visitor: string }> = {
 };
 
 export function PeopleList({ view, users, isOwner }: PeopleListProps) {
+  // Names what you are looking at. Load-bearing rather than decorative: these
+  // views are reached from the header counts, so neither tab in the strip above
+  // is active while one is open, and without this the list has no label.
+  const heading = (
+    <h2 className="text-sm font-medium text-shelf-text">
+      {VIEW_LABEL[view]}
+      <span className="ml-2 font-normal text-shelf-text-muted">{users.length}</span>
+    </h2>
+  );
+
   if (users.length === 0) {
     const copy = EMPTY_COPY[view];
     return (
-      <p className="mt-24 text-center text-lg text-shelf-text-muted">
-        {isOwner ? copy.owner : copy.visitor}
-      </p>
+      <>
+        {heading}
+        <p className="mt-24 text-center text-lg text-shelf-text-muted">
+          {isOwner ? copy.owner : copy.visitor}
+        </p>
+      </>
     );
   }
 
   return (
-    <ul className="mt-6 pb-24 flex flex-col gap-2">
-      {users.map((user) => (
-        <li key={user.username}>
-          <Link
-            href={userLibraryPath(user.username)}
-            className="flex items-baseline gap-2 rounded-md border border-shelf-plank bg-shelf-input px-4 py-3 transition-colors hover:border-link"
-          >
-            <span className="font-medium text-shelf-text">{user.displayName}</span>
-            <span className="text-sm text-shelf-text-muted">@{user.username}</span>
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <>
+      {heading}
+      <ul className="mt-3 pb-24 flex flex-col gap-2">
+        {users.map((user) => (
+          <li key={user.username}>
+            <Link
+              href={userLibraryPath(user.username)}
+              className="flex items-baseline gap-2 rounded-md border border-shelf-plank bg-shelf-input px-4 py-3 transition-colors hover:border-link"
+            >
+              <span className="font-medium text-shelf-text">{user.displayName}</span>
+              <span className="text-sm text-shelf-text-muted">@{user.username}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

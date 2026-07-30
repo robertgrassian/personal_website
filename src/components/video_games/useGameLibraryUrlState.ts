@@ -8,10 +8,11 @@ import type { Filters, Rating } from "@/lib/games";
 import type { WishlistFilters } from "@/lib/wishlist";
 import {
   type View,
+  type GameView,
   type GroupBy,
   type SortOrder,
   viewConfig,
-  isGameView,
+  VIEW_CONFIG,
   VALID_VIEW,
   DEFAULT_VIEW,
 } from "./libraryConfig";
@@ -29,7 +30,7 @@ type UrlState = {
   activeWishlistFilters: WishlistFilters;
   validGroupBy: readonly GroupBy[];
   validSortOrder: readonly SortOrder[];
-  setView: (value: View) => void;
+  setView: (value: GameView) => void;
   setGroupBy: (value: GroupBy) => void;
   setSortOrder: (value: SortOrder) => void;
   setSharedFilter: (key: SharedFilterKey, value: string) => void;
@@ -152,29 +153,20 @@ export function useGameLibraryUrlState(): UrlState {
 
   // setView also strips groupBy/sortOrder values the new view doesn't support,
   // so e.g. `?sortOrder=added-newest` doesn't leak from wishlist to played.
+  //
+  // GameView, not View: the tab strip is the only caller and renders only game
+  // tabs. The people views are reached from the header counts, whose links build
+  // a fresh `?view=` and so drop the filter params by construction rather than
+  // needing to clear them here.
   const setView = useCallback(
-    (value: View) => {
+    (value: GameView) => {
       const params = new URLSearchParams(searchParams.toString());
       if (value === DEFAULT_VIEW) {
         params.delete("view");
       } else {
         params.set("view", value);
       }
-      if (!isGameView(value)) {
-        // People tabs have no filter/group/sort UI, so leaving these in the URL
-        // would strand params with nothing to clear them and silently re-apply
-        // them on the way back to a game tab.
-        for (const key of ["groupBy", "sortOrder", "search", "rating", "system", "genre"]) {
-          params.delete(key);
-        }
-        setSearchInput("");
-        const peopleQs = params.toString();
-        startTransition(() => {
-          router.replace(peopleQs ? `${pathname}?${peopleQs}` : pathname, { scroll: false });
-        });
-        return;
-      }
-      const newConfig = viewConfig(value);
+      const newConfig = VIEW_CONFIG[value];
       const currentGroupBy = params.get("groupBy");
       if (currentGroupBy && !newConfig.validGroupBy.includes(currentGroupBy as GroupBy)) {
         params.delete("groupBy");
