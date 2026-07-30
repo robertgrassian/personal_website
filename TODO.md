@@ -18,14 +18,21 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
 - [x] **Game library nested under `/video-games`** (2026-07-29) — per-user libraries moved from
       `/u/{username}` to `/video-games/u/{username}`, so the app owns one prefix instead of
       leaking a top-level `/u` namespace. Settles the routing/namespace backlog item in favour of
-      per-app route prefixes on one domain. Permanent (308) redirect added in `next.config.ts`
-      next to the kebab-case ones; verified against `next start` that `/u/rgrassian`,
+      per-app route prefixes on one domain. Redirect added in `next.config.ts` next to the
+      kebab-case ones, but **temporary (307), not permanent** — a 308 is cached by browsers
+      more or less forever, and the spec plans for `/u/[username]` to become a cross-library
+      profile hub if movie/book libraries materialize, which a permanent redirect would fight
+      with no way to reach browsers holding the cached answer. There is no ranking to preserve
+      on a URL that was live for two days. It is worth having at all only because
+      `/u/{username}` was linked from `/video-games/start`, which is in `sitemap.ts` and is
+      Google's App homepage, so crawlers have plausibly seen it.<br>
+      Verified against `next start` that `/u/rgrassian`,
       `/u/RGrassian` and `/u/nosuchuser` all forward, that the unknown user still 404s after
       forwarding, and that the older snake*case redirects still chain to 200.<br>
       **Closed a real hole while in there:** `USERNAME_RE` accepts `*`and`-`alike, but
-   `RESERVED*USERNAMES`only listed`video_games`, so **`video-games` was a claimable
-    username** and would have sat confusingly beside the route. Route names are now reserved in
-    both spellings (`currently_playing`/`currently-playing`too, plus`privacy`and`start`),
+ `RESERVED*USERNAMES`only listed`video_games`, so **`video-games` was a claimable
+  username** and would have sat confusingly beside the route. Route names are now reserved in
+  both spellings (`currently_playing`/`currently-playing`too, plus`privacy`and`start`),
       with a test locking it in.<br>
       \_Deliberately not done, contra the original entry:* no `sitemap.ts` change. The sitemap
       already lists `/video-games`, which **is** Robert's library, so adding
