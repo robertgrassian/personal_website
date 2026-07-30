@@ -1,9 +1,6 @@
 "use client";
 
-// Sign-in / sign-out control for the game library header. Client Component
-// because auth state is a live, browser-side concern: onAuthStateChange pushes
-// updates (sign-in completes in the /auth/confirm tab, sign-out, token
-// refresh) and this re-renders without a page reload.
+// Sign-in / sign-out control for the game library header.
 //
 // It lives in the library rather than the global nav on purpose: the portfolio
 // (/, /about, /resume) is static content with no accounts, and the game
@@ -14,11 +11,21 @@
 // This reflects the session for DISPLAY only. It is never a security boundary
 // — every protected read/write is authorized server-side by FastAPI verifying
 // the JWT. A spoofed client state here changes nothing real.
-import { useEffect, useState } from "react";
+//
+// Both controls always render and CSS drops the one that does not apply, driven
+// by the pre-paint data-authed flag (src/lib/authFlag.ts). This replaced a
+// render-nothing-until-known guard, which was correct but popped in a beat after
+// paint, since onAuthStateChange cannot fire before hydration.
+//
+// This component also maintains that flag for the page, which is why it still
+// subscribes despite no longer rendering from session state. SignupCta reads the
+// same flag and has no subscription of its own; both are rendered by LibraryPage,
+// so it is always mounted alongside.
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { setAuthFlag } from "@/lib/authFlag";
 
 // Shelf tokens, not the global ones: this sits on the library's own background
 // (.shelf-theme), where text-subtle would be low-contrast. Both tokens carry
@@ -28,21 +35,18 @@ const linkClass =
   "underline underline-offset-4 transition-colors duration-150";
 
 export function AuthButton() {
-  const [user, setUser] = useState<User | null>(null);
-  // Undefined-until-known guard: render nothing until the first auth event, so
-  // the button doesn't flash "Sign in" for a moment on an authenticated load.
-  const [known, setKnown] = useState(false);
   const router = useRouter();
 
+  // Keeps the pre-paint flag honest: the inline script runs once, so a sign-out,
+  // an expiry, or a sign-in in another tab would otherwise leave it stale.
   useEffect(() => {
     const supabase = createClient();
-    // onAuthStateChange fires INITIAL_SESSION synchronously-ish on mount with
-    // the current cookie session — no separate getUser round-trip needed.
+    // INITIAL_SESSION fires on mount with the current cookie session, so this
+    // both corrects the script's guess and tracks changes after.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setKnown(true);
+      setAuthFlag(Boolean(session));
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -50,24 +54,24 @@ export function AuthButton() {
   async function signOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    // Refresh Server Components so any server-rendered auth-dependent UI
+    // data-authed needs no manual clearing: signOut fires an auth state change,
+    // and the subscription above swaps this back to "Sign in".
+    //
+    // Refresh Server Components so server-rendered auth-dependent UI
     // re-evaluates with the now-absent session.
     router.refresh();
   }
 
-  if (!known) return null;
-
-  if (!user) {
-    return (
-      <Link href="/video-games/start" className={linkClass}>
+  // A fragment so both controls sit directly in the parent's flex row, with no
+  // wrapper box. Only one is ever displayed, so alignment is unaffected.
+  return (
+    <>
+      <Link href="/video-games/start" className={linkClass} data-hide-authed="">
         Sign in
       </Link>
-    );
-  }
-
-  return (
-    <button type="button" onClick={signOut} className={linkClass}>
-      Sign out
-    </button>
+      <button type="button" onClick={signOut} className={linkClass} data-hide-anon="">
+        Sign out
+      </button>
+    </>
   );
 }

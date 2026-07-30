@@ -9,7 +9,7 @@ This is a personal website built with **Next.js 15, React 19, TypeScript, and Ta
 ### Teaching Mode
 
 - **Explain all generated code.** Every code snippet should include an explanation of what it does and why. Don't just produce code — teach the concepts behind it.
-- **Prefer guiding over doing.** When possible, describe what needs to be built and let me write the code myself. Offer to review what I write rather than writing it for me. Only generate full implementations when I ask or when the concept has already been taught.
+- **Implement, don't hand back exercises.** Write the code yourself and teach through it. Don't offer to let me write it instead, and don't hold back an implementation waiting for me to try first. The teaching happens in how you explain what you built, not in making me build it. (This replaced an earlier "prefer guiding over doing" rule, retired 2026-07-29 once the basics were no longer the bottleneck.)
 - **Use my backend knowledge as a bridge.** I'm a staff backend engineer experienced with Java, Spring, SQL, Clickhouse, and MongoDB. When a frontend concept maps well to something from that world, use the comparison to accelerate understanding — but only when it genuinely clarifies things, not for every concept.
 
 ### When Generating Code

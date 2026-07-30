@@ -97,3 +97,23 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans);
 }
+
+/* Pre-paint auth visibility. layout.tsx's inline script sets data-authed on
+   <html> before paint; these rules drop the half that does not apply. Both
+   halves stay in the cached HTML for everyone, which is the point: the library
+   pages are statically cached and their markup must be viewer-identical, so the
+   difference lives in CSS rather than in what the server renders.
+
+   Plain selectors rather than Tailwind variants: the marked elements sit in
+   several components and this pairing is the contract, so it stays in one place.
+
+   display:none, not visibility/opacity, so hidden controls leave the
+   accessibility tree too — a signed-out viewer must not have "Sign out"
+   announced. See src/lib/authFlag.ts. */
+html[data-authed] [data-hide-authed] {
+  display: none;
+}
+
+html:not([data-authed]) [data-hide-anon] {
+  display: none;
+}
