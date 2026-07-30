@@ -2,24 +2,13 @@
 
 ## Up Next
 
-**Phase 5 (social graph) is built and merged**: follow/unfollow endpoints, auto-follow at signup,
-Following/Followers tabs, a follow button, and "Back to my library". User search was deliberately
-held back and is in Backlog / Ideas. Nothing needs configuring to ship it: the founder is a
-code constant, not an env var, and the planned backfill turned out to be unnecessary. All that
-is left is a browser pass — the same shape as Phase 4, where the client-rendered surfaces were
-the ones no test covered.
+**Phase 5 (social graph) is shipped and verified in a browser** (PR #77, 2026-07-30), which
+closes out the instanced-libraries spec through Phase 5. No phase is in flight. Phase 6 in
+`docs/plans/instanced-game-libraries.md` is "hardening / polish, as needed" rather than a
+planned body of work, so the next thing is whatever is worth doing from Backlog / Ideas —
+**account deletion** is the strongest candidate, since `/privacy` describes it as self-serve
+and it isn't built yet.
 
-- [ ] **Browser pass on the Phase 5 UI.** Everything per-viewer resolves after hydration, so
-      `curl` proves almost nothing about it — the same reason Phase 4 needed its own pass. Check:
-      the Follow button toggles and survives a reload; it is absent on your own library and when
-      signed out; "Back to my library" appears only for a signed-in non-owner; the
-      Following/Followers tabs list users and their links work; `?view=followers` deep-links;
-      and both counts in the header agree with the lists on **both** users' pages after a follow
-      (that last one is the two-tag revalidation, the most likely thing to be subtly wrong).<br>
-      _One case worth trying deliberately_ because it is the bug this design is most prone to:
-      from a follower list, click straight through to another user's library and confirm the
-      button shows _their_ follow state, not the previous page's. Those pages reconcile rather
-      than remount, so a stale answer would offer to unfollow the wrong person.
 - [ ] **The "Unrated" shelf has a big gap above it.** Confirmed cause: the grouped shelves
       render inside `<div className="mt-6 pb-24">` (`GameLibrary.tsx:316`) and the Unrated
       shelf sits _outside_ that wrapper (`GameLibrary.tsx:332`), so the wrapper's 6rem bottom
@@ -268,6 +257,16 @@ the ones no test covered.
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Browser pass on the Phase 5 UI** (2026-07-30) — the client-rendered surfaces no test
+      reaches: the follow toggle, its absence on your own library and when signed out, "Back to
+      my library", the Following/Followers tabs and their links, `?view=followers` deep-links,
+      and both users' counts agreeing after a follow (the two-tag revalidation). Clean, no
+      defects found.<br>
+      Worth knowing the two real bugs were caught by a code review **before** this pass, not by
+      it: following while signed in but not onboarded 500'd, and signup's auto-follow never
+      purged the founder's cache tag. Both were invisible to a green suite and to casual
+      clicking — the first needed an abandoned onboarding, the second a stale page nobody would
+      think to reload. See the Phase 5 entry below.
 - [x] **Instanced libraries Phase 5 — social graph** (2026-07-30, branch `phase5/social-graph`).
       Three slices: follow endpoints + auto-follow; Following/Followers tabs; the follow button
       and "Back to my library". 206 pytest, up from 175. User search was held back on purpose and
@@ -462,4 +461,3 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
 - [x] Game library page now uses the photorealistic CRT (`components/crt/CrtTv.tsx`, relocated out of `currently-playing/` since it's shared by two routes) instead of the wood-paneled TV; `/currently-playing` still works standalone. Old wood TV (`components/video_games/CurrentlyPlaying.tsx`) and its `crt-*` styles in `video-games.css` are left in place, unused
 - [x] Dedicated `/currently-playing` route rendering a photorealistic '90s black-plastic CRT (hand-built CSS/SVG: molded cabinet, phosphor RGB mask, scanlines, roll bar, glare, speaker grille, dials, power LED) with the `▶ PLAY`/`CH 0N` OSD and channel-flicking; permanent "NO SIGNAL" snow when nothing is playing. Unlinked for now (URL-only). New component `components/currently-playing/CrtTv.tsx`; existing library TV untouched
 - [x] Multiple currently-playing games on the CRT: channel-flicking — auto-cycle between in-progress games with a static/noise burst and `CH 0N` OSD, plus a clickable channel knob to advance manually and channel pips in the metadata (CurrentlyPlaying is now a client component)
-- [x] Fix `.claude/tools/wikipedia.py` truncating nested templates (platforms/released_raw cut off mid-`{{collapsible list}}`) + add-game guidance for enhanced editions/ports (original NA date wins)
