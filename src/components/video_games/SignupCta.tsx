@@ -1,8 +1,4 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { APP_NAME } from "@/lib/appName";
 
 // Sign-up call to action for logged-out visitors on /video-games.
@@ -21,34 +17,17 @@ import { APP_NAME } from "@/lib/appName";
 // directly above already reads "Robert's Video Game Library" and a bare repeat
 // looks like a mistake.
 
-// Rendered by default and hidden after hydration if a session turns up, rather
-// than the reverse. Two reasons. Logged-out visitors are both the overwhelming
-// majority and the entire audience for this banner, so they get it instantly
-// with no layout shift. And a signed-in viewer very rarely lands here at all:
-// /library sends them to their own /u/{username}, so reaching /video-games
-// while signed in means typing the URL or following an old link.
-//
-// The static HTML is identical for every viewer either way, which is what the
-// caching strategy requires — only the post-hydration behavior differs.
+// No longer a Client Component. It used to hide itself in a useEffect once
+// onAuthStateChange reported a session, so signed-in viewers necessarily saw one
+// frame of it. Visibility now comes from data-hide-authed plus the pre-paint
+// flag in src/lib/authFlag.ts. Dropping "use client" means this ships no
+// JavaScript at all, and the markup stays viewer-identical.
 export function SignupCta() {
-  const [signedIn, setSignedIn] = useState(false);
-
-  useEffect(() => {
-    const supabase = createClient();
-    // onAuthStateChange fires with the current cookie session on mount, and
-    // keeps up if the viewer signs in or out in another tab.
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSignedIn(Boolean(session));
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  if (signedIn) return null;
-
   return (
     <aside
+      // Dropped by CSS before first paint for viewers with a session.
+      // Presence-only attribute, hence the empty value.
+      data-hide-authed=""
       // Shelf tokens throughout: every one carries a light and a dark value,
       // so the banner follows the library's color scheme without dark: variants.
       className="mt-6 rounded-lg border border-shelf-input-border bg-shelf-input px-5 py-4 sm:px-6 sm:py-5"

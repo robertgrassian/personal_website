@@ -3,51 +3,46 @@
 ## Up Next
 
 **Phase 4 is done, in production, and verified in a browser**, and Google's OAuth brand
-verification has passed, so signup works for people who are not Robert. One known bug is left;
-after that the next spec phase is **Phase 5 (social graph)**: `follows` endpoints, auto-follow
-on signup, follower/following counts and lists, a follow button, user search (pg_trgm), and a
+verification has passed, so signup works for people who are not Robert. Up Next is empty, so the
+next work is **Phase 5 (social graph)**: `follows` endpoints, auto-follow on signup,
+follower/following counts and lists, a follow button, user search (pg_trgm), and a
 "Back to my library" control on other people's libraries. The counts already come back on
 `ProfileRead` and the `follows` table exists; there are no endpoints and no UI yet. Worth doing
 reasonably soon: `/video-games/start` advertises browsing other people's libraries, which today
 only works if you already know their username.
 
-- [ ] **Signed-in viewers see the sign-up CTA banner flash on `/video-games`.** Load the page
-      with a session and refresh: the banner paints, then vanishes. It should never be visible
-      to a signed-in viewer at all.<br>
-      **Root cause (not a bug — a deliberate trade-off that turned out wrong).**
-      `SignupCta.tsx` renders by default and hides itself in a `useEffect` once
-      `onAuthStateChange` reports a session. That is the correct default for the
-      _majority_ case (logged-out visitors get the banner with zero delay), but it means
-      signed-in viewers necessarily see one frame of it — hydration cannot run before first
-      paint. Flipping the default is **not** the fix: it just moves the flash onto the
-      logged-out visitors this banner exists for, and they are the larger audience.<br>
-      **The constraint any fix has to respect:** `/video-games` is statically cached and its
-      HTML must stay byte-identical for every viewer (spec §7.2, decision #21). So "just read
-      the cookie server-side and skip rendering it" is off the table — that makes the page
-      dynamic and gives up the cache for a cosmetic win.<br>
-      **Suggested direction: decide before first paint, not after hydration.** A small
-      render-blocking inline `<script>` in the root layout can read `document.cookie`, look
-      for the Supabase session cookie, and stamp a class (e.g. `data-authed`) on
-      `<html>`; CSS then hides the banner with `html[data-authed] .signup-cta { display:none }`.
-      The script runs before the browser paints, so there is no frame where the banner is
-      visible, and the served HTML is still identical for everyone — only the script's
-      _output_ differs per viewer. Same technique the no-flash dark-mode toggles use.
-      Verified viable: `@supabase/ssr` sets its cookies with `httpOnly: false`
-      (`node_modules/@supabase/ssr/dist/main/utils/constants.js`) and nothing in
-      `src/lib/supabase/` overrides it, so the cookie is readable from JS.<br>
-      _Two things to get right:_ the cookie name is `sb-<project-ref>-auth-token` and is
-      **chunked** into `.0`, `.1`, … when the JWT is large, so match by prefix rather than
-      exact name. And this is a presence check, not verification — fine here, because the
-      decision is purely cosmetic and every real authorization check stays server-side. A
-      forged cookie would hide a marketing banner from its own owner and nothing else.<br>
-      _Same root cause, worth fixing in the same pass:_ `AuthButton` and the owner edit
-      affordances behind `useIsLibraryOwner` resolve after hydration too, so they pop in the
-      same way. If the pre-paint class works, it generalizes to all three.
-
 ## Recently Completed
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Auth UI now decides before first paint, not after hydration** (2026-07-29) — fixes both
+      the sign-up CTA banner flashing at signed-in viewers and the `AuthButton` popping in a beat
+      late. An inline `<script>` first in `<body>` (`src/app/layout.tsx`) reads the session cookie
+      and stamps `data-authed` on `<html>`; two rules in `globals.css` drop whichever half of the
+      auth UI does not apply. Both halves stay in the cached HTML for every viewer, so
+      `/video-games` is still prerendered static: the served markup is identical and only the
+      script's output differs. Logic in `src/lib/authFlag.ts`.<br>
+      **The banner was the least valuable of the three things the original entry named.** The
+      flash is nearly unreachable in practice: `/library` sends signed-in users to
+      `/u/{username}`, so hitting `/video-games` with a session takes a typed URL, an old
+      bookmark, or a shared link to Robert's library. The `AuthButton` pop-in is what justified
+      the work: it hit every viewer on every load of both library routes.<br>
+      _What it cannot fix, contrary to the original entry:_ the owner edit affordances. A cookie
+      says a session exists, not whose it is (the JWT's `sub` is a user id, not a username), so
+      `useIsLibraryOwner` still needs its `/me/profile` round trip. Own backlog item now.<br>
+      _Two costs accepted:_ `sessionCookieKey` duplicates supabase-js's own storage-key
+      derivation (`sb-${hostname.split(".")[0]}-auth-token`), so if that ever changes the flag
+      silently stops setting and the flash quietly returns — it degrades rather than breaks, but
+      nothing reports it. And a cookie present with an invalid session shows "Sign out" for a
+      frame before the subscription corrects it, where before it showed nothing. That second one
+      is narrower than it first looked: `src/middleware.ts` matches `/video-games` and
+      `updateSession` calls `getUser()`, so a revoked or long-expired session has its cookie
+      deleted by `Set-Cookie` on the same document response, before the script runs. The window
+      only survives when the refresh fails for a network reason, since auth-js keeps the session
+      then. Also note the cookie key is
+      inlined at build time from `NEXT_PUBLIC_SUPABASE_URL`, so a local build bakes in
+      `sb-127-auth-token` and Vercel bakes in the project ref.<br>
+      _Bonus:_ `SignupCta` dropped `"use client"` entirely and now ships zero JavaScript.
 - [x] **Browser pass on the Phase 4 UI completed** (2026-07-29) — the client-rendered surfaces
       that `curl` cannot see and that shipped unverified in PR #68: the sign-up CTA banner, the
       `AuthButton` relocated into the library header, the `?error=oauth_failed` /
@@ -144,6 +139,19 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
 
 ## Backlog / Ideas
 
+- [ ] **Owner edit affordances still pop in after hydration.** The pencils, "Add game" and the
+      Unrated shelf appear a beat after first paint on your own library, because
+      `useIsLibraryOwner` (`src/components/video_games/useIsLibraryOwner.ts`) resolves in a
+      `useEffect`. The pre-paint `data-authed` flag that fixed the CTA banner and `AuthButton`
+      (2026-07-29, see Recently Completed) **cannot** be extended to cover this: the cookie proves
+      a session exists but not whose it is, and the JWT's `sub` claim is a user id, not a
+      username, so answering "is this viewer the owner of THIS library?" needs the
+      `/me/profile` round trip either way.<br>
+      _Options, none free:_ have the API return the username in a separate readable cookie at
+      sign-in (cheap, but adds a second source of truth for identity that can go stale after a
+      rename); or accept the pop-in and make it less jarring by reserving space so nothing
+      shifts. Lower priority than the two already fixed: this one only affects a viewer looking
+      at their own library, who is about to interact with the page anyway.
 - [ ] **Nest the whole game library under `/video-games`.** A user's library is at
       `/u/rgrassian`; it should be `/video-games/u/rgrassian`, so the app owns one prefix
       instead of leaking a top-level `/u` namespace. This is the concrete first instance of the

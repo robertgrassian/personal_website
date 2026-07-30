@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
+import { authFlagScript } from "@/lib/authFlag";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,14 +23,26 @@ export const metadata: Metadata = {
   description: "Personal website of Robert Grassian",
 };
 
+// Module scope: built once per server process, not per request.
+const AUTH_FLAG_SCRIPT = authFlagScript(process.env.NEXT_PUBLIC_SUPABASE_URL);
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
+    // suppressHydrationWarning is load-bearing: the script below stamps
+    // data-authed on this element before React hydrates, so the real DOM no
+    // longer matches the server's output.
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        {/* Pre-paint auth flag (src/lib/authFlag.ts). Must be a plain <script>
+            first in <body>, NOT next/script: a classic inline script blocks the
+            parser where it appears, which is the property being relied on. All
+            of next/script's strategies defer past first paint. Empty when the
+            Supabase URL is absent, falling back to post-hydration resolution. */}
+        {AUTH_FLAG_SCRIPT && <script dangerouslySetInnerHTML={{ __html: AUTH_FLAG_SCRIPT }} />}
         <Nav />
         {children}
       </body>
