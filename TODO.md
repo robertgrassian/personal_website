@@ -2,15 +2,39 @@
 
 ## Up Next
 
-**Phase 4 is done, in production, and verified in a browser**, and Google's OAuth brand
-verification has passed, so signup works for people who are not Robert. Up Next is empty, so the
-next work is **Phase 5 (social graph)**: `follows` endpoints, auto-follow on signup,
-follower/following counts and lists, a follow button, user search (pg_trgm), and a
-"Back to my library" control on other people's libraries. The counts already come back on
-`ProfileRead` and the `follows` table exists; there are no endpoints and no UI yet. Worth doing
-reasonably soon: `/video-games/start` advertises browsing other people's libraries, which today
-only works if you already know their username.
+**Phase 5 (social graph) is built and merged**: follow/unfollow endpoints, auto-follow at signup,
+Following/Followers tabs, a follow button, and "Back to my library". User search was deliberately
+held back and is in Backlog / Ideas. What is left is the two production steps below, then a
+browser pass — the same shape as Phase 4, where the client-rendered surfaces were the ones no
+test covered.
 
+- [ ] **Set `FOUNDER_PROFILE_ID` in Vercel and run the follow backfill.** Auto-follow is a no-op
+      until the env var is set (`api/app/core/config.py`), so without this every new signup still
+      lands with empty follower and following lists.<br>
+      _Two steps, in order:_ (1) Vercel → Settings → Environment Variables → `FOUNDER_PROFILE_ID`
+      = Robert's **production** profile id, which is his `auth.users` id and is _not_ the local
+      seed's `00000000-0000-4000-8000-000000000001`; read it with
+      `select id, username from profiles where username = 'rgrassian'`. Then redeploy — this one
+      is read at runtime by `Settings`, not inlined at build like the `NEXT_PUBLIC_*` vars, but
+      the running function still caches it (`lru_cache`), so it needs a new deployment.
+      (2) `DATABASE_URL="$(cat ~/prod-db-url.txt)" FOUNDER_PROFILE_ID=<that-id> uv run python
+    scripts/backfill_founder_follows.py` from `api/`, which creates the edges for accounts that
+      onboarded before auto-follow existed.<br>
+      _Safe to rerun:_ every insert is `ON CONFLICT DO NOTHING`. That also means it will **not**
+      resurrect an edge someone deliberately unfollowed, so a rerun is not a way to re-follow
+      everyone. Verified locally against the two-profile dev DB, including the guards for an
+      unset and a nonexistent founder id.
+- [ ] **Browser pass on the Phase 5 UI.** Everything per-viewer resolves after hydration, so
+      `curl` proves almost nothing about it — the same reason Phase 4 needed its own pass. Check:
+      the Follow button toggles and survives a reload; it is absent on your own library and when
+      signed out; "Back to my library" appears only for a signed-in non-owner; the
+      Following/Followers tabs list users and their links work; `?view=followers` deep-links;
+      and both counts in the header agree with the lists on **both** users' pages after a follow
+      (that last one is the two-tag revalidation, the most likely thing to be subtly wrong).<br>
+      _One case worth trying deliberately_ because it is the bug this design is most prone to:
+      from a follower list, click straight through to another user's library and confirm the
+      button shows _their_ follow state, not the previous page's. Those pages reconcile rather
+      than remount, so a stale answer would offer to unfollow the wrong person.
 - [ ] **The "Unrated" shelf has a big gap above it.** Confirmed cause: the grouped shelves
       render inside `<div className="mt-6 pb-24">` (`GameLibrary.tsx:316`) and the Unrated
       shelf sits _outside_ that wrapper (`GameLibrary.tsx:332`), so the wrapper's 6rem bottom
@@ -23,6 +47,22 @@ only works if you already know their username.
 
 ## Backlog / Ideas
 
+- [ ] **User search, so you can find people to follow without knowing their username.** Held back
+      from Phase 5 (2026-07-30) to keep that MVP small; the follow graph itself shipped, and with
+      auto-follow seeding both lists, browsing Following/Followers is a working discovery path, so
+      this is an enhancement rather than a prerequisite. Still the thing that makes
+      `/video-games/start`'s pitch about browsing other people's libraries true for a stranger.<br>
+      _Almost no schema work left:_ `pg_trgm` and **both** GIN indexes on `profiles`
+      (`ix_profiles_username_trgm`, `ix_profiles_display_name_trgm`) shipped in the baseline
+      migration, and `"search"` is already in `RESERVED_USERNAMES`, so `/users/search` cannot
+      collide with `/users/{username}`. What is missing is the endpoint, a `UserSummary[]`
+      response (the schema already exists, `api/app/schemas/users.py`), and a debounced search
+      input.<br>
+      _Two decisions to make:_ give it its own rate-limit bucket rather than the shared `writes`
+      one, following `igdb_search` (`api/app/services/igdb.py`) — it is a read, and an unbudgeted
+      fuzzy search is the cheapest way to make Postgres work hard. And decide whether results
+      rank by trigram similarity or just filter, since with `MAX_USERS` at 100 the naive version
+      is indistinguishable and the index is doing nothing yet either way.
 - [ ] **Give library games a "notes" field, like wishlist entries already have, then grow it
       into a real play journal.** Today notes exist only on the wishlist side:
       `wishlist_items.notes` (`api/app/models/wishlist_item.py:41`, `max_length=1000` in
@@ -177,7 +217,6 @@ only works if you already know their username.
       Same change applies to the promote form in `EditWishlistModal.tsx`, which today offers
       only existing shelf systems and no IGDB platforms at all (see the mobile field-suggestions
       item below, which covers the same form).
-
 - [ ] **Implement account deletion (`DELETE /api/py/me/account`)** — spec decision #22 planned
       it (cascade down from `profiles` + `auth.users` removal via the Supabase Admin API,
       which `core/supabase_admin.py` already wraps for the over-cap cleanup), but it was never
@@ -203,7 +242,7 @@ only works if you already know their username.
 - [ ] Normalize game metadata into a shared catalog (a `game_metadata` table + per-user `played_games`/`wishlist_games` link tables) — today `games` and `wishlist_items` each carry their own copy of name/system/genres/release_date/image_url. Spec §4.2 deliberately chose denormalized-with-`igdb_id` for v1 (canonical rows need an ownership/moderation story; user-entered games lack a canonical key). Revisit at Phase 4 when cross-user duplication actually exists — the `igdb_id` column on both tables is the planned backfill key (group by it, extract canonical rows, repoint).
 - [ ] Profile pictures for user accounts (instanced game libraries follow-up, post-v1 — see `docs/plans/instanced-game-libraries.md`; likely Supabase Storage + upload/crop flow, shown in the library profile header and follower lists)
 - [ ] Homepage customization per user (instanced game libraries follow-up, post-v1 — let users personalize their library page: hero/backdrop, shelf styling, featured games, etc. Scope TBD)
-- [ ] Staging environment (instanced game libraries follow-up — the spec accepts a "no staging" caveat (§7.5: previews are read-only against prod, writes first run for real in prod); revisit with a second Supabase project or branching once the write path exists). **Promoted in priority 2026-07-28:** the preview 500 in "Up Next" is this caveat biting for real. Pointing Preview at production's Supabase is the stopgap, but it means preview sign-ins are production accounts. A second Supabase project (own DB + own GoTrue + own Google OAuth client) would give previews a real identity system and finally let the write path be exercised somewhere that isn't prod
+- [ ] Staging environment (instanced game libraries follow-up — the spec accepts a "no staging" caveat (§7.5: previews are read-only against prod, writes first run for real in prod); revisit with a second Supabase project or branching once the write path exists). **Promoted in priority 2026-07-28:** the preview `500 MIDDLEWARE_INVOCATION_FAILED` (since fixed — see Recently Completed) was this caveat biting for real. Pointing Preview at production's Supabase is the stopgap, but it means preview sign-ins are production accounts. A second Supabase project (own DB + own GoTrue + own Google OAuth client) would give previews a real identity system and finally let the write path be exercised somewhere that isn't prod
 - [ ] Decide the routing/namespace strategy as the site grows into multiple apps. **Half-settled
       2026-07-29:** nesting per-user libraries under `/video-games/u/` committed to per-app route
       prefixes on one domain, i.e. option (a) below, for the game library. What is still open is
@@ -226,6 +265,43 @@ only works if you already know their username.
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Instanced libraries Phase 5 — social graph** (2026-07-30, branch `phase5/social-graph`).
+      Three slices: follow endpoints + auto-follow + backfill; Following/Followers tabs; the
+      follow button and "Back to my library". 200 pytest, up from 175. User search was held back
+      on purpose and has its own backlog item. Production steps are in "Up Next".<br>
+      **Far less new code than expected.** The `follows` table already existed from the baseline
+      migration (composite PK, `no_self_follow` check, cascade from `profiles`), and `ProfileRead`
+      already returned live `COUNT(*)` follower/following numbers — they read 0 only because the
+      table was empty. The real gap was endpoints and UI. One index was genuinely missing:
+      `ix_follows_followee_id`, since the composite PK indexes `(follower_id, followee_id)` and so
+      cannot answer "who follows X?".<br>
+      **The bug worth remembering:** SQLAlchemy emitted the `follows` INSERT _before_ the
+      `profiles` INSERT when creating a profile plus its two founder edges, violating the
+      `follower_id` FK. Cause: `Follow` declares no ORM `relationship()` to `Profile`, so the unit
+      of work had no mapper dependency to order them. Fixed with an explicit `db.flush()` before
+      adding the edges (still one transaction, so the commit stays all-or-nothing). It was
+      disguised because `create_my_profile`'s `IntegrityError` handler re-derives the cause and
+      reported it as **"username taken"** — so the symptom named the wrong column entirely. A
+      misconfigured `FOUNDER_PROFILE_ID` hit the same path, which is why the id is now verified to
+      name a real profile before use: auto-follow is a nicety and must never be able to close
+      signup.<br>
+      _Three deliberate departures from the spec's sketch:_ follow/unfollow are **idempotent**
+      (204, not 409) because the button is a plain toggle with no conflict state to render;
+      `/me/relationship/{username}` also returns `is_me`, letting the button decide
+      "hide" vs "show Follow" in one request instead of racing a second `/me/profile` call; and
+      `UserSummary` carries no per-row follow counts, which would turn one join into a correlated
+      aggregate for numbers no row displays.<br>
+      _Design note for anyone touching the tabs:_ `View` is now `GameView | PeopleView` with
+      `VIEW_CONFIG` keyed to `GameView` only. That is load-bearing rather than tidy —
+      `GameLibrary.tsx` branches on `view === "played"` in about a dozen places where the
+      else-branch silently means "wishlist", so a flat four-member union would have rendered the
+      wishlist filter bar and pipeline on a people tab. Keying group/sort config to `GameView`
+      turned every one of those into a compile error until it was guarded.<br>
+      _And the one that cost real time in Phase 3 too:_ a follow changes **two** libraries, so it
+      revalidates two cache tags. The caller's still comes from their own token; the target's
+      comes from the client, which `revalidateMyLibrary` explicitly warns against, so
+      `revalidateOtherLibrary` documents why it is sound there and nowhere else (the worst a
+      forged call achieves is re-fetching an already-public page).
 - [x] **Game library nested under `/video-games`** (2026-07-29) — per-user libraries moved from
       `/u/{username}` to `/video-games/u/{username}`, so the app owns one prefix instead of
       leaking a top-level `/u` namespace. Settles the routing/namespace backlog item in favour of
@@ -291,7 +367,8 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       dark mode. Of these, the IGDB search check was the load-bearing one: it is the only thing
       that distinguishes working Twitch creds from absent ones, since
       `/api/py/igdb/search` returns 401 to an unauthenticated probe either way.<br>
-      Only the known CTA banner flash is still outstanding, and it has its own item in "Up Next".
+      Only the known CTA banner flash was still outstanding afterwards, and it was fixed the same
+      day — see the pre-paint `data-authed` entry above.
 - [x] **Per-user library size cap shipped** (Phase 4 slice 6, PR #68) — `max_games` on
       `Settings` (`api/app/core/config.py:65`, default 2000, overridable by env var), enforced
       in `api/app/services/me.py` on both the game and wishlist create paths with a dedicated 403. The per-user write rate limits landed in the same slice, not in Phase 3 as an
@@ -349,12 +426,12 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       three places it was hardcoded; the `/library` resolver and post-login redirects;
       auth surfaces moved under the game library; the sign-up CTA banner; profile header
       and real empty states; per-user write limits and a `MAX_GAMES` cap. 173 tests.
-      Remaining manual steps are in "Up Next" above
+      Its manual steps (brand verification, Vercel env vars, prod migration) are all done and
+      recorded as their own entries below
 - [x] Prod CSV → Postgres cutover confirmed serving: `https://rgrassian.com/video-games`
       returns 200 and `/api/py/health` reports `{"status":"ok","env":"prod","db":"ok"}`.
       (The optimistic-UI click-through and the first-write cold-start timing were not
       measured — do those next time you edit something in prod)
-
 - [x] `npm run build` investigated — **not broken**. It is green on `main` (17/17 pages); it
       fails only when the library API is unreachable at build time, which is deliberate:
       `requireLibraryApiOrigin()` (`src/lib/libraryApi.ts`) documents that an unresolvable
@@ -369,7 +446,6 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       tables everywhere else, so Alembic never creates them — but migration
       `f985740c0df9` adds a real FK to `auth.users`, so migrations can't run on bare
       Postgres without it
-
 - [x] CRT metadata block is height-stable across channel changes (`components/crt/CrtTv.tsx`) — the auto-cycle used to resize the block per game, and since `.pcrt-stage--compact` is a bottom-aligned flex row, a taller block pushed the TV and the page below it down on a timer. Three causes, all fixed by reserving the worst case instead of truncating: the title now reserves and clamps two lines (`min-h-[2lh] line-clamp-2` — long names wrap into reserved space on mobile rather than growing the block), the system/genres line clamps to one, and the "playing since" line always renders (empty when a game has no open-session date) instead of disappearing
 - [x] Mobile nav no longer cramped by the auth control (`components/Nav.tsx`, `components/AuthButton.tsx`) — type, gaps, and horizontal padding scale down below `sm` only, so desktop is unchanged. `AuthButton` shares the links' responsive scale so the row shrinks as one unit. Row height still comes from `--nav-height`, so `FilterBar`/`StatsPanel` sticky offsets are untouched
 - [x] Game library page now uses the photorealistic CRT (`components/crt/CrtTv.tsx`, relocated out of `currently-playing/` since it's shared by two routes) instead of the wood-paneled TV; `/currently-playing` still works standalone. Old wood TV (`components/video_games/CurrentlyPlaying.tsx`) and its `crt-*` styles in `video-games.css` are left in place, unused

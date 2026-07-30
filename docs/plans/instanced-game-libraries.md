@@ -300,16 +300,18 @@ GET  /users/{username}/games            → Game[]  (play state pre-derived, §4
 GET  /users/{username}/wishlist         → WishlistGame[]
 GET  /users/{username}                  → profile + follower/following counts
                                           (public data only — cacheable; see §7.2)
-GET  /users/{username}/followers        → profile summaries (username, display name, counts)
-GET  /users/{username}/following        → profile summaries
-GET  /users/search?q=tom                → profile summaries (pg_trgm fuzzy match)
+GET  /users/{username}/followers        → UserSummary[] (username + display name; no
+GET  /users/{username}/following          per-row counts, see Phase 5 notes)
+GET  /users/search?q=tom                → profile summaries (pg_trgm fuzzy match) — NOT BUILT,
+                                          deferred out of Phase 5
 
 # Social graph (authenticated)
-GET    /me/relationship/{username}      → { am_i_following } — deliberately separate from
-                                          the cacheable profile read so per-viewer state
-                                          never enters a shared cache entry
-POST   /me/following/{username}         follow
-DELETE /me/following/{username}         unfollow
+GET    /me/relationship/{username}      → { am_i_following, is_me } — deliberately separate
+                                          from the cacheable profile read so per-viewer state
+                                          never enters a shared cache entry. is_me lets the
+                                          follow button resolve in one request
+POST   /me/following/{username}         follow (idempotent, 204)
+DELETE /me/following/{username}         unfollow (idempotent, 204)
 DELETE /me/account                      delete account: profile cascade (§4.2) + auth.users
                                         removal via Supabase Admin API
 
@@ -661,19 +663,51 @@ Two things learned during the slices, recorded because they cost real time:
 
 ### Phase 5 — Social graph
 
-- `follows` table + follow/unfollow endpoints; auto-follow wiring in the signup flow.
-- Backfill: create follow edges between Robert and any users who signed up during Phase 4.
-- Profile headers with follower/following counts and lists; follow button; user search
-  (pg_trgm index + `/users/search` endpoint + UI).
-- **"Back to my library" control on other people's libraries.** Once you can navigate to
-  another user (from a follower list or search), you need a one-click way home, and there
-  is none today: the global nav's Game Library link points at `/library`, which resolves
-  correctly but reads as a generic site link rather than "return to mine". Show a control
-  on `/u/[username]` whenever the viewer is signed in and is **not** the owner. Resolved
-  client-side after hydration like every other per-viewer affordance (§7.2), so the cached
-  page stays identical for everyone. Noted during Phase 4 (2026-07-28) while building the
-  profile header, and deferred deliberately: with no way to reach another user's library
-  yet, it had nothing to navigate back from. Phase 5 creates that need, so it belongs here.
+Shipped 2026-07-30 as a deliberately small MVP: the tabs, the toggle, and the
+auto-follow that makes them non-empty. User search was the one planned item held back
+(tracked in `TODO.md`) — with auto-follow seeding both lists, browsing them is a working
+discovery path, so search is an enhancement rather than a prerequisite.
+
+- [x] `follows` endpoints + auto-follow wiring in the signup flow. The table itself already
+      existed from the baseline migration; this phase added `ix_follows_followee_id`, since
+      the composite PK cannot answer "who follows X?".
+- [x] Backfill: `api/scripts/backfill_founder_follows.py`, idempotent so a rerun cannot
+      resurrect an edge someone deliberately unfollowed. Gated on `FOUNDER_PROFILE_ID`.
+- [x] Profile headers with follower/following counts, and **Following / Followers tabs**
+      beside Played and Want to Play, each listing users as links to their libraries.
+- [x] Follow button: amber "Follow" ↔ outlined checkmark "Following".
+- [ ] User search (pg_trgm index + `/users/search` endpoint + UI). **Deferred.** The
+      extension and both GIN indexes on `profiles` shipped in the baseline migration and
+      `search` is already in `RESERVED_USERNAMES`, so this is an endpoint + UI job with no
+      schema work left.
+- [x] **"Back to my library" control on other people's libraries.** Once you can navigate to
+      another user (from a follower list or search), you need a one-click way home, and there
+      was none: the global nav's Game Library link points at `/library`, which resolves
+      correctly but reads as a generic site link rather than "return to mine". Shown on
+      `/video-games/u/[username]` whenever the viewer is signed in and is not the owner,
+      resolved client-side after hydration like every other per-viewer affordance (§7.2).
+      Noted during Phase 4 (2026-07-28) while building the profile header and deferred
+      deliberately, since with no way to reach another user's library it had nothing to
+      navigate back from.
+
+Three decisions that departed from the sketch above, and one bug worth remembering:
+
+- **Follow and unfollow are idempotent** (`ON CONFLICT DO NOTHING` / unconditional
+  `DELETE`), not 409-on-duplicate. The button is a plain toggle with no conflict state to
+  render, and a double-fired click, a retry, or two tabs racing all converge on the same
+  single edge. The composite PK still guarantees no duplicate row.
+- **`/me/relationship/{username}` returns `{ amIFollowing, isMe }`**, not just
+  `am_i_following`. `isMe` lets the button settle "hide entirely" vs "show Follow" in one
+  request instead of racing a second `/me/profile` call, and it is free — the service has
+  both profiles loaded.
+- **`UserSummary` carries no per-row follow counts**, though §6's sketch mentioned them:
+  they turn one join into a correlated aggregate for numbers no list row displays.
+- **The auto-follow insert needs an explicit `flush()`.** `Follow` declares no ORM
+  relationship to `Profile`, so SQLAlchemy's unit of work had no mapper dependency between
+  them and emitted the `follows` INSERT first, violating the `follower_id` FK. Compounding
+  it, `create_my_profile`'s `IntegrityError` handler then reported that as "username
+  taken". A misconfigured `FOUNDER_PROFILE_ID` reached the same failure, so the id is now
+  verified before use — auto-follow is a nicety and must never be able to close signup.
 
 ### Phase 6 — Hardening / polish (as needed)
 
