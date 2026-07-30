@@ -19,6 +19,7 @@ from app.schemas.me import (
     GameUpdate,
     MyProfileRead,
     ProfileCreate,
+    RelationshipRead,
     SessionClose,
     SessionCreate,
     WishlistCreate,
@@ -26,7 +27,9 @@ from app.schemas.me import (
     WishlistUpdate,
 )
 from app.schemas.users import GameRead, WishlistGameRead
+from app.services import follows as follows_service
 from app.services import me as me_service
+from app.services.follows import SelfFollowError
 from app.services.me import (
     AlreadyPlayingError,
     GameExistsError,
@@ -43,6 +46,7 @@ from app.services.me import (
     WishlistItemExistsError,
     WishlistItemNotFoundError,
 )
+from app.services.users import UserNotFoundError
 
 router = APIRouter(prefix=API_PREFIX, tags=["me"])
 
@@ -275,6 +279,67 @@ def close_my_session(
     except SessionAlreadyClosedError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except SessionDatesError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+
+
+@router.get("/me/relationship/{username}")
+def read_my_relationship(user: CurrentUser, db: DbSession, username: str) -> RelationshipRead:
+    """The caller's relationship to another user — what the follow button reads
+    on mount. A /me route rather than a field on the public profile because it
+    differs per viewer and must never be cached (spec §7.2).
+
+    Status mapping:
+    - 404 no such username
+    """
+    try:
+        return follows_service.get_relationship(db, user.id, username)
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post(
+    "/me/following/{username}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+)
+def follow_user(user: CurrentUser, db: DbSession, username: str) -> None:
+    """Follow a user. Idempotent: following someone you already follow is 204,
+    not a conflict, so a double-fired toggle needs no special handling.
+
+    Status mapping:
+    - 404 no such username
+    - 422 following yourself
+    """
+    try:
+        follows_service.follow_user(db, user.id, username)
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except SelfFollowError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+
+
+@router.delete(
+    "/me/following/{username}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+)
+def unfollow_user(user: CurrentUser, db: DbSession, username: str) -> None:
+    """Unfollow a user. Idempotent, like follow. The founder edge created at
+    signup is an ordinary row and can be removed here like any other.
+
+    Status mapping:
+    - 404 no such username
+    - 422 unfollowing yourself
+    """
+    try:
+        follows_service.unfollow_user(db, user.id, username)
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except SelfFollowError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
         ) from exc

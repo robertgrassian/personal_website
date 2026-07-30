@@ -30,6 +30,21 @@ class MyProfileRead(CamelModel):
     display_name: str
 
 
+class RelationshipRead(CamelModel):
+    """The caller's relationship to another user — the follow button's entire
+    input, and per-viewer by definition, which is why it can't ride along on
+    the cached public profile payload (see schemas/users.ProfileRead).
+
+    ``is_me`` looks redundant next to a separate "who am I?" call, but folding
+    it in here is what lets the button settle "hide entirely" vs "show Follow"
+    from a single request instead of racing two. It costs nothing: the service
+    has both profiles loaded already.
+    """
+
+    am_i_following: bool
+    is_me: bool
+
+
 class ProfileCreate(CamelModel):
     """Onboarding payload: pick a username (and display name) to create the
     profile row. Username format/reserved/cap validation lives in the service

@@ -8,7 +8,7 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Game, PlaySession, Profile, WishlistItem
+from app.models import Follow, Game, PlaySession, Profile, WishlistItem
 
 
 def get_profile_by_id(db: Session, user_id: uuid.UUID) -> Profile | None:
@@ -227,6 +227,40 @@ def count_games(db: Session, user_id: uuid.UUID) -> int:
 def create_profile(db: Session, *, user_id: uuid.UUID, username: str, display_name: str) -> Profile:
     profile = Profile(id=user_id, username=username, display_name=display_name)
     db.add(profile)
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+
+def create_profile_with_follows(
+    db: Session,
+    *,
+    user_id: uuid.UUID,
+    username: str,
+    display_name: str,
+    founder_id: uuid.UUID | None,
+) -> Profile:
+    """Create the profile and, when a founder is configured, the two follow
+    edges between it and the new account — in a single transaction.
+
+    One commit for all three rows is the point: a partial success would leave a
+    profile whose follow state depends on which insert failed, and signup has
+    no retry path to repair it. ``founder_id`` of None (unconfigured) or equal
+    to ``user_id`` (the founder onboarding their own account, which the
+    no_self_follow constraint would reject) creates the profile alone.
+    """
+    profile = Profile(id=user_id, username=username, display_name=display_name)
+    db.add(profile)
+    if founder_id is not None and founder_id != user_id:
+        # flush() before adding the edges, not for its own sake but for
+        # ordering: Follow declares no ORM relationship to Profile, so the unit
+        # of work has no mapper dependency between them and is free to emit the
+        # follows INSERT first — which violates the follower_id foreign key.
+        # Flushing pins the profile row down first. Still one transaction, so
+        # the commit below remains all-or-nothing.
+        db.flush()
+        db.add(Follow(follower_id=user_id, followee_id=founder_id))
+        db.add(Follow(follower_id=founder_id, followee_id=user_id))
     db.commit()
     db.refresh(profile)
     return profile

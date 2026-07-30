@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Uuid, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -27,4 +27,9 @@ class Follow(Base):
     __table_args__ = (
         # Final name via the metadata naming convention: ck_follows_no_self_follow.
         CheckConstraint("follower_id <> followee_id", name="no_self_follow"),
+        # The composite PK indexes (follower_id, followee_id), which serves
+        # "who does X follow?" but not "who follows X?" — a leading-column
+        # scan can't answer the latter. Follower lists and follower counts
+        # query followee_id alone, so they need an index of their own.
+        Index("ix_follows_followee_id", "followee_id"),
     )

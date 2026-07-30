@@ -10,7 +10,9 @@ reserved / taken), ``SignupCapReachedError`` (signup cap). Same not-found-as-
 exception style as services/users.py.
 """
 
+import logging
 import re
+import uuid
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -40,6 +42,8 @@ from app.services.users import derive_play_state, to_game_read, to_wishlist_read
 # sync deliberately — the app validates for a friendly message, the DB
 # backstops. Input is lowercased before this runs, so the class is safe.
 USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{2,29}$")
+
+logger = logging.getLogger(__name__)
 
 def _both_spellings(names: set[str]) -> set[str]:
     """Every name in the set, in both its snake_case and kebab-case spelling.
@@ -237,6 +241,25 @@ def _validate_username(username: str) -> str:
     return normalized
 
 
+def _resolve_founder_id(db: Session, configured_id: uuid.UUID | None) -> uuid.UUID | None:
+    """The founder id to auto-follow, or None to skip auto-follow entirely.
+
+    Verifies the configured id actually names a profile. Without this check a
+    typo in FOUNDER_PROFILE_ID would make the follow edges violate their
+    foreign key, rolling back the profile insert with it — every signup would
+    fail, and the IntegrityError handling below would misreport it as "username
+    taken". Auto-follow is a nicety; it must never be able to close signup.
+    """
+    if configured_id is None:
+        return None
+    if me_repo.get_profile_by_id(db, configured_id) is None:
+        logger.warning(
+            "FOUNDER_PROFILE_ID %s has no profile row; skipping auto-follow.", configured_id
+        )
+        return None
+    return configured_id
+
+
 def create_my_profile(
     db: Session, user: AuthenticatedUser, payload: ProfileCreate
 ) -> MyProfileRead:
@@ -276,8 +299,12 @@ def create_my_profile(
 
     display_name = payload.display_name.strip() or username
     try:
-        profile: Profile = me_repo.create_profile(
-            db, user_id=user.id, username=username, display_name=display_name
+        profile: Profile = me_repo.create_profile_with_follows(
+            db,
+            user_id=user.id,
+            username=username,
+            display_name=display_name,
+            founder_id=_resolve_founder_id(db, settings.founder_profile_id),
         )
     except IntegrityError as exc:
         # A concurrent onboarding POST committed between our checks above and

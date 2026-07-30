@@ -6,6 +6,7 @@ committed; ``.env.example`` at the repo root documents the variable names.
 """
 
 import logging
+import uuid
 from functools import lru_cache
 from pathlib import Path
 
@@ -63,6 +64,17 @@ class Settings(BaseSettings):
     # realistic collection (the founder's is ~155), so it only ever stops a
     # script.
     max_games: int = 2000
+
+    # --- Social graph ----------------------------------------------------------
+    # The founder's profile id. New signups auto-follow this account and it
+    # auto-follows them back, so nobody's follower lists start empty and every
+    # new user has somewhere to navigate from day one.
+    #
+    # Optional on purpose: unset means no auto-follow edges at all, which keeps
+    # tests and a bare local DB working without seeding a founder. Kept as an
+    # id rather than a username because it is the join key the edges need, and
+    # a username can in principle change.
+    founder_profile_id: uuid.UUID | None = None
 
     # --- IGDB proxy ------------------------------------------------------------
     # Twitch application credentials (IGDB authenticates via Twitch OAuth).
