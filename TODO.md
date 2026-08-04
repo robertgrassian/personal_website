@@ -24,60 +24,33 @@ before that happens.
       `rate_limits` has no FK to `profiles`, so those rows will not cascade and need deleting
       explicitly.
 
-**Run order for the two backfills, decided 2026-07-30:** titles local → genres local →
-titles prod → genres prod. Titles come first in each environment because the informal names
-are what make genre matching fail, and local comes first in each pair because the local DB is
-the rehearsal: a bad plan there costs a re-run, in prod it costs real data. Note the genre
-backfill has **already** been applied locally (41 rows), but that run predates the title
-work, so it gets re-planned and re-applied after titles land rather than being skipped.
+- [ ] **Run both backfills against PRODUCTION: titles first, then genres.** Both are built and
+      were applied to the **local** DB on 2026-08-03; prod is untouched. Order matters and is
+      not cosmetic: on local, doing titles first took the genre plan from 118 auto / 36 needing
+      review to **154 auto / 0**, because the informal names were what broke matching.<br>
+      _Step 1_ `cd api && uv run python scripts/backfill_titles.py --user rgrassian` — preview
+      is the default and prints every row, so this is a select before an update. Then re-run
+      with `--apply`. Expect ~54 renames if prod matches local.<br>
+      _Step 2_ `uv run python scripts/backfill_genres.py --plan --user rgrassian --force`, then
+      `--apply`.<br>
+      _Six rows need setting by hand after the genre plan_, where Wikipedia is vaguer than the
+      curated term: Elden Ring and Elden Ring Nightreign (lose "Soulslike"), Metroid Dread
+      (loses "Metroidvania"), Ball x Pit, WarioWare: Touched! (loses "Rhythm"), and Bomberman DS
+      (Wikipedia has no standalone article and matches the "Bomberman Story DS" RPG spin-off).
+      That edit is not in the script; it is a short block that sets `proposed` and marks the row
+      `approved` before `--apply`.<br>
+      _Also do the small vocabulary fixes that followed the local run:_ fold "Monster Tamer"
+      into "Monster-taming", and drop "Role-Playing" from Untitled Goose Game.
 
-- [ ] **Backfill game TITLES to their canonical IGDB/Wikipedia names — do this BEFORE the
-      genre backfill, in both environments.** Robert's call 2026-07-30, and the measurement
-      supports it:
-      the library stores informal names ("Civ 6", "Hades 2", "Halo CE", "Pokemon Fire Red",
-      "Expedition 33", "Final Fantasy Remake"), and those are the _root cause_ of nearly every
-      row the genre backfill parks as uncertain. Feeding the canonical IGDB name to the same
-      genre lookup moved **7 of 12** sampled problem rows from review straight to auto.<br>
-      _Two rows were not merely uncertain but silently WRONG from the informal name,_ which is
-      the real argument for doing titles first: "Call of Duty Black Ops 2" resolved to **Black
-      Ops 7** at 0.958 confidence, and "Bomberman DS" to **Bomberman 2**. From the IGDB name
-      both are correct. Fixing titles removes a class of wrong answers, not just review work.<br>
-      _Shape:_ mirrors `scripts/backfill_genres.py` (plan / review / apply, one `--user`), but
-      resolves each name through IGDB search and stores `igdb_id` while it is there — the 155
-      seeded rows have none, because `seed.py` never set one, which is what forces every lookup
-      to be by fuzzy name in the first place.<br>
-      _Watch:_ `games` has a unique constraint on `(user_id, name, system)`, so renaming can
-      collide with an existing row (e.g. "Hades 2" -> "Hades II" where a "Hades II" already
-      exists). And renaming changes what the shelves display, so it wants the same review step.<br>
-      _Run local first, then prod_ (step 1 and step 3 of the order above). Local is where the
-      collision behaviour and the review UX get shaken out; prod needs its own plan regardless,
-      since plans are keyed to row ids.
-
-- [ ] **Re-run the genre backfill locally (after titles), then run it against PRODUCTION.**
-      Steps 2 and 4 of the order above. Everything is built; it was applied to the **local** DB
-      once already (41 rows, 2026-07-30), but that was before the title backfill and before the
-      confidence-scoring fix, so the local run is repeated rather than considered done. Prod is
-      untouched. From `api/`, with `DATABASE_URL` pointed at the intended database:
-      `uv run python scripts/backfill_genres.py --plan --user rgrassian --force`, then
-      `--apply`. The script writes to one named user's library only.<br>
-      _Two things to redo, not reuse:_ plans are keyed to row ids, so each environment needs
-      its own `--plan`. And the five hand-unioned rows (Elden Ring, Elden Ring Nightreign, Metroid
-      Dread, Ball x Pit, Wario Ware Touched) were set by hand locally because the infobox is
-      vaguer than the curated term there (it drops "Soulslike" from both Elden Rings and
-      "Metroidvania" from Metroid Dread) — that edit is not in the script and must be repeated.
-      Worth folding into the script as a small override table if it is ever run a third time.<br>
-      _Also still open:_ 36 rows are parked as `needs_review`. Diagnosed 2026-07-30 and they
-      are **not** a source problem — nearly all are informal shelf titles, which is why the
-      title backfill above should run first and is expected to clear most of them.<br>
-      _Confidence scoring was improved in the same pass_ and the 36 predates it, so re-plan
-      before judging the number: `_title_similarity` now folds accents (Pokemon/Pokémon) and
-      treats word-containment as a match, which fixes Wikipedia's **combined** articles
-      ("Pokemon Violet" -> "Pokémon Scarlet and Violet", "Super Smash Bros. for Wii U" ->
-      "...for Nintendo 3DS and Wii U") that a sequence ratio scored 0.62-0.79 and rejected.
-      Containment alone would have been worse than useless — "Hades II" is a superset of
-      "Hades" — so leftover words are rejected when any is a bare number or roman numeral,
-      which is exactly how sequels differ. Platform tokens like "3ds" deliberately do not
-      count.
+- [ ] **Give the add-game IGDB search fuzzy matching.** Noticed 2026-08-03 while building the
+      title backfill: `/api/py/igdb/search` passes the query straight to IGDB's `search`, which
+      is unforgiving of the way people actually type. "Civ 6" returns nothing at all, and
+      "Pokemon Fire Red" returns _Pokémon Fire Red Extended_, a ROM hack, rather than the game.
+      That was tolerable while the only caller was a picker a human reads, but it is the same
+      weakness that made a name-based backfill unreliable.<br>
+      Not urgent and deliberately deferred: the add flow shows you the candidates and you pick
+      one, so a poor first hit costs a second look rather than wrong data. Worth doing when
+      search is used somewhere nobody is watching.
 
 ## Backlog / Ideas
 
@@ -332,6 +305,30 @@ work, so it gets re-planned and re-applied after titles land rather than being s
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Titles backfilled to canonical names, then genres re-sourced** (2026-08-03, local DB
+      only). 54 renames, then 22 genre rows. The ordering was the point: doing titles first took
+      the genre plan from **118 auto / 36 needing review to 154 auto / 0**.<br>
+      **`backfill_titles.py` is a hardcoded map on purpose.** The first version resolved every
+      title against IGDB and scored the candidates; it could not tell a canonical title from an
+      edition or spin-off whose name merely extends it, proposing "Elden Ring" -> _Elden Ring
+      Nightreign_, "Halo CE" -> _Halo CE+_, "Dead Cells" -> _Dead Cells+_. Every result needed
+      reading anyway, so the map is that reading done once — auditable, and it cannot drift.
+      Preview is the default, so a prod run is always a select before an update.<br>
+      _A real parser bug surfaced in the re-run:_ an infobox `genre` that is the template's LAST
+      parameter swallowed the article prose after it, so Majora's Mask picked up Japanese title
+      text and "and quality of life changes" as genres. The field now stops at `}}` as well as
+      at the next parameter. This one mattered beyond the backfill — it is the live add-game
+      lookup.<br>
+      _"Cadence of Hyrule" is deliberately NOT renamed_ to its full canonical title. IGDB is
+      right that it is the formal name, but the longer string then matched the Wikipedia article
+      "The Legend of Zelda" (its words are a subset) and took that game's genres.<br>
+      _Seed fixtures were renamed in lockstep_, so `seed.py` reproduces the canonical library;
+      `sessions.csv` references games by name and would otherwise attach sessions to nothing.<br>
+      _Verified by a review agent against the live DB:_ 155 games, no duplicates, no empty genre
+      lists, 44 distinct genres with no case/spelling collisions, and no junk values. It caught
+      two things since fixed: "Role-Playing" on Untitled Goose Game, and a
+      "Monster Tamer"/"Monster-taming" split that would have shown as two filter options.
+
 - [x] **Genres re-sourced from Wikipedia, and the add flow wired to the same source**
       (2026-07-30). Replaces the original plan, which had it backwards: it said to normalize
       onto _IGDB's_ vocabulary, but IGDB's `genres` field is too coarse to describe a library
@@ -573,4 +570,3 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       Postgres without it
 - [x] CRT metadata block is height-stable across channel changes (`components/crt/CrtTv.tsx`) — the auto-cycle used to resize the block per game, and since `.pcrt-stage--compact` is a bottom-aligned flex row, a taller block pushed the TV and the page below it down on a timer. Three causes, all fixed by reserving the worst case instead of truncating: the title now reserves and clamps two lines (`min-h-[2lh] line-clamp-2` — long names wrap into reserved space on mobile rather than growing the block), the system/genres line clamps to one, and the "playing since" line always renders (empty when a game has no open-session date) instead of disappearing
 - [x] Mobile nav no longer cramped by the auth control (`components/Nav.tsx`, `components/AuthButton.tsx`) — type, gaps, and horizontal padding scale down below `sm` only, so desktop is unchanged. `AuthButton` shares the links' responsive scale so the row shrinks as one unit. Row height still comes from `--nav-height`, so `FilterBar`/`StatsPanel` sticky offsets are untouched
-- [x] Game library page now uses the photorealistic CRT (`components/crt/CrtTv.tsx`, relocated out of `currently-playing/` since it's shared by two routes) instead of the wood-paneled TV; `/currently-playing` still works standalone. Old wood TV (`components/video_games/CurrentlyPlaying.tsx`) and its `crt-*` styles in `video-games.css` are left in place, unused
