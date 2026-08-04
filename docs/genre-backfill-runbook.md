@@ -106,6 +106,12 @@ attach to nothing.
 - **Going through `search_games` rate-limits the script.** It allows 30 lookups
   per minute per user, so a full library silently recorded 126 of 155 titles as
   "no match". The script calls the IGDB service's internals instead.
+- **Wikipedia contradicts itself on monster-taming.** The Pokemon infoboxes say
+  "Monster tamer", Palworld's says "monster-taming". `SYNONYMS` in
+  `backfill_genres.py` normalizes to the majority spelling. It cannot be deleted
+  in favour of "just take the source's word", because there is no single source
+  word. Note it lives in the script, not in `genres.py`, so a game added through
+  the site whose infobox uses the other spelling will store it verbatim.
 - **An infobox `genre` that is the template's last parameter** used to swallow
   the article prose after it, so Majora's Mask picked up Japanese title text and
   "and quality of life changes" as genres. Fixed in `genres.py`, with a test.

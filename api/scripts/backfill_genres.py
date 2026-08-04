@@ -105,11 +105,17 @@ OVERRIDES: dict[str, list[str]] = {
     "Untitled Goose Game": ["Puzzle", "Stealth"],
 }
 
-# One concept, two spellings. Wikipedia says "Monster Tamer"; the library has
-# always said "Monster-taming", and the two are far enough apart that the
-# spelling-insensitive snap below cannot connect them, so they would sit in the
-# filter dropdown as separate options.
-SYNONYMS = {"Monster Tamer": "Monster-taming"}
+# Wikipedia contradicts itself here: the Pokemon infoboxes say "Monster tamer"
+# and Palworld's says "monster-taming". They are one concept, and the
+# spelling-insensitive snap below cannot connect them ("monstertamer" vs
+# "monstertaming" are genuinely different keys) -- loosening it enough to would
+# also merge "Platform" into "Platformer". Left alone they sit in the shelf
+# filter as two options.
+#
+# So this is not a preference map onto a favoured vocabulary; it normalizes a
+# source that disagrees with itself. Wikipedia's majority spelling wins, 4 rows
+# to 1.
+SYNONYMS = {"Monster-taming": "Monster Tamer"}
 
 
 # Re-exported from the service so the script's confidence score and the
