@@ -48,7 +48,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.db import get_sessionmaker
-from app.models import Game, Profile
+from app.models import Game, Profile, WishlistItem
 from app.schemas.me import clean_genres
 from app.services import genres as genre_service
 
@@ -79,6 +79,37 @@ REQUEST_DELAY = 0.3
 # Statuses whose rows --apply is allowed to write. Everything else
 # ("needs_review", "missing", "skipped") is left alone.
 WRITABLE = ("auto", "approved")
+
+# Final genres for rows where Wikipedia's infobox is vaguer or plainly wrong.
+# Keyed by game name, applied to both the library and the wishlist.
+#
+# These live here rather than being re-entered by hand each run because the plan
+# is rebuilt from Wikipedia every time, so every run re-proposes the same losses.
+# Doing it by hand worked three times and would eventually be forgotten once --
+# which is the entire failure mode this script exists to avoid.
+OVERRIDES: dict[str, list[str]] = {
+    # The infobox says only "action role-playing"; soulslike is the useful term.
+    "Elden Ring": ["Soulslike", "Action Role-Playing"],
+    "Elden Ring Nightreign": ["Soulslike", "Roguelike", "Action Role-Playing"],
+    "Bloodborne": ["Soulslike", "Action Role-Playing"],
+    # Infobox says "action-adventure" and drops the more specific term.
+    "Metroid Dread": ["Action-Adventure", "Metroidvania"],
+    # No infobox genre at all; the Wikidata fallback offers only "Action".
+    "Ball x Pit": ["Roguelike", "Brick-Breaking"],
+    # Infobox is vaguer than the curated term.
+    "WarioWare: Touched!": ["Rhythm", "Action"],
+    # Wikipedia has no standalone article; search lands on "Bomberman Story DS",
+    # an RPG spin-off, and takes its genres.
+    "Bomberman DS": ["Action", "Puzzle"],
+    # The infobox lists Role-Playing, which it plainly is not.
+    "Untitled Goose Game": ["Puzzle", "Stealth"],
+}
+
+# One concept, two spellings. Wikipedia says "Monster Tamer"; the library has
+# always said "Monster-taming", and the two are far enough apart that the
+# spelling-insensitive snap below cannot connect them, so they would sit in the
+# filter dropdown as separate options.
+SYNONYMS = {"Monster Tamer": "Monster-taming"}
 
 
 # Re-exported from the service so the script's confidence score and the
@@ -133,22 +164,40 @@ def load_games(username: str) -> tuple[list[dict], str]:
         if profile is None:
             print(f"No profile with username {username!r}.")
             sys.exit(1)
-        rows = (
-            session.query(Game)
-            .filter(Game.user_id == profile.id)
-            .order_by(Game.name)
+        out = []
+        # Both tables, because the wishlist carries the same game titles and the
+        # same genre vocabulary, and is shown on the same page. "kind" is what
+        # --apply uses to route each row back to the right table.
+        for g in (
+            session.query(Game).filter(Game.user_id == profile.id).order_by(Game.name).all()
+        ):
+            out.append(
+                {
+                    "kind": "game",
+                    "id": g.id,
+                    "user_id": str(g.user_id),
+                    "name": g.name,
+                    "system": g.system,
+                    "current": list(g.genres or []),
+                }
+            )
+        for w in (
+            session.query(WishlistItem)
+            .filter(WishlistItem.user_id == profile.id)
+            .order_by(WishlistItem.name)
             .all()
-        )
-        return [
-            {
-                "id": g.id,
-                "user_id": str(g.user_id),
-                "name": g.name,
-                "system": g.system,
-                "current": list(g.genres or []),
-            }
-            for g in rows
-        ], str(profile.id)
+        ):
+            out.append(
+                {
+                    "kind": "wishlist",
+                    "id": w.id,
+                    "user_id": str(w.user_id),
+                    "name": w.name,
+                    "system": w.system or "",
+                    "current": list(w.genres or []),
+                }
+            )
+        return out, str(profile.id)
 
 
 def build_plan(username: str, force: bool) -> dict:
@@ -194,7 +243,10 @@ def build_plan(username: str, force: bool) -> dict:
                 **game,
                 "article": result.article,
                 "qid": result.qid,
-                "proposed": snap(result.genres, vocabulary),
+                "proposed": OVERRIDES.get(
+                    game["name"],
+                    [SYNONYMS.get(g, g) for g in snap(result.genres, vocabulary)],
+                ),
                 "raw": result.raw_genres,
                 "score": round(score, 3),
                 "status": status,
@@ -230,7 +282,11 @@ def summarize(plan: dict) -> None:
         by_status[entry["status"]] = by_status.get(entry["status"], 0) + 1
     changed = pending_writes(plan)
 
-    print(f"\n{len(entries)} games for {plan.get('username', '?')}")
+    games = sum(1 for e in entries if e.get("kind") != "wishlist")
+    print(
+        f"\n{len(entries)} rows for {plan.get('username', '?')} "
+        f"({games} games, {len(entries) - games} wishlist)"
+    )
     for status in ("auto", "approved", "needs_review", "missing", "skipped"):
         if by_status.get(status):
             print(f"  {status:14} {by_status[status]}")
@@ -311,12 +367,13 @@ def apply(plan: dict) -> None:
     if unreviewed:
         print(f"Note: {unreviewed} entries are still unreviewed and will be left alone.")
 
-    print(f"Updating {len(todo)} games for {plan.get('username', '?')}...")
+    print(f"Updating {len(todo)} rows for {plan.get('username', '?')}...")
     updated = 0
     skipped = []
     with get_sessionmaker()() as session:
         for entry in todo:
-            game = session.get(Game, entry["id"])
+            model = WishlistItem if entry.get("kind") == "wishlist" else Game
+            game = session.get(model, entry["id"])
             if game is None:
                 skipped.append(f"{entry['name']} (row no longer exists)")
                 continue
@@ -331,7 +388,8 @@ def apply(plan: dict) -> None:
             updated += 1
         session.commit()
 
-    print(f"Done. {updated} games updated.")
+    games = sum(1 for e in todo if e.get("kind") != "wishlist")
+    print(f"Done. {updated} rows updated ({games} games, {updated - games} wishlist).")
     for note in skipped:
         print(f"  skipped: {note}")
 

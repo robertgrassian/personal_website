@@ -24,23 +24,19 @@ before that happens.
       `rate_limits` has no FK to `profiles`, so those rows will not cascade and need deleting
       explicitly.
 
-- [ ] **Run both backfills against PRODUCTION: titles first, then genres.** Both are built and
-      were applied to the **local** DB on 2026-08-03; prod is untouched. Order matters and is
-      not cosmetic: on local, doing titles first took the genre plan from 118 auto / 36 needing
-      review to **154 auto / 0**, because the informal names were what broke matching.<br>
-      _Step 1_ `cd api && uv run python scripts/backfill_titles.py --user rgrassian` — preview
-      is the default and prints every row, so this is a select before an update. Then re-run
-      with `--apply`. Expect ~54 renames if prod matches local.<br>
-      _Step 2_ `uv run python scripts/backfill_genres.py --plan --user rgrassian --force`, then
-      `--apply`.<br>
-      _Six rows need setting by hand after the genre plan_, where Wikipedia is vaguer than the
-      curated term: Elden Ring and Elden Ring Nightreign (lose "Soulslike"), Metroid Dread
-      (loses "Metroidvania"), Ball x Pit, WarioWare: Touched! (loses "Rhythm"), and Bomberman DS
-      (Wikipedia has no standalone article and matches the "Bomberman Story DS" RPG spin-off).
-      That edit is not in the script; it is a short block that sets `proposed` and marks the row
-      `approved` before `--apply`.<br>
-      _Also do the small vocabulary fixes that followed the local run:_ fold "Monster Tamer"
-      into "Monster-taming", and drop "Role-Playing" from Untitled Goose Game.
+- [ ] **Run both backfills against PRODUCTION.** Both are built, cover the library _and_ the
+      wishlist, and were applied to the **local** DB on 2026-08-03; prod is untouched.
+      **The full procedure is written up in `docs/genre-backfill-runbook.md`** — follow that
+      rather than reconstructing it here.<br>
+      _The three things most easily got wrong_, all covered in the runbook: titles must run
+      before genres (locally that took the genre plan from 118 auto / 36 review to 183 auto /
+      0); preview is the default on the title script, so always read it before `--apply`; and
+      **the cache must be flushed afterwards** — the scripts write straight to Postgres, so
+      `revalidateTag` never fires and prod keeps serving the old data until an owner write
+      happens in the UI.<br>
+      _No hand-editing step any more:_ the rows where Wikipedia is vaguer than the curated term
+      (Elden Ring, Metroid Dread, Ball x Pit, …) now live in `OVERRIDES` in
+      `backfill_genres.py`, having been re-entered by hand three times.
 
 - [ ] **Give the add-game IGDB search fuzzy matching.** Noticed 2026-08-03 while building the
       title backfill: `/api/py/igdb/search` passes the query straight to IGDB's `search`, which

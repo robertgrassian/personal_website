@@ -28,7 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.db import get_sessionmaker
-from app.models import Game, Profile
+from app.models import Game, Profile, WishlistItem
 
 # current name -> canonical name.
 #
@@ -108,6 +108,24 @@ RENAMES: dict[str, str] = {
 }
 
 
+def _plan_renames(rows: list, key) -> tuple[list, list]:
+    """Split rows into (renamable, blocked-by-an-existing-row).
+
+    ``key`` returns the row's uniqueness key, which differs between the two
+    tables: games is unique on (name, system), wishlist_items on name alone.
+    A rename onto an occupied key would abort the whole transaction, so it is
+    caught here instead.
+    """
+    taken = {key(r, r.name) for r in rows}
+    planned, blocked = [], []
+    for row in rows:
+        new_name = RENAMES.get(row.name)
+        if not new_name or new_name == row.name:
+            continue
+        (blocked if key(row, new_name) in taken else planned).append((row, new_name))
+    return planned, blocked
+
+
 def run(username: str, apply_changes: bool) -> None:
     with get_sessionmaker()() as session:
         profile = session.query(Profile).filter(Profile.username == username).one_or_none()
@@ -116,48 +134,53 @@ def run(username: str, apply_changes: bool) -> None:
             sys.exit(1)
 
         games = session.query(Game).filter(Game.user_id == profile.id).order_by(Game.name).all()
-        existing = {(g.name, g.system) for g in games}
+        wishes = (
+            session.query(WishlistItem)
+            .filter(WishlistItem.user_id == profile.id)
+            .order_by(WishlistItem.name)
+            .all()
+        )
 
-        planned, blocked, unmatched = [], [], []
-        for game in games:
-            new_name = RENAMES.get(game.name)
-            if not new_name or new_name == game.name:
-                continue
-            # games is unique on (user_id, name, system), so a rename onto a row
-            # that already exists would abort the whole transaction.
-            if (new_name, game.system) in existing:
-                blocked.append((game, new_name))
-            else:
-                planned.append((game, new_name))
+        # The wishlist gets the same treatment as the library: it holds the same
+        # game titles, is shown on the same page, and leaving it behind would let
+        # a wishlist entry and a library row disagree about the same game's name.
+        game_plan, game_blocked = _plan_renames(games, lambda r, n: (n, r.system))
+        wish_plan, wish_blocked = _plan_renames(wishes, lambda r, n: n)
 
-        renamed_from = {g.name for g, _ in planned} | {g.name for g, _ in blocked}
-        unmatched = sorted(set(RENAMES) - renamed_from)
+        print(f"{len(games)} games, {len(wishes)} wishlist items for {username}\n")
+        for label, planned, blocked in (
+            ("games", game_plan, game_blocked),
+            ("wishlist", wish_plan, wish_blocked),
+        ):
+            print(f"{len(planned)} {label} renames:")
+            for row, new_name in planned:
+                where = f"  ({row.system})" if label == "games" else ""
+                print(f"  [{row.id}] {row.name}{where}")
+                print(f"       -> {new_name}")
+            if blocked:
+                print(f"\n{len(blocked)} BLOCKED {label} (target name already exists):")
+                for row, new_name in blocked:
+                    print(f"  [{row.id}] {row.name} -> {new_name}")
+            print()
 
-        print(f"{len(games)} games for {username}\n")
-        print(f"{len(planned)} renames:")
-        for game, new_name in planned:
-            print(f"  [{game.id}] {game.name}  ({game.system})")
-            print(f"       -> {new_name}")
-        if blocked:
-            print(f"\n{len(blocked)} BLOCKED (target name already exists on that system):")
-            for game, new_name in blocked:
-                print(f"  [{game.id}] {game.name} -> {new_name}")
+        matched = {r.name for r, _ in game_plan + game_blocked + wish_plan + wish_blocked}
+        unmatched = sorted(set(RENAMES) - matched)
         if unmatched:
-            print(f"\n{len(unmatched)} mapping entries matched no row (already renamed?):")
+            print(f"{len(unmatched)} mapping entries matched no row (already renamed?):")
             for name in unmatched:
                 print(f"  {name}")
 
         if not apply_changes:
             print("\nPreview only. Re-run with --apply to write.")
             return
-        if not planned:
+        if not (game_plan or wish_plan):
             print("\nNothing to apply.")
             return
 
-        for game, new_name in planned:
-            game.name = new_name
+        for row, new_name in game_plan + wish_plan:
+            row.name = new_name
         session.commit()
-        print(f"\nApplied. {len(planned)} games renamed.")
+        print(f"\nApplied. {len(game_plan)} games and {len(wish_plan)} wishlist items renamed.")
 
 
 def main() -> None:
