@@ -321,6 +321,23 @@ def _title_similarity(name: str, article: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
+def _rank_key(name: str, article: str):
+    """Sort key for choosing among the candidate articles for one game.
+
+    Confidence alone is not enough, because several candidates routinely tie at
+    1.0 -- word-containment says yes to any article whose title merely extends
+    ours. "Kinect Adventures" matches both "Kinect Adventures!" and "Kinect:
+    Disneyland Adventures", and taking the first maximum picked the Disneyland
+    game and its "Open world" genre.
+
+    So an exact title wins outright, and a shorter title breaks the remaining
+    ties: between two articles that both contain our name, the one that adds
+    least is the one that is most likely to *be* it.
+    """
+    exact = _fold(_PAREN.sub("", article)) == _fold(name)
+    return (exact, _title_similarity(name, article), -len(article))
+
+
 def search_candidates(title: str) -> list[str]:
     """Candidate Wikipedia article titles for a game.
 
@@ -486,7 +503,7 @@ def lookup_many(titles: list[str], *, on_progress=None) -> dict[str, GenreLookup
         games = [a for a in hits if is_video_game(wikitext.get(a, ""))]
         if not games:
             continue
-        best = max(games, key=lambda a: _title_similarity(title, a))
+        best = max(games, key=lambda a: _rank_key(title, a))
         result = results[title]
         result.article = best
         result.raw_genres = parse_infobox_genres(wikitext[best])

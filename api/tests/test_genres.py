@@ -503,3 +503,46 @@ def test_conflicting_spellings_on_one_game_collapse_to_one():
     assert genre_service.normalize_genres(["Monster tamer", "monster-taming"]) == [
         "Monster Tamer"
     ]
+
+
+def test_an_exact_article_beats_one_that_merely_contains_the_name(monkeypatch):
+    """Several candidates routinely tie at 1.0, because word-containment says
+    yes to any article whose title extends ours. "Kinect Adventures" matched
+    both "Kinect Adventures!" and "Kinect: Disneyland Adventures", and taking
+    the first maximum picked the Disneyland game and its "Open world"."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {
+                "Kinect Adventures video game": [
+                    "Kinect: Disneyland Adventures",
+                    "Kinect Adventures!",
+                ]
+            },
+            {
+                "Kinect: Disneyland Adventures": GAME("[[Open world]]"),
+                "Kinect Adventures!": GAME("[[Adventure]], [[Sports]]"),
+            },
+        ),
+    )
+    out = genre_service.lookup_many(["Kinect Adventures"])
+    assert out["Kinect Adventures"].article == "Kinect Adventures!"
+    assert out["Kinect Adventures"].genres == ["Adventure", "Sports"]
+
+
+def test_the_shorter_title_wins_when_neither_is_exact(monkeypatch):
+    """Between two articles that both contain our name, the one adding least is
+    likeliest to be the game."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Some Game video game": ["Some Game Deluxe Anniversary Edition", "Some Game HD"]},
+            {
+                "Some Game Deluxe Anniversary Edition": GAME("[[Puzzle]]"),
+                "Some Game HD": GAME("[[Platform]]"),
+            },
+        ),
+    )
+    assert genre_service.lookup_many(["Some Game"])["Some Game"].article == "Some Game HD"

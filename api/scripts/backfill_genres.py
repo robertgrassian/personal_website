@@ -103,12 +103,6 @@ OVERRIDES: dict[str, list[str]] = {
     "Bomberman DS": ["Action", "Puzzle"],
     # The infobox lists Role-Playing, which it plainly is not.
     "Untitled Goose Game": ["Puzzle", "Stealth"],
-    # Matches "Kinect: Disneyland Adventures" and takes its "Open world". The
-    # article is "Kinect Adventures!" -- our name lacks the exclamation mark, so
-    # word-containment picks the longer title and nothing rules it out, since
-    # "disneyland" is not a series number. Renaming the row would fix the match;
-    # until then, keep what is there.
-    "Kinect Adventures": ["Adventure", "Sports"],
 }
 
 # Source-level spelling conflicts now live in the genre service
