@@ -120,6 +120,21 @@ _SUFFIX_EXEMPT = frozenset(
 # so an unlabelled genre would otherwise be stored as the literal "Q108919152".
 _BARE_QID = re.compile(r"^Q\d+$")
 
+# Genres where the SOURCE contradicts itself, keyed by the normalized form and
+# mapped to the spelling used by the majority of articles.
+#
+# Not a preference table. Nothing belongs here because a shorter or nicer word
+# exists -- the library deliberately takes Wikipedia's vocabulary, so
+# "role-playing" is stored as-is and is not folded to "RPG". An entry earns its
+# place only when Wikipedia gives one concept two names, which the
+# spelling-insensitive snapping in the backfill cannot reconcile: the Pokemon
+# infoboxes say "Monster tamer" while Palworld's says "monster-taming", and
+# loosening that matcher enough to connect them would also merge "Platform"
+# into "Platformer".
+SOURCE_SYNONYMS = {
+    "monster-taming": "Monster Tamer",
+}
+
 # Words that stay lowercase in the middle of a Title Cased genre.
 _MINOR_WORDS = frozenset({"and", "or", "of", "the", "a", "an", "'em"})
 
@@ -179,7 +194,9 @@ def normalize_genre(raw: str) -> str | None:
         return None
     if lowered in _CASING_OVERRIDES:
         return _CASING_OVERRIDES[lowered]
-    return _title_case(value)
+    # Last, so it matches whatever the earlier rules produced rather than having
+    # to anticipate every raw spelling the source might use.
+    return SOURCE_SYNONYMS.get(lowered, _title_case(value))
 
 
 def normalize_genres(raw: list[str]) -> list[str]:

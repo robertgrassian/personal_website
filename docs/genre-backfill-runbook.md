@@ -107,11 +107,16 @@ attach to nothing.
   per minute per user, so a full library silently recorded 126 of 155 titles as
   "no match". The script calls the IGDB service's internals instead.
 - **Wikipedia contradicts itself on monster-taming.** The Pokemon infoboxes say
-  "Monster tamer", Palworld's says "monster-taming". `SYNONYMS` in
-  `backfill_genres.py` normalizes to the majority spelling. It cannot be deleted
-  in favour of "just take the source's word", because there is no single source
-  word. Note it lives in the script, not in `genres.py`, so a game added through
-  the site whose infobox uses the other spelling will store it verbatim.
+  "Monster tamer", Palworld's says "monster-taming". `SOURCE_SYNONYMS` in
+  `app/services/genres.py` normalizes to the majority spelling. It cannot be
+  deleted in favour of "just take the source's word", because there is no single
+  source word. It lives in the service rather than the backfill script so the
+  add-game flow gets the same answer -- a source conflict is a property of the
+  source, not of one script.<br>
+  That table is **not** a preference map. Nothing belongs in it because a nicer
+  word exists: the library deliberately takes Wikipedia's vocabulary, which is
+  why "role-playing" is stored as-is rather than folded to "RPG". An entry earns
+  its place only when one concept has two names in the source.
 - **An infobox `genre` that is the template's last parameter** used to swallow
   the article prose after it, so Majora's Mask picked up Japanese title text and
   "and quality of life changes" as genres. Fixed in `genres.py`, with a test.

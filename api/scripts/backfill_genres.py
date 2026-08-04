@@ -105,17 +105,8 @@ OVERRIDES: dict[str, list[str]] = {
     "Untitled Goose Game": ["Puzzle", "Stealth"],
 }
 
-# Wikipedia contradicts itself here: the Pokemon infoboxes say "Monster tamer"
-# and Palworld's says "monster-taming". They are one concept, and the
-# spelling-insensitive snap below cannot connect them ("monstertamer" vs
-# "monstertaming" are genuinely different keys) -- loosening it enough to would
-# also merge "Platform" into "Platformer". Left alone they sit in the shelf
-# filter as two options.
-#
-# So this is not a preference map onto a favoured vocabulary; it normalizes a
-# source that disagrees with itself. Wikipedia's majority spelling wins, 4 rows
-# to 1.
-SYNONYMS = {"Monster-taming": "Monster Tamer"}
+# Source-level spelling conflicts now live in the genre service
+# (SOURCE_SYNONYMS), so the add-game flow and this backfill cannot disagree.
 
 
 # Re-exported from the service so the script's confidence score and the
@@ -250,8 +241,7 @@ def build_plan(username: str, force: bool) -> dict:
                 "article": result.article,
                 "qid": result.qid,
                 "proposed": OVERRIDES.get(
-                    game["name"],
-                    [SYNONYMS.get(g, g) for g in snap(result.genres, vocabulary)],
+                    game["name"], snap(result.genres, vocabulary)
                 ),
                 "raw": result.raw_genres,
                 "score": round(score, 3),

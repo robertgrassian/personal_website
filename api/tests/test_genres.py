@@ -478,3 +478,28 @@ def test_genre_field_stops_at_the_end_of_the_template():
 def test_genre_field_still_stops_at_the_next_parameter():
     text = "{{Infobox video game\n| genre = Roguelike\n| modes = Single-player\n}}"
     assert genre_service.parse_infobox_genres(text) == ["Roguelike"]
+
+
+def test_source_spelling_conflicts_are_normalized():
+    """Wikipedia gives one concept two names: the Pokemon infoboxes say
+    "Monster tamer", Palworld's says "monster-taming". Both must land on one
+    value or the shelf filter offers them as separate options."""
+    assert genre_service.normalize_genre("monster-taming") == "Monster Tamer"
+    assert genre_service.normalize_genre("Monster tamer") == "Monster Tamer"
+    assert genre_service.normalize_genres(["Survival", "monster-taming"]) == [
+        "Survival",
+        "Monster Tamer",
+    ]
+
+
+def test_the_synonym_table_is_not_a_preference_map():
+    """It exists only for source self-contradictions. Terms the library might
+    prefer stylistically are deliberately left as the source wrote them."""
+    assert genre_service.normalize_genre("role-playing video game") == "Role-Playing"
+    assert genre_service.normalize_genre("platformer") == "Platformer"
+
+
+def test_conflicting_spellings_on_one_game_collapse_to_one():
+    assert genre_service.normalize_genres(["Monster tamer", "monster-taming"]) == [
+        "Monster Tamer"
+    ]
