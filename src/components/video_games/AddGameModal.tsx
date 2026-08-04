@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { localToday, RATINGS, type IgdbSearchResult, type NewGame, type Rating } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
-import { addGame, addWishlistItem, searchGames } from "@/app/video-games/actions";
+import { addGame, addWishlistItem, lookupGameGenres, searchGames } from "@/app/video-games/actions";
 import { CloseIcon } from "@/components/Icon";
 import { useModalChrome } from "./useModalChrome";
 import { inputClass, labelClass } from "./formStyles";
@@ -43,6 +43,9 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
 
   // null = search step; set = confirm step.
   const [draft, setDraft] = useState<Draft | null>(null);
+  // Status of the Wikipedia/Wikidata genre lookup for the picked game, purely
+  // so the field can say why it changed under the user a moment after picking.
+  const [genreLookup, setGenreLookup] = useState<"idle" | "loading" | "done" | "none">("idle");
 
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +91,8 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
       // Best guess; the field is editable and existing shelves are suggested.
       system: r.platforms[0] ?? "",
       platforms: r.platforms,
+      // IGDB's genres, shown immediately so the field is never empty, then
+      // replaced below by the Wikipedia/Wikidata answer when it arrives.
       genresText: r.genres.join(", "),
       releaseDate: r.releaseDate || null,
       imageUrl: r.coverUrl,
@@ -95,10 +100,35 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
       rating: "",
       starred: false,
     });
+    void fetchGenres(r.name);
+  };
+
+  /** Replace the picked game's genres with the Wikipedia/Wikidata ones.
+   *
+   *  IGDB identifies the game well but describes it poorly: its genre field has
+   *  no roguelike on Hades II and no metroidvania on Animal Well. This is the
+   *  same lookup the genre backfill script uses, so games added here and games
+   *  already on the shelves end up speaking one vocabulary.
+   *
+   *  Deliberately best-effort: a miss or an outage leaves IGDB's genres in
+   *  place rather than blocking the add, and the field stays editable either
+   *  way. `staleName` guards against a slow response for a game the user has
+   *  since navigated away from overwriting the current draft. */
+  const fetchGenres = async (name: string) => {
+    setGenreLookup("loading");
+    const res = await lookupGameGenres(name);
+    setDraft((current) => {
+      if (current === null || current.name !== name) return current;
+      if (!res.ok || res.genres.length === 0) return current;
+      return { ...current, genresText: res.genres.join(", ") };
+    });
+    setGenreLookup(res.ok && res.genres.length > 0 ? "done" : "none");
   };
 
   const startManual = () => {
     setError(null);
+    // Manual entry has no picked game to look up, so no status to report.
+    setGenreLookup("idle");
     setDraft({
       name: query.trim(),
       system: "",
@@ -304,10 +334,24 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
 
               <label className={labelClass}>
                 Genres (comma-separated)
+                {genreLookup === "loading" && (
+                  <span className="ml-2 font-normal text-shelf-text-muted">
+                    checking Wikipedia...
+                  </span>
+                )}
+                {genreLookup === "none" && (
+                  <span className="ml-2 font-normal text-shelf-text-muted">
+                    Wikipedia had no match, showing IGDB&apos;s genres
+                  </span>
+                )}
                 <input
                   type="text"
                   value={draft.genresText}
-                  onChange={(e) => setDraft({ ...draft, genresText: e.target.value })}
+                  onChange={(e) => {
+                    setDraft({ ...draft, genresText: e.target.value });
+                    // Once it's been hand-edited the status note is stale.
+                    setGenreLookup("idle");
+                  }}
                   placeholder="e.g. RPG, Adventure"
                   className={inputClass}
                 />

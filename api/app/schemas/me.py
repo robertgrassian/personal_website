@@ -86,9 +86,23 @@ def strip_required(value: str) -> str:
 
 
 def clean_genres(value: list[str]) -> list[str]:
-    """Trim genres, drop blanks, and cap each length. Shared by GameCreate and
-    WishlistCreate — the wire shape and rules are identical."""
-    cleaned = [g.strip() for g in value if g.strip()]
+    """Trim genres, drop blanks and duplicates, and cap each length. Shared by
+    GameCreate and WishlistCreate — the wire shape and rules are identical.
+
+    Dedupe is case-insensitive and keeps the first spelling seen. Without it
+    "RPG, rpg" stored both and "RPG, RPG" stored it twice, and the shelf filter
+    — which builds its dropdown from a Set of the raw strings — then offered
+    them as separate options. Done here rather than in the modal so it also
+    covers Server Action calls that never touch the UI.
+    """
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for genre in value:
+        stripped = genre.strip()
+        if not stripped or stripped.casefold() in seen:
+            continue
+        seen.add(stripped.casefold())
+        cleaned.append(stripped)
     if any(len(g) > 50 for g in cleaned):
         raise ValueError("each genre must be 50 characters or fewer")
     return cleaned

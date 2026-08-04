@@ -302,60 +302,69 @@ export function GameLibrary({
             />
           )}
 
-          {activeShelves.length === 0 ? (
-            // Three different situations used to share one message. They call for
-            // different things: a brand-new owner needs a way in, a visitor to an
-            // empty library needs to know it's empty rather than broken, and a
-            // filtered-to-nothing shelf needs neither.
-            isNothingHere ? (
-              <div className="mt-24 flex flex-col items-center gap-4 text-center">
-                <p className="text-lg text-shelf-text-muted">
-                  {canEdit
-                    ? view === "played"
-                      ? "Your library is empty."
-                      : "Your wishlist is empty."
-                    : view === "played"
-                      ? "This library is empty."
-                      : "This wishlist is empty."}
+          {/* One padded container around BOTH shelf groups. The pb-24 keeps the
+              last shelf clear of the viewport bottom, so it has to sit on
+              whichever group is genuinely last — when it lived on the grouped
+              block alone, its 6rem landed *between* that block and the Unrated
+              shelf below it, reading as a gap rather than as trailing space. */}
+          <div className="pb-24">
+            {activeShelves.length === 0 ? (
+              // Three different situations used to share one message. They call for
+              // different things: a brand-new owner needs a way in, a visitor to an
+              // empty library needs to know it's empty rather than broken, and a
+              // filtered-to-nothing shelf needs neither.
+              isNothingHere ? (
+                <div className="mt-24 flex flex-col items-center gap-4 text-center">
+                  <p className="text-lg text-shelf-text-muted">
+                    {canEdit
+                      ? view === "played"
+                        ? "Your library is empty."
+                        : "Your wishlist is empty."
+                      : view === "played"
+                        ? "This library is empty."
+                        : "This wishlist is empty."}
+                  </p>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => setAddOpen(true)}
+                      // Site amber accent + text-background, the same pairing the
+                      // login button and the sign-up CTA use, so it reads correctly
+                      // in light and dark.
+                      className="rounded-md bg-link px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 cursor-pointer"
+                    >
+                      {view === "played" ? "Add your first game" : "Add your first wish"}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-24 text-center text-shelf-text-muted text-lg italic">
+                  No games match your filters.
                 </p>
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={() => setAddOpen(true)}
-                    // Site amber accent + text-background, the same pairing the
-                    // login button and the sign-up CTA use, so it reads correctly
-                    // in light and dark.
-                    className="rounded-md bg-link px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 cursor-pointer"
-                  >
-                    {view === "played" ? "Add your first game" : "Add your first wish"}
-                  </button>
-                )}
-              </div>
+              )
             ) : (
-              <p className="mt-24 text-center text-shelf-text-muted text-lg italic">
-                No games match your filters.
-              </p>
-            )
-          ) : (
-            <div className="mt-6 pb-24">
-              {activeShelves.map((shelf) => (
-                <ShelfSection
-                  key={shelf.label}
-                  label={shelf.label}
-                  games={shelf.games}
-                  onEditGame={canEdit ? handleEditGame : undefined}
-                />
-              ))}
-            </div>
-          )}
+              // ShelfSection brings its own mt-10, so this only needs to offset
+              // the group from the filter bar above it.
+              <div className="mt-6">
+                {activeShelves.map((shelf) => (
+                  <ShelfSection
+                    key={shelf.label}
+                    label={shelf.label}
+                    games={shelf.games}
+                    onEditGame={canEdit ? handleEditGame : undefined}
+                  />
+                ))}
+              </div>
+            )}
 
-          {/* Owner-only "Unrated" shelf: every unrated game keeps a case (and a
-              pencil), so clearing a rating is always reversible from the UI.
-              Deliberately outside the filter/group/sort pipeline — it's a small
-              owner utility surface, not part of the public browsing experience. */}
-          {view === "played" && canEdit && unratedGames.length > 0 && (
-            <ShelfSection label="Unrated" games={unratedGames} onEditGame={handleEditGame} />
-          )}
+            {/* Owner-only "Unrated" shelf: every unrated game keeps a case (and a
+                pencil), so clearing a rating is always reversible from the UI.
+                Deliberately outside the filter/group/sort pipeline — it's a small
+                owner utility surface, not part of the public browsing experience. */}
+            {view === "played" && canEdit && unratedGames.length > 0 && (
+              <ShelfSection label="Unrated" games={unratedGames} onEditGame={handleEditGame} />
+            )}
+          </div>
 
           {view === "played" && (
             <StatsPanel

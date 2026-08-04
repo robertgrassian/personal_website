@@ -24,39 +24,60 @@ before that happens.
       `rate_limits` has no FK to `profiles`, so those rows will not cascade and need deleting
       explicitly.
 
-- [ ] **Backfill existing games' genres to IGDB's vocabulary.** Promoted from Backlog
-      2026-07-30: wanted before the site is shared, since the genre filter is a visitor-facing
-      surface and it currently offers a vocabulary nobody else's library will use. The current
-      genres came from the old Wikipedia-scraping `add-game` skill (retired in Phase 3), so
-      they won't match what the new IGDB add flow (`/api/py/igdb/search`) suggests for future
-      games. Normalizing now means future adds match up and skip the manual genre-editing step.
-      Approach: for each library game with an `igdb_id` (or matched by name), pull its IGDB
-      genres and overwrite the row's `genres`. Note: genre editing isn't in the write path yet
-      (`GameUpdate`/`PATCH /me/games/{id}` is rating-only), so this needs either a one-off
-      backfill script in `api/scripts/` (query IGDB per game, update `games.genres` directly)
-      or extending the edit UI to support genres first. Decide whether to also map IGDB's
-      verbose names (e.g. "Role-playing (RPG)") to shorter shelf labels while backfilling.<br>
-      **Do the case/duplicate normalization in the same pass:** `clean_genres`
-      (`api/app/schemas/me.py`) trims and drops blanks but does not dedupe or normalize case,
-      so `"RPG, rpg"` stores both and `"RPG, RPG"` stores it twice — and the filter dropdown,
-      built from `new Set(...)`, then shows them as separate options. Fix belongs in
-      `clean_genres` (dedupe preserving first-seen casing) rather than the modal, so it also
-      covers direct Server Action calls that bypass the UI. Same normalization problem as the
-      backfill, one size larger, so the vocabulary decision above should settle the casing rule
-      too.<br>
-      Related, and worth deciding together: the backlog item about restricting add-game system
-      suggestions to real IGDB platforms notes the same "thread IGDB's vocabulary through the
-      edit UI" question for genres.
+**Run order for the two backfills, decided 2026-07-30:** titles local → genres local →
+titles prod → genres prod. Titles come first in each environment because the informal names
+are what make genre matching fail, and local comes first in each pair because the local DB is
+the rehearsal: a bad plan there costs a re-run, in prod it costs real data. Note the genre
+backfill has **already** been applied locally (41 rows), but that run predates the title
+work, so it gets re-planned and re-applied after titles land rather than being skipped.
 
-- [ ] **The "Unrated" shelf has a big gap above it.** Confirmed cause: the grouped shelves
-      render inside `<div className="mt-6 pb-24">` (`GameLibrary.tsx:316`) and the Unrated
-      shelf sits _outside_ that wrapper (`GameLibrary.tsx:332`), so the wrapper's 6rem bottom
-      padding lands between the last shelf and Unrated. Want it spaced like every other shelf.
-      The `pb-24` is there to keep the last shelf clear of the viewport bottom, so the fix is
-      to move that padding to whichever element is genuinely last (or wrap both shelf groups
-      in one padded container) rather than just deleting it. Overlaps with the backlog item
-      about showing Unrated to visitors: if that one lands and Unrated joins the normal
-      group pipeline, this gap disappears on its own.
+- [ ] **Backfill game TITLES to their canonical IGDB/Wikipedia names — do this BEFORE the
+      genre backfill, in both environments.** Robert's call 2026-07-30, and the measurement
+      supports it:
+      the library stores informal names ("Civ 6", "Hades 2", "Halo CE", "Pokemon Fire Red",
+      "Expedition 33", "Final Fantasy Remake"), and those are the _root cause_ of nearly every
+      row the genre backfill parks as uncertain. Feeding the canonical IGDB name to the same
+      genre lookup moved **7 of 12** sampled problem rows from review straight to auto.<br>
+      _Two rows were not merely uncertain but silently WRONG from the informal name,_ which is
+      the real argument for doing titles first: "Call of Duty Black Ops 2" resolved to **Black
+      Ops 7** at 0.958 confidence, and "Bomberman DS" to **Bomberman 2**. From the IGDB name
+      both are correct. Fixing titles removes a class of wrong answers, not just review work.<br>
+      _Shape:_ mirrors `scripts/backfill_genres.py` (plan / review / apply, one `--user`), but
+      resolves each name through IGDB search and stores `igdb_id` while it is there — the 155
+      seeded rows have none, because `seed.py` never set one, which is what forces every lookup
+      to be by fuzzy name in the first place.<br>
+      _Watch:_ `games` has a unique constraint on `(user_id, name, system)`, so renaming can
+      collide with an existing row (e.g. "Hades 2" -> "Hades II" where a "Hades II" already
+      exists). And renaming changes what the shelves display, so it wants the same review step.<br>
+      _Run local first, then prod_ (step 1 and step 3 of the order above). Local is where the
+      collision behaviour and the review UX get shaken out; prod needs its own plan regardless,
+      since plans are keyed to row ids.
+
+- [ ] **Re-run the genre backfill locally (after titles), then run it against PRODUCTION.**
+      Steps 2 and 4 of the order above. Everything is built; it was applied to the **local** DB
+      once already (41 rows, 2026-07-30), but that was before the title backfill and before the
+      confidence-scoring fix, so the local run is repeated rather than considered done. Prod is
+      untouched. From `api/`, with `DATABASE_URL` pointed at the intended database:
+      `uv run python scripts/backfill_genres.py --plan --user rgrassian --force`, then
+      `--apply`. The script writes to one named user's library only.<br>
+      _Two things to redo, not reuse:_ plans are keyed to row ids, so each environment needs
+      its own `--plan`. And the five hand-unioned rows (Elden Ring, Elden Ring Nightreign, Metroid
+      Dread, Ball x Pit, Wario Ware Touched) were set by hand locally because the infobox is
+      vaguer than the curated term there (it drops "Soulslike" from both Elden Rings and
+      "Metroidvania" from Metroid Dread) — that edit is not in the script and must be repeated.
+      Worth folding into the script as a small override table if it is ever run a third time.<br>
+      _Also still open:_ 36 rows are parked as `needs_review`. Diagnosed 2026-07-30 and they
+      are **not** a source problem — nearly all are informal shelf titles, which is why the
+      title backfill above should run first and is expected to clear most of them.<br>
+      _Confidence scoring was improved in the same pass_ and the 36 predates it, so re-plan
+      before judging the number: `_title_similarity` now folds accents (Pokemon/Pokémon) and
+      treats word-containment as a match, which fixes Wikipedia's **combined** articles
+      ("Pokemon Violet" -> "Pokémon Scarlet and Violet", "Super Smash Bros. for Wii U" ->
+      "...for Nintendo 3DS and Wii U") that a sequence ratio scored 0.62-0.79 and rejected.
+      Containment alone would have been worse than useless — "Hades II" is a superset of
+      "Hades" — so leftover words are rejected when any is a bare number or roman numeral,
+      which is exactly how sequels differ. Platform tokens like "3ds" deliberately do not
+      count.
 
 ## Backlog / Ideas
 
@@ -311,6 +332,46 @@ before that happens.
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Genres re-sourced from Wikipedia, and the add flow wired to the same source**
+      (2026-07-30). Replaces the original plan, which had it backwards: it said to normalize
+      onto _IGDB's_ vocabulary, but IGDB's `genres` field is too coarse to describe a library
+      (Hades II as "Role-playing (RPG), Hack and slash, Adventure, Indie", no roguelike). Built
+      `api/app/services/genres.py`, `GET /api/py/genres/lookup` (own `genre_lookup` rate-limit
+      bucket), the add-game modal calling it on IGDB pick with IGDB genres as the fallback,
+      `api/scripts/backfill_genres.py`, and the `clean_genres` case/duplicate dedupe. Suite
+      175 -> 285.<br>
+      **Wikidata `P136` was tried first and rejected**, which is the thing worth remembering.
+      It is structured and batchable, so it looks like the obvious choice, but it is frequently
+      thin or wrong: Kinect Sports "association football video game", Zelda: The Minish Cap
+      "role-playing video game", Dance Central "music video game". The Wikipedia
+      `{{Infobox video game}}` genre field says Sports, Action-adventure, Rhythm — correct, and
+      already the library's vocabulary, because the original genres were read off those same
+      infoboxes by hand. Switching sources took the backfill from 65 changed rows to 42 and
+      auto-matches from 89 to 118; _fewer_ changes was the signal the source was right. P136
+      survives only as a fallback when an infobox has no genre field.<br>
+      _Two matching bugs the design exists to prevent, both real:_ searching "Zelda: Twilight
+      Princess" ranks the **manga** first (genres "adventure anime and manga"), so a candidate
+      must carry `{{Infobox video game}}`; and taking the first _game_ hit resolved "Hades II"
+      to **Hades** and "Animal Well" to **Animal Crossing**, so survivors are ranked by title
+      similarity. Also: Wikimedia 429s generic User-Agents, and title similarity is a bad
+      confidence signal (0.895 "Octopath Traveller"->"Octopath Traveler II" is wrong, 0.538
+      "Halo CE"->"Halo: Combat Evolved" is right), hence auto-accept only at ~0.97.<br>
+      _A code review caught two more before anything was written:_ `--apply` had no `user_id`
+      filter and would have rewritten **every** user's genres, and the confidently-matched tier
+      was never shown to a human despite being where the real damage was (55 of 68 rows dropped
+      a curated genre). Both fixed; `--review` now walks every changing row.<br>
+      _Deliberately no alias map_ (asked twice): the library takes the source's spelling, so
+      `RPG -> Role-Playing` and `Racing -> Kart Racing`. Only spelling-level variants snap to
+      existing terms, which is what keeps case-only duplicates out of the filter dropdown.
+
+- [x] **Fixed the gap above the "Unrated" shelf** (2026-07-30, `GameLibrary.tsx`). The grouped
+      shelves carried `pb-24` while the Unrated shelf rendered outside that wrapper, so the
+      6rem of trailing space landed _between_ the two groups. Both groups now sit inside one
+      `pb-24` container and the inner block keeps only `mt-6`.<br>
+      _Worth knowing:_ `ShelfSection` supplies its own `mt-10`, so Unrated never needed spacing
+      of its own — deleting the padding outright would have fixed the gap and reintroduced the
+      problem `pb-24` exists to solve (the last shelf jammed against the viewport bottom).
+
 - [x] **Browser pass on the Phase 5 UI** (2026-07-30) — the client-rendered surfaces no test
       reaches: the follow toggle, its absence on your own library and when signed out, "Back to
       my library", the Following/Followers tabs and their links, `?view=followers` deep-links,
@@ -513,5 +574,3 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
 - [x] CRT metadata block is height-stable across channel changes (`components/crt/CrtTv.tsx`) — the auto-cycle used to resize the block per game, and since `.pcrt-stage--compact` is a bottom-aligned flex row, a taller block pushed the TV and the page below it down on a timer. Three causes, all fixed by reserving the worst case instead of truncating: the title now reserves and clamps two lines (`min-h-[2lh] line-clamp-2` — long names wrap into reserved space on mobile rather than growing the block), the system/genres line clamps to one, and the "playing since" line always renders (empty when a game has no open-session date) instead of disappearing
 - [x] Mobile nav no longer cramped by the auth control (`components/Nav.tsx`, `components/AuthButton.tsx`) — type, gaps, and horizontal padding scale down below `sm` only, so desktop is unchanged. `AuthButton` shares the links' responsive scale so the row shrinks as one unit. Row height still comes from `--nav-height`, so `FilterBar`/`StatsPanel` sticky offsets are untouched
 - [x] Game library page now uses the photorealistic CRT (`components/crt/CrtTv.tsx`, relocated out of `currently-playing/` since it's shared by two routes) instead of the wood-paneled TV; `/currently-playing` still works standalone. Old wood TV (`components/video_games/CurrentlyPlaying.tsx`) and its `crt-*` styles in `video-games.css` are left in place, unused
-- [x] Dedicated `/currently-playing` route rendering a photorealistic '90s black-plastic CRT (hand-built CSS/SVG: molded cabinet, phosphor RGB mask, scanlines, roll bar, glare, speaker grille, dials, power LED) with the `▶ PLAY`/`CH 0N` OSD and channel-flicking; permanent "NO SIGNAL" snow when nothing is playing. Unlinked for now (URL-only). New component `components/currently-playing/CrtTv.tsx`; existing library TV untouched
-- [x] Multiple currently-playing games on the CRT: channel-flicking — auto-cycle between in-progress games with a static/noise burst and `CH 0N` OSD, plus a clickable channel knob to advance manually and channel pips in the metadata (CurrentlyPlaying is now a client component)
