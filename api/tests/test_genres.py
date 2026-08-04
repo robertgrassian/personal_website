@@ -460,3 +460,21 @@ def test_confidence_is_symmetric():
     a = genre_service._title_similarity("Hades", "Hades II")
     b = genre_service._title_similarity("Hades II", "Hades")
     assert a == b < 0.97
+
+
+def test_genre_field_stops_at_the_end_of_the_template():
+    """A genre that is the infobox's LAST parameter must not swallow the article
+    prose after it. Majora's Mask picked up Japanese title text and the phrase
+    "and quality of life changes" as genres."""
+    text = (
+        "{{Infobox video game\n| title = X\n| genre = [[Action-adventure]]\n}}\n"
+        "'''The Legend of Zelda: Majora's Mask 3D''' is a game, released "
+        "{{nihongo|ゼルダの伝説|Zeruda}} to positive reviews, with enhanced "
+        "graphics, and quality of life changes.\n"
+    )
+    assert genre_service.parse_infobox_genres(text) == ["Action-adventure"]
+
+
+def test_genre_field_still_stops_at_the_next_parameter():
+    text = "{{Infobox video game\n| genre = Roguelike\n| modes = Single-player\n}}"
+    assert genre_service.parse_infobox_genres(text) == ["Roguelike"]

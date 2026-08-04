@@ -229,10 +229,14 @@ SEARCH_CANDIDATES = 5
 # request that proves it is a game also carries the genres.
 _INFOBOX_VIDEO_GAME = re.compile(r"\{\{\s*Infobox\s+video\s+game", re.IGNORECASE)
 
-# One infobox parameter, ending where the next one begins. Anchoring on "rest
-# of the line" instead leaks the following field: Ball x Pit's genre is
-# followed by "| modes = Single-player", which showed up as a genre.
-_INFOBOX_FIELD = r"^\s*\|\s*{field}s?\s*=\s*(.*?)(?=^\s*\|\s*\w|\Z)"
+# One infobox parameter, ending at the next parameter OR at the end of the
+# template. Both terminators matter and each was found the hard way: anchoring
+# on "rest of the line" leaked the following field (Ball x Pit's genre is
+# followed by "| modes = Single-player"), and stopping only at the next "|"
+# meant a genre that is the template's LAST parameter swallowed the article
+# prose after it -- Majora's Mask picked up Japanese title text and the phrase
+# "and quality of life changes" as genres.
+_INFOBOX_FIELD = r"^\s*\|\s*{field}s?\s*=\s*(.*?)(?=^\s*\|\s*\w|^\s*\}}\}}|\Z)"
 
 _LIST_TEMPLATES = re.compile(
     r"\{\{\s*(?:hlist|plainlist|flatlist|ubl|unbulleted list)\s*\|", re.IGNORECASE

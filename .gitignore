@@ -60,3 +60,4 @@ api/.venv/
 # Genre backfill working file (scripts/backfill_genres.py --plan); a local
 # working artifact, regenerated on demand and never meant to be shared.
 api/scripts/.genre_backfill_plan.json
+api/scripts/.title_backfill_plan.json
