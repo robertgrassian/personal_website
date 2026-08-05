@@ -103,6 +103,11 @@ OVERRIDES: dict[str, list[str]] = {
     "Bomberman DS": ["Action", "Puzzle"],
     # The infobox lists Role-Playing, which it plainly is not.
     "Untitled Goose Game": ["Puzzle", "Stealth"],
+    # "Plants vs. Zombies" is the FRANCHISE article, so its infobox spans the
+    # series: the third-person shooter is Garden Warfare and the card game is
+    # Heroes. The "(primary)" annotation on tower defense is the tell. The
+    # original game is tower defense alone.
+    "Plants vs. Zombies": ["Tower Defense", "Strategy"],
 }
 
 # Source-level spelling conflicts now live in the genre service
