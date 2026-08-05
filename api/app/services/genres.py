@@ -71,13 +71,25 @@ _HTTP_TIMEOUT = 30.0
 # query over ~40 ids can genuinely take this long.
 _SPARQL_TIMEOUT = 90.0
 
-# P136 mixes themes in with genres: Portal 2 carries "post-apocalyptic video
-# game" and "science fiction video game" alongside its real genres. Those
-# describe setting, not form, and would land in the shelf filter's genre
-# dropdown next to "Puzzle". Dropped rather than mapped -- there is no genre
-# they correspond to.
+# Values that describe a game's setting or mood rather than how it plays. They
+# would land in the shelf filter's genre dropdown next to "Puzzle". Dropped
+# rather than mapped -- there is no genre they correspond to.
+#
+# Two groups, because the two sources use different vocabularies. The Wikidata
+# entries only fire on the P136 fallback path; the infobox entries are the ones
+# that matter day to day, and the list was empty of them until "Iyashikei"
+# (Japanese "healing" media -- a mood) turned up on Animal Crossing.
+#
+# Necessarily incomplete: this is a free-text field written by many hands, so
+# treat it as a filter that gets extended when something new shows up, not as a
+# closed set that can be got right once.
 THEME_VALUES = frozenset(
     {
+        # From Wikipedia infoboxes. Only add terms that actually turn up and
+        # describe mood rather than play: "Horror" and "Cozy" read like themes
+        # but are real genres, and guessing deletes genuine ones unseen.
+        "iyashikei",
+        # From Wikidata P136, used only when an infobox has no genre.
         "cyberpunk video game",
         "science fiction video game",
         "post-apocalyptic video game",
@@ -90,6 +102,11 @@ THEME_VALUES = frozenset(
         "video game with lgbt character",
     }
 )
+
+# Wikipedia editors annotate the genre field: "Tower defense game (primary)".
+# Stripped before anything else, or the annotation becomes part of the stored
+# genre and sits in the filter beside the un-annotated spelling of the same one.
+_TRAILING_PAREN = re.compile(r"\s*\([^)]*\)\s*$")
 
 # Wikidata spells most genres "<genre> video game" ("puzzle video game",
 # "role-playing video game"). The library spells them "Puzzle", "RPG". Stripping
@@ -113,6 +130,11 @@ _SUFFIX_EXEMPT = frozenset(
         "serious game",
         "browser game",
         "idle game",
+        # "Card game" is the noun; stripping leaves "Digital Collectible Card".
+        "collectible card game",
+        "digital collectible card game",
+        "trading card game",
+        "card game",
     }
 )
 
@@ -174,7 +196,7 @@ def _title_case(value: str) -> str:
 def normalize_genre(raw: str) -> str | None:
     """One raw Wikidata genre label -> the form stored on a game, or None when
     it should be dropped entirely (a theme, or empty)."""
-    value = " ".join(raw.split()).strip()
+    value = _TRAILING_PAREN.sub("", " ".join(raw.split()).strip())
     if not value:
         return None
     lowered = value.lower()

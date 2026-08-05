@@ -546,3 +546,44 @@ def test_the_shorter_title_wins_when_neither_is_exact(monkeypatch):
         ),
     )
     assert genre_service.lookup_many(["Some Game"])["Some Game"].article == "Some Game HD"
+
+
+def test_editor_annotations_are_stripped():
+    """Wikipedia editors annotate the field: "Tower defense game (primary)".
+    Left in, the annotation becomes part of the genre and sits in the filter
+    beside the un-annotated spelling of the same one."""
+    assert genre_service.normalize_genre("Tower defense game (primary)") == "Tower Defense"
+    assert genre_service.normalize_genre("Puzzle (secondary)") == "Puzzle"
+    assert genre_service.normalize_genres(
+        ["Tower defense game (primary)", "Tower defense"]
+    ) == ["Tower Defense"]
+
+
+def test_mood_descriptors_are_dropped():
+    """Wikipedia infoboxes mix in values describing how a game feels rather
+    than how it plays. Animal Crossing carries "Iyashikei" (Japanese "healing"
+    media) next to Social simulation."""
+    assert genre_service.normalize_genre("Iyashikei") is None
+    assert genre_service.normalize_genres(["Social simulation", "Iyashikei"]) == [
+        "Social Simulation"
+    ]
+
+
+@pytest.mark.parametrize(
+    "genre",
+    ["Horror", "Psychological horror", "Survival horror", "Cozy", "Adventure"],
+)
+def test_real_genres_that_read_like_themes_are_kept(genre):
+    """Guarding against padding the theme list with plausible neighbours: these
+    sound like moods and are genres, and the library already shelves Survival
+    Horror."""
+    assert genre_service.normalize_genre(genre) is not None
+
+
+def test_card_game_keeps_its_noun():
+    """"Game" is part of the name here; stripping leaves "Digital Collectible
+    Card", which is not a thing."""
+    assert (
+        genre_service.normalize_genre("Digital collectible card game")
+        == "Digital Collectible Card Game"
+    )
