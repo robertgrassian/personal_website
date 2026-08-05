@@ -57,6 +57,3 @@ api/.venv/
 # committed env template — names + placeholders only (.env* above ignores the rest)
 !.env.example
 
-# Genre backfill working file (scripts/backfill_genres.py --plan); a local
-# working artifact, regenerated on demand and never meant to be shared.
-api/scripts/.genre_backfill_plan.json

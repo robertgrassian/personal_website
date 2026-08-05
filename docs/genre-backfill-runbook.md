@@ -63,7 +63,8 @@ DATABASE_URL="$PROD_DB" uv run python scripts/backfill_genres.py --apply
 ```
 
 `--plan` is the only step that uses the network. `--show` and `--apply` read the
-cached plan at `scripts/.genre_backfill_plan.json` (gitignored).
+cached plan it writes to `scripts/.genre_backfill_plan.json`. That file is a local
+working artifact: delete it when you are done, and do not commit it.
 
 There is **no hand-editing step**. Rows where Wikipedia is vaguer or wrong live
 in `OVERRIDES` in the script, and the one vocabulary alias in `SYNONYMS`. That
