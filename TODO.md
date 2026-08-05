@@ -38,17 +38,72 @@ before that happens.
       (Elden Ring, Metroid Dread, Ball x Pit, …) now live in `OVERRIDES` in
       `backfill_genres.py`, having been re-entered by hand three times.
 
-- [ ] **Give the add-game IGDB search fuzzy matching.** Noticed 2026-08-03 while building the
-      title backfill: `/api/py/igdb/search` passes the query straight to IGDB's `search`, which
-      is unforgiving of the way people actually type. "Civ 6" returns nothing at all, and
-      "Pokemon Fire Red" returns _Pokémon Fire Red Extended_, a ROM hack, rather than the game.
-      That was tolerable while the only caller was a picker a human reads, but it is the same
-      weakness that made a name-based backfill unreliable.<br>
-      Not urgent and deliberately deferred: the add flow shows you the candidates and you pick
-      one, so a poor first hit costs a second look rather than wrong data. Worth doing when
-      search is used somewhere nobody is watching.
+- [ ] **Improve the add-game IGDB search: more results, and let the query name the console.**
+      Two complaints, one surface.<br>
+      _Too few results (raised 2026-08-04):_ searching "star fox" does not surface the Switch 2
+      remake at all. `SEARCH_LIMIT = 10` (`api/app/services/igdb.py:34`) with no paging, and a
+      franchise that old fills ten slots with older entries. Want either a longer list, a
+      next-page arrow in the picker, or both. Paging means adding `offset` to the Apicalypse
+      body (`api/app/services/igdb.py:186-189`), threading it through
+      `GET /api/py/igdb/search` and the `searchGames` Server Action, and holding a page number
+      in `AddGameModal`. Watch the rate limit: every page is another charge against the
+      `igdb_search` bucket, so a next-page click must not fire on debounce the way typing does.<br>
+      _Typing the platform should work:_ "star fox switch 2" currently returns nothing, because
+      the whole string goes to IGDB's `search`, which matches game names only. Fix is to split
+      recognized platform words off the query and turn them into a `where platforms = (...)`
+      clause instead of leaving them in the search text. That needs a platform-name lookup
+      (IGDB's `/platforms`, cached), and it is the same IGDB-name-vs-shelf-label mapping the
+      "restrict the add-game system suggestions" backlog item needs — do them together.<br>
+      _Fuzzy matching, noticed 2026-08-03 while building the title backfill:_ the raw pass-through
+      is also unforgiving of the way people type. "Civ 6" returns nothing, and "Pokemon Fire Red"
+      returns _Pokémon Fire Red Extended_, a ROM hack, rather than the game.<br>
+      Not urgent as data-correctness goes: the add flow shows you the candidates and you pick
+      one, so a poor first hit costs a second look rather than wrong data. It is a real
+      dead-end for the user only when the game is not in the list at all, which is the Star Fox
+      case above and the reason this moved from "someday" to a concrete ask.
 
 ## Backlog / Ideas
+
+- [ ] **Make viewing a game's details better: the back of the case truncates genres and there is
+      no way to see the rest. Design is part of this task.** `GameCaseBack.tsx:70-77` renders
+      `genres.slice(0, 2)` plus a `+N more` span — and that span is plain text, not a control,
+      so the hidden genres are genuinely unreachable from the shelf. Genres are the only
+      truncated field: name is `line-clamp-2`, system and release date render in full.<br>
+      _Two things to hold onto, per the ask:_ keep the rotating case, it is the best thing on
+      the page; and do **not** solve this by cramming more onto the back face, which is a
+      ~2.5rem-tall text column at `text-[10px]` and already full.<br>
+      _One idea, not a decision:_ a "more" affordance on the back that opens a popup with the
+      full metadata. Worth considering alongside it: a hover/long-press tooltip listing all
+      genres, a details panel that slides in beside the shelf rather than over it, or making
+      each genre a chip that sets the genre filter (which turns the overflow problem into a
+      navigation feature).<br>
+      _The wiring detail that will bite whichever design wins:_ the entire case is one
+      `<button>` with `onClick={() => setFlipped(f => !f)}` (`GameCase.tsx:97-102`), so a
+      clickable element **inside** the back face is a button nested in a button, which is
+      invalid HTML and unreliable for keyboard and screen-reader users. `GameCase` already
+      solved this once for the owner pencil: it is an absolutely-positioned **sibling** of the
+      flip button, not a child (there is a comment at `GameCase.tsx:88-92` and again at
+      `:206-211` explaining exactly that). Follow that pattern, or make the back face stop
+      being a button. Whatever opens must also work on touch, where there is no hover.<br>
+      Related: the "notes / play journal" backlog item below wants a bigger reading surface for
+      per-game data too, so a details view built here is likely where notes end up living.
+
+- [ ] **Library filter search should fuzzy match, but stay strict** — specifically, typing
+      "pokemon" should find the games spelled with the accented "é". Today
+      `passesBaseFilters` (`src/components/video_games/pipeline.ts:27`) is a plain
+      `name.toLowerCase().includes(search.toLowerCase())`, so it is case-insensitive and nothing
+      more: "Pokémon" is invisible to "pokemon", and every shelf goes empty while you are
+      halfway through typing the word.<br>
+      _The cheap fix covers the actual complaint:_ normalize both sides with
+      `.normalize("NFD").replace(/\p{Diacritic}/gu, "")` before comparing, which folds é→e, ō→o
+      and the rest without pulling in a fuzzy-match library. That alone solves Pokémon, Ōkami
+      and Pikmin-style titles.<br>
+      _"Strict" is the constraint worth keeping._ True fuzzy matching (Levenshtein / trigram /
+      fuse.js) starts returning things you did not ask for on a two-character query, which is
+      worse than a miss on a library you know by heart. If it goes past diacritic folding, keep
+      it to punctuation/whitespace insensitivity ("resident evil 4" matching "Resident Evil 4:
+      Remake", ignoring `:` and `-`) rather than edit distance. Same helper should apply to the
+      wishlist filter, which shares this function.
 
 - [ ] **Document the database restore procedure.** Supabase takes daily backups on the free
       tier, so the backup half is already handled and needs no work; what does not exist is any

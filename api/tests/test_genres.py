@@ -587,3 +587,63 @@ def test_card_game_keeps_its_noun():
         genre_service.normalize_genre("Digital collectible card game")
         == "Digital Collectible Card Game"
     )
+
+
+def test_genre_field_stops_when_the_infobox_closes_on_the_same_line():
+    """The very common shape: "}}" trailing the last value rather than starting
+    its own line. Requiring a line-initial "}}" missed it, and the field ran on
+    into the article lead -- the same swallow the Majora's Mask fix targeted."""
+    text = (
+        "{{Infobox video game\n| title = X\n| genre = [[Action game|Action]]}}\n\n"
+        "'''Some Game''' is a 2019 game.\nIt was praised for its music.\n"
+        "A sequel followed in 2021.\n"
+    )
+    assert genre_service.parse_infobox_genres(text) == ["Action"]
+
+
+def test_inner_templates_still_parse_after_the_brace_terminator():
+    """Terminating at any "}}" must not break {{hlist|...}}, whose own closer
+    lands exactly where the value ends."""
+    text = "{{Infobox video game\n| genre = {{hlist|[[Puzzle video game|Puzzle]]|Platform}}\n}}"
+    assert genre_service.parse_infobox_genres(text) == ["Puzzle", "Platform"]
+
+
+def test_genre_count_is_capped():
+    """A malformed or vandalized article must not write hundreds of genres."""
+    many = ", ".join(f"Genre{i}" for i in range(60))
+    text = "{{Infobox video game\n| genre = " + many + "\n| modes = X\n}}"
+    assert len(genre_service.parse_infobox_genres(text)) == genre_service.MAX_GENRES
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        # Minor words stay lowercase inside hyphenated compounds too, or
+        # "point-and-click" becomes "Point-And-Click".
+        ("point-and-click", "Point-and-Click"),
+        ("point-and-click adventure game", "Point-and-Click Adventure"),
+        # ...while ordinary hyphenated compounds still capitalize both halves.
+        ("turn-based strategy", "Turn-Based Strategy"),
+        ("action-adventure", "Action-Adventure"),
+    ],
+)
+def test_title_case_handles_minor_words_inside_hyphens(raw, expected):
+    assert genre_service.normalize_genre(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        # Infoboxes pluralize; without this the plural is a second dropdown entry.
+        ("role-playing games", "Role-Playing"),
+        ("puzzle games", "Puzzle"),
+        ("racing video games", "Racing"),
+    ],
+)
+def test_plural_qualifiers_are_stripped_too(raw, expected):
+    assert genre_service.normalize_genre(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["game", "games", "video game", "video games"])
+def test_a_bare_qualifier_is_not_a_genre(raw):
+    assert genre_service.normalize_genre(raw) is None

@@ -95,6 +95,10 @@ def clean_genres(value: list[str]) -> list[str]:
     them as separate options. Done here rather than in the modal so it also
     covers Server Action calls that never touch the UI.
     """
+    # Bounds what a malformed source can write. GameCreate/WishlistCreate also
+    # cap the list at 10, but the backfill writes through here without going via
+    # those schemas, so the guard belongs on the shared validator too.
+    MAX_GENRES = 12
     cleaned: list[str] = []
     seen: set[str] = set()
     for genre in value:
@@ -105,7 +109,7 @@ def clean_genres(value: list[str]) -> list[str]:
         cleaned.append(stripped)
     if any(len(g) > 50 for g in cleaned):
         raise ValueError("each genre must be 50 characters or fewer")
-    return cleaned
+    return cleaned[:MAX_GENRES]
 
 
 class GameUpdate(CamelModel):

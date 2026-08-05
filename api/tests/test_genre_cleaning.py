@@ -46,3 +46,9 @@ def test_applied_through_the_game_create_schema():
     """The validator is wired into the real payload, not just callable."""
     game = GameCreate(name="Hades II", system="PC", genres=["Roguelike", "roguelike", " RPG "])
     assert game.genres == ["Roguelike", "RPG"]
+
+
+def test_genre_count_is_capped():
+    """The backfill writes through clean_genres without going via
+    GameCreate, so the count guard has to live here too."""
+    assert len(clean_genres([f"Genre{i}" for i in range(40)])) == 12

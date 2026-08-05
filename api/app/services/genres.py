@@ -62,14 +62,19 @@ WIKIDATA_SPARQL = "https://query.wikidata.org/sparql"
 # descriptive one naming the tool and a contact. A bare httpx default gets this
 # rate-limited within a dozen requests.
 USER_AGENT = (
-    "personal-website-genre-backfill/1.0 "
+    "personal-website-genre-lookup/1.0 "
     "(https://github.com/robertgrassian/personal_website)"
 )
 
-_HTTP_TIMEOUT = 30.0
-# WDQS is a shared public endpoint and slower than a normal API; a batched
-# query over ~40 ids can genuinely take this long.
-_SPARQL_TIMEOUT = 90.0
+# Deliberately tight. These phases run serially, so the per-request ceilings add
+# up, and the live endpoint is called from a browser that gives up at 15s -- a
+# generous timeout here buys nothing and holds a threadpool slot the whole time,
+# which stalls every other sync endpoint once enough pile up. MediaWiki answers
+# in well under a second normally.
+_HTTP_TIMEOUT = 8.0
+# WDQS is a shared public endpoint and slower than a normal API; it only runs on
+# the fallback path, where a batch covers up to 50 ids.
+_SPARQL_TIMEOUT = 20.0
 
 # Values that describe a game's setting or mood rather than how it plays. They
 # would land in the shelf filter's genre dropdown next to "Puzzle". Dropped
@@ -112,7 +117,7 @@ _TRAILING_PAREN = re.compile(r"\s*\([^)]*\)\s*$")
 # "role-playing video game"). The library spells them "Puzzle", "RPG". Stripping
 # the qualifier is what makes the two vocabularies line up without a per-genre
 # alias table.
-_QUALIFIER_SUFFIXES = (" video game", " game")
+_QUALIFIER_SUFFIXES = (" video games", " video game", " games", " game")
 
 # ...but for these, "game" is part of the genre's name rather than a qualifier,
 # so stripping it produces nonsense ("god game" -> "God", "board game" ->
@@ -188,8 +193,18 @@ def _title_case(value: str) -> str:
             out.append(part.lower())
             continue
         # Capitalize each hyphen-separated component ("turn-based" ->
-        # "Turn-Based") without touching the separators themselves.
-        out.append("-".join(seg[:1].upper() + seg[1:] for seg in part.split("-")))
+        # "Turn-Based") without touching the separators themselves. Minor words
+        # stay lowercase here too, or "point-and-click" becomes
+        # "Point-And-Click".
+        segments = part.split("-")
+        out.append(
+            "-".join(
+                seg.lower()
+                if i > 0 and seg.lower() in _MINOR_WORDS
+                else seg[:1].upper() + seg[1:]
+                for i, seg in enumerate(segments)
+            )
+        )
     return " ".join(out)
 
 
@@ -200,7 +215,7 @@ def normalize_genre(raw: str) -> str | None:
     if not value:
         return None
     lowered = value.lower()
-    if lowered in THEME_VALUES:
+    if lowered in THEME_VALUES or lowered in {"game", "video game", "games", "video games"}:
         return None
     # An item with no English label comes back as its raw Q-id; storing that as
     # a genre would put "Q108919152" in the shelf filter.
@@ -236,9 +251,12 @@ def normalize_genres(raw: list[str]) -> list[str]:
 
 @dataclass
 class GenreLookup:
-    """What the cascade found for one title. ``article`` and ``qid`` are kept
-    so a backfill can show its work and record the identifiers, making a second
-    run exact instead of another fuzzy search."""
+    """What the cascade found for one title.
+
+    ``article`` is kept so a backfill can show which page it actually read,
+    which is the difference between a plausible answer and a checkable one.
+    ``qid`` is only populated on the Wikidata fallback path, since an infobox
+    hit never needs to resolve one."""
 
     query: str
     article: str | None = None
@@ -268,14 +286,23 @@ SEARCH_CANDIDATES = 5
 # request that proves it is a game also carries the genres.
 _INFOBOX_VIDEO_GAME = re.compile(r"\{\{\s*Infobox\s+video\s+game", re.IGNORECASE)
 
-# One infobox parameter, ending at the next parameter OR at the end of the
-# template. Both terminators matter and each was found the hard way: anchoring
-# on "rest of the line" leaked the following field (Ball x Pit's genre is
-# followed by "| modes = Single-player"), and stopping only at the next "|"
-# meant a genre that is the template's LAST parameter swallowed the article
-# prose after it -- Majora's Mask picked up Japanese title text and the phrase
-# "and quality of life changes" as genres.
-_INFOBOX_FIELD = r"^\s*\|\s*{field}s?\s*=\s*(.*?)(?=^\s*\|\s*\w|^\s*\}}\}}|\Z)"
+# One infobox parameter, ending at the next parameter, at ANY "}}", or at the
+# end of the text. Each terminator was found the hard way:
+#   - "rest of the line" leaked the following field (Ball x Pit's genre is
+#     followed by "| modes = Single-player").
+#   - stopping only at the next "|" meant a genre that is the template's last
+#     parameter swallowed the article prose after it, so Majora's Mask picked up
+#     Japanese title text and "and quality of life changes" as genres.
+#   - requiring "}}" at the START of a line missed the very common case of the
+#     template closing on the same line as its last value, which swallowed the
+#     article lead the same way.
+# Matching "}}" anywhere is safe because the closer of an inner template (an
+# {{hlist|...}} of genres) ends the value at exactly the right place too.
+_INFOBOX_FIELD = r"^\s*\|\s*{field}s?\s*=\s*(.*?)(?=^\s*\|\s*\w|\}}\}}|\Z)"
+
+# Guards against a malformed or vandalized article turning into hundreds of
+# genres. Nothing legitimately lists more than a handful.
+MAX_GENRES = 12
 
 _LIST_TEMPLATES = re.compile(
     r"\{\{\s*(?:hlist|plainlist|flatlist|ubl|unbulleted list)\s*\|", re.IGNORECASE
@@ -445,7 +472,7 @@ def parse_infobox_genres(wikitext: str) -> list[str]:
         # very long run is prose, not a genre.
         if cleaned and len(cleaned) < 50 and "=" not in cleaned:
             out.append(cleaned)
-    return out
+    return out[:MAX_GENRES]
 
 
 _BATCH_QUERY = """
@@ -533,19 +560,15 @@ def lookup_many(titles: list[str], *, on_progress=None) -> dict[str, GenreLookup
 
     # Phase 4: Wikidata only for what the infobox could not answer -- some
     # articles carry the template but leave `genre` empty.
-    _fill_gaps_from_wikidata(results, wikitext)
+    _fill_gaps_from_wikidata(results)
     return results
 
 
-def _fill_gaps_from_wikidata(
-    results: dict[str, GenreLookup], wikitext: dict[str, str]
-) -> None:
+def _fill_gaps_from_wikidata(results: dict[str, GenreLookup]) -> None:
     """Backstop for articles whose infobox has no usable genre field."""
     gaps = [r for r in results.values() if r.article and not r.genres]
     if not gaps:
         return
-    # The Wikidata id is in the same lead wikitext we already fetched only for
-    # some pages, so resolve the handful of gaps by article title instead.
     try:
         qids = _qids_for_articles([r.article for r in gaps if r.article])
     except Exception:
@@ -612,7 +635,7 @@ def lookup_for_user(db: Session, user_id: uuid.UUID, name: str) -> GenreLookup:
         RATE_LIMIT_BUCKET,
         RATE_LIMIT_MAX,
         RATE_LIMIT_WINDOW,
-        f"Too many genre lookups — limited to {RATE_LIMIT_MAX} per minute. "
+        f"Too many genre lookups: limited to {RATE_LIMIT_MAX} per minute. "
         "Wait a moment and try again.",
     )
     return lookup_many([name])[name]

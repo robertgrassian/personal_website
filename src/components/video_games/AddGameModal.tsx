@@ -46,6 +46,10 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
   // Status of the Wikipedia/Wikidata genre lookup for the picked game, purely
   // so the field can say why it changed under the user a moment after picking.
   const [genreLookup, setGenreLookup] = useState<"idle" | "loading" | "done" | "none">("idle");
+  // Bumped per lookup, and again when the field is hand-edited, so a slow
+  // response knows it has been superseded. Same counter pattern the IGDB search
+  // above uses.
+  const genreSeq = useRef(0);
 
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -112,17 +116,34 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
    *
    *  Deliberately best-effort: a miss or an outage leaves IGDB's genres in
    *  place rather than blocking the add, and the field stays editable either
-   *  way. `staleName` guards against a slow response for a game the user has
-   *  since navigated away from overwriting the current draft. */
+   *  way.
+   *
+   *  Two things it must not do, both of which it once did. It must not clobber
+   *  what the user has typed: the lookup takes a second or two, which is long
+   *  enough to start editing the genre field, so a response is discarded unless
+   *  it is still the newest one AND the field has not been touched since. And
+   *  it must not strand the status label on "checking" when the call throws --
+   *  the Server Action can reject on the 15s timeout, which left it spinning
+   *  forever. */
   const fetchGenres = async (name: string) => {
+    const seq = ++genreSeq.current;
     setGenreLookup("loading");
-    const res = await lookupGameGenres(name);
-    setDraft((current) => {
-      if (current === null || current.name !== name) return current;
-      if (!res.ok || res.genres.length === 0) return current;
-      return { ...current, genresText: res.genres.join(", ") };
-    });
-    setGenreLookup(res.ok && res.genres.length > 0 ? "done" : "none");
+    try {
+      const res = await lookupGameGenres(name);
+      // A newer pick has superseded this response, or the user has edited the
+      // field by hand (which resets the status to "idle").
+      if (seq !== genreSeq.current) return;
+      let applied = false;
+      setDraft((current) => {
+        if (current === null || current.name !== name) return current;
+        if (!res.ok || res.genres.length === 0) return current;
+        applied = true;
+        return { ...current, genresText: res.genres.join(", ") };
+      });
+      setGenreLookup(applied ? "done" : "none");
+    } catch {
+      setGenreLookup("none");
+    }
   };
 
   const startManual = () => {
@@ -349,7 +370,9 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
                   value={draft.genresText}
                   onChange={(e) => {
                     setDraft({ ...draft, genresText: e.target.value });
-                    // Once it's been hand-edited the status note is stale.
+                    // Hand-editing both stales the status note and cancels any
+                    // in-flight lookup, so it cannot overwrite the typing.
+                    genreSeq.current += 1;
                     setGenreLookup("idle");
                   }}
                   placeholder="e.g. RPG, Adventure"
