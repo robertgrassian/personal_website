@@ -280,9 +280,14 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
         role="dialog"
         aria-modal="true"
         aria-label={heading}
-        className="relative w-full max-w-md max-h-[85vh] overflow-y-auto rounded-lg border border-shelf-plank bg-shelf-bg p-5 shadow-2xl"
+        // A flex column capped at 80% of the viewport, with only the middle
+        // section scrolling: the heading, the search box and the buttons under
+        // it stay put however many results come back. dvh rather than vh so
+        // mobile browser chrome is excluded from the 80%. The cap is a max, so
+        // a two-result search still renders a short dialog.
+        className="relative flex max-h-[80dvh] w-full max-w-md flex-col rounded-lg border border-shelf-plank bg-shelf-bg p-5 shadow-2xl"
       >
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex shrink-0 items-start justify-between gap-3">
           <h2 className="text-shelf-text font-semibold leading-snug">{heading}</h2>
           <button
             type="button"
@@ -306,18 +311,25 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
               maxLength={100}
               placeholder="Search IGDB…"
               aria-label="Search IGDB for a game"
-              className={`${inputClass} mt-4`}
+              className={`${inputClass} mt-4 shrink-0`}
             />
 
-            {searching && <p className="mt-3 text-xs text-shelf-text-muted italic">Searching…</p>}
+            {searching && (
+              <p className="mt-3 shrink-0 text-xs text-shelf-text-muted italic">Searching…</p>
+            )}
             {searchError && (
-              <p role="alert" className="mt-3 text-xs text-red-500 dark:text-red-400">
+              <p role="alert" className="mt-3 shrink-0 text-xs text-red-500 dark:text-red-400">
                 {searchError}
               </p>
             )}
 
+            {/* The only scrolling part of the dialog. `min-h-0` is the
+                non-obvious half: a flex item's default `min-height: auto`
+                refuses to shrink below its content, so without it the list
+                would push the dialog past its max height instead of
+                scrolling inside it. */}
             {!searching && results !== null && (
-              <ul className="mt-3 flex flex-col gap-1">
+              <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
                 {results.length === 0 && (
                   <li className="text-xs text-shelf-text-muted italic">No matches.</li>
                 )}
@@ -361,7 +373,7 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
                 type="button"
                 onClick={loadMore}
                 disabled={loadingMore}
-                className="mt-3 w-full rounded-md border border-shelf-plank py-1.5 text-xs text-shelf-text-muted hover:bg-shelf-input hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                className="mt-3 w-full shrink-0 rounded-md border border-shelf-plank py-1.5 text-xs text-shelf-text-muted hover:bg-shelf-input hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
               >
                 {loadingMore ? "Loading…" : "Show more results"}
               </button>
@@ -370,13 +382,15 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
             <button
               type="button"
               onClick={startManual}
-              className="mt-4 text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer"
+              // self-start because a flex column stretches its children:
+              // without it this underlined link would span the full width.
+              className="mt-4 shrink-0 self-start text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer"
             >
               Can&rsquo;t find it? Add it manually
             </button>
           </>
         ) : (
-          <div className="mt-4">
+          <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
             {draft.imageUrl && (
               <Image
                 src={draft.imageUrl}
@@ -499,30 +513,34 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
                 </label>
               )}
             </div>
+          </div>
+        )}
 
-            <div className="mt-4 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={save}
-                disabled={saveDisabled}
-                className="rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
-              >
-                {target === "library" ? "Add to library" : "Add to wishlist"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setDraft(null)}
-                disabled={isPending}
-                className="text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50"
-              >
-                Back to search
-              </button>
-            </div>
+        {/* Pinned below the scroll area, so "Add to library" is reachable
+            without scrolling to the bottom of a long form. */}
+        {draft !== null && (
+          <div className="mt-4 flex shrink-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={save}
+              disabled={saveDisabled}
+              className="rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+            >
+              {target === "library" ? "Add to library" : "Add to wishlist"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDraft(null)}
+              disabled={isPending}
+              className="text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Back to search
+            </button>
           </div>
         )}
 
         {error && (
-          <p role="alert" className="mt-3 text-xs text-red-500 dark:text-red-400">
+          <p role="alert" className="mt-3 shrink-0 text-xs text-red-500 dark:text-red-400">
             {error}
           </p>
         )}
