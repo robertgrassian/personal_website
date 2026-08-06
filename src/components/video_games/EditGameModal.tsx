@@ -1,14 +1,14 @@
 "use client";
 
-import { useOptimistic, useRef, useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { localToday, RATINGS, type Game, type Rating } from "@/lib/games";
 import { deleteGame, logSession, stopSession, updateGameRating } from "@/app/video-games/actions";
-import { CloseIcon } from "@/components/Icon";
-import { useModalChrome } from "./useModalChrome";
+import { ModalShell } from "./ModalShell";
+import { fieldClass, labelClass } from "./formStyles";
 
-const dateInputClass =
-  "bg-shelf-input border border-shelf-input-border text-shelf-input-text text-sm rounded " +
-  "px-2 py-1 focus:outline-none focus:ring-1 focus:ring-shelf-input-ring";
+// Date inputs size to their content rather than filling the row, so they take
+// the shared tokens plus their own padding instead of `inputClass`.
+const dateInputClass = `${fieldClass} px-2 py-1`;
 
 type EditGameModalProps = {
   game: Game;
@@ -41,12 +41,6 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   const [logEnd, setLogEnd] = useState("");
   // deleteStep = the remove confirm (with session count) is showing.
   const [deleteStep, setDeleteStep] = useState(false);
-
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-
-  // Scroll lock, focus-into/restore, and Escape-to-close — shared across the
-  // owner dialogs.
-  useModalChrome(onClose, closeButtonRef);
 
   const rate = (next: Rating | "") => {
     if (game.id === undefined) return;
@@ -121,37 +115,14 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   const sessionCount = game.sessionCount ?? 0;
 
   return (
-    // z-50: above StatsPanel's backdrop/panel (z-30/z-40 range).
-    <div className="fixed inset-0 z-50 grid place-items-center p-4">
-      {/* Backdrop — clicking it closes the dialog */}
-      <div
-        aria-hidden="true"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-      />
-
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Edit ${game.name}`}
-        className="relative w-full max-w-sm rounded-lg border border-shelf-plank bg-shelf-bg p-5 shadow-2xl"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="text-shelf-text font-semibold leading-snug">{game.name}</h2>
-            <p className="text-shelf-text-muted text-xs mt-0.5">{game.system}</p>
-          </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="shrink-0 rounded-md p-1 text-shelf-text-muted hover:text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer"
-          >
-            <CloseIcon className="w-5 h-5" aria-hidden />
-          </button>
-        </div>
-
+    <ModalShell
+      label={`Edit ${game.name}`}
+      title={game.name}
+      subtitle={game.system}
+      onClose={onClose}
+      error={error}
+    >
+      <>
         <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
           Rating
         </p>
@@ -278,7 +249,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
         </button>
         {logOpen && (
           <div className="mt-2 flex flex-wrap items-end gap-2">
-            <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label">
+            <label className={labelClass}>
               From
               <input
                 type="date"
@@ -288,7 +259,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
                 className={dateInputClass}
               />
             </label>
-            <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label">
+            <label className={labelClass}>
               To
               <input
                 type="date"
@@ -359,13 +330,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
             </div>
           )}
         </div>
-
-        {error && (
-          <p role="alert" className="mt-3 text-xs text-red-500 dark:text-red-400">
-            {error}
-          </p>
-        )}
-      </div>
-    </div>
+      </>
+    </ModalShell>
   );
 }

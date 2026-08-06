@@ -12,8 +12,8 @@ import {
   type GroupBy,
   type SortOrder,
   viewConfig,
+  parseView,
   VIEW_CONFIG,
-  VALID_VIEW,
   DEFAULT_VIEW,
 } from "./libraryConfig";
 
@@ -24,8 +24,6 @@ type UrlState = {
   view: View;
   groupBy: GroupBy;
   sortOrder: SortOrder;
-  filters: Filters;
-  wishlistFilters: WishlistFilters;
   activeFilters: Filters;
   activeWishlistFilters: WishlistFilters;
   validGroupBy: readonly GroupBy[];
@@ -77,8 +75,7 @@ export function useGameLibraryUrlState(): UrlState {
 
   // --- Derived URL values ---
 
-  const rawView = searchParams.get("view");
-  const view: View = VALID_VIEW.includes(rawView as View) ? (rawView as View) : DEFAULT_VIEW;
+  const view = parseView(searchParams.get("view"));
   const config = viewConfig(view);
 
   const rawGroupBy = searchParams.get("groupBy");
@@ -91,33 +88,28 @@ export function useGameLibraryUrlState(): UrlState {
     ? (rawSortOrder as SortOrder)
     : config.defaultSortOrder;
 
-  const filters = useMemo<Filters>(
-    () => ({
-      search: searchParams.get("search") ?? "",
-      rating: (searchParams.get("rating") ?? "") as Rating | "",
-      system: searchParams.get("system") ?? "",
-      genre: searchParams.get("genre") ?? "",
-    }),
-    [searchParams]
-  );
+  // Read as primitives, and key the memos below on those rather than on the
+  // searchParams object. Keying on the object made these memos miss on any URL
+  // change at all: the debounced ?search landing 300ms after the user stopped
+  // typing minted a new object, so the entire downstream pipeline (five
+  // "available" sets plus the filter/group/sort pass) re-ran and produced
+  // byte-identical results. Changing groupBy or sortOrder, which touch no
+  // filter, invalidated them too. Strings compare by value, so both are now
+  // cache hits.
+  const rating = (searchParams.get("rating") ?? "") as Rating | "";
+  const system = searchParams.get("system") ?? "";
+  const genre = searchParams.get("genre") ?? "";
 
-  const wishlistFilters = useMemo<WishlistFilters>(
-    () => ({
-      search: searchParams.get("search") ?? "",
-      system: searchParams.get("system") ?? "",
-      genre: searchParams.get("genre") ?? "",
-    }),
-    [searchParams]
+  // Use live searchInput (pre-debounce) so shelves update per keystroke. The
+  // URL's own ?search is deliberately not read here: it lags by the debounce,
+  // and these are the only filter objects anything consumes.
+  const activeFilters = useMemo<Filters>(
+    () => ({ search: searchInput, rating, system, genre }),
+    [searchInput, rating, system, genre]
   );
-
-  // Use live searchInput (pre-debounce) so shelves update per keystroke.
-  const activeFilters = useMemo(
-    () => ({ ...filters, search: searchInput }),
-    [filters, searchInput]
-  );
-  const activeWishlistFilters = useMemo(
-    () => ({ ...wishlistFilters, search: searchInput }),
-    [wishlistFilters, searchInput]
+  const activeWishlistFilters = useMemo<WishlistFilters>(
+    () => ({ search: searchInput, system, genre }),
+    [searchInput, system, genre]
   );
 
   // --- Setters ---
@@ -128,11 +120,7 @@ export function useGameLibraryUrlState(): UrlState {
       const params = new URLSearchParams(searchParams.toString());
       // Read view from the URL (not closure) so defaults resolve against the
       // live value, even mid-transition.
-      const rawViewInUrl = params.get("view");
-      const currentView: View = VALID_VIEW.includes(rawViewInUrl as View)
-        ? (rawViewInUrl as View)
-        : DEFAULT_VIEW;
-      const currentConfig = viewConfig(currentView);
+      const currentConfig = viewConfig(parseView(params.get("view")));
       const isDefault =
         value === "" ||
         (key === "groupBy" && value === currentConfig.defaultGroupBy) ||
@@ -222,8 +210,6 @@ export function useGameLibraryUrlState(): UrlState {
     view,
     groupBy,
     sortOrder,
-    filters,
-    wishlistFilters,
     activeFilters,
     activeWishlistFilters,
     validGroupBy: config.validGroupBy,

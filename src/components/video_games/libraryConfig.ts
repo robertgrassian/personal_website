@@ -94,3 +94,12 @@ export const DEFAULT_VIEW: GameView = "played";
 export function viewConfig(view: View): ViewConfig {
   return VIEW_CONFIG[isGameView(view) ? view : DEFAULT_VIEW];
 }
+
+// Validate a raw ?view value. Lives here with VALID_VIEW and DEFAULT_VIEW
+// because four separate places read that param — the URL-state hook (twice),
+// the library count, and the follow-count links — and each used to repeat the
+// check with its own `as View` casts. Those casts are what this contains: the
+// assertion happens once, inside the guard that justifies it.
+export function parseView(raw: string | null): View {
+  return VALID_VIEW.includes(raw as View) ? (raw as View) : DEFAULT_VIEW;
+}

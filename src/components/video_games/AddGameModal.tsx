@@ -5,8 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { localToday, RATINGS, type IgdbSearchResult, type NewGame, type Rating } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
 import { addGame, addWishlistItem, lookupGameGenres, searchGames } from "@/app/video-games/actions";
-import { CloseIcon } from "@/components/Icon";
-import { useModalChrome } from "./useModalChrome";
+import { ModalShell } from "./ModalShell";
 import { inputClass, labelClass } from "./formStyles";
 
 // The confirm form's working copy: NewGame except genres, which stay a raw
@@ -60,10 +59,9 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  // Handed to ModalShell as the initial focus target, so this dialog opens
+  // ready to type instead of focused on its close button.
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Scroll lock, focus-into/restore, and Escape-to-close.
-  useModalChrome(onClose, searchInputRef);
 
   // Debounced search. The timeout collapses bursts of keystrokes into one
   // request; the sequence counter drops responses that arrive after a newer
@@ -273,36 +271,21 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
   const heading = target === "library" ? "Add a game" : "Add to wishlist";
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4">
-      <div
-        aria-hidden="true"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-      />
-
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={heading}
-        // A flex column capped at 80% of the viewport, with only the middle
-        // section scrolling: the heading, the search box and the buttons under
-        // it stay put however many results come back. dvh rather than vh so
-        // mobile browser chrome is excluded from the 80%. The cap is a max, so
-        // a two-result search still renders a short dialog.
-        className="relative flex max-h-[80dvh] w-full max-w-md flex-col rounded-lg border border-shelf-plank bg-shelf-bg p-5 shadow-2xl"
-      >
-        <div className="flex shrink-0 items-start justify-between gap-3">
-          <h2 className="text-shelf-text font-semibold leading-snug">{heading}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="shrink-0 rounded-md p-1 text-shelf-text-muted hover:text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer"
-          >
-            <CloseIcon className="w-5 h-5" aria-hidden />
-          </button>
-        </div>
-
+    <ModalShell
+      label={heading}
+      title={heading}
+      onClose={onClose}
+      error={error}
+      // A flex column capped at 80% of the viewport, with only the middle
+      // section scrolling: the heading, the search box and the buttons under
+      // it stay put however many results come back. dvh rather than vh so
+      // mobile browser chrome is excluded from the 80%. The cap is a max, so
+      // a two-result search still renders a short dialog.
+      panelClassName="flex max-h-[80dvh] w-full max-w-md flex-col"
+      // The search box, not the close button: this dialog opens ready to type.
+      initialFocusRef={searchInputRef}
+    >
+      <>
         {draft === null ? (
           <>
             <input
@@ -562,13 +545,7 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
             </div>
           </>
         )}
-
-        {error && (
-          <p role="alert" className="mt-3 shrink-0 text-xs text-red-500 dark:text-red-400">
-            {error}
-          </p>
-        )}
-      </div>
-    </div>
+      </>
+    </ModalShell>
   );
 }

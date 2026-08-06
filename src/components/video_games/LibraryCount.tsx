@@ -6,7 +6,7 @@
 // round-trip, so switching tabs flips the number instantly.
 
 import { useSearchParams } from "next/navigation";
-import { DEFAULT_VIEW, VALID_VIEW, isGameView, type View } from "./libraryConfig";
+import { isGameView, parseView } from "./libraryConfig";
 
 type LibraryCountProps = {
   playedCount: number;
@@ -14,10 +14,7 @@ type LibraryCountProps = {
 };
 
 export function LibraryCount({ playedCount, wishlistCount }: LibraryCountProps) {
-  // Same validation the URL-state hook uses: fall back to the default view for
-  // a missing or malformed ?view value.
-  const raw = useSearchParams().get("view");
-  const view: View = VALID_VIEW.includes(raw as View) ? (raw as View) : DEFAULT_VIEW;
+  const view = parseView(useSearchParams().get("view"));
   // Nothing to headline on a people tab: the profile header states both follow
   // counts permanently, so repeating one here would just say it twice.
   if (!isGameView(view)) return null;
