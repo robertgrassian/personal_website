@@ -18,8 +18,9 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
+from app.core.text import fold_text
 from app.repositories import igdb as igdb_repo
-from app.schemas.igdb import IgdbSearchResult
+from app.schemas.igdb import IgdbSearchResponse, IgdbSearchResult
 from app.services import rate_limit
 
 RATE_LIMIT_BUCKET = "igdb_search"
@@ -172,19 +173,11 @@ def _run_query(
     return response.json()
 
 
-def _normalize_alias(text: str) -> str:
-    """Fold a platform name or a slice of a search query into the same shape,
-    so "Xbox Series X|S" and "xbox series x s" compare equal: lowercase,
-    punctuation to spaces, runs of whitespace collapsed."""
-    lowered = "".join(c if c.isalnum() else " " for c in text.lower())
-    return " ".join(lowered.split())
-
-
 def _add_alias(aliases: dict[str, set[int]], raw: str, platform_id: int) -> None:
     """Record one way of naming a platform, unless it is unusable as a query
     suffix. Aliases with no letter are dropped: Nintendo 64's "64" would
     otherwise swallow the tail of "Star Fox 64" and hide the 3DS remake."""
-    alias = _normalize_alias(raw)
+    alias = fold_text(raw)
     if len(alias) < 2 or not any(c.isalpha() for c in alias):
         return
     if len(alias.split()) > _MAX_PLATFORM_WORDS:
@@ -211,7 +204,7 @@ def _build_platform_aliases(rows: list[dict]) -> dict[str, tuple[int, ...]]:
         for alt in (row.get("alternative_name") or "").split(","):
             _add_alias(collected, alt, platform_id)
         # "Nintendo Switch 2" -> "switch 2", which is how people actually type it.
-        normalized = _normalize_alias(name)
+        normalized = fold_text(name)
         for prefix in _PLATFORM_VENDOR_PREFIXES:
             if normalized.startswith(prefix):
                 _add_alias(collected, normalized[len(prefix) :], platform_id)
@@ -260,7 +253,7 @@ def _split_platform_suffix(
     """
     words = query.split()
     for take in range(min(_MAX_PLATFORM_WORDS, len(words) - 1), 0, -1):
-        candidate = _normalize_alias(" ".join(words[-take:]))
+        candidate = fold_text(" ".join(words[-take:]))
         platform_ids = aliases.get(candidate)
         if platform_ids:
             return " ".join(words[:-take]), platform_ids
@@ -370,7 +363,7 @@ def _fuzzy_body(query: str, platform_ids: tuple[int, ...]) -> str:
 
 def search_games(
     db: Session, user_id: uuid.UUID, query: str, page: int = 1
-) -> list[IgdbSearchResult]:
+) -> IgdbSearchResponse:
     """Search IGDB on behalf of an authenticated caller.
 
     Order matters: the rate limit is charged before any upstream call, so a
@@ -391,27 +384,35 @@ def search_games(
         "Wait a moment and try again.",
     )
 
-    offset = (max(page, 1) - 1) * SEARCH_LIMIT
-    aliases = _get_platform_aliases(db, settings)
-    name_query, platform_ids = _split_platform_suffix(query.strip(), aliases)
+    offset = (page - 1) * SEARCH_LIMIT
+    stripped = query.strip()
+    # A one-word query cannot have a platform suffix (splitting it would leave
+    # nothing to search for), so it must not pay for the alias fetch.
+    aliases = _get_platform_aliases(db, settings) if " " in stripped else {}
+    name_query, platform_ids = _split_platform_suffix(stripped, aliases)
 
     # Tried in order, stopping at the first that returns anything. Each step
     # loosens the previous one, so the common case still costs a single call.
-    bodies = []
-    if platform_ids:
-        bodies.append(_search_body(name_query, platform_ids, offset))
-        # The suffix may have been part of the title after all ("Star Fox NES"
-        # is a real PC fan game), so fall back to searching the whole string.
-        bodies.append(_search_body(query, (), offset))
-    else:
-        bodies.append(_search_body(name_query, (), offset))
+    # Both fallbacks are first-page only: reaching one on a later page would
+    # mean the strategy behind the earlier pages ran out, and appending a
+    # different strategy's results there splices two unrelated lists together.
+    # Neither is pageable, hence pageable=False on the ones that can't be.
+    attempts = [(_search_body(name_query, platform_ids, offset), True)]
     if page == 1:
-        # Paging past a fuzzy fallback would splice two different result sets
-        # together, so it only ever backs the first page.
-        bodies.append(_fuzzy_body(name_query, platform_ids))
+        if platform_ids:
+            # The suffix may have been part of the title after all ("Star Fox
+            # NES" is a real PC fan game), so retry with the whole string.
+            attempts.append((_search_body(query, (), offset), True))
+        attempts.append((_fuzzy_body(name_query, platform_ids), False))
 
-    for body in bodies:
+    for body, pageable in attempts:
         raw = _run_query(db, settings, body)
         if raw:
-            return _parse_results(_rank_rows(raw))
-    return []
+            return IgdbSearchResponse(
+                results=_parse_results(_rank_rows(raw)),
+                # Counted from the rows IGDB sent, not the parsed ones: a
+                # malformed row that _parse_results drops would otherwise look
+                # like the end of the results and hide the "show more" button.
+                has_more=pageable and len(raw) == SEARCH_LIMIT and page < MAX_PAGE,
+            )
+    return IgdbSearchResponse(results=[], has_more=False)

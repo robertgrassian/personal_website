@@ -2,15 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState, useTransition } from "react";
-import {
-  IGDB_MAX_PAGE,
-  IGDB_PAGE_SIZE,
-  localToday,
-  RATINGS,
-  type IgdbSearchResult,
-  type NewGame,
-  type Rating,
-} from "@/lib/games";
+import { localToday, RATINGS, type IgdbSearchResult, type NewGame, type Rating } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
 import { addGame, addWishlistItem, lookupGameGenres, searchGames } from "@/app/video-games/actions";
 import { CloseIcon } from "@/components/Icon";
@@ -49,15 +41,11 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   // Paging state for "show more". `page` is the deepest page already loaded
-  // (results accumulate rather than replace), `hasMore` is set from the last
-  // response: a page shorter than IGDB_PAGE_SIZE means IGDB has run out.
+  // (results accumulate rather than replace); `hasMore` is the API's answer,
+  // not something derived here, since only it knows the page cap.
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  // Indexes in `results` where an appended page begins, so the list can draw a
-  // rule at the seam. Kept as indexes rather than nesting results per page:
-  // every other consumer (dedupe, rendering, keys) wants one flat array.
-  const [batchStarts, setBatchStarts] = useState<number[]>([]);
 
   // null = search step; set = confirm step.
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -83,11 +71,14 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
   const searchSeq = useRef(0);
   useEffect(() => {
     const trimmed = query.trim();
-    // Editing the query starts a new result set, so any page-2 fetch in
-    // flight is abandoned here rather than appending to the wrong search.
+    // Editing the query starts a new result set, so a "show more" fetch in
+    // flight is abandoned here. Bumping the counter now, rather than leaving
+    // it to the debounce timeout below, is what actually abandons it: a
+    // response landing inside the 350ms gap would otherwise pass its own
+    // staleness check and write page 2 over what is about to be page 1.
+    searchSeq.current += 1;
     setLoadingMore(false);
     setPage(1);
-    setBatchStarts([]);
     if (trimmed.length < 2) {
       setResults(null);
       setSearching(false);
@@ -97,13 +88,15 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
     }
     setSearching(true);
     const timeout = setTimeout(async () => {
-      const seq = ++searchSeq.current;
+      // No second bump: the effect body above already invalidated everything
+      // in flight, and nothing else can fire between then and here.
+      const seq = searchSeq.current;
       const res = await searchGames(trimmed);
       if (seq !== searchSeq.current) return; // a newer search superseded this one
       setSearching(false);
       if (res.ok) {
         setResults(res.results);
-        setHasMore(res.results.length === IGDB_PAGE_SIZE && IGDB_MAX_PAGE > 1);
+        setHasMore(res.hasMore);
         setSearchError(null);
       } else {
         setResults(null);
@@ -125,7 +118,7 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
   const loadMore = async () => {
     const trimmed = query.trim();
     const next = page + 1;
-    if (loadingMore || !hasMore || next > IGDB_MAX_PAGE) return;
+    if (loadingMore || !hasMore) return;
     const seq = ++searchSeq.current;
     setLoadingMore(true);
     const res = await searchGames(trimmed, next);
@@ -137,7 +130,7 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
       return;
     }
     setPage(next);
-    setHasMore(res.results.length === IGDB_PAGE_SIZE && next < IGDB_MAX_PAGE);
+    setHasMore(res.hasMore);
     // Deduped by igdbId: the fallback queries on the API side can surface a
     // game already shown, and a repeated key would break the list.
     //
@@ -148,9 +141,7 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
     const seen = new Set(shown.map((r) => r.igdbId));
     const fresh = res.results.filter((r) => !seen.has(r.igdbId));
     if (fresh.length === 0) return;
-    // Appending never moves a row that is already on screen; the seam is
-    // where the newly ranked batch starts.
-    setBatchStarts((starts) => [...starts, shown.length]);
+    // Appending only, so no row already on screen moves.
     setResults([...shown, ...fresh]);
   };
 
@@ -340,28 +331,25 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
                 non-obvious half: a flex item's default `min-height: auto`
                 refuses to shrink below its content, so without it the list
                 would push the dialog past its max height instead of
-                scrolling inside it. */}
-            {!searching && results !== null && (
-              <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+                scrolling inside it.
+
+                Rendered while a new search is in flight rather than being
+                unmounted and rebuilt: the previous matches dim in place, so
+                the list no longer collapses under you mid-word, and React
+                reconciles up to 100 rows of cover art instead of remounting
+                them on every keystroke. */}
+            {results !== null && (
+              <ul
+                aria-busy={searching}
+                className={`mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto transition-opacity ${
+                  searching ? "opacity-50" : ""
+                }`}
+              >
                 {results.length === 0 && (
                   <li className="text-xs text-shelf-text-muted italic">No matches.</li>
                 )}
-                {results.map((r, i) => (
+                {results.map((r) => (
                   <li key={r.igdbId}>
-                    {/* Each page is ranked on its own, so an appended batch
-                        starts over at "main games first" and reads like the
-                        list re-sorted itself. The rule says what actually
-                        happened: this is the next batch, not a reshuffle. */}
-                    {batchStarts.includes(i) && (
-                      <div
-                        role="separator"
-                        className="mb-1 flex items-center gap-2 pt-2 text-[10px] tracking-wide text-shelf-text-muted uppercase"
-                      >
-                        <span aria-hidden="true" className="h-px flex-1 bg-shelf-plank" />
-                        next batch
-                        <span aria-hidden="true" className="h-px flex-1 bg-shelf-plank" />
-                      </div>
-                    )}
                     <button
                       type="button"
                       onClick={() => pickResult(r)}
@@ -423,153 +411,156 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
             </button>
           </>
         ) : (
-          <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
-            {draft.imageUrl && (
-              <Image
-                src={draft.imageUrl}
-                alt={`Cover of ${draft.name}`}
-                width={80}
-                height={107}
-                className="mb-3 h-[107px] w-20 rounded object-cover"
-              />
-            )}
-
-            <div className="flex flex-col gap-3">
-              <label className={labelClass}>
-                Name
-                <input
-                  type="text"
-                  value={draft.name}
-                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                  className={inputClass}
+          // Fragment, not one element: the scrolling body and the pinned
+          // buttons have to be flex siblings of the dialog for only the body
+          // to scroll.
+          <>
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
+              {draft.imageUrl && (
+                <Image
+                  src={draft.imageUrl}
+                  alt={`Cover of ${draft.name}`}
+                  width={80}
+                  height={107}
+                  className="mb-3 h-[107px] w-20 rounded object-cover"
                 />
-              </label>
+              )}
 
-              <label className={labelClass}>
-                {target === "library" ? "System" : "System (optional)"}
-                <input
-                  type="text"
-                  value={draft.system}
-                  onChange={(e) => setDraft({ ...draft, system: e.target.value })}
-                  list="known-systems"
-                  placeholder="e.g. SNES, PS5"
-                  className={inputClass}
-                />
-              </label>
-              {/* Native autocomplete: shelf systems appear as suggestions
+              <div className="flex flex-col gap-3">
+                <label className={labelClass}>
+                  Name
+                  <input
+                    type="text"
+                    value={draft.name}
+                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                    className={inputClass}
+                  />
+                </label>
+
+                <label className={labelClass}>
+                  {target === "library" ? "System" : "System (optional)"}
+                  <input
+                    type="text"
+                    value={draft.system}
+                    onChange={(e) => setDraft({ ...draft, system: e.target.value })}
+                    list="known-systems"
+                    placeholder="e.g. SNES, PS5"
+                    className={inputClass}
+                  />
+                </label>
+                {/* Native autocomplete: shelf systems appear as suggestions
                   under the input, but any free-text value is allowed. */}
-              <datalist id="known-systems">
-                {systemSuggestions.map((s) => (
-                  <option key={s} value={s} />
-                ))}
-              </datalist>
+                <datalist id="known-systems">
+                  {systemSuggestions.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
 
-              <label className={labelClass}>
-                Genres (comma-separated)
-                {genreLookup === "loading" && (
-                  <span className="ml-2 font-normal text-shelf-text-muted">
-                    checking Wikipedia...
-                  </span>
-                )}
-                {genreLookup === "none" && (
-                  <span className="ml-2 font-normal text-shelf-text-muted">
-                    Wikipedia had no match, showing IGDB&apos;s genres
-                  </span>
-                )}
-                <input
-                  type="text"
-                  value={draft.genresText}
-                  onChange={(e) => {
-                    setDraft({ ...draft, genresText: e.target.value });
-                    // Hand-editing both stales the status note and cancels any
-                    // in-flight lookup, so it cannot overwrite the typing.
-                    genreSeq.current += 1;
-                    setGenreLookup("idle");
-                  }}
-                  placeholder="e.g. RPG, Adventure"
-                  className={inputClass}
-                />
-              </label>
+                <label className={labelClass}>
+                  Genres (comma-separated)
+                  {genreLookup === "loading" && (
+                    <span className="ml-2 font-normal text-shelf-text-muted">
+                      checking Wikipedia...
+                    </span>
+                  )}
+                  {genreLookup === "none" && (
+                    <span className="ml-2 font-normal text-shelf-text-muted">
+                      Wikipedia had no match, showing IGDB&apos;s genres
+                    </span>
+                  )}
+                  <input
+                    type="text"
+                    value={draft.genresText}
+                    onChange={(e) => {
+                      setDraft({ ...draft, genresText: e.target.value });
+                      // Hand-editing both stales the status note and cancels any
+                      // in-flight lookup, so it cannot overwrite the typing.
+                      genreSeq.current += 1;
+                      setGenreLookup("idle");
+                    }}
+                    placeholder="e.g. RPG, Adventure"
+                    className={inputClass}
+                  />
+                </label>
 
-              <label className={labelClass}>
-                Release date
-                {/* Capped at today for the library (you can't have played a
+                <label className={labelClass}>
+                  Release date
+                  {/* Capped at today for the library (you can't have played a
                     game that isn't out yet) but uncapped for the wishlist,
                     where unreleased games are the normal case. */}
-                <input
-                  type="date"
-                  value={draft.releaseDate ?? ""}
-                  max={target === "library" ? localToday() : undefined}
-                  onChange={(e) => setDraft({ ...draft, releaseDate: e.target.value || null })}
-                  className={inputClass}
-                />
-              </label>
-
-              {target === "library" ? (
-                <div>
-                  <p className={labelClass}>Rating (optional)</p>
-                  <div className="mt-1 grid grid-cols-5 gap-1.5">
-                    {RATINGS.map((r) => {
-                      const active = r.name === draft.rating;
-                      return (
-                        <button
-                          key={r.letter}
-                          type="button"
-                          aria-pressed={active}
-                          onClick={() =>
-                            setDraft({ ...draft, rating: active ? "" : (r.name as Rating) })
-                          }
-                          title={active ? "Remove rating" : `Rate ${r.name}`}
-                          aria-label={active ? "Remove rating" : `Rate ${r.name}`}
-                          className={`rounded-md border py-1.5 text-sm font-bold transition-colors cursor-pointer ${
-                            active
-                              ? "border-transparent text-black/80"
-                              : "border-shelf-plank hover:bg-shelf-input"
-                          }`}
-                          style={active ? { backgroundColor: r.color } : { color: r.color }}
-                        >
-                          {r.letter}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <label className="flex items-center gap-2 text-sm text-shelf-text cursor-pointer">
                   <input
-                    type="checkbox"
-                    checked={draft.starred}
-                    onChange={(e) => setDraft({ ...draft, starred: e.target.checked })}
-                    className="accent-amber-500"
+                    type="date"
+                    value={draft.releaseDate ?? ""}
+                    max={target === "library" ? localToday() : undefined}
+                    onChange={(e) => setDraft({ ...draft, releaseDate: e.target.value || null })}
+                    className={inputClass}
                   />
-                  Star it (priority wishlist)
                 </label>
-              )}
-            </div>
-          </div>
-        )}
 
-        {/* Pinned below the scroll area, so "Add to library" is reachable
-            without scrolling to the bottom of a long form. */}
-        {draft !== null && (
-          <div className="mt-4 flex shrink-0 items-center gap-3">
-            <button
-              type="button"
-              onClick={save}
-              disabled={saveDisabled}
-              className="rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
-            >
-              {target === "library" ? "Add to library" : "Add to wishlist"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setDraft(null)}
-              disabled={isPending}
-              className="text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50"
-            >
-              Back to search
-            </button>
-          </div>
+                {target === "library" ? (
+                  <div>
+                    <p className={labelClass}>Rating (optional)</p>
+                    <div className="mt-1 grid grid-cols-5 gap-1.5">
+                      {RATINGS.map((r) => {
+                        const active = r.name === draft.rating;
+                        return (
+                          <button
+                            key={r.letter}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() =>
+                              setDraft({ ...draft, rating: active ? "" : (r.name as Rating) })
+                            }
+                            title={active ? "Remove rating" : `Rate ${r.name}`}
+                            aria-label={active ? "Remove rating" : `Rate ${r.name}`}
+                            className={`rounded-md border py-1.5 text-sm font-bold transition-colors cursor-pointer ${
+                              active
+                                ? "border-transparent text-black/80"
+                                : "border-shelf-plank hover:bg-shelf-input"
+                            }`}
+                            style={active ? { backgroundColor: r.color } : { color: r.color }}
+                          >
+                            {r.letter}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-2 text-sm text-shelf-text cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={draft.starred}
+                      onChange={(e) => setDraft({ ...draft, starred: e.target.checked })}
+                      className="accent-amber-500"
+                    />
+                    Star it (priority wishlist)
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {/* Pinned below the scroll area, so "Add to library" is reachable
+                without scrolling to the bottom of a long form. */}
+            <div className="mt-4 flex shrink-0 items-center gap-3">
+              <button
+                type="button"
+                onClick={save}
+                disabled={saveDisabled}
+                className="rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+              >
+                {target === "library" ? "Add to library" : "Add to wishlist"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDraft(null)}
+                disabled={isPending}
+                className="text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Back to search
+              </button>
+            </div>
+          </>
         )}
 
         {error && (

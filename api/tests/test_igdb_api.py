@@ -173,7 +173,7 @@ def test_search_forbidden_in_preview(test_user, monkeypatch: pytest.MonkeyPatch)
 def test_search_returns_parsed_results(test_user, igdb_env) -> None:
     response = client_as(test_user).get(SEARCH_URL, params={"q": "zelda"})
     assert response.status_code == 200
-    (result,) = response.json()
+    (result,) = response.json()["results"]
     assert result == {
         "igdbId": 1022,
         "name": "The Legend of Zelda: A Link Between Worlds",
@@ -191,7 +191,7 @@ def test_sparse_igdb_rows_become_empty_fields(test_user, igdb_env) -> None:
     igdb_env["igdb_responses"].append(httpx.Response(200, json=[{"id": 7, "name": "Obscurity"}]))
     response = client_as(test_user).get(SEARCH_URL, params={"q": "obscurity"})
     assert response.status_code == 200
-    (result,) = response.json()
+    (result,) = response.json()["results"]
     assert result == {
         "igdbId": 7,
         "name": "Obscurity",
@@ -220,7 +220,7 @@ def test_already_absolute_cover_url_is_not_double_prefixed(test_user, igdb_env) 
         )
     )
     response = client_as(test_user).get(SEARCH_URL, params={"q": "absolute"})
-    (result,) = response.json()
+    (result,) = response.json()["results"]
     assert result["coverUrl"] == "https://images.igdb.com/igdb/image/upload/t_cover_big/x.jpg"
 
 
@@ -233,7 +233,7 @@ def test_rows_missing_id_or_name_are_skipped(test_user, igdb_env) -> None:
     )
     response = client_as(test_user).get(SEARCH_URL, params={"q": "partial"})
     assert response.status_code == 200
-    assert [r["name"] for r in response.json()] == ["Fine"]
+    assert [r["name"] for r in response.json()["results"]] == ["Fine"]
 
 
 @requires_db
@@ -248,7 +248,7 @@ def test_null_valued_fields_are_tolerated(test_user, igdb_env) -> None:
     )
     response = client_as(test_user).get(SEARCH_URL, params={"q": "nulls"})
     assert response.status_code == 200
-    (result,) = response.json()
+    (result,) = response.json()["results"]
     assert result["platforms"] == []
     assert result["genres"] == []
     assert result["coverUrl"] == ""
@@ -277,7 +277,7 @@ def test_results_are_ranked_by_game_type(test_user, igdb_env) -> None:
         )
     )
     response = client_as(test_user).get(SEARCH_URL, params={"q": "fire red"})
-    assert [r["name"] for r in response.json()] == [
+    assert [r["name"] for r in response.json()["results"]] == [
         "Some Main Game",
         "Another Main Game",
         "FireRed Version",
@@ -335,7 +335,7 @@ def test_platform_filtered_miss_falls_back_to_the_whole_query(test_user, igdb_en
     igdb_env["igdb_responses"].append(httpx.Response(200, json=[]))
     response = client_as(test_user).get(SEARCH_URL, params={"q": "star fox switch"})
     assert response.status_code == 200
-    assert len(response.json()) == 1
+    assert len(response.json()["results"]) == 1
     first, second = igdb_env["bodies"][0], igdb_env["bodies"][1]
     assert "where platforms = (130);" in first
     assert 'search "star fox switch";' in second
@@ -345,9 +345,18 @@ def test_platform_filtered_miss_falls_back_to_the_whole_query(test_user, igdb_en
 @requires_db
 def test_platform_list_is_fetched_once_and_cached(test_user, igdb_env) -> None:
     client = client_as(test_user)
-    client.get(SEARCH_URL, params={"q": "zelda"})
-    client.get(SEARCH_URL, params={"q": "mario"})
+    client.get(SEARCH_URL, params={"q": "zelda ocarina"})
+    client.get(SEARCH_URL, params={"q": "super mario"})
     assert igdb_env["platforms"] == 1
+
+
+@requires_db
+def test_single_word_query_skips_the_platform_fetch(test_user, igdb_env) -> None:
+    # One word cannot carry a platform suffix, so a cold process must not pay
+    # for the /platforms round trip before searching for it.
+    response = client_as(test_user).get(SEARCH_URL, params={"q": "zelda"})
+    assert response.status_code == 200
+    assert igdb_env["platforms"] == 0
 
 
 @requires_db
@@ -371,7 +380,7 @@ def test_empty_search_falls_back_to_alternative_names(test_user, igdb_env) -> No
     igdb_env["igdb_responses"].append(httpx.Response(200, json=[]))
     response = client_as(test_user).get(SEARCH_URL, params={"q": "civ 6"})
     assert response.status_code == 200
-    assert len(response.json()) == 1
+    assert len(response.json()["results"]) == 1
     fallback = igdb_env["bodies"][1]
     assert 'name ~ *"civ 6"*' in fallback
     assert 'alternative_names.name ~ *"civ 6"*' in fallback
@@ -382,7 +391,7 @@ def test_page_two_offsets_and_skips_the_fuzzy_fallback(test_user, igdb_env) -> N
     igdb_env["igdb_responses"].append(httpx.Response(200, json=[]))
     response = client_as(test_user).get(SEARCH_URL, params={"q": "star fox", "page": 2})
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json()["results"] == []
     # Exactly one call: paging past an exhausted search must not splice in a
     # second, differently-ordered result set.
     assert igdb_env["igdb"] == 1
@@ -390,9 +399,62 @@ def test_page_two_offsets_and_skips_the_fuzzy_fallback(test_user, igdb_env) -> N
 
 
 @requires_db
+def test_page_two_does_not_fall_back_to_the_unfiltered_query(test_user, igdb_env) -> None:
+    # A platform-filtered search that runs out at page 2 must stop there.
+    # Retrying the whole string unfiltered would append matches for the literal
+    # "star fox switch 2" under a list of Switch 2 games.
+    igdb_env["igdb_responses"].append(httpx.Response(200, json=[]))
+    response = client_as(test_user).get(SEARCH_URL, params={"q": "star fox switch 2", "page": 2})
+    assert response.status_code == 200
+    assert response.json()["results"] == []
+    assert igdb_env["igdb"] == 1
+    assert "where platforms = (508);" in igdb_env["last_body"]
+
+
+@requires_db
 def test_page_one_has_no_offset(test_user, igdb_env) -> None:
     client_as(test_user).get(SEARCH_URL, params={"q": "zelda"})
     assert "offset 0;" in igdb_env["last_body"]
+
+
+@requires_db
+def test_has_more_is_true_only_on_a_full_pageable_page(test_user, igdb_env) -> None:
+    full_page = [{"id": i, "name": f"Game {i}"} for i in range(igdb_service.SEARCH_LIMIT)]
+    igdb_env["igdb_responses"].append(httpx.Response(200, json=full_page))
+    assert client_as(test_user).get(SEARCH_URL, params={"q": "zelda"}).json()["hasMore"] is True
+
+    # A short page means IGDB has run out.
+    igdb_env["igdb_responses"].append(httpx.Response(200, json=full_page[:3]))
+    assert client_as(test_user).get(SEARCH_URL, params={"q": "zelda"}).json()["hasMore"] is False
+
+    # The last page the API will serve, however full it is.
+    igdb_env["igdb_responses"].append(httpx.Response(200, json=full_page))
+    params = {"q": "zelda", "page": igdb_service.MAX_PAGE}
+    assert client_as(test_user).get(SEARCH_URL, params=params).json()["hasMore"] is False
+
+
+@requires_db
+def test_full_fuzzy_page_does_not_offer_more(test_user, igdb_env) -> None:
+    # The fuzzy fallback only ever runs on page 1, so asking for page 2 of one
+    # would come back empty. Say so rather than offering a dead button.
+    full_page = [{"id": i, "name": f"Civ {i}"} for i in range(igdb_service.SEARCH_LIMIT)]
+    igdb_env["igdb_responses"].append(httpx.Response(200, json=[]))
+    igdb_env["igdb_responses"].append(httpx.Response(200, json=full_page))
+    body = client_as(test_user).get(SEARCH_URL, params={"q": "civ 6"}).json()
+    assert len(body["results"]) == igdb_service.SEARCH_LIMIT
+    assert body["hasMore"] is False
+
+
+@requires_db
+def test_has_more_counts_raw_rows_not_parsed_ones(test_user, igdb_env) -> None:
+    # One unusable row on an otherwise full page must not read as "IGDB ran
+    # out" and hide the button.
+    rows = [{"id": i, "name": f"Game {i}"} for i in range(igdb_service.SEARCH_LIMIT - 1)]
+    rows.append({"id": 999})  # no name, dropped by the parser
+    igdb_env["igdb_responses"].append(httpx.Response(200, json=rows))
+    body = client_as(test_user).get(SEARCH_URL, params={"q": "zelda"}).json()
+    assert len(body["results"]) == igdb_service.SEARCH_LIMIT - 1
+    assert body["hasMore"] is True
 
 
 @requires_db

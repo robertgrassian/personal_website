@@ -270,12 +270,13 @@ export function promoteMyWishlistItem(itemId: number, system: string): Promise<M
 // Search results ride in the ok branch; failures reuse the message shape so
 // the modal can render either with one code path.
 export type SearchIgdbResult =
-  | { ok: true; results: IgdbSearchResult[] }
+  | { ok: true; results: IgdbSearchResult[]; hasMore: boolean }
   | { ok: false; message: string };
 
 /** Search IGDB through the authenticated proxy (rate-limited server-side).
  *  `page` walks further down the same result list for the picker's "show
- *  more"; the API caps how deep it will go. */
+ *  more"; `hasMore` in the response says whether asking for the next one is
+ *  worth it, so no page arithmetic happens on this side. */
 export async function searchIgdb(query: string, page = 1): Promise<SearchIgdbResult> {
   // Nominally a read, but the proxy writes through it (token cache, rate-limit
   // counters), so it gets the same refusal as the mutations.
@@ -297,7 +298,8 @@ export async function searchIgdb(query: string, page = 1): Promise<SearchIgdbRes
   );
 
   if (res.ok) {
-    return { ok: true, results: (await res.json()) as IgdbSearchResult[] };
+    const body = (await res.json()) as { results: IgdbSearchResult[]; hasMore: boolean };
+    return { ok: true, results: body.results, hasMore: body.hasMore };
   }
   const detail = await res
     .json()

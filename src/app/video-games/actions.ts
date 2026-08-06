@@ -27,7 +27,7 @@ import {
   type SearchIgdbResult,
 } from "@/lib/meApi";
 import { libraryCacheTag } from "@/lib/libraryApi";
-import { IGDB_MAX_PAGE, RATINGS, type NewGame, type Rating } from "@/lib/games";
+import { RATINGS, type NewGame, type Rating } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
 
 /** Purge the cached reads for the library the CALLER owns, after a successful
@@ -99,10 +99,10 @@ export async function searchGames(query: string, page = 1): Promise<SearchIgdbRe
   if (trimmed.length > 100) {
     return { ok: false, message: "Search term is too long (100 characters max)." };
   }
-  // A Server Action is a public HTTP endpoint, so the page number is checked
-  // here rather than trusted from the caller: an out-of-range value would come
-  // back from the API as an opaque 422.
-  if (!Number.isInteger(page) || page < 1 || page > IGDB_MAX_PAGE) {
+  // A Server Action is a public HTTP endpoint, so a nonsense page is rejected
+  // here rather than sent on as an opaque 422. The upper bound is deliberately
+  // not repeated: the API owns it, and answers with hasMore: false at the cap.
+  if (!Number.isInteger(page) || page < 1) {
     return { ok: false, message: "No more results to show." };
   }
   return searchIgdb(trimmed, page);
