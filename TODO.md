@@ -78,6 +78,51 @@ before that happens.
 
 ## Backlog / Ideas
 
+- [ ] **Show a confirmation toast after logging a session, so you know it worked.** Possibly with
+      a "view all sessions for {game}" link in it, per the item below.<br>
+      _What happens today:_ on success `saveLoggedSession` collapses the form and clears the
+      fields (`EditGameModal.tsx:97-101`) and the dialog stays open. So there is _a_ signal, just
+      not an affirmative one, and only failure gets words (`setError`). The gap is worst for a
+      backdated **closed** session: nothing else on screen changes, because a past session with an
+      end date moves no shelf and does not light up the CRT. An open-ended log is the opposite
+      case, where the game becomes currently-playing and the change is obvious.<br>
+      _One thing this codebase already gets right:_ `isPending` deliberately spans the whole write
+      _plus_ revalidation (comment at `EditGameModal.tsx:30-32`), so a toast fired when the
+      transition settles is telling the truth about the data having landed, not just about the
+      request having been accepted.<br>
+      _What makes it more than a `<div>`:_ there is **no toast infrastructure anywhere in `src/`**
+      today, and no `aria-live` region either, so this is a small design decision about a
+      site-wide primitive, not a local one. Decide up front whether it is a global toast host in
+      the root layout (reusable by every owner write: rating, add, delete, wishlist, follow) or an
+      inline "Saved" line inside the modal (far cheaper, no portal, no timers, but useless for the
+      writes that close their dialog). It needs `role="status"` so screen readers announce it,
+      and both color schemes. Note a link inside a toast raises a question the inline version
+      does not: the edit modal is still open, so "view all sessions" has to decide whether it
+      replaces the modal's contents or closes it and navigates.
+- [ ] **A way to view all sessions for a game.** Requested alongside the toast above as its own
+      item: today you can create sessions and close them, but nothing in the UI ever lists them.<br>
+      _Two-thirds of the backend already exists, in a useful way._ `list_play_sessions`
+      (`api/app/repositories/users.py:26`) already loads every raw `play_sessions` row for the
+      whole library on every read, then collapses them into the five derived fields `GameRead`
+      exposes (`session_count`, `currently_playing`, `last_played`, `playing_since`,
+      `open_session_id` — `api/app/schemas/users.py`). So the rows are in hand server-side and
+      no new query is needed. What does not exist is any **GET** for sessions: `me.py` has only
+      `POST /me/games/{id}/sessions` (`:236`) and `PATCH /me/sessions/{id}` (`:261`), and
+      `users.py` exposes none at all.<br>
+      _The decision that shape hangs on:_ widen `GameRead` to carry the session list, or add a
+      dedicated endpoint. Widening is nearly free to implement but inflates every library payload
+      (155 games' worth of session rows) for a detail almost nobody opens, and that payload is
+      the prerendered, cached `/video-games` page. A dedicated read is more code but keeps the
+      shelf payload lean. If it becomes a public endpoint rather than a `/me/*` one, remember
+      libraries are public, so sessions become public too: decide that on purpose.<br>
+      _Where it lives is open._ Options: a section in the edit modal (owner-only, closest to
+      where sessions are created), or part of the richer game-details view that the "make viewing
+      a game's details better" item below is already circling — that item wants a bigger reading
+      surface, and so does this. Related: the "notes / play journal" item below floats hanging
+      dated entries off `play_sessions` rather than the game row, which would make this the same
+      screen; and editing or deleting a mis-logged session has no UI either, which is the obvious
+      next ask once a list exists.
+
 - [ ] **Logging a past session should pick the whole range in one calendar popup**, instead of
       picking the start, hitting check, then the end, hitting check again. Noticed on mobile
       2026-08-06; it is the same on desktop, since the cause is not mobile-specific.<br>
