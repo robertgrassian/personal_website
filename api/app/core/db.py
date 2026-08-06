@@ -19,7 +19,9 @@ env branching here.
 
 from collections.abc import Generator
 from functools import lru_cache
+from typing import Annotated
 
+from fastapi import Depends
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
@@ -65,10 +67,17 @@ def get_sessionmaker() -> sessionmaker[Session]:
 def get_db() -> Generator[Session, None, None]:
     """FastAPI dependency: yields a Session, closes it on request teardown.
 
-    Usage in a router: ``db: Annotated[Session, Depends(get_db)]``.
+    Routers take the ``DbSession`` alias below rather than spelling out the
+    Annotated form.
     """
     session = get_sessionmaker()()
     try:
         yield session
     finally:
         session.close()
+
+
+# The request-scoped Session, as a router parameter: ``db: DbSession``. Defined
+# here next to get_db rather than re-declared in each router, which is what all
+# four used to do — same pattern core/auth.py already sets with CurrentUser.
+DbSession = Annotated[Session, Depends(get_db)]

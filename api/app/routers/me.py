@@ -5,14 +5,11 @@ Every route here depends on ``CurrentUser`` — the JWT verification dependency
 runs. HTTP concerns only: map the service's domain exceptions to status codes.
 """
 
-from typing import Annotated
-
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 
 from app.core.auth import CurrentUser
 from app.core.config import API_PREFIX
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.guards import forbid_in_preview, rate_limit_writes
 from app.schemas.me import (
     GameCreate,
@@ -29,28 +26,8 @@ from app.schemas.me import (
 from app.schemas.users import GameRead, WishlistGameRead
 from app.services import follows as follows_service
 from app.services import me as me_service
-from app.services.follows import SelfFollowError
-from app.services.me import (
-    AlreadyPlayingError,
-    GameExistsError,
-    GameNotFoundError,
-    LibraryFullError,
-    OnboardingRequiredError,
-    ProfileExistsError,
-    SessionAlreadyClosedError,
-    SessionDatesError,
-    SessionNotFoundError,
-    SignupCapReachedError,
-    SystemRequiredError,
-    UsernameError,
-    WishlistItemExistsError,
-    WishlistItemNotFoundError,
-)
-from app.services.users import UserNotFoundError
 
 router = APIRouter(prefix=API_PREFIX, tags=["me"])
-
-DbSession = Annotated[Session, Depends(get_db)]
 
 
 @router.get("/me/profile")
@@ -82,20 +59,7 @@ def create_my_profile(user: CurrentUser, db: DbSession, payload: ProfileCreate) 
     - 422 username bad format / reserved (client must change it)
     - 403 signup cap reached ("at capacity")
     """
-    try:
-        return me_service.create_my_profile(db, user, payload)
-    except ProfileExistsError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    except UsernameError as exc:
-        # "taken" is a conflict; "format"/"reserved" are unprocessable input.
-        code = (
-            status.HTTP_409_CONFLICT
-            if exc.reason == "taken"
-            else status.HTTP_422_UNPROCESSABLE_CONTENT
-        )
-        raise HTTPException(status_code=code, detail=str(exc)) from exc
-    except SignupCapReachedError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    return me_service.create_my_profile(db, user, payload)
 
 
 @router.post(
@@ -112,12 +76,7 @@ def create_my_game(user: CurrentUser, db: DbSession, payload: GameCreate) -> Gam
     - 403 authenticated but not onboarded yet, or the library is at MAX_GAMES
     - 422 blank name/system, unknown rating, non-IGDB imageUrl (schema)
     """
-    try:
-        return me_service.create_my_game(db, user, payload)
-    except GameExistsError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    except (OnboardingRequiredError, LibraryFullError) as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    return me_service.create_my_game(db, user, payload)
 
 
 @router.delete(
@@ -128,29 +87,21 @@ def create_my_game(user: CurrentUser, db: DbSession, payload: GameCreate) -> Gam
 def delete_my_game(user: CurrentUser, db: DbSession, game_id: int) -> None:
     """Remove a game and (via cascade) its play sessions. 404 covers both a
     nonexistent id and someone else's game, as everywhere under /me."""
-    try:
-        me_service.delete_my_game(db, user, game_id)
-    except GameNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    me_service.delete_my_game(db, user, game_id)
 
 
 @router.patch(
     "/me/games/{game_id}",
     dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
 )
-def update_my_game(
-    user: CurrentUser, db: DbSession, game_id: int, payload: GameUpdate
-) -> GameRead:
+def update_my_game(user: CurrentUser, db: DbSession, game_id: int, payload: GameUpdate) -> GameRead:
     """Partially edit one of the caller's games (currently: rating).
 
     404 covers both a nonexistent id and someone else's game — the service
     treats the caller's library as the whole namespace. Unknown rating values
     are a 422 from the schema validator before this handler runs.
     """
-    try:
-        return me_service.update_my_game(db, user, game_id, payload)
-    except GameNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return me_service.update_my_game(db, user, game_id, payload)
 
 
 @router.post(
@@ -166,12 +117,7 @@ def create_my_wishlist_item(
     Status mapping: 409 name already wishlisted / 403 not onboarded / 422
     blank name or non-IGDB imageUrl (schema).
     """
-    try:
-        return me_service.create_my_wishlist_item(db, user, payload)
-    except WishlistItemExistsError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    except OnboardingRequiredError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    return me_service.create_my_wishlist_item(db, user, payload)
 
 
 @router.patch(
@@ -183,10 +129,7 @@ def update_my_wishlist_item(
 ) -> WishlistGameRead:
     """Partially edit a wishlist entry (starred / notes / system; system ""
     clears to undecided). 404 = nonexistent or someone else's."""
-    try:
-        return me_service.update_my_wishlist_item(db, user, item_id, payload)
-    except WishlistItemNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return me_service.update_my_wishlist_item(db, user, item_id, payload)
 
 
 @router.delete(
@@ -196,10 +139,7 @@ def update_my_wishlist_item(
 )
 def delete_my_wishlist_item(user: CurrentUser, db: DbSession, item_id: int) -> None:
     """Remove a wishlist entry. 404 = nonexistent or someone else's."""
-    try:
-        me_service.delete_my_wishlist_item(db, user, item_id)
-    except WishlistItemNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    me_service.delete_my_wishlist_item(db, user, item_id)
 
 
 @router.post(
@@ -218,18 +158,7 @@ def promote_my_wishlist_item(
     library / 422 no system anywhere (games require one) / 403 library at
     MAX_GAMES.
     """
-    try:
-        return me_service.promote_my_wishlist_item(db, user, item_id, payload)
-    except WishlistItemNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except GameExistsError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    except LibraryFullError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
-    except SystemRequiredError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
-        ) from exc
+    return me_service.promote_my_wishlist_item(db, user, item_id, payload)
 
 
 @router.post(
@@ -249,12 +178,7 @@ def create_my_session(
     - 409 game already has an open session (only when opening another)
     - 422 endDate before startDate (schema validator)
     """
-    try:
-        return me_service.create_my_session(db, user, game_id, payload)
-    except GameNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except AlreadyPlayingError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return me_service.create_my_session(db, user, game_id, payload)
 
 
 @router.patch(
@@ -272,16 +196,7 @@ def close_my_session(
     - 409 session already closed
     - 422 endDate before the session's start date
     """
-    try:
-        return me_service.close_my_session(db, user, session_id, payload)
-    except SessionNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except SessionAlreadyClosedError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    except SessionDatesError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
-        ) from exc
+    return me_service.close_my_session(db, user, session_id, payload)
 
 
 @router.get("/me/relationship/{username}")
@@ -294,12 +209,7 @@ def read_my_relationship(user: CurrentUser, db: DbSession, username: str) -> Rel
     - 403 authenticated but not onboarded yet
     - 404 no such username
     """
-    try:
-        return follows_service.get_relationship(db, user.id, username)
-    except OnboardingRequiredError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
-    except UserNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return follows_service.get_relationship(db, user.id, username)
 
 
 @router.post(
@@ -316,16 +226,7 @@ def follow_user(user: CurrentUser, db: DbSession, username: str) -> None:
     - 404 no such username
     - 422 following yourself
     """
-    try:
-        follows_service.follow_user(db, user.id, username)
-    except OnboardingRequiredError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
-    except UserNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except SelfFollowError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
-        ) from exc
+    follows_service.follow_user(db, user.id, username)
 
 
 @router.delete(
@@ -342,13 +243,4 @@ def unfollow_user(user: CurrentUser, db: DbSession, username: str) -> None:
     - 404 no such username
     - 422 unfollowing yourself
     """
-    try:
-        follows_service.unfollow_user(db, user.id, username)
-    except OnboardingRequiredError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
-    except UserNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except SelfFollowError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
-        ) from exc
+    follows_service.unfollow_user(db, user.id, username)

@@ -13,8 +13,10 @@ instead of a constraint violation.
 
 import uuid
 
+from fastapi import status
 from sqlalchemy.orm import Session
 
+from app.core.errors import DomainError
 from app.models import Profile
 from app.repositories import follows as follows_repo
 from app.repositories import me as me_repo
@@ -25,9 +27,11 @@ from app.services.me import OnboardingRequiredError
 from app.services.users import UserNotFoundError
 
 
-class SelfFollowError(Exception):
+class SelfFollowError(DomainError):
     """A user tried to follow or unfollow their own account. Carries the verb
     so unfollowing yourself doesn't get told you can't follow yourself."""
+
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def __init__(self, action: str = "follow") -> None:
         super().__init__(f"You can't {action} yourself.")

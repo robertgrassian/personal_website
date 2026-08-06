@@ -17,15 +17,19 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 
+from fastapi import status
 from sqlalchemy.orm import Session
 
+from app.core.errors import DomainError
 from app.models import Game, PlaySession, WishlistItem
 from app.repositories import users as users_repo
 from app.schemas.users import GameRead, ProfileRead, WishlistGameRead
 
 
-class UserNotFoundError(Exception):
+class UserNotFoundError(DomainError):
     """No profile exists for the requested username."""
+
+    status_code = status.HTTP_404_NOT_FOUND
 
     def __init__(self, username: str) -> None:
         super().__init__(f"User '{username}' not found")

@@ -6,55 +6,37 @@ concerns only — each handler delegates to the service and maps the domain
 error shape.
 """
 
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter
 
 from app.core.config import API_PREFIX
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.schemas.users import GameRead, ProfileRead, UserSummary, WishlistGameRead
 from app.services import follows as follows_service
 from app.services import users as users_service
-from app.services.users import UserNotFoundError
 
 router = APIRouter(prefix=API_PREFIX, tags=["users"])
-
-DbSession = Annotated[Session, Depends(get_db)]
 
 
 @router.get("/users/{username}/games")
 def read_user_games(username: str, db: DbSession) -> list[GameRead]:
-    try:
-        return users_service.get_user_games(db, username)
-    except UserNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return users_service.get_user_games(db, username)
 
 
 @router.get("/users/{username}/wishlist")
 def read_user_wishlist(username: str, db: DbSession) -> list[WishlistGameRead]:
-    try:
-        return users_service.get_user_wishlist(db, username)
-    except UserNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return users_service.get_user_wishlist(db, username)
 
 
 @router.get("/users/{username}/followers")
 def read_user_followers(username: str, db: DbSession) -> list[UserSummary]:
     """Who follows this user. Public, like the libraries themselves."""
-    try:
-        return follows_service.get_followers(db, username)
-    except UserNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return follows_service.get_followers(db, username)
 
 
 @router.get("/users/{username}/following")
 def read_user_following(username: str, db: DbSession) -> list[UserSummary]:
     """Who this user follows."""
-    try:
-        return follows_service.get_following(db, username)
-    except UserNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return follows_service.get_following(db, username)
 
 
 # Declared after the /users/{username}/... routes above. FastAPI matches on the
@@ -62,7 +44,4 @@ def read_user_following(username: str, db: DbSession) -> list[UserSummary]:
 # the barest pattern last matches how the collection reads.
 @router.get("/users/{username}")
 def read_user_profile(username: str, db: DbSession) -> ProfileRead:
-    try:
-        return users_service.get_user_profile(db, username)
-    except UserNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return users_service.get_user_profile(db, username)

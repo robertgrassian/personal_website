@@ -25,9 +25,7 @@ class WishlistItem(Base):
     __tablename__ = "wishlist_items"
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("profiles.id", ondelete="CASCADE")
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("profiles.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(Text)
     # Unlike games.system, nullable: a wishlist entry may predate deciding
     # which platform to buy it on.

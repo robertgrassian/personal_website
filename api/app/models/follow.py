@@ -20,9 +20,7 @@ class Follow(Base):
     followee_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("profiles.id", ondelete="CASCADE"), primary_key=True
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
         # Final name via the metadata naming convention: ck_follows_no_self_follow.

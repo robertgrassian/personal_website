@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 
 from app.core.config import API_PREFIX, get_settings
+from app.core.errors import register_error_handlers
 from app.routers import genres, health, igdb, me, users
 
 
@@ -18,6 +19,10 @@ def create_app() -> FastAPI:
         redoc_url=f"{API_PREFIX}/redoc" if dev else None,
         openapi_url=f"{API_PREFIX}/openapi.json" if dev else None,
     )
+
+    # One handler maps every DomainError to its status, so route handlers can
+    # call services directly instead of each re-deriving the same mapping.
+    register_error_handlers(app)
 
     app.include_router(health.router)
     app.include_router(users.router)

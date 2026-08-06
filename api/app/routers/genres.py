@@ -13,20 +13,16 @@ and preview deploys hold a read-only Postgres role.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Query
 
 from app.core.auth import CurrentUser
 from app.core.config import API_PREFIX
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.guards import forbid_in_preview
 from app.schemas.genres import GenreLookupResult
 from app.services import genres as genre_service
-from app.services.rate_limit import RateLimitedError
 
 router = APIRouter(prefix=API_PREFIX, tags=["genres"])
-
-DbSession = Annotated[Session, Depends(get_db)]
 
 
 @router.get("/genres/lookup", dependencies=[Depends(forbid_in_preview)])
@@ -45,10 +41,7 @@ def lookup_genres(
     Status mapping:
     - 429 caller over their per-minute lookup budget
     """
-    try:
-        result = genre_service.lookup_for_user(db, user.id, name)
-    except RateLimitedError as exc:
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc)) from exc
+    result = genre_service.lookup_for_user(db, user.id, name)
     return GenreLookupResult(
         genres=result.genres,
         article=result.article or "",

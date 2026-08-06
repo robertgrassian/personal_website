@@ -15,9 +15,11 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import httpx
+from fastapi import status
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
+from app.core.errors import DomainError
 from app.core.text import fold_text
 from app.repositories import igdb as igdb_repo
 from app.schemas.igdb import IgdbSearchResponse, IgdbSearchResult
@@ -87,15 +89,19 @@ _platform_aliases: dict[str, tuple[int, ...]] | None = None
 _platform_aliases_expire_at: datetime | None = None
 
 
-class IgdbNotConfiguredError(Exception):
+class IgdbNotConfiguredError(DomainError):
     """TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET are not set in this environment."""
+
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
     def __init__(self) -> None:
         super().__init__("Game search is not configured in this environment.")
 
 
-class IgdbUpstreamError(Exception):
+class IgdbUpstreamError(DomainError):
     """Twitch or IGDB answered with an error we can't recover from."""
+
+    status_code = status.HTTP_502_BAD_GATEWAY
 
     def __init__(self, detail: str) -> None:
         super().__init__(f"Game search is temporarily unavailable ({detail}).")
@@ -244,7 +250,7 @@ def _get_platform_aliases(db: Session, settings: Settings) -> dict[str, tuple[in
 def _split_platform_suffix(
     query: str, aliases: dict[str, tuple[int, ...]]
 ) -> tuple[str, tuple[int, ...]]:
-    """"star fox switch 2" -> ("star fox", (508,)).
+    """ "star fox switch 2" -> ("star fox", (508,)).
 
     IGDB's `search` matches game names only, so a typed console makes the
     whole query miss. The longest matching suffix wins ("nintendo switch 2"
@@ -361,9 +367,7 @@ def _fuzzy_body(query: str, platform_ids: tuple[int, ...]) -> str:
     return f"{_FIELDS} where {clauses}; limit {SEARCH_LIMIT};"
 
 
-def search_games(
-    db: Session, user_id: uuid.UUID, query: str, page: int = 1
-) -> IgdbSearchResponse:
+def search_games(db: Session, user_id: uuid.UUID, query: str, page: int = 1) -> IgdbSearchResponse:
     """Search IGDB on behalf of an authenticated caller.
 
     Order matters: the rate limit is charged before any upstream call, so a
@@ -380,8 +384,7 @@ def search_games(
         RATE_LIMIT_BUCKET,
         RATE_LIMIT_MAX,
         RATE_LIMIT_WINDOW,
-        f"Too many searches — limited to {RATE_LIMIT_MAX} per minute. "
-        "Wait a moment and try again.",
+        f"Too many searches — limited to {RATE_LIMIT_MAX} per minute. Wait a moment and try again.",
     )
 
     offset = (page - 1) * SEARCH_LIMIT

@@ -71,7 +71,13 @@ def delete_game(db: Session, game: Game) -> None:
 def update_game_rating(db: Session, game: Game, rating: str | None) -> Game:
     game.rating = rating
     db.commit()
-    db.refresh(game)
+    # No refresh: the sessionmaker sets expire_on_commit=False, so the row stays
+    # readable after the commit, and an UPDATE of one column we already know the
+    # value of has nothing to read back (no trigger, no server default). Under
+    # NullPool the commit releases the connection, so a refresh here would cost
+    # a fresh connect and TLS handshake on top of the round trip — on the most
+    # common write in the app. The refreshes after INSERTs stay: those rows have
+    # server-generated columns.
     return game
 
 
@@ -175,8 +181,8 @@ def create_wishlist_item(
 
 def update_wishlist_item(db: Session, item: WishlistItem) -> WishlistItem:
     # The service mutates the ORM row's fields directly; this just commits.
+    # No refresh, for the same reason as update_game_rating above.
     db.commit()
-    db.refresh(item)
     return item
 
 

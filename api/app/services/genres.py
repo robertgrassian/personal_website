@@ -62,8 +62,7 @@ WIKIDATA_SPARQL = "https://query.wikidata.org/sparql"
 # descriptive one naming the tool and a contact. A bare httpx default gets this
 # rate-limited within a dozen requests.
 USER_AGENT = (
-    "personal-website-genre-lookup/1.0 "
-    "(https://github.com/robertgrassian/personal_website)"
+    "personal-website-genre-lookup/1.0 (https://github.com/robertgrassian/personal_website)"
 )
 
 # Deliberately tight. These phases run serially, so the per-request ceilings add
@@ -199,9 +198,7 @@ def _title_case(value: str) -> str:
         segments = part.split("-")
         out.append(
             "-".join(
-                seg.lower()
-                if i > 0 and seg.lower() in _MINOR_WORDS
-                else seg[:1].upper() + seg[1:]
+                seg.lower() if i > 0 and seg.lower() in _MINOR_WORDS else seg[:1].upper() + seg[1:]
                 for i, seg in enumerate(segments)
             )
         )
@@ -272,9 +269,7 @@ class GenreLookup:
 def _get(url: str, params: dict) -> httpx.Response:
     """The single outbound-HTTP seam. Tests monkeypatch this."""
     timeout = _SPARQL_TIMEOUT if url == WIKIDATA_SPARQL else _HTTP_TIMEOUT
-    return httpx.get(
-        url, params=params, headers={"User-Agent": USER_AGENT}, timeout=timeout
-    )
+    return httpx.get(url, params=params, headers={"User-Agent": USER_AGENT}, timeout=timeout)
 
 
 # How many search hits to consider. The right article is not always first --

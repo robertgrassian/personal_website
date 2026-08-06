@@ -9,21 +9,16 @@ preview deploys hold a read-only Postgres role.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Query
 
 from app.core.auth import CurrentUser
 from app.core.config import API_PREFIX
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.guards import forbid_in_preview
 from app.schemas.igdb import IgdbSearchResponse
 from app.services import igdb as igdb_service
-from app.services.igdb import IgdbNotConfiguredError, IgdbUpstreamError
-from app.services.rate_limit import RateLimitedError
 
 router = APIRouter(prefix=API_PREFIX, tags=["igdb"])
-
-DbSession = Annotated[Session, Depends(get_db)]
 
 
 @router.get("/igdb/search", dependencies=[Depends(forbid_in_preview)])
@@ -44,13 +39,4 @@ def search_igdb(
     - 502 Twitch/IGDB upstream failure
     - 503 credentials not configured in this environment
     """
-    try:
-        return igdb_service.search_games(db, user.id, q, page)
-    except RateLimitedError as exc:
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc)) from exc
-    except IgdbNotConfiguredError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
-        ) from exc
-    except IgdbUpstreamError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return igdb_service.search_games(db, user.id, q, page)
