@@ -24,20 +24,6 @@ before that happens.
       `rate_limits` has no FK to `profiles`, so those rows will not cascade and need deleting
       explicitly.
 
-- [ ] **Run both backfills against PRODUCTION.** Both are built, cover the library _and_ the
-      wishlist, and were applied to the **local** DB on 2026-08-03; prod is untouched.
-      **The full procedure is written up in `docs/genre-backfill-runbook.md`** — follow that
-      rather than reconstructing it here.<br>
-      _The three things most easily got wrong_, all covered in the runbook: titles must run
-      before genres (locally that took the genre plan from 118 auto / 36 review to 183 auto /
-      0); preview is the default on the title script, so always read it before `--apply`; and
-      **the cache must be flushed afterwards** — the scripts write straight to Postgres, so
-      `revalidateTag` never fires and prod keeps serving the old data until an owner write
-      happens in the UI.<br>
-      _No hand-editing step any more:_ the rows where Wikipedia is vaguer than the curated term
-      (Elden Ring, Metroid Dread, Ball x Pit, …) now live in `OVERRIDES` in
-      `backfill_genres.py`, having been re-entered by hand three times.
-
 - [ ] **Improve the add-game IGDB search: more results, and let the query name the console.**
       Two complaints, one surface.<br>
       _Too few results (raised 2026-08-04):_ searching "star fox" does not surface the Switch 2
@@ -386,6 +372,21 @@ before that happens.
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Both backfills run against production** (2026-08-05, PR #81). Titles then genres, on
+      the library and the wishlist, verified on the live site. Procedure kept in
+      `docs/genre-backfill-runbook.md` if it is ever needed again.<br>
+      _The ordering was the whole point:_ renaming the informal titles first took the genre plan
+      from 118 auto / 36 needing review to **183 auto / 0**. Two rows were not merely uncertain
+      but silently wrong from the informal name ("Call of Duty Black Ops 2" resolved to _Black
+      Ops 7_), so titles-first removed a class of wrong answers, not just review work.<br>
+      _Reviewing the prod plan caught things local never hit_, which is the argument for reading
+      a plan rather than trusting a green run: "Plants vs. Zombies" matched the **franchise**
+      article and picked up Garden Warfare's and Heroes' genres, and "Kinect Adventures" matched
+      "Kinect: Disneyland Adventures". Both are now in `OVERRIDES`.<br>
+      _The step most easily forgotten_ is flushing the cache: the scripts write straight to
+      Postgres, so `revalidateTag` never fires and prod serves stale pages until an owner write
+      happens in the UI. Rating a game and undoing it is enough.
+
 - [x] **Titles backfilled to canonical names, then genres re-sourced** (2026-08-03, local DB
       only). 54 renames, then 22 genre rows. The ordering was the point: doing titles first took
       the genre plan from **118 auto / 36 needing review to 154 auto / 0**.<br>
@@ -650,4 +651,3 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       `f985740c0df9` adds a real FK to `auth.users`, so migrations can't run on bare
       Postgres without it
 - [x] CRT metadata block is height-stable across channel changes (`components/crt/CrtTv.tsx`) — the auto-cycle used to resize the block per game, and since `.pcrt-stage--compact` is a bottom-aligned flex row, a taller block pushed the TV and the page below it down on a timer. Three causes, all fixed by reserving the worst case instead of truncating: the title now reserves and clamps two lines (`min-h-[2lh] line-clamp-2` — long names wrap into reserved space on mobile rather than growing the block), the system/genres line clamps to one, and the "playing since" line always renders (empty when a game has no open-session date) instead of disappearing
-- [x] Mobile nav no longer cramped by the auth control (`components/Nav.tsx`, `components/AuthButton.tsx`) — type, gaps, and horizontal padding scale down below `sm` only, so desktop is unchanged. `AuthButton` shares the links' responsive scale so the row shrinks as one unit. Row height still comes from `--nav-height`, so `FilterBar`/`StatsPanel` sticky offsets are untouched
