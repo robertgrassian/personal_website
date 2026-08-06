@@ -304,6 +304,51 @@ export async function searchIgdb(query: string): Promise<SearchIgdbResult> {
   return { ok: false, message: detail ?? `Search failed (HTTP ${res.status}).` };
 }
 
+// Genre lookup rides the same ok/message shape as the IGDB search above.
+export type LookupGenresResult =
+  | { ok: true; genres: string[]; article: string }
+  | { ok: false; message: string };
+
+/** Genres for one title from Wikipedia/Wikidata, via the authenticated proxy.
+ *
+ *  Called after a game is picked in the add-game modal rather than for every
+ *  search result: IGDB identifies the game, this says what it actually is.
+ *  IGDB's own genres are too coarse to describe a library (no roguelike on
+ *  Hades II, no metroidvania on Animal Well), which is why the add flow asks
+ *  here instead of using the genres the search already returned. */
+export async function lookupGenres(name: string): Promise<LookupGenresResult> {
+  // Nominally a read, but it writes rate-limit counters through the read path,
+  // so it gets the same preview refusal as the mutations.
+  if (targetsForeignEnvironmentApi()) {
+    return { ok: false, message: FOREIGN_API_WRITE_MESSAGE };
+  }
+  const token = await accessToken();
+  if (!token) {
+    return { ok: false, message: "You are not signed in." };
+  }
+
+  const res = await fetch(
+    `${requireLibraryApiOrigin()}/api/py/genres/lookup?name=${encodeURIComponent(name)}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+      // Two upstream hops (Wikipedia, then Wikidata), so the same wider budget
+      // the IGDB search gets.
+      signal: AbortSignal.timeout(15000),
+    }
+  );
+
+  if (res.ok) {
+    const body = (await res.json()) as { genres: string[]; article: string };
+    return { ok: true, genres: body.genres, article: body.article };
+  }
+  const detail = await res
+    .json()
+    .then((b) => (typeof b?.detail === "string" ? b.detail : undefined))
+    .catch(() => undefined);
+  return { ok: false, message: detail ?? `Genre lookup failed (HTTP ${res.status}).` };
+}
+
 /** Set or clear ("" = unrated) the rating on one of the caller's games. */
 export function updateMyGameRating(gameId: number, rating: string): Promise<MutateResult> {
   return mutate(`/api/py/me/games/${gameId}`, "PATCH", { rating }, "update the rating");

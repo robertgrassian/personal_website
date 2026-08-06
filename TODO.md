@@ -24,41 +24,86 @@ before that happens.
       `rate_limits` has no FK to `profiles`, so those rows will not cascade and need deleting
       explicitly.
 
-- [ ] **Backfill existing games' genres to IGDB's vocabulary.** Promoted from Backlog
-      2026-07-30: wanted before the site is shared, since the genre filter is a visitor-facing
-      surface and it currently offers a vocabulary nobody else's library will use. The current
-      genres came from the old Wikipedia-scraping `add-game` skill (retired in Phase 3), so
-      they won't match what the new IGDB add flow (`/api/py/igdb/search`) suggests for future
-      games. Normalizing now means future adds match up and skip the manual genre-editing step.
-      Approach: for each library game with an `igdb_id` (or matched by name), pull its IGDB
-      genres and overwrite the row's `genres`. Note: genre editing isn't in the write path yet
-      (`GameUpdate`/`PATCH /me/games/{id}` is rating-only), so this needs either a one-off
-      backfill script in `api/scripts/` (query IGDB per game, update `games.genres` directly)
-      or extending the edit UI to support genres first. Decide whether to also map IGDB's
-      verbose names (e.g. "Role-playing (RPG)") to shorter shelf labels while backfilling.<br>
-      **Do the case/duplicate normalization in the same pass:** `clean_genres`
-      (`api/app/schemas/me.py`) trims and drops blanks but does not dedupe or normalize case,
-      so `"RPG, rpg"` stores both and `"RPG, RPG"` stores it twice — and the filter dropdown,
-      built from `new Set(...)`, then shows them as separate options. Fix belongs in
-      `clean_genres` (dedupe preserving first-seen casing) rather than the modal, so it also
-      covers direct Server Action calls that bypass the UI. Same normalization problem as the
-      backfill, one size larger, so the vocabulary decision above should settle the casing rule
-      too.<br>
-      Related, and worth deciding together: the backlog item about restricting add-game system
-      suggestions to real IGDB platforms notes the same "thread IGDB's vocabulary through the
-      edit UI" question for genres.
+- [ ] **Run both backfills against PRODUCTION.** Both are built, cover the library _and_ the
+      wishlist, and were applied to the **local** DB on 2026-08-03; prod is untouched.
+      **The full procedure is written up in `docs/genre-backfill-runbook.md`** — follow that
+      rather than reconstructing it here.<br>
+      _The three things most easily got wrong_, all covered in the runbook: titles must run
+      before genres (locally that took the genre plan from 118 auto / 36 review to 183 auto /
+      0); preview is the default on the title script, so always read it before `--apply`; and
+      **the cache must be flushed afterwards** — the scripts write straight to Postgres, so
+      `revalidateTag` never fires and prod keeps serving the old data until an owner write
+      happens in the UI.<br>
+      _No hand-editing step any more:_ the rows where Wikipedia is vaguer than the curated term
+      (Elden Ring, Metroid Dread, Ball x Pit, …) now live in `OVERRIDES` in
+      `backfill_genres.py`, having been re-entered by hand three times.
 
-- [ ] **The "Unrated" shelf has a big gap above it.** Confirmed cause: the grouped shelves
-      render inside `<div className="mt-6 pb-24">` (`GameLibrary.tsx:316`) and the Unrated
-      shelf sits _outside_ that wrapper (`GameLibrary.tsx:332`), so the wrapper's 6rem bottom
-      padding lands between the last shelf and Unrated. Want it spaced like every other shelf.
-      The `pb-24` is there to keep the last shelf clear of the viewport bottom, so the fix is
-      to move that padding to whichever element is genuinely last (or wrap both shelf groups
-      in one padded container) rather than just deleting it. Overlaps with the backlog item
-      about showing Unrated to visitors: if that one lands and Unrated joins the normal
-      group pipeline, this gap disappears on its own.
+- [ ] **Improve the add-game IGDB search: more results, and let the query name the console.**
+      Two complaints, one surface.<br>
+      _Too few results (raised 2026-08-04):_ searching "star fox" does not surface the Switch 2
+      remake at all. `SEARCH_LIMIT = 10` (`api/app/services/igdb.py:34`) with no paging, and a
+      franchise that old fills ten slots with older entries. Want either a longer list, a
+      next-page arrow in the picker, or both. Paging means adding `offset` to the Apicalypse
+      body (`api/app/services/igdb.py:186-189`), threading it through
+      `GET /api/py/igdb/search` and the `searchGames` Server Action, and holding a page number
+      in `AddGameModal`. Watch the rate limit: every page is another charge against the
+      `igdb_search` bucket, so a next-page click must not fire on debounce the way typing does.<br>
+      _Typing the platform should work:_ "star fox switch 2" currently returns nothing, because
+      the whole string goes to IGDB's `search`, which matches game names only. Fix is to split
+      recognized platform words off the query and turn them into a `where platforms = (...)`
+      clause instead of leaving them in the search text. That needs a platform-name lookup
+      (IGDB's `/platforms`, cached), and it is the same IGDB-name-vs-shelf-label mapping the
+      "restrict the add-game system suggestions" backlog item needs — do them together.<br>
+      _Fuzzy matching, noticed 2026-08-03 while building the title backfill:_ the raw pass-through
+      is also unforgiving of the way people type. "Civ 6" returns nothing, and "Pokemon Fire Red"
+      returns _Pokémon Fire Red Extended_, a ROM hack, rather than the game.<br>
+      Not urgent as data-correctness goes: the add flow shows you the candidates and you pick
+      one, so a poor first hit costs a second look rather than wrong data. It is a real
+      dead-end for the user only when the game is not in the list at all, which is the Star Fox
+      case above and the reason this moved from "someday" to a concrete ask.
 
 ## Backlog / Ideas
+
+- [ ] **Make viewing a game's details better: the back of the case truncates genres and there is
+      no way to see the rest. Design is part of this task.** `GameCaseBack.tsx:70-77` renders
+      `genres.slice(0, 2)` plus a `+N more` span — and that span is plain text, not a control,
+      so the hidden genres are genuinely unreachable from the shelf. Genres are the only
+      truncated field: name is `line-clamp-2`, system and release date render in full.<br>
+      _Two things to hold onto, per the ask:_ keep the rotating case, it is the best thing on
+      the page; and do **not** solve this by cramming more onto the back face, which is a
+      ~2.5rem-tall text column at `text-[10px]` and already full.<br>
+      _One idea, not a decision:_ a "more" affordance on the back that opens a popup with the
+      full metadata. Worth considering alongside it: a hover/long-press tooltip listing all
+      genres, a details panel that slides in beside the shelf rather than over it, or making
+      each genre a chip that sets the genre filter (which turns the overflow problem into a
+      navigation feature).<br>
+      _The wiring detail that will bite whichever design wins:_ the entire case is one
+      `<button>` with `onClick={() => setFlipped(f => !f)}` (`GameCase.tsx:97-102`), so a
+      clickable element **inside** the back face is a button nested in a button, which is
+      invalid HTML and unreliable for keyboard and screen-reader users. `GameCase` already
+      solved this once for the owner pencil: it is an absolutely-positioned **sibling** of the
+      flip button, not a child (there is a comment at `GameCase.tsx:88-92` and again at
+      `:206-211` explaining exactly that). Follow that pattern, or make the back face stop
+      being a button. Whatever opens must also work on touch, where there is no hover.<br>
+      Related: the "notes / play journal" backlog item below wants a bigger reading surface for
+      per-game data too, so a details view built here is likely where notes end up living.
+
+- [ ] **Library filter search should fuzzy match, but stay strict** — specifically, typing
+      "pokemon" should find the games spelled with the accented "é". Today
+      `passesBaseFilters` (`src/components/video_games/pipeline.ts:27`) is a plain
+      `name.toLowerCase().includes(search.toLowerCase())`, so it is case-insensitive and nothing
+      more: "Pokémon" is invisible to "pokemon", and every shelf goes empty while you are
+      halfway through typing the word.<br>
+      _The cheap fix covers the actual complaint:_ normalize both sides with
+      `.normalize("NFD").replace(/\p{Diacritic}/gu, "")` before comparing, which folds é→e, ō→o
+      and the rest without pulling in a fuzzy-match library. That alone solves Pokémon, Ōkami
+      and Pikmin-style titles.<br>
+      _"Strict" is the constraint worth keeping._ True fuzzy matching (Levenshtein / trigram /
+      fuse.js) starts returning things you did not ask for on a two-character query, which is
+      worse than a miss on a library you know by heart. If it goes past diacritic folding, keep
+      it to punctuation/whitespace insensitivity ("resident evil 4" matching "Resident Evil 4:
+      Remake", ignoring `:` and `-`) rather than edit distance. Same helper should apply to the
+      wishlist filter, which shares this function.
 
 - [ ] **Set up monitoring / alerting, specifically to get notified when a new user signs up for
       the game library.** There is nothing today: no error tracking, no analytics, no email or
@@ -341,6 +386,70 @@ before that happens.
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Titles backfilled to canonical names, then genres re-sourced** (2026-08-03, local DB
+      only). 54 renames, then 22 genre rows. The ordering was the point: doing titles first took
+      the genre plan from **118 auto / 36 needing review to 154 auto / 0**.<br>
+      **`backfill_titles.py` is a hardcoded map on purpose.** The first version resolved every
+      title against IGDB and scored the candidates; it could not tell a canonical title from an
+      edition or spin-off whose name merely extends it, proposing "Elden Ring" -> _Elden Ring
+      Nightreign_, "Halo CE" -> _Halo CE+_, "Dead Cells" -> _Dead Cells+_. Every result needed
+      reading anyway, so the map is that reading done once — auditable, and it cannot drift.
+      Preview is the default, so a prod run is always a select before an update.<br>
+      _A real parser bug surfaced in the re-run:_ an infobox `genre` that is the template's LAST
+      parameter swallowed the article prose after it, so Majora's Mask picked up Japanese title
+      text and "and quality of life changes" as genres. The field now stops at `}}` as well as
+      at the next parameter. This one mattered beyond the backfill — it is the live add-game
+      lookup.<br>
+      _"Cadence of Hyrule" is deliberately NOT renamed_ to its full canonical title. IGDB is
+      right that it is the formal name, but the longer string then matched the Wikipedia article
+      "The Legend of Zelda" (its words are a subset) and took that game's genres.<br>
+      _Seed fixtures were renamed in lockstep_, so `seed.py` reproduces the canonical library;
+      `sessions.csv` references games by name and would otherwise attach sessions to nothing.<br>
+      _Verified by a review agent against the live DB:_ 155 games, no duplicates, no empty genre
+      lists, 44 distinct genres with no case/spelling collisions, and no junk values. It caught
+      two things since fixed: "Role-Playing" on Untitled Goose Game, and a
+      "Monster Tamer"/"Monster-taming" split that would have shown as two filter options.
+
+- [x] **Genres re-sourced from Wikipedia, and the add flow wired to the same source**
+      (2026-07-30). Replaces the original plan, which had it backwards: it said to normalize
+      onto _IGDB's_ vocabulary, but IGDB's `genres` field is too coarse to describe a library
+      (Hades II as "Role-playing (RPG), Hack and slash, Adventure, Indie", no roguelike). Built
+      `api/app/services/genres.py`, `GET /api/py/genres/lookup` (own `genre_lookup` rate-limit
+      bucket), the add-game modal calling it on IGDB pick with IGDB genres as the fallback,
+      `api/scripts/backfill_genres.py`, and the `clean_genres` case/duplicate dedupe. Suite
+      175 -> 285.<br>
+      **Wikidata `P136` was tried first and rejected**, which is the thing worth remembering.
+      It is structured and batchable, so it looks like the obvious choice, but it is frequently
+      thin or wrong: Kinect Sports "association football video game", Zelda: The Minish Cap
+      "role-playing video game", Dance Central "music video game". The Wikipedia
+      `{{Infobox video game}}` genre field says Sports, Action-adventure, Rhythm — correct, and
+      already the library's vocabulary, because the original genres were read off those same
+      infoboxes by hand. Switching sources took the backfill from 65 changed rows to 42 and
+      auto-matches from 89 to 118; _fewer_ changes was the signal the source was right. P136
+      survives only as a fallback when an infobox has no genre field.<br>
+      _Two matching bugs the design exists to prevent, both real:_ searching "Zelda: Twilight
+      Princess" ranks the **manga** first (genres "adventure anime and manga"), so a candidate
+      must carry `{{Infobox video game}}`; and taking the first _game_ hit resolved "Hades II"
+      to **Hades** and "Animal Well" to **Animal Crossing**, so survivors are ranked by title
+      similarity. Also: Wikimedia 429s generic User-Agents, and title similarity is a bad
+      confidence signal (0.895 "Octopath Traveller"->"Octopath Traveler II" is wrong, 0.538
+      "Halo CE"->"Halo: Combat Evolved" is right), hence auto-accept only at ~0.97.<br>
+      _A code review caught two more before anything was written:_ `--apply` had no `user_id`
+      filter and would have rewritten **every** user's genres, and the confidently-matched tier
+      was never shown to a human despite being where the real damage was (55 of 68 rows dropped
+      a curated genre). Both fixed; `--review` now walks every changing row.<br>
+      _Deliberately no alias map_ (asked twice): the library takes the source's spelling, so
+      `RPG -> Role-Playing` and `Racing -> Kart Racing`. Only spelling-level variants snap to
+      existing terms, which is what keeps case-only duplicates out of the filter dropdown.
+
+- [x] **Fixed the gap above the "Unrated" shelf** (2026-07-30, `GameLibrary.tsx`). The grouped
+      shelves carried `pb-24` while the Unrated shelf rendered outside that wrapper, so the
+      6rem of trailing space landed _between_ the two groups. Both groups now sit inside one
+      `pb-24` container and the inner block keeps only `mt-6`.<br>
+      _Worth knowing:_ `ShelfSection` supplies its own `mt-10`, so Unrated never needed spacing
+      of its own — deleting the padding outright would have fixed the gap and reintroduced the
+      problem `pb-24` exists to solve (the last shelf jammed against the viewport bottom).
+
 - [x] **Browser pass on the Phase 5 UI** (2026-07-30) — the client-rendered surfaces no test
       reaches: the follow toggle, its absence on your own library and when signed out, "Back to
       my library", the Following/Followers tabs and their links, `?view=followers` deep-links,
@@ -542,6 +651,3 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       Postgres without it
 - [x] CRT metadata block is height-stable across channel changes (`components/crt/CrtTv.tsx`) — the auto-cycle used to resize the block per game, and since `.pcrt-stage--compact` is a bottom-aligned flex row, a taller block pushed the TV and the page below it down on a timer. Three causes, all fixed by reserving the worst case instead of truncating: the title now reserves and clamps two lines (`min-h-[2lh] line-clamp-2` — long names wrap into reserved space on mobile rather than growing the block), the system/genres line clamps to one, and the "playing since" line always renders (empty when a game has no open-session date) instead of disappearing
 - [x] Mobile nav no longer cramped by the auth control (`components/Nav.tsx`, `components/AuthButton.tsx`) — type, gaps, and horizontal padding scale down below `sm` only, so desktop is unchanged. `AuthButton` shares the links' responsive scale so the row shrinks as one unit. Row height still comes from `--nav-height`, so `FilterBar`/`StatsPanel` sticky offsets are untouched
-- [x] Game library page now uses the photorealistic CRT (`components/crt/CrtTv.tsx`, relocated out of `currently-playing/` since it's shared by two routes) instead of the wood-paneled TV; `/currently-playing` still works standalone. Old wood TV (`components/video_games/CurrentlyPlaying.tsx`) and its `crt-*` styles in `video-games.css` are left in place, unused
-- [x] Dedicated `/currently-playing` route rendering a photorealistic '90s black-plastic CRT (hand-built CSS/SVG: molded cabinet, phosphor RGB mask, scanlines, roll bar, glare, speaker grille, dials, power LED) with the `▶ PLAY`/`CH 0N` OSD and channel-flicking; permanent "NO SIGNAL" snow when nothing is playing. Unlinked for now (URL-only). New component `components/currently-playing/CrtTv.tsx`; existing library TV untouched
-- [x] Multiple currently-playing games on the CRT: channel-flicking — auto-cycle between in-progress games with a static/noise burst and `CH 0N` OSD, plus a clickable channel knob to advance manually and channel pips in the metadata (CurrentlyPlaying is now a client component)

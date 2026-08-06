@@ -16,11 +16,13 @@ import {
   deleteMyWishlistItem,
   fetchMyUsername,
   followUser,
+  lookupGenres,
   promoteMyWishlistItem,
   searchIgdb,
   updateMyGameRating,
   unfollowUser,
   updateMyWishlistItem,
+  type LookupGenresResult,
   type MutateResult,
   type SearchIgdbResult,
 } from "@/lib/meApi";
@@ -98,6 +100,21 @@ export async function searchGames(query: string): Promise<SearchIgdbResult> {
     return { ok: false, message: "Search term is too long (100 characters max)." };
   }
   return searchIgdb(trimmed);
+}
+
+/** Genres for a picked game, from Wikipedia/Wikidata. Server-side for the same
+ *  reason as searchGames: the Bearer token translation lives in meApi. No
+ *  revalidation — this only fills in a form the user hasn't submitted yet. */
+export async function lookupGameGenres(name: string): Promise<LookupGenresResult> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return { ok: false, message: "No game name to look up." };
+  }
+  // Matches the API's own Query(max_length=200) bound.
+  if (trimmed.length > 200) {
+    return { ok: false, message: "Game name is too long (200 characters max)." };
+  }
+  return lookupGenres(trimmed);
 }
 
 /** Add a game to the library (from an IGDB pick or manual entry). */

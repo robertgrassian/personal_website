@@ -56,3 +56,4 @@ api/.venv/
 
 # committed env template — names + placeholders only (.env* above ignores the rest)
 !.env.example
+
