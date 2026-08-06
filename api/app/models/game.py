@@ -86,4 +86,9 @@ class PlaySession(Base):
             unique=True,
             postgresql_where=text("end_date IS NULL"),
         ),
+        # Plain (non-partial) index on the same column. The partial one above
+        # cannot serve the library read's `game_id IN (...)` or the ON DELETE
+        # CASCADE's child lookup, because neither implies "end_date IS NULL" —
+        # so both sequentially scanned every user's sessions without this.
+        Index("ix_play_sessions_game_id", "game_id"),
     )
