@@ -90,7 +90,7 @@ function isValidRating(rating: string): rating is Rating | "" {
 /** Search IGDB for the add-game picker. A read, but it must run server-side:
  *  the browser has no IGDB credentials, and the proxy needs the Bearer token
  *  translation meApi does. No revalidation — nothing changed. */
-export async function searchGames(query: string): Promise<SearchIgdbResult> {
+export async function searchGames(query: string, page = 1): Promise<SearchIgdbResult> {
   const trimmed = query.trim();
   if (trimmed.length < 2) {
     return { ok: false, message: "Type at least 2 characters." };
@@ -99,7 +99,13 @@ export async function searchGames(query: string): Promise<SearchIgdbResult> {
   if (trimmed.length > 100) {
     return { ok: false, message: "Search term is too long (100 characters max)." };
   }
-  return searchIgdb(trimmed);
+  // A Server Action is a public HTTP endpoint, so a nonsense page is rejected
+  // here rather than sent on as an opaque 422. The upper bound is deliberately
+  // not repeated: the API owns it, and answers with hasMore: false at the cap.
+  if (!Number.isInteger(page) || page < 1) {
+    return { ok: false, message: "No more results to show." };
+  }
+  return searchIgdb(trimmed, page);
 }
 
 /** Genres for a picked game, from Wikipedia/Wikidata. Server-side for the same

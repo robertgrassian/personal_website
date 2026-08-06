@@ -21,3 +21,15 @@ class IgdbSearchResult(CamelModel):
     platforms: list[str]
     genres: list[str]
     cover_url: str  # t_cover_big https URL, or "" = FE renders fallback art
+
+
+class IgdbSearchResponse(CamelModel):
+    """One page of candidates, plus whether asking for another is worth it.
+
+    ``has_more`` is the server's answer rather than something the picker infers
+    from the page length: only this side knows the page cap, and only this side
+    knows when a page came from a fallback query that cannot be paged at all.
+    """
+
+    results: list[IgdbSearchResult]
+    has_more: bool

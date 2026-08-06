@@ -18,8 +18,9 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
+from app.core.text import fold_text
 from app.repositories import igdb as igdb_repo
-from app.schemas.igdb import IgdbSearchResult
+from app.schemas.igdb import IgdbSearchResponse, IgdbSearchResult
 from app.services import rate_limit
 
 RATE_LIMIT_BUCKET = "igdb_search"
@@ -31,11 +32,59 @@ RATE_LIMIT_WINDOW = timedelta(seconds=60)
 # request can't expire mid-flight.
 TOKEN_EXPIRY_MARGIN = timedelta(days=1)
 
-SEARCH_LIMIT = 10
+SEARCH_LIMIT = 25
+# The picker pages by appending, so this caps how deep "show more" can dig.
+# Each page is one more IGDB call, hence a bound rather than open-ended paging.
+MAX_PAGE = 4
 
 _TWITCH_TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 _IGDB_GAMES_URL = "https://api.igdb.com/v4/games"
+_IGDB_PLATFORMS_URL = "https://api.igdb.com/v4/platforms"
 _HTTP_TIMEOUT = 10.0
+
+# IGDB's game_type ids, lowest number = most likely the thing you meant.
+# Searching "pokemon fire red" puts the ROM hack (Mod) above the actual game
+# (Remake) on IGDB's own relevance order, so results get re-sorted by this.
+_GAME_TYPE_RANK = {
+    0: 0,  # Main Game
+    8: 1,  # Remake
+    9: 1,  # Remaster
+    11: 1,  # Port
+    4: 2,  # Standalone Expansion
+    10: 2,  # Expanded Game
+    2: 3,  # Expansion
+    1: 4,  # DLC
+    13: 4,  # Pack / Addon
+    6: 4,  # Episode
+    7: 4,  # Season
+    3: 5,  # Bundle
+    5: 6,  # Mod
+    12: 6,  # Fork
+    14: 6,  # Update
+}
+_DEFAULT_GAME_TYPE_RANK = 3
+
+# Vendor prefixes dropped when deriving platform aliases, so "switch 2" matches
+# "Nintendo Switch 2" and "ps5" is not the only way to say PlayStation 5.
+_PLATFORM_VENDOR_PREFIXES = (
+    "nintendo ",
+    "sony ",
+    "microsoft ",
+    "sega ",
+    "atari ",
+    "commodore ",
+)
+
+# A typed platform is at most this many words ("xbox series x s" is four).
+_MAX_PLATFORM_WORDS = 4
+
+PLATFORM_CACHE_TTL = timedelta(hours=12)
+
+# alias -> platform ids, cached per process rather than in Postgres: it is 220
+# rows of rarely-changing reference data, so a cold serverless instance paying
+# one extra IGDB call every 12 hours is cheaper than a table and a migration.
+_platform_aliases: dict[str, tuple[int, ...]] | None = None
+_platform_aliases_expire_at: datetime | None = None
 
 
 class IgdbNotConfiguredError(Exception):
@@ -74,12 +123,14 @@ def _fetch_twitch_token(settings: Settings) -> tuple[str, datetime]:
     return data["access_token"], expires_at
 
 
-def _query_igdb(settings: Settings, token: str, body: str) -> httpx.Response:
-    """POST an Apicalypse query to IGDB. Returns the raw response — the
-    caller inspects the status so it can retry once on 401."""
+def _query_igdb(
+    settings: Settings, token: str, body: str, url: str = _IGDB_GAMES_URL
+) -> httpx.Response:
+    """POST an Apicalypse query to an IGDB endpoint. Returns the raw response —
+    the caller inspects the status so it can retry once on 401."""
     try:
         return httpx.post(
-            _IGDB_GAMES_URL,
+            url,
             headers={
                 "Client-ID": settings.twitch_client_id or "",
                 "Authorization": f"Bearer {token}",
@@ -105,6 +156,110 @@ def _get_valid_token(db: Session, settings: Settings, *, force_refresh: bool = F
     return access_token
 
 
+def _run_query(
+    db: Session, settings: Settings, body: str, url: str = _IGDB_GAMES_URL
+) -> list[dict]:
+    """Send one Apicalypse query and return its rows, refreshing the cached
+    token and retrying exactly once if IGDB rejects it as expired."""
+    token = _get_valid_token(db, settings)
+    response = _query_igdb(settings, token, body, url)
+    if response.status_code == 401:
+        # The cached token died early (revoked or clock drift past the
+        # margin): mint a fresh one and retry exactly once.
+        token = _get_valid_token(db, settings, force_refresh=True)
+        response = _query_igdb(settings, token, body, url)
+    if response.status_code != 200:
+        raise IgdbUpstreamError(f"IGDB answered {response.status_code}")
+    return response.json()
+
+
+def _add_alias(aliases: dict[str, set[int]], raw: str, platform_id: int) -> None:
+    """Record one way of naming a platform, unless it is unusable as a query
+    suffix. Aliases with no letter are dropped: Nintendo 64's "64" would
+    otherwise swallow the tail of "Star Fox 64" and hide the 3DS remake."""
+    alias = fold_text(raw)
+    if len(alias) < 2 or not any(c.isalpha() for c in alias):
+        return
+    if len(alias.split()) > _MAX_PLATFORM_WORDS:
+        return
+    aliases.setdefault(alias, set()).add(platform_id)
+
+
+def _build_platform_aliases(rows: list[dict]) -> dict[str, tuple[int, ...]]:
+    """IGDB's /platforms rows -> every string a user might type for them.
+
+    One alias can map to several platforms ("ps" covers a few), so the values
+    are tuples that become an OR-ed `where platforms = (...)` clause.
+    """
+    collected: dict[str, set[int]] = {}
+    for row in rows:
+        platform_id = row.get("id")
+        if platform_id is None:
+            continue
+        name = row.get("name") or ""
+        _add_alias(collected, name, platform_id)
+        _add_alias(collected, row.get("abbreviation") or "", platform_id)
+        # alternative_name is one string that sometimes holds a comma-separated
+        # list ("PSX, PSOne, PS").
+        for alt in (row.get("alternative_name") or "").split(","):
+            _add_alias(collected, alt, platform_id)
+        # "Nintendo Switch 2" -> "switch 2", which is how people actually type it.
+        normalized = fold_text(name)
+        for prefix in _PLATFORM_VENDOR_PREFIXES:
+            if normalized.startswith(prefix):
+                _add_alias(collected, normalized[len(prefix) :], platform_id)
+    return {alias: tuple(sorted(ids)) for alias, ids in collected.items()}
+
+
+def _get_platform_aliases(db: Session, settings: Settings) -> dict[str, tuple[int, ...]]:
+    """The alias map, fetched from IGDB on first use and refreshed every
+    PLATFORM_CACHE_TTL. Failure is not fatal: an empty map just means the
+    query goes to IGDB unsplit, which is the old behaviour."""
+    global _platform_aliases, _platform_aliases_expire_at
+    now = datetime.now(UTC)
+    if (
+        _platform_aliases is not None
+        and _platform_aliases_expire_at is not None
+        and _platform_aliases_expire_at > now
+    ):
+        return _platform_aliases
+    try:
+        rows = _run_query(
+            db,
+            settings,
+            "fields name, abbreviation, alternative_name; limit 500;",
+            _IGDB_PLATFORMS_URL,
+        )
+    except IgdbUpstreamError:
+        # Cache the failure briefly so one IGDB wobble doesn't make every
+        # subsequent search pay for another timeout.
+        _platform_aliases = {}
+        _platform_aliases_expire_at = now + timedelta(minutes=5)
+        return _platform_aliases
+    _platform_aliases = _build_platform_aliases(rows)
+    _platform_aliases_expire_at = now + PLATFORM_CACHE_TTL
+    return _platform_aliases
+
+
+def _split_platform_suffix(
+    query: str, aliases: dict[str, tuple[int, ...]]
+) -> tuple[str, tuple[int, ...]]:
+    """"star fox switch 2" -> ("star fox", (508,)).
+
+    IGDB's `search` matches game names only, so a typed console makes the
+    whole query miss. The longest matching suffix wins ("nintendo switch 2"
+    beats "switch 2"), and a suffix is only taken when something is left to
+    search for — "switch" alone stays a name search.
+    """
+    words = query.split()
+    for take in range(min(_MAX_PLATFORM_WORDS, len(words) - 1), 0, -1):
+        candidate = fold_text(" ".join(words[-take:]))
+        platform_ids = aliases.get(candidate)
+        if platform_ids:
+            return " ".join(words[:-take]), platform_ids
+    return query, ()
+
+
 def _escape_apicalypse(term: str) -> str:
     """Escape a user-supplied search term for interpolation into an
     Apicalypse string literal (backslashes first, then quotes)."""
@@ -123,6 +278,19 @@ def _upgrade_cover_url(url: str) -> str:
         return ""
     url = url.replace("t_thumb", "t_cover_big")
     return f"https:{url}" if url.startswith("//") else url
+
+
+def _rank_rows(raw: list[dict]) -> list[dict]:
+    """Re-sort one page of IGDB rows so real games outrank mods and bundles.
+
+    Python's sort is stable, so IGDB's own relevance order survives inside
+    each tier: this only ever moves a Mod below a Remake, never reshuffles two
+    main games.
+    """
+    return sorted(
+        raw,
+        key=lambda row: _GAME_TYPE_RANK.get(row.get("game_type"), _DEFAULT_GAME_TYPE_RANK),
+    )
 
 
 def _parse_results(raw: list[dict]) -> list[IgdbSearchResult]:
@@ -162,11 +330,45 @@ def _parse_results(raw: list[dict]) -> list[IgdbSearchResult]:
     return results
 
 
-def search_games(db: Session, user_id: uuid.UUID, query: str) -> list[IgdbSearchResult]:
+_FIELDS = "fields name, first_release_date, platforms.name, genres.name, cover.url, game_type;"
+
+
+def _id_list(platform_ids: tuple[int, ...]) -> str:
+    return ",".join(str(p) for p in platform_ids)
+
+
+def _search_body(query: str, platform_ids: tuple[int, ...], offset: int) -> str:
+    """A name search, optionally narrowed to platforms. `= (a,b)` on an array
+    field is an OR, so an alias covering several platforms still matches a
+    game on any one of them."""
+    where = f" where platforms = ({_id_list(platform_ids)});" if platform_ids else ""
+    return (
+        f'search "{_escape_apicalypse(query)}";'
+        f" {_FIELDS}"
+        f"{where}"
+        f" limit {SEARCH_LIMIT}; offset {offset};"
+    )
+
+
+def _fuzzy_body(query: str, platform_ids: tuple[int, ...]) -> str:
+    """Last resort when a name search finds nothing: substring-match the name
+    and IGDB's alternative names. `~ *"..."*` is a case-insensitive contains,
+    and alternative_names is what knows "Civ 6" means Civilization VI."""
+    escaped = _escape_apicalypse(query)
+    clauses = f'(name ~ *"{escaped}"* | alternative_names.name ~ *"{escaped}"*)'
+    if platform_ids:
+        clauses += f" & platforms = ({_id_list(platform_ids)})"
+    return f"{_FIELDS} where {clauses}; limit {SEARCH_LIMIT};"
+
+
+def search_games(
+    db: Session, user_id: uuid.UUID, query: str, page: int = 1
+) -> IgdbSearchResponse:
     """Search IGDB on behalf of an authenticated caller.
 
     Order matters: the rate limit is charged before any upstream call, so a
-    hammering client burns its own budget, never the IGDB quota.
+    hammering client burns its own budget, never the IGDB quota. One request
+    is one charge no matter how many upstream calls the fallbacks below cost.
     """
     settings = get_settings()
     if not settings.twitch_client_id or not settings.twitch_client_secret:
@@ -182,20 +384,35 @@ def search_games(db: Session, user_id: uuid.UUID, query: str) -> list[IgdbSearch
         "Wait a moment and try again.",
     )
 
-    body = (
-        f'search "{_escape_apicalypse(query)}"; '
-        "fields name, first_release_date, platforms.name, genres.name, cover.url; "
-        f"limit {SEARCH_LIMIT};"
-    )
+    offset = (page - 1) * SEARCH_LIMIT
+    stripped = query.strip()
+    # A one-word query cannot have a platform suffix (splitting it would leave
+    # nothing to search for), so it must not pay for the alias fetch.
+    aliases = _get_platform_aliases(db, settings) if " " in stripped else {}
+    name_query, platform_ids = _split_platform_suffix(stripped, aliases)
 
-    token = _get_valid_token(db, settings)
-    response = _query_igdb(settings, token, body)
-    if response.status_code == 401:
-        # The cached token died early (revoked or clock drift past the
-        # margin): mint a fresh one and retry exactly once.
-        token = _get_valid_token(db, settings, force_refresh=True)
-        response = _query_igdb(settings, token, body)
-    if response.status_code != 200:
-        raise IgdbUpstreamError(f"IGDB answered {response.status_code}")
+    # Tried in order, stopping at the first that returns anything. Each step
+    # loosens the previous one, so the common case still costs a single call.
+    # Both fallbacks are first-page only: reaching one on a later page would
+    # mean the strategy behind the earlier pages ran out, and appending a
+    # different strategy's results there splices two unrelated lists together.
+    # Neither is pageable, hence pageable=False on the ones that can't be.
+    attempts = [(_search_body(name_query, platform_ids, offset), True)]
+    if page == 1:
+        if platform_ids:
+            # The suffix may have been part of the title after all ("Star Fox
+            # NES" is a real PC fan game), so retry with the whole string.
+            attempts.append((_search_body(query, (), offset), True))
+        attempts.append((_fuzzy_body(name_query, platform_ids), False))
 
-    return _parse_results(response.json())
+    for body, pageable in attempts:
+        raw = _run_query(db, settings, body)
+        if raw:
+            return IgdbSearchResponse(
+                results=_parse_results(_rank_rows(raw)),
+                # Counted from the rows IGDB sent, not the parsed ones: a
+                # malformed row that _parse_results drops would otherwise look
+                # like the end of the results and hide the "show more" button.
+                has_more=pageable and len(raw) == SEARCH_LIMIT and page < MAX_PAGE,
+            )
+    return IgdbSearchResponse(results=[], has_more=False)

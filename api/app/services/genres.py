@@ -43,7 +43,6 @@ approach in services/igdb.py.
 import difflib
 import logging
 import re
-import unicodedata
 import uuid
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -51,6 +50,7 @@ from datetime import timedelta
 import httpx
 from sqlalchemy.orm import Session
 
+from app.core.text import fold_text as _fold
 from app.services import rate_limit
 
 logger = logging.getLogger(__name__)
@@ -319,7 +319,6 @@ _SPLIT = re.compile(r"[,;|]|\*|<br\s*/?>|\n")
 # have already been filtered to video games -- scoring on the raw title is what
 # once let "Twilight Princess (manga)" match at 1.0.
 _PAREN = re.compile(r"\s*\([^)]*\)\s*$")
-_NON_ALNUM = re.compile(r"[^a-z0-9 ]+")
 
 # A token that is *entirely* a number or roman numeral, which is how sequels are
 # distinguished ("Hades II", "Black Ops 7"). Deliberately not matching mixed
@@ -327,17 +326,6 @@ _NON_ALNUM = re.compile(r"[^a-z0-9 ]+")
 # excluding those would reject the correct combined article for
 # "Super Smash Bros. for Nintendo 3DS and Wii U".
 _SERIES_MARKER = re.compile(r"\d+|[ivxlcdm]+")
-
-
-def _fold(value: str) -> str:
-    """Lowercase, strip accents and punctuation, collapse whitespace.
-
-    Accent folding matters: the shelf says "Pokemon", every Wikipedia article
-    says "Pokémon", and without this every Pokémon game loses points for it.
-    """
-    decomposed = unicodedata.normalize("NFKD", value)
-    stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
-    return " ".join(_NON_ALNUM.sub(" ", stripped.lower()).split())
 
 
 def _title_similarity(name: str, article: str) -> float:

@@ -40,6 +40,12 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
   const [results, setResults] = useState<IgdbSearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  // Paging state for "show more". `page` is the deepest page already loaded
+  // (results accumulate rather than replace); `hasMore` is the API's answer,
+  // not something derived here, since only it knows the page cap.
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // null = search step; set = confirm step.
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -65,28 +71,79 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
   const searchSeq = useRef(0);
   useEffect(() => {
     const trimmed = query.trim();
+    // Editing the query starts a new result set, so a "show more" fetch in
+    // flight is abandoned here. Bumping the counter now, rather than leaving
+    // it to the debounce timeout below, is what actually abandons it: a
+    // response landing inside the 350ms gap would otherwise pass its own
+    // staleness check and write page 2 over what is about to be page 1.
+    searchSeq.current += 1;
+    setLoadingMore(false);
+    setPage(1);
     if (trimmed.length < 2) {
       setResults(null);
       setSearching(false);
       setSearchError(null);
+      setHasMore(false);
       return;
     }
     setSearching(true);
     const timeout = setTimeout(async () => {
-      const seq = ++searchSeq.current;
+      // No second bump: the effect body above already invalidated everything
+      // in flight, and nothing else can fire between then and here.
+      const seq = searchSeq.current;
       const res = await searchGames(trimmed);
       if (seq !== searchSeq.current) return; // a newer search superseded this one
       setSearching(false);
       if (res.ok) {
         setResults(res.results);
+        setHasMore(res.hasMore);
         setSearchError(null);
       } else {
         setResults(null);
+        setHasMore(false);
         setSearchError(res.message);
       }
     }, 350);
     return () => clearTimeout(timeout);
   }, [query]);
+
+  /** Append the next page of IGDB matches.
+   *
+   *  Deliberately not routed through the debounced effect above: typing fires
+   *  that effect on its own schedule, and paging must cost exactly one search
+   *  per click — every page is another charge against the server-side
+   *  per-minute IGDB budget. It shares the effect's sequence counter so a
+   *  keystroke mid-fetch discards this response instead of appending results
+   *  from the previous query. */
+  const loadMore = async () => {
+    const trimmed = query.trim();
+    const next = page + 1;
+    if (loadingMore || !hasMore) return;
+    const seq = ++searchSeq.current;
+    setLoadingMore(true);
+    const res = await searchGames(trimmed, next);
+    if (seq !== searchSeq.current) return; // the query changed under us
+    setLoadingMore(false);
+    if (!res.ok) {
+      setSearchError(res.message);
+      setHasMore(false);
+      return;
+    }
+    setPage(next);
+    setHasMore(res.hasMore);
+    // Deduped by igdbId: the fallback queries on the API side can surface a
+    // game already shown, and a repeated key would break the list.
+    //
+    // `results` from this render is safe to read directly rather than through
+    // an updater: the only other writer is the debounced search, and the
+    // sequence guard above has already returned if one landed.
+    const shown = results ?? [];
+    const seen = new Set(shown.map((r) => r.igdbId));
+    const fresh = res.results.filter((r) => !seen.has(r.igdbId));
+    if (fresh.length === 0) return;
+    // Appending only, so no row already on screen moves.
+    setResults([...shown, ...fresh]);
+  };
 
   const pickResult = (r: IgdbSearchResult) => {
     setError(null);
@@ -227,9 +284,14 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
         role="dialog"
         aria-modal="true"
         aria-label={heading}
-        className="relative w-full max-w-md max-h-[85vh] overflow-y-auto rounded-lg border border-shelf-plank bg-shelf-bg p-5 shadow-2xl"
+        // A flex column capped at 80% of the viewport, with only the middle
+        // section scrolling: the heading, the search box and the buttons under
+        // it stay put however many results come back. dvh rather than vh so
+        // mobile browser chrome is excluded from the 80%. The cap is a max, so
+        // a two-result search still renders a short dialog.
+        className="relative flex max-h-[80dvh] w-full max-w-md flex-col rounded-lg border border-shelf-plank bg-shelf-bg p-5 shadow-2xl"
       >
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex shrink-0 items-start justify-between gap-3">
           <h2 className="text-shelf-text font-semibold leading-snug">{heading}</h2>
           <button
             type="button"
@@ -253,18 +315,36 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
               maxLength={100}
               placeholder="Search IGDB…"
               aria-label="Search IGDB for a game"
-              className={`${inputClass} mt-4`}
+              className={`${inputClass} mt-4 shrink-0`}
             />
 
-            {searching && <p className="mt-3 text-xs text-shelf-text-muted italic">Searching…</p>}
+            {searching && (
+              <p className="mt-3 shrink-0 text-xs text-shelf-text-muted italic">Searching…</p>
+            )}
             {searchError && (
-              <p role="alert" className="mt-3 text-xs text-red-500 dark:text-red-400">
+              <p role="alert" className="mt-3 shrink-0 text-xs text-red-500 dark:text-red-400">
                 {searchError}
               </p>
             )}
 
-            {!searching && results !== null && (
-              <ul className="mt-3 flex flex-col gap-1">
+            {/* The only scrolling part of the dialog. `min-h-0` is the
+                non-obvious half: a flex item's default `min-height: auto`
+                refuses to shrink below its content, so without it the list
+                would push the dialog past its max height instead of
+                scrolling inside it.
+
+                Rendered while a new search is in flight rather than being
+                unmounted and rebuilt: the previous matches dim in place, so
+                the list no longer collapses under you mid-word, and React
+                reconciles up to 100 rows of cover art instead of remounting
+                them on every keystroke. */}
+            {results !== null && (
+              <ul
+                aria-busy={searching}
+                className={`mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto transition-opacity ${
+                  searching ? "opacity-50" : ""
+                }`}
+              >
                 {results.length === 0 && (
                   <li className="text-xs text-shelf-text-muted italic">No matches.</li>
                 )}
@@ -300,143 +380,169 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
                     </button>
                   </li>
                 ))}
+
+                {/* Inside the scroll area, deliberately: as the last row it is
+                    only reachable once you have read to the bottom of the
+                    list, which is the only point at which wanting more makes
+                    sense. No scroll listener needed to get that behaviour. */}
+                {hasMore && (
+                  <li className="pt-1">
+                    <button
+                      type="button"
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                      className="w-full rounded-md border border-shelf-plank py-1.5 text-xs text-shelf-text-muted hover:bg-shelf-input hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                    >
+                      {loadingMore ? "Loading…" : "Show more results"}
+                    </button>
+                  </li>
+                )}
               </ul>
             )}
 
             <button
               type="button"
               onClick={startManual}
-              className="mt-4 text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer"
+              // self-start because a flex column stretches its children:
+              // without it this underlined link would span the full width.
+              className="mt-4 shrink-0 self-start text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer"
             >
               Can&rsquo;t find it? Add it manually
             </button>
           </>
         ) : (
-          <div className="mt-4">
-            {draft.imageUrl && (
-              <Image
-                src={draft.imageUrl}
-                alt={`Cover of ${draft.name}`}
-                width={80}
-                height={107}
-                className="mb-3 h-[107px] w-20 rounded object-cover"
-              />
-            )}
-
-            <div className="flex flex-col gap-3">
-              <label className={labelClass}>
-                Name
-                <input
-                  type="text"
-                  value={draft.name}
-                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                  className={inputClass}
+          // Fragment, not one element: the scrolling body and the pinned
+          // buttons have to be flex siblings of the dialog for only the body
+          // to scroll.
+          <>
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
+              {draft.imageUrl && (
+                <Image
+                  src={draft.imageUrl}
+                  alt={`Cover of ${draft.name}`}
+                  width={80}
+                  height={107}
+                  className="mb-3 h-[107px] w-20 rounded object-cover"
                 />
-              </label>
+              )}
 
-              <label className={labelClass}>
-                {target === "library" ? "System" : "System (optional)"}
-                <input
-                  type="text"
-                  value={draft.system}
-                  onChange={(e) => setDraft({ ...draft, system: e.target.value })}
-                  list="known-systems"
-                  placeholder="e.g. SNES, PS5"
-                  className={inputClass}
-                />
-              </label>
-              {/* Native autocomplete: shelf systems appear as suggestions
+              <div className="flex flex-col gap-3">
+                <label className={labelClass}>
+                  Name
+                  <input
+                    type="text"
+                    value={draft.name}
+                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                    className={inputClass}
+                  />
+                </label>
+
+                <label className={labelClass}>
+                  {target === "library" ? "System" : "System (optional)"}
+                  <input
+                    type="text"
+                    value={draft.system}
+                    onChange={(e) => setDraft({ ...draft, system: e.target.value })}
+                    list="known-systems"
+                    placeholder="e.g. SNES, PS5"
+                    className={inputClass}
+                  />
+                </label>
+                {/* Native autocomplete: shelf systems appear as suggestions
                   under the input, but any free-text value is allowed. */}
-              <datalist id="known-systems">
-                {systemSuggestions.map((s) => (
-                  <option key={s} value={s} />
-                ))}
-              </datalist>
+                <datalist id="known-systems">
+                  {systemSuggestions.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
 
-              <label className={labelClass}>
-                Genres (comma-separated)
-                {genreLookup === "loading" && (
-                  <span className="ml-2 font-normal text-shelf-text-muted">
-                    checking Wikipedia...
-                  </span>
-                )}
-                {genreLookup === "none" && (
-                  <span className="ml-2 font-normal text-shelf-text-muted">
-                    Wikipedia had no match, showing IGDB&apos;s genres
-                  </span>
-                )}
-                <input
-                  type="text"
-                  value={draft.genresText}
-                  onChange={(e) => {
-                    setDraft({ ...draft, genresText: e.target.value });
-                    // Hand-editing both stales the status note and cancels any
-                    // in-flight lookup, so it cannot overwrite the typing.
-                    genreSeq.current += 1;
-                    setGenreLookup("idle");
-                  }}
-                  placeholder="e.g. RPG, Adventure"
-                  className={inputClass}
-                />
-              </label>
+                <label className={labelClass}>
+                  Genres (comma-separated)
+                  {genreLookup === "loading" && (
+                    <span className="ml-2 font-normal text-shelf-text-muted">
+                      checking Wikipedia...
+                    </span>
+                  )}
+                  {genreLookup === "none" && (
+                    <span className="ml-2 font-normal text-shelf-text-muted">
+                      Wikipedia had no match, showing IGDB&apos;s genres
+                    </span>
+                  )}
+                  <input
+                    type="text"
+                    value={draft.genresText}
+                    onChange={(e) => {
+                      setDraft({ ...draft, genresText: e.target.value });
+                      // Hand-editing both stales the status note and cancels any
+                      // in-flight lookup, so it cannot overwrite the typing.
+                      genreSeq.current += 1;
+                      setGenreLookup("idle");
+                    }}
+                    placeholder="e.g. RPG, Adventure"
+                    className={inputClass}
+                  />
+                </label>
 
-              <label className={labelClass}>
-                Release date
-                {/* Capped at today for the library (you can't have played a
+                <label className={labelClass}>
+                  Release date
+                  {/* Capped at today for the library (you can't have played a
                     game that isn't out yet) but uncapped for the wishlist,
                     where unreleased games are the normal case. */}
-                <input
-                  type="date"
-                  value={draft.releaseDate ?? ""}
-                  max={target === "library" ? localToday() : undefined}
-                  onChange={(e) => setDraft({ ...draft, releaseDate: e.target.value || null })}
-                  className={inputClass}
-                />
-              </label>
-
-              {target === "library" ? (
-                <div>
-                  <p className={labelClass}>Rating (optional)</p>
-                  <div className="mt-1 grid grid-cols-5 gap-1.5">
-                    {RATINGS.map((r) => {
-                      const active = r.name === draft.rating;
-                      return (
-                        <button
-                          key={r.letter}
-                          type="button"
-                          aria-pressed={active}
-                          onClick={() =>
-                            setDraft({ ...draft, rating: active ? "" : (r.name as Rating) })
-                          }
-                          title={active ? "Remove rating" : `Rate ${r.name}`}
-                          aria-label={active ? "Remove rating" : `Rate ${r.name}`}
-                          className={`rounded-md border py-1.5 text-sm font-bold transition-colors cursor-pointer ${
-                            active
-                              ? "border-transparent text-black/80"
-                              : "border-shelf-plank hover:bg-shelf-input"
-                          }`}
-                          style={active ? { backgroundColor: r.color } : { color: r.color }}
-                        >
-                          {r.letter}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <label className="flex items-center gap-2 text-sm text-shelf-text cursor-pointer">
                   <input
-                    type="checkbox"
-                    checked={draft.starred}
-                    onChange={(e) => setDraft({ ...draft, starred: e.target.checked })}
-                    className="accent-amber-500"
+                    type="date"
+                    value={draft.releaseDate ?? ""}
+                    max={target === "library" ? localToday() : undefined}
+                    onChange={(e) => setDraft({ ...draft, releaseDate: e.target.value || null })}
+                    className={inputClass}
                   />
-                  Star it (priority wishlist)
                 </label>
-              )}
+
+                {target === "library" ? (
+                  <div>
+                    <p className={labelClass}>Rating (optional)</p>
+                    <div className="mt-1 grid grid-cols-5 gap-1.5">
+                      {RATINGS.map((r) => {
+                        const active = r.name === draft.rating;
+                        return (
+                          <button
+                            key={r.letter}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() =>
+                              setDraft({ ...draft, rating: active ? "" : (r.name as Rating) })
+                            }
+                            title={active ? "Remove rating" : `Rate ${r.name}`}
+                            aria-label={active ? "Remove rating" : `Rate ${r.name}`}
+                            className={`rounded-md border py-1.5 text-sm font-bold transition-colors cursor-pointer ${
+                              active
+                                ? "border-transparent text-black/80"
+                                : "border-shelf-plank hover:bg-shelf-input"
+                            }`}
+                            style={active ? { backgroundColor: r.color } : { color: r.color }}
+                          >
+                            {r.letter}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-2 text-sm text-shelf-text cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={draft.starred}
+                      onChange={(e) => setDraft({ ...draft, starred: e.target.checked })}
+                      className="accent-amber-500"
+                    />
+                    Star it (priority wishlist)
+                  </label>
+                )}
+              </div>
             </div>
 
-            <div className="mt-4 flex items-center gap-3">
+            {/* Pinned below the scroll area, so "Add to library" is reachable
+                without scrolling to the bottom of a long form. */}
+            <div className="mt-4 flex shrink-0 items-center gap-3">
               <button
                 type="button"
                 onClick={save}
@@ -454,11 +560,11 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
                 Back to search
               </button>
             </div>
-          </div>
+          </>
         )}
 
         {error && (
-          <p role="alert" className="mt-3 text-xs text-red-500 dark:text-red-400">
+          <p role="alert" className="mt-3 shrink-0 text-xs text-red-500 dark:text-red-400">
             {error}
           </p>
         )}
