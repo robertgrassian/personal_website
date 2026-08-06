@@ -48,6 +48,23 @@ before that happens.
       dead-end for the user only when the game is not in the list at all, which is the Star Fox
       case above and the reason this moved from "someday" to a concrete ask.
 
+- [ ] **Library filter search should fuzzy match, but stay strict** — specifically, typing
+      "pokemon" should find the games spelled with the accented "é". Today
+      `passesBaseFilters` (`src/components/video_games/pipeline.ts:27`) is a plain
+      `name.toLowerCase().includes(search.toLowerCase())`, so it is case-insensitive and nothing
+      more: "Pokémon" is invisible to "pokemon", and every shelf goes empty while you are
+      halfway through typing the word.<br>
+      _The cheap fix covers the actual complaint:_ normalize both sides with
+      `.normalize("NFD").replace(/\p{Diacritic}/gu, "")` before comparing, which folds é→e, ō→o
+      and the rest without pulling in a fuzzy-match library. That alone solves Pokémon, Ōkami
+      and Pikmin-style titles.<br>
+      _"Strict" is the constraint worth keeping._ True fuzzy matching (Levenshtein / trigram /
+      fuse.js) starts returning things you did not ask for on a two-character query, which is
+      worse than a miss on a library you know by heart. If it goes past diacritic folding, keep
+      it to punctuation/whitespace insensitivity ("resident evil 4" matching "Resident Evil 4:
+      Remake", ignoring `:` and `-`) rather than edit distance. Same helper should apply to the
+      wishlist filter, which shares this function.
+
 ## Backlog / Ideas
 
 - [ ] **Make viewing a game's details better: the back of the case truncates genres and there is
@@ -73,23 +90,6 @@ before that happens.
       being a button. Whatever opens must also work on touch, where there is no hover.<br>
       Related: the "notes / play journal" backlog item below wants a bigger reading surface for
       per-game data too, so a details view built here is likely where notes end up living.
-
-- [ ] **Library filter search should fuzzy match, but stay strict** — specifically, typing
-      "pokemon" should find the games spelled with the accented "é". Today
-      `passesBaseFilters` (`src/components/video_games/pipeline.ts:27`) is a plain
-      `name.toLowerCase().includes(search.toLowerCase())`, so it is case-insensitive and nothing
-      more: "Pokémon" is invisible to "pokemon", and every shelf goes empty while you are
-      halfway through typing the word.<br>
-      _The cheap fix covers the actual complaint:_ normalize both sides with
-      `.normalize("NFD").replace(/\p{Diacritic}/gu, "")` before comparing, which folds é→e, ō→o
-      and the rest without pulling in a fuzzy-match library. That alone solves Pokémon, Ōkami
-      and Pikmin-style titles.<br>
-      _"Strict" is the constraint worth keeping._ True fuzzy matching (Levenshtein / trigram /
-      fuse.js) starts returning things you did not ask for on a two-character query, which is
-      worse than a miss on a library you know by heart. If it goes past diacritic folding, keep
-      it to punctuation/whitespace insensitivity ("resident evil 4" matching "Resident Evil 4:
-      Remake", ignoring `:` and `-`) rather than edit distance. Same helper should apply to the
-      wishlist filter, which shares this function.
 
 - [ ] **Set up monitoring / alerting, specifically to get notified when a new user signs up for
       the game library.** There is nothing today: no error tracking, no analytics, no email or
