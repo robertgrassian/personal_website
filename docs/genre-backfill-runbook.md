@@ -5,7 +5,9 @@ the procedure for running them against a real database, written down because the
 ordering matters, one step is easy to skip, and the failure modes are not obvious
 from the scripts themselves.
 
-Applied to the **local** DB on 2026-08-03. Production is still pending.
+Run against local on 2026-08-03 and against production on 2026-08-05. Kept because
+the scripts remain in the repo and the failure modes below are not obvious from
+reading them.
 
 ## What they do, and why in this order
 
