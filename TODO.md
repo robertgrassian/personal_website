@@ -24,6 +24,41 @@ before that happens.
       `rate_limits` has no FK to `profiles`, so those rows will not cascade and need deleting
       explicitly.
 
+- [ ] **On mobile, the add-game details/rating step scrolls in both directions and does not fit
+      its box.** Reported 2026-08-06 from a phone: after picking a title in `AddGameModal`, the
+      confirm form (name / system / genres / release date / rating) feels larger than the dialog
+      containing it, and dragging a finger pans it horizontally as well as vertically. It should
+      size to the screen and fit.<br>
+      _Half the premise needs correcting, and it points at the real cause._ The dialog is already
+      viewport-relative: `max-h-[80dvh] w-full max-w-md` inside a `fixed inset-0 … p-4` grid
+      (`AddGameModal.tsx:276,292`), so the panel itself cannot exceed the screen, and the
+      confirm body's vertical scrolling is deliberate (`min-h-0 flex-1 overflow-y-auto`,
+      `:418`, with the save buttons pinned outside it). So "make the height dynamic" is not the
+      fix — the height already is.<br>
+      _Most likely culprit: iOS auto-zoom on focus._ Mobile Safari zooms the whole page in when
+      you focus an input whose font-size is under 16px, and `inputClass` (`formStyles.ts:5`) is
+      `text-sm` = 14px on every field here. Once zoomed, the layout is genuinely wider than the
+      window and pans in both axes, which matches the report exactly. There is no `export const
+      viewport` in `src/app/layout.tsx`, so Next's default meta applies and scaling is allowed.
+      Fix by bumping the inputs to 16px on small screens rather than by adding
+      `maximum-scale=1`, which disables pinch-zoom for everyone and is an accessibility
+      regression.<br>
+      _A second, independent mechanism worth ruling out._ Per CSS, when one axis of `overflow`
+      is not `visible` the other computes from `visible` to `auto` — so `overflow-y-auto` on
+      `:418` makes that div horizontally scrollable the moment any child is one pixel too wide.
+      `input[type="date"]` (`:491`) is the usual offender, since it carries an intrinsic control
+      width that `w-full` does not always beat. `overflow-x-hidden` plus `min-w-0` on the field
+      wrappers settles it. Note the search step's results `<ul>` (`:344`) has the same
+      overflow-y and the same exposure, so fix both.<br>
+      _And check the scroll lock while in there:_ `useModalChrome` sets
+      `document.body.style.overflow = "hidden"` (`useModalChrome.ts:25`), which iOS Safari
+      ignores for touch, so some of the "it moves under my finger" may be the page behind the
+      dialog rather than the dialog. `overscroll-behavior: contain` on the scroll area is the
+      cheap half. Same three modals share this hook, so any fix lands on `EditGameModal` and
+      `EditWishlistModal` too.<br>
+      Related: the mobile field-suggestions item in Backlog covers the same two forms (the
+      `<datalist>` that phones ignore) — worth doing in one mobile pass over `AddGameModal`.
+
 - [ ] **Library filter search should fuzzy match, but stay strict** — specifically, typing
       "pokemon" should find the games spelled with the accented "é". Today
       `passesBaseFilters` (`src/components/video_games/pipeline.ts:27`) is a plain
