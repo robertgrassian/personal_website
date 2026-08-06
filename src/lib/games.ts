@@ -73,6 +73,12 @@ export interface IgdbSearchResult {
   coverUrl: string; // "" = no cover on IGDB; fallback art renders instead
 }
 
+// Mirrors SEARCH_LIMIT / MAX_PAGE in api/app/services/igdb.py. The picker uses
+// them to decide whether a "show more" button is worth offering: a short page
+// means IGDB is out of matches, and page MAX is as deep as the API will go.
+export const IGDB_PAGE_SIZE = 25;
+export const IGDB_MAX_PAGE = 4;
+
 // Payload for POST /me/games — mirrors the API's GameCreate schema. Every
 // IGDB-derived field is optional so manual entry works with name + system.
 export interface NewGame {

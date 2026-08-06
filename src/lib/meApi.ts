@@ -273,8 +273,10 @@ export type SearchIgdbResult =
   | { ok: true; results: IgdbSearchResult[] }
   | { ok: false; message: string };
 
-/** Search IGDB through the authenticated proxy (rate-limited server-side). */
-export async function searchIgdb(query: string): Promise<SearchIgdbResult> {
+/** Search IGDB through the authenticated proxy (rate-limited server-side).
+ *  `page` walks further down the same result list for the picker's "show
+ *  more"; the API caps how deep it will go. */
+export async function searchIgdb(query: string, page = 1): Promise<SearchIgdbResult> {
   // Nominally a read, but the proxy writes through it (token cache, rate-limit
   // counters), so it gets the same refusal as the mutations.
   if (targetsForeignEnvironmentApi()) {
@@ -286,7 +288,7 @@ export async function searchIgdb(query: string): Promise<SearchIgdbResult> {
   }
 
   const res = await fetch(
-    `${requireLibraryApiOrigin()}/api/py/igdb/search?q=${encodeURIComponent(query)}`,
+    `${requireLibraryApiOrigin()}/api/py/igdb/search?q=${encodeURIComponent(query)}&page=${page}`,
     {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",

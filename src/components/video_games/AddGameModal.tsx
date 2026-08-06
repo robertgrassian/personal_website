@@ -2,7 +2,15 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { localToday, RATINGS, type IgdbSearchResult, type NewGame, type Rating } from "@/lib/games";
+import {
+  IGDB_MAX_PAGE,
+  IGDB_PAGE_SIZE,
+  localToday,
+  RATINGS,
+  type IgdbSearchResult,
+  type NewGame,
+  type Rating,
+} from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
 import { addGame, addWishlistItem, lookupGameGenres, searchGames } from "@/app/video-games/actions";
 import { CloseIcon } from "@/components/Icon";
@@ -40,6 +48,12 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
   const [results, setResults] = useState<IgdbSearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  // Paging state for "show more". `page` is the deepest page already loaded
+  // (results accumulate rather than replace), `hasMore` is set from the last
+  // response: a page shorter than IGDB_PAGE_SIZE means IGDB has run out.
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // null = search step; set = confirm step.
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -65,10 +79,15 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
   const searchSeq = useRef(0);
   useEffect(() => {
     const trimmed = query.trim();
+    // Editing the query starts a new result set, so any page-2 fetch in
+    // flight is abandoned here rather than appending to the wrong search.
+    setLoadingMore(false);
+    setPage(1);
     if (trimmed.length < 2) {
       setResults(null);
       setSearching(false);
       setSearchError(null);
+      setHasMore(false);
       return;
     }
     setSearching(true);
@@ -79,14 +98,48 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
       setSearching(false);
       if (res.ok) {
         setResults(res.results);
+        setHasMore(res.results.length === IGDB_PAGE_SIZE && IGDB_MAX_PAGE > 1);
         setSearchError(null);
       } else {
         setResults(null);
+        setHasMore(false);
         setSearchError(res.message);
       }
     }, 350);
     return () => clearTimeout(timeout);
   }, [query]);
+
+  /** Append the next page of IGDB matches.
+   *
+   *  Deliberately not routed through the debounced effect above: typing fires
+   *  that effect on its own schedule, and paging must cost exactly one search
+   *  per click — every page is another charge against the server-side
+   *  per-minute IGDB budget. It shares the effect's sequence counter so a
+   *  keystroke mid-fetch discards this response instead of appending results
+   *  from the previous query. */
+  const loadMore = async () => {
+    const trimmed = query.trim();
+    const next = page + 1;
+    if (loadingMore || !hasMore || next > IGDB_MAX_PAGE) return;
+    const seq = ++searchSeq.current;
+    setLoadingMore(true);
+    const res = await searchGames(trimmed, next);
+    if (seq !== searchSeq.current) return; // the query changed under us
+    setLoadingMore(false);
+    if (!res.ok) {
+      setSearchError(res.message);
+      setHasMore(false);
+      return;
+    }
+    setPage(next);
+    setHasMore(res.results.length === IGDB_PAGE_SIZE && next < IGDB_MAX_PAGE);
+    // Deduped by igdbId: the fallback queries on the API side can surface a
+    // game already shown, and a repeated key would break the list.
+    setResults((current) => {
+      const seen = new Set((current ?? []).map((r) => r.igdbId));
+      return [...(current ?? []), ...res.results.filter((r) => !seen.has(r.igdbId))];
+    });
+  };
 
   const pickResult = (r: IgdbSearchResult) => {
     setError(null);
@@ -301,6 +354,17 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
                   </li>
                 ))}
               </ul>
+            )}
+
+            {!searching && hasMore && (
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="mt-3 w-full rounded-md border border-shelf-plank py-1.5 text-xs text-shelf-text-muted hover:bg-shelf-input hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+              >
+                {loadingMore ? "Loading…" : "Show more results"}
+              </button>
             )}
 
             <button

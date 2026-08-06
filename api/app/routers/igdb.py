@@ -31,8 +31,12 @@ def search_igdb(
     user: CurrentUser,
     db: DbSession,
     q: Annotated[str, Query(min_length=1, max_length=100)],
+    page: Annotated[int, Query(ge=1, le=igdb_service.MAX_PAGE)] = 1,
 ) -> list[IgdbSearchResult]:
     """Search IGDB for games matching ``q`` — feeds the add-game picker.
+
+    ``page`` walks further down the same result list (the picker's "show
+    more"), capped so paging can't be used to grind IGDB's quota.
 
     Status mapping:
     - 429 caller over their per-minute search budget
@@ -40,7 +44,7 @@ def search_igdb(
     - 503 credentials not configured in this environment
     """
     try:
-        return igdb_service.search_games(db, user.id, q)
+        return igdb_service.search_games(db, user.id, q, page)
     except RateLimitedError as exc:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc)) from exc
     except IgdbNotConfiguredError as exc:

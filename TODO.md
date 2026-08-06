@@ -24,30 +24,6 @@ before that happens.
       `rate_limits` has no FK to `profiles`, so those rows will not cascade and need deleting
       explicitly.
 
-- [ ] **Improve the add-game IGDB search: more results, and let the query name the console.**
-      Two complaints, one surface.<br>
-      _Too few results (raised 2026-08-04):_ searching "star fox" does not surface the Switch 2
-      remake at all. `SEARCH_LIMIT = 10` (`api/app/services/igdb.py:34`) with no paging, and a
-      franchise that old fills ten slots with older entries. Want either a longer list, a
-      next-page arrow in the picker, or both. Paging means adding `offset` to the Apicalypse
-      body (`api/app/services/igdb.py:186-189`), threading it through
-      `GET /api/py/igdb/search` and the `searchGames` Server Action, and holding a page number
-      in `AddGameModal`. Watch the rate limit: every page is another charge against the
-      `igdb_search` bucket, so a next-page click must not fire on debounce the way typing does.<br>
-      _Typing the platform should work:_ "star fox switch 2" currently returns nothing, because
-      the whole string goes to IGDB's `search`, which matches game names only. Fix is to split
-      recognized platform words off the query and turn them into a `where platforms = (...)`
-      clause instead of leaving them in the search text. That needs a platform-name lookup
-      (IGDB's `/platforms`, cached), and it is the same IGDB-name-vs-shelf-label mapping the
-      "restrict the add-game system suggestions" backlog item needs — do them together.<br>
-      _Fuzzy matching, noticed 2026-08-03 while building the title backfill:_ the raw pass-through
-      is also unforgiving of the way people type. "Civ 6" returns nothing, and "Pokemon Fire Red"
-      returns _Pokémon Fire Red Extended_, a ROM hack, rather than the game.<br>
-      Not urgent as data-correctness goes: the add flow shows you the candidates and you pick
-      one, so a poor first hit costs a second look rather than wrong data. It is a real
-      dead-end for the user only when the game is not in the list at all, which is the Star Fox
-      case above and the reason this moved from "someday" to a concrete ask.
-
 - [ ] **Library filter search should fuzzy match, but stay strict** — specifically, typing
       "pokemon" should find the games spelled with the accented "é". Today
       `passesBaseFilters` (`src/components/video_games/pipeline.ts:27`) is a plain
@@ -316,7 +292,7 @@ before that happens.
       double-billing already happens for the owner, so it may be fine — just decide on
       purpose rather than by accident.
 - [ ] **Restrict the add-game "system" suggestions to the platforms the game actually released
-      on.** Today `AddGameModal.tsx:156` builds the `<datalist>` as a _union_ —
+      on.** Today `AddGameModal.tsx:260` builds the `<datalist>` as a _union_ —
       `[...new Set([...existingSystems, ...(draft?.platforms ?? [])])]` — with every shelf
       system you already own listed **first**, so the picked game's real IGDB platforms are
       buried at the bottom of a long list. Want: once a game is picked from IGDB, the
@@ -333,6 +309,11 @@ before that happens.
       offer the raw IGDB name when it's genuinely a system you don't own yet. Worth deciding
       the mapping alongside the genre-vocabulary normalization below, since it's the same
       problem one column over.<br>
+      _New since 2026-08-05:_ the search rework built half of this. `_build_platform_aliases`
+      (`api/app/services/igdb.py`) already turns IGDB's `/platforms` into normalized aliases
+      ("nes", "snes", "switch 2"), cached per process. What is still missing is the other
+      direction — alias → _your_ shelf label — so this becomes "match the shelf system whose
+      normalized form hits the same alias" rather than a hand-written mapping table.<br>
       Same change applies to the promote form in `EditWishlistModal.tsx`, which today offers
       only existing shelf systems and no IGDB platforms at all (see the mobile field-suggestions
       item below, which covers the same form).
@@ -372,6 +353,27 @@ before that happens.
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Add-game IGDB search: more results, platform in the query, fuzzy fallback, better
+      ranking** (2026-08-05). `SEARCH_LIMIT` 10 → 25 plus `offset` paging behind a "Show more
+      results" button (`page` query param, capped at `MAX_PAGE = 4`; the click bypasses the
+      debounce so one click is one charge against the `igdb_search` bucket). "star fox switch 2"
+      now works: `/platforms` is fetched once per process and cached 12h into an alias map
+      (name, abbreviation, alternative names, plus vendor-stripped "Nintendo Switch 2" →
+      "switch 2"), the longest matching **suffix** is split off the query into
+      `where platforms = (...)`, and a miss retries with the whole string as a title.<br>
+      _Two rules that keep it from doing harm:_ an alias must contain a letter, or Nintendo 64's
+      "64" would eat the tail of "Star Fox 64" and hide the 3DS remake; and a bare platform
+      name ("switch") stays a title search since nothing would be left to search for.<br>
+      _"Civ 6":_ when the name search returns nothing, one fallback query substring-matches
+      `name` and `alternative_names.name` — first page only, since paging past a fallback would
+      splice two differently-ordered result sets together.<br>
+      _Ranking:_ results are re-sorted by IGDB's `game_type` (stable, so relevance order
+      survives inside a tier), which is what puts _Pokémon FireRed Version_ (Remake) above
+      _Pokémon Fire Red Extended_ (Mod).<br>
+      _Left for the "restrict the add-game system suggestions" item:_ the alias map is
+      IGDB-name → IGDB-id, not IGDB-name → shelf label, so it does not by itself solve the
+      "Nintendo Entertainment System" vs "NES" mapping that item needs — but it is the obvious
+      place to hang it.
 - [x] **Both backfills run against production** (2026-08-05, PR #81). Titles then genres, on
       the library and the wishlist, verified on the live site. Procedure kept in
       `docs/genre-backfill-runbook.md` if it is ever needed again.<br>
@@ -650,4 +652,3 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       tables everywhere else, so Alembic never creates them — but migration
       `f985740c0df9` adds a real FK to `auth.users`, so migrations can't run on bare
       Postgres without it
-- [x] CRT metadata block is height-stable across channel changes (`components/crt/CrtTv.tsx`) — the auto-cycle used to resize the block per game, and since `.pcrt-stage--compact` is a bottom-aligned flex row, a taller block pushed the TV and the page below it down on a timer. Three causes, all fixed by reserving the worst case instead of truncating: the title now reserves and clamps two lines (`min-h-[2lh] line-clamp-2` — long names wrap into reserved space on mobile rather than growing the block), the system/genres line clamps to one, and the "playing since" line always renders (empty when a game has no open-session date) instead of disappearing
