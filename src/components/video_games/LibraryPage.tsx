@@ -6,10 +6,7 @@ import { notFound } from "next/navigation";
 // component, unlike the Pages Router's global-CSS restriction.
 import "@/app/video-games/video-games.css";
 import "@/components/crt/crt.css";
-import { getGames } from "@/lib/gamesServer";
-import { getWishlist } from "@/lib/wishlistServer";
-import { getProfile } from "@/lib/profileServer";
-import { getFollowers, getFollowing } from "@/lib/followsServer";
+import { getFollowers, getFollowing, getGames, getProfile, getWishlist } from "@/lib/libraryApi";
 import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { CrtTv } from "@/components/crt/CrtTv";

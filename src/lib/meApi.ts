@@ -56,24 +56,99 @@ const FOREIGN_API_WRITE_MESSAGE =
   "Writes are disabled on preview deployments — this deploy reads production's " +
   "library, so a write here would change the real thing.";
 
+// How long to wait on the Node→Python self-call before giving up, so a hung hop
+// fails fast instead of stalling the render until the function timeout. The two
+// wider budgets exist because those endpoints proxy somebody else's network:
+// IGDB is one upstream hop, genres is two (Wikipedia, then Wikidata).
+const TIMEOUT_MS = { default: 5_000, igdb: 10_000, genres: 15_000 };
+
+// Outcome of one /me/* call. `status` rides along on both arms so callers that
+// care (createMyProfile's 409/422/403/429 map, fetchMyProfile's 404) can branch
+// on the code instead of parsing message strings.
+type ApiCall<T> =
+  | { ok: true; status: number; data: T }
+  // `detail` is FastAPI's own message when it sent a usable one, kept separate
+  // from `message` so a caller with better per-status wording than the generic
+  // fallback can tell the two apart.
+  | { ok: false; status: number; message: string; detail?: string };
+
+type CallOptions = {
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  // null sends no body at all — DELETEs, and the POSTs that carry everything in
+  // the path (follow/unfollow).
+  body?: Record<string, unknown> | null;
+  timeoutMs?: number;
+  // Names the operation in fallback error text ("Couldn't ${what}").
+  what: string;
+  // Whether a preview deploy pointed at production's API should refuse. True
+  // for anything that mutates — including the two nominal reads that write
+  // through the read path (IGDB token cache, rate-limit counters). Only the
+  // genuinely read-only profile fetch opts out.
+  refuseOnForeignApi?: boolean;
+};
+
+/** The one place the /me/* call shape lives: preview guard, cookie→Bearer
+ *  translation, JSON body, timeout, and FastAPI's error `detail` extraction.
+ *  Every exported function below is a thin mapping on top of this. */
+async function callMeApi<T>(path: string, options: CallOptions): Promise<ApiCall<T>> {
+  const { method = "GET", body = null, timeoutMs = TIMEOUT_MS.default, what } = options;
+  const refuseOnForeignApi = options.refuseOnForeignApi ?? true;
+
+  if (refuseOnForeignApi && targetsForeignEnvironmentApi()) {
+    return { ok: false, status: 0, message: FOREIGN_API_WRITE_MESSAGE };
+  }
+  const token = await accessToken();
+  if (!token) {
+    return { ok: false, status: 0, message: "You are not signed in." };
+  }
+
+  const res = await fetch(`${requireLibraryApiOrigin()}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body !== null && { "Content-Type": "application/json" }),
+    },
+    ...(body !== null && { body: JSON.stringify(body) }),
+    cache: "no-store", // per-viewer, never cached
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+
+  if (res.ok) {
+    // 204 (every DELETE) has no body to parse, and the mutations ignore `data`
+    // anyway — so a missing or unparseable body is not an error here, only an
+    // absent value.
+    const data = res.status === 204 ? undefined : await res.json().catch(() => undefined);
+    return { ok: true, status: res.status, data: data as T };
+  }
+
+  // FastAPI's detail is a string for our domain errors (404/409) but an array
+  // of validation objects for 422s — only surface it when it's a plain string.
+  const detail = await res
+    .json()
+    .then((b) => (typeof b?.detail === "string" ? b.detail : undefined))
+    .catch(() => undefined);
+  return {
+    ok: false,
+    status: res.status,
+    message: detail ?? `Couldn't ${what} (HTTP ${res.status}).`,
+    detail,
+  };
+}
+
 /** The caller's profile, or null when they're authenticated but haven't
  *  completed onboarding yet (the API returns 404 for that state). */
 export async function fetchMyProfile(): Promise<MyProfile | null> {
-  const token = await accessToken();
-  if (!token) return null;
-
-  const res = await fetch(`${requireLibraryApiOrigin()}/api/py/me/profile`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store", // per-viewer, never cached
-    // Bound the Node→Python self-call so a hung hop fails fast instead of
-    // stalling the render until the function timeout.
-    signal: AbortSignal.timeout(5000),
+  // The one genuinely read-only /me call, so no preview refusal.
+  const res = await callMeApi<MyProfile>("/api/py/me/profile", {
+    what: "load your profile",
+    refuseOnForeignApi: false,
   });
-  if (res.status === 404) return null; // no profile yet → onboarding
-  if (!res.ok) {
-    throw new Error(`GET /me/profile failed: ${res.status} ${res.statusText}`);
-  }
-  return (await res.json()) as MyProfile;
+  if (res.ok) return res.data;
+  // 404 = no profile yet → onboarding. 0 = no token, i.e. signed out.
+  if (res.status === 404 || res.status === 0) return null;
+  // Anything else is the API being unwell, which the caller should not paper
+  // over as "not onboarded".
+  throw new Error(`GET /me/profile failed: ${res.status} (${res.message})`);
 }
 
 // Memoized user id → username, so the write path doesn't pay a Node→Python
@@ -132,60 +207,39 @@ export async function createMyProfile(
   username: string,
   displayName: string
 ): Promise<CreateProfileResult> {
-  if (targetsForeignEnvironmentApi()) {
-    return { ok: false, reason: "unknown", message: FOREIGN_API_WRITE_MESSAGE };
-  }
-  const token = await accessToken();
-  if (!token) {
-    return { ok: false, reason: "unknown", message: "You are not signed in." };
-  }
-
-  const res = await fetch(`${requireLibraryApiOrigin()}/api/py/me/profile`, {
+  const res = await callMeApi<MyProfile>("/api/py/me/profile", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ username, displayName }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(5000),
+    body: { username, displayName },
+    what: "create your profile",
   });
+  if (res.ok) return { ok: true, profile: res.data };
 
-  if (res.ok) {
-    return { ok: true, profile: (await res.json()) as MyProfile };
+  const mapped = PROFILE_ERRORS[res.status];
+  if (mapped) {
+    return { ok: false, reason: mapped.reason, message: res.detail ?? mapped.fallback };
   }
-
-  const detail = await res
-    .json()
-    .then((b) => b?.detail as string | undefined)
-    .catch(() => undefined);
-
-  if (res.status === 409) {
-    return { ok: false, reason: "taken", message: detail ?? "That username is taken." };
-  }
-  if (res.status === 422) {
-    return { ok: false, reason: "invalid", message: detail ?? "That username isn't allowed." };
-  }
-  if (res.status === 403) {
-    return {
-      ok: false,
-      reason: "at_capacity",
-      message: detail ?? "Signups are currently at capacity.",
-    };
-  }
-  if (res.status === 429) {
-    // Profile creation is a charged write like any other (rate_limit_writes
-    // guards it), so onboarding can be rate-limited too — rare, but without
-    // this it surfaced as the generic "Something went wrong", which reads as
-    // broken rather than "wait a moment".
-    return {
-      ok: false,
-      reason: "rate_limited",
-      message: detail ?? "Too many attempts — wait a moment and try again.",
-    };
-  }
-  return { ok: false, reason: "unknown", message: detail ?? "Something went wrong." };
+  // Includes the two no-request refusals (preview deploy, signed out), which
+  // arrive as status 0 carrying their own message.
+  return { ok: false, reason: "unknown", message: res.detail ?? res.message };
 }
+
+// FastAPI's status codes for POST /me/profile, mapped to the typed reasons the
+// onboarding UI branches on plus the wording to use when the API sent no usable
+// detail of its own.
+//
+// 429 is in here because profile creation is a charged write like any other
+// (rate_limit_writes guards it), so onboarding can be rate-limited too — rare,
+// but without it that surfaced as the generic "Something went wrong", which
+// reads as broken rather than "wait a moment".
+const PROFILE_ERRORS: Record<
+  number,
+  { reason: "taken" | "invalid" | "at_capacity" | "rate_limited"; fallback: string }
+> = {
+  409: { reason: "taken", fallback: "That username is taken." },
+  422: { reason: "invalid", fallback: "That username isn't allowed." },
+  403: { reason: "at_capacity", fallback: "Signups are currently at capacity." },
+  429: { reason: "rate_limited", fallback: "Too many attempts, wait a moment and try again." },
+};
 
 // Simple ok/error result for /me mutations — no reason discrimination yet
 // because the callers only show a message; add reasons when one actually
@@ -201,34 +255,8 @@ async function mutate(
   body: Record<string, unknown> | null,
   what: string
 ): Promise<MutateResult> {
-  if (targetsForeignEnvironmentApi()) {
-    return { ok: false, message: FOREIGN_API_WRITE_MESSAGE };
-  }
-  const token = await accessToken();
-  if (!token) {
-    return { ok: false, message: "You are not signed in." };
-  }
-
-  const res = await fetch(`${requireLibraryApiOrigin()}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(body !== null && { "Content-Type": "application/json" }),
-    },
-    ...(body !== null && { body: JSON.stringify(body) }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(5000),
-  });
-
-  if (res.ok) return { ok: true };
-
-  // FastAPI's detail is a string for our domain errors (404/409) but an array
-  // of validation objects for 422s — only surface it when it's a plain string.
-  const detail = await res
-    .json()
-    .then((b) => (typeof b?.detail === "string" ? b.detail : undefined))
-    .catch(() => undefined);
-  return { ok: false, message: detail ?? `Couldn't ${what} (HTTP ${res.status}).` };
+  const res = await callMeApi<void>(path, { method, body, what });
+  return res.ok ? { ok: true } : { ok: false, message: res.message };
 }
 
 /** Add a game to the caller's library. `rating: ""` and `igdbId: null` etc.
@@ -279,33 +307,14 @@ export type SearchIgdbResult =
  *  worth it, so no page arithmetic happens on this side. */
 export async function searchIgdb(query: string, page = 1): Promise<SearchIgdbResult> {
   // Nominally a read, but the proxy writes through it (token cache, rate-limit
-  // counters), so it gets the same refusal as the mutations.
-  if (targetsForeignEnvironmentApi()) {
-    return { ok: false, message: FOREIGN_API_WRITE_MESSAGE };
-  }
-  const token = await accessToken();
-  if (!token) {
-    return { ok: false, message: "You are not signed in." };
-  }
-
-  const res = await fetch(
-    `${requireLibraryApiOrigin()}/api/py/igdb/search?q=${encodeURIComponent(query)}&page=${page}`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-      signal: AbortSignal.timeout(10000), // upstream hop to IGDB can be slower
-    }
+  // counters), so it keeps the mutations' preview refusal (the callMeApi
+  // default).
+  const res = await callMeApi<{ results: IgdbSearchResult[]; hasMore: boolean }>(
+    `/api/py/igdb/search?q=${encodeURIComponent(query)}&page=${page}`,
+    { what: "search", timeoutMs: TIMEOUT_MS.igdb }
   );
-
-  if (res.ok) {
-    const body = (await res.json()) as { results: IgdbSearchResult[]; hasMore: boolean };
-    return { ok: true, results: body.results, hasMore: body.hasMore };
-  }
-  const detail = await res
-    .json()
-    .then((b) => (typeof b?.detail === "string" ? b.detail : undefined))
-    .catch(() => undefined);
-  return { ok: false, message: detail ?? `Search failed (HTTP ${res.status}).` };
+  if (!res.ok) return { ok: false, message: res.message };
+  return { ok: true, results: res.data.results, hasMore: res.data.hasMore };
 }
 
 // Genre lookup rides the same ok/message shape as the IGDB search above.
@@ -322,35 +331,13 @@ export type LookupGenresResult =
  *  here instead of using the genres the search already returned. */
 export async function lookupGenres(name: string): Promise<LookupGenresResult> {
   // Nominally a read, but it writes rate-limit counters through the read path,
-  // so it gets the same preview refusal as the mutations.
-  if (targetsForeignEnvironmentApi()) {
-    return { ok: false, message: FOREIGN_API_WRITE_MESSAGE };
-  }
-  const token = await accessToken();
-  if (!token) {
-    return { ok: false, message: "You are not signed in." };
-  }
-
-  const res = await fetch(
-    `${requireLibraryApiOrigin()}/api/py/genres/lookup?name=${encodeURIComponent(name)}`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-      // Two upstream hops (Wikipedia, then Wikidata), so the same wider budget
-      // the IGDB search gets.
-      signal: AbortSignal.timeout(15000),
-    }
+  // so it keeps the mutations' preview refusal (the callMeApi default).
+  const res = await callMeApi<{ genres: string[]; article: string }>(
+    `/api/py/genres/lookup?name=${encodeURIComponent(name)}`,
+    { what: "look up genres", timeoutMs: TIMEOUT_MS.genres }
   );
-
-  if (res.ok) {
-    const body = (await res.json()) as { genres: string[]; article: string };
-    return { ok: true, genres: body.genres, article: body.article };
-  }
-  const detail = await res
-    .json()
-    .then((b) => (typeof b?.detail === "string" ? b.detail : undefined))
-    .catch(() => undefined);
-  return { ok: false, message: detail ?? `Genre lookup failed (HTTP ${res.status}).` };
+  if (!res.ok) return { ok: false, message: res.message };
+  return { ok: true, genres: res.data.genres, article: res.data.article };
 }
 
 /** Set or clear ("" = unrated) the rating on one of the caller's games. */

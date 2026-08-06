@@ -2,7 +2,7 @@
 // Dynamically generated OG image for the Game Library page.
 // Title section on a dark background, game cases sitting on a walnut shelf plank.
 import { ImageResponse } from "next/og";
-import { getGames } from "@/lib/gamesServer";
+import { getGames } from "@/lib/libraryApi";
 import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 import { OG } from "@/lib/og-theme";
 

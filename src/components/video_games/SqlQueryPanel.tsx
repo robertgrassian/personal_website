@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useMemo } from "react";
 import type { Game } from "@/lib/games";
-import { RATINGS, gameGenres } from "@/lib/games";
+import { RATINGS } from "@/lib/games";
+import { baseGameGenres } from "@/lib/baseGame";
 
 // --- Row types ---
 
@@ -43,7 +44,7 @@ function toGameRow(game: Game): GameRow {
 }
 
 function toGameGenreRows(game: Game): GameGenreRow[] {
-  return gameGenres(game).map((genre) => ({ name: game.name, genre }));
+  return baseGameGenres(game).map((genre) => ({ name: game.name, genre }));
 }
 
 // --- Schema definition ---

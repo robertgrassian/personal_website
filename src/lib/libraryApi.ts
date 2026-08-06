@@ -67,9 +67,6 @@ export function libraryCacheTag(username: string): string {
   return `library:${username.toLowerCase()}`;
 }
 
-// Shared fetch for both endpoints. `path` is the part after the origin
-// (e.g. "/api/py/users/robert/games"); `tags` are the cache tags the entry is
-// stored under — the caller owns tag naming, this helper only fetches+caches.
 // True while `next build` is prerendering pages, false when serving a request.
 // Next sets NEXT_PHASE for the duration of the build; nothing else does.
 const IS_PRERENDER = process.env.NEXT_PHASE === "phase-production-build";
@@ -110,32 +107,33 @@ function wrapFetchError(err: unknown, what: string, url: string): Error {
   );
 }
 
+// Every library read is "one resource belonging to one user", so this helper
+// owns all four things that never vary between them: the origin, the
+// /api/py/users/{username} prefix, the escaping of that user-supplied segment,
+// and the cache tag. Callers below supply only what actually differs.
+//
 // Two shapes, one implementation. Without `allowMissing` a 404 is a thrown
 // error like any other bad status; with it, a 404 becomes null so the caller
 // can distinguish "no such user" from "the API is unwell". Overloads (rather
 // than a boolean returning `T | null` for everyone) keep the common callers
 // free of a null they can never receive.
-async function fetchFromApi<T>(
-  origin: string,
-  path: string,
+async function fetchUserResource<T>(username: string, subpath: string, what: string): Promise<T>;
+async function fetchUserResource<T>(
+  username: string,
+  subpath: string,
   what: string,
-  tags: string[]
-): Promise<T>;
-async function fetchFromApi<T>(
-  origin: string,
-  path: string,
-  what: string,
-  tags: string[],
   allowMissing: true
 ): Promise<T | null>;
-async function fetchFromApi<T>(
-  origin: string,
-  path: string,
+async function fetchUserResource<T>(
+  username: string,
+  subpath: string,
   what: string,
-  tags: string[],
   allowMissing = false
 ): Promise<T | null> {
-  const url = `${origin}${path}`;
+  // encodeURIComponent because /video-games/u/[username] puts user-shaped input
+  // into these URLs: the segment is escaped rather than trusted.
+  const url = `${requireLibraryApiOrigin()}/api/py/users/${encodeURIComponent(username)}${subpath}`;
+  const tags = [libraryCacheTag(username)];
   let res: Response;
   try {
     res = await fetchWithTimeout(url, tags);
@@ -169,24 +167,22 @@ async function fetchFromApi<T>(
   return (await res.json()) as T;
 }
 
-// encodeURIComponent throughout: /video-games/u/[username] puts user-shaped
-// input into these URLs, so the segment is escaped rather than trusted.
-export function fetchGamesFromApi(origin: string, username: string): Promise<Game[]> {
-  return fetchFromApi<Game[]>(
-    origin,
-    `/api/py/users/${encodeURIComponent(username)}/games`,
-    "games",
-    [libraryCacheTag(username)]
-  );
+// The library API (FastAPI/Postgres) is the only data source — the CSV read
+// path these used to have was retired with the CSVs themselves (a frozen
+// snapshot lives in api/scripts/fixtures/ as the local seed source).
+//
+// `username` is required rather than defaulting to the /video-games owner:
+// with /video-games/u/[username] there is no single right library to fall back
+// to, and a silent default would be a bug that renders the wrong person's shelf.
+//
+// Play state (currentlyPlaying / lastPlayed / playingSince) arrives already
+// derived by the API.
+export function getGames(username: string): Promise<Game[]> {
+  return fetchUserResource<Game[]>(username, "/games", "games");
 }
 
-export function fetchWishlistFromApi(origin: string, username: string): Promise<WishlistGame[]> {
-  return fetchFromApi<WishlistGame[]>(
-    origin,
-    `/api/py/users/${encodeURIComponent(username)}/wishlist`,
-    "wishlist",
-    [libraryCacheTag(username)]
-  );
+export function getWishlist(username: string): Promise<WishlistGame[]> {
+  return fetchUserResource<WishlistGame[]>(username, "/wishlist", "wishlist");
 }
 
 // Follower/following lists. Same cache tag as everything else on the page: a
@@ -207,23 +203,16 @@ export function fetchWishlistFromApi(origin: string, username: string): Promise<
 // mean the route is absent. Self-healing: once this deploy is live, production
 // serves the route and later builds get real data.
 async function fetchFollowList(
-  origin: string,
   username: string,
   kind: "followers" | "following"
 ): Promise<UserSummary[]> {
-  const list = await fetchFromApi<UserSummary[]>(
-    origin,
-    `/api/py/users/${encodeURIComponent(username)}/${kind}`,
-    kind,
-    [libraryCacheTag(username)],
-    true
-  );
+  const list = await fetchUserResource<UserSummary[]>(username, `/${kind}`, kind, true);
   if (list === null) {
     // Warn rather than stay silent: after this feature's first deploy, a 404
     // here means something genuinely wrong, and an empty follower list is
     // otherwise indistinguishable from a real one.
     console.warn(
-      `[followsApi] ${origin} has no /${kind} endpoint for '${username}' (404). ` +
+      `[followsApi] ${requireLibraryApiOrigin()} has no /${kind} endpoint for '${username}' (404). ` +
         `Treating as empty. Expected only while deploying the endpoint for the first time.`
     );
     return [];
@@ -231,26 +220,21 @@ async function fetchFollowList(
   return list;
 }
 
-export function fetchFollowersFromApi(origin: string, username: string): Promise<UserSummary[]> {
-  return fetchFollowList(origin, username, "followers");
+export function getFollowers(username: string): Promise<UserSummary[]> {
+  return fetchFollowList(username, "followers");
 }
 
-export function fetchFollowingFromApi(origin: string, username: string): Promise<UserSummary[]> {
-  return fetchFollowList(origin, username, "following");
+export function getFollowing(username: string): Promise<UserSummary[]> {
+  return fetchFollowList(username, "following");
 }
 
-// null = no such user. Shares the library cache tag with games and wishlist:
-// one tag per user covers everything a library page renders, so a single
-// revalidateTag after a write refreshes all three.
-export function fetchProfileFromApi(
-  origin: string,
-  username: string
-): Promise<LibraryProfile | null> {
-  return fetchFromApi<LibraryProfile>(
-    origin,
-    `/api/py/users/${encodeURIComponent(username)}`,
-    "profile",
-    [libraryCacheTag(username)],
-    true
-  );
+// null = no such user, which the caller turns into a 404 page. The one a
+// library page should await first: it settles whether the page exists at all
+// before the shelves are worth fetching.
+//
+// Shares the library cache tag with games and wishlist: one tag per user covers
+// everything a library page renders, so a single revalidateTag after a write
+// refreshes all of it.
+export function getProfile(username: string): Promise<LibraryProfile | null> {
+  return fetchUserResource<LibraryProfile>(username, "", "profile", true);
 }

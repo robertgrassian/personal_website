@@ -4,7 +4,7 @@
 export interface BaseGame {
   name: string;
   system: string;
-  genres: string[]; // CSV stores "Action-Adventure|Puzzle"; split on "|"
+  genres: string[]; // e.g. ["Action-Adventure", "Puzzle"]; [] if none known
   releaseDate: string; // ISO date, e.g. "2023-05-12" ("" if unknown)
   imageUrl: string; // IGDB cover URL; "" = fallback art
 }

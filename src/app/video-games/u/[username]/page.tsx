@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getProfile } from "@/lib/profileServer";
+import { getProfile } from "@/lib/libraryApi";
 import { LibraryPage } from "@/components/video_games/LibraryPage";
 
 // Any user's library, public and read-only to everyone but its owner
