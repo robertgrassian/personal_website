@@ -54,6 +54,10 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  // Indexes in `results` where an appended page begins, so the list can draw a
+  // rule at the seam. Kept as indexes rather than nesting results per page:
+  // every other consumer (dedupe, rendering, keys) wants one flat array.
+  const [batchStarts, setBatchStarts] = useState<number[]>([]);
 
   // null = search step; set = confirm step.
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -83,6 +87,7 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
     // flight is abandoned here rather than appending to the wrong search.
     setLoadingMore(false);
     setPage(1);
+    setBatchStarts([]);
     if (trimmed.length < 2) {
       setResults(null);
       setSearching(false);
@@ -135,10 +140,18 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
     setHasMore(res.results.length === IGDB_PAGE_SIZE && next < IGDB_MAX_PAGE);
     // Deduped by igdbId: the fallback queries on the API side can surface a
     // game already shown, and a repeated key would break the list.
-    setResults((current) => {
-      const seen = new Set((current ?? []).map((r) => r.igdbId));
-      return [...(current ?? []), ...res.results.filter((r) => !seen.has(r.igdbId))];
-    });
+    //
+    // `results` from this render is safe to read directly rather than through
+    // an updater: the only other writer is the debounced search, and the
+    // sequence guard above has already returned if one landed.
+    const shown = results ?? [];
+    const seen = new Set(shown.map((r) => r.igdbId));
+    const fresh = res.results.filter((r) => !seen.has(r.igdbId));
+    if (fresh.length === 0) return;
+    // Appending never moves a row that is already on screen; the seam is
+    // where the newly ranked batch starts.
+    setBatchStarts((starts) => [...starts, shown.length]);
+    setResults([...shown, ...fresh]);
   };
 
   const pickResult = (r: IgdbSearchResult) => {
@@ -333,8 +346,22 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
                 {results.length === 0 && (
                   <li className="text-xs text-shelf-text-muted italic">No matches.</li>
                 )}
-                {results.map((r) => (
+                {results.map((r, i) => (
                   <li key={r.igdbId}>
+                    {/* Each page is ranked on its own, so an appended batch
+                        starts over at "main games first" and reads like the
+                        list re-sorted itself. The rule says what actually
+                        happened: this is the next batch, not a reshuffle. */}
+                    {batchStarts.includes(i) && (
+                      <div
+                        role="separator"
+                        className="mb-1 flex items-center gap-2 pt-2 text-[10px] tracking-wide text-shelf-text-muted uppercase"
+                      >
+                        <span aria-hidden="true" className="h-px flex-1 bg-shelf-plank" />
+                        next batch
+                        <span aria-hidden="true" className="h-px flex-1 bg-shelf-plank" />
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => pickResult(r)}
@@ -365,18 +392,24 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
                     </button>
                   </li>
                 ))}
-              </ul>
-            )}
 
-            {!searching && hasMore && (
-              <button
-                type="button"
-                onClick={loadMore}
-                disabled={loadingMore}
-                className="mt-3 w-full shrink-0 rounded-md border border-shelf-plank py-1.5 text-xs text-shelf-text-muted hover:bg-shelf-input hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
-              >
-                {loadingMore ? "Loading…" : "Show more results"}
-              </button>
+                {/* Inside the scroll area, deliberately: as the last row it is
+                    only reachable once you have read to the bottom of the
+                    list, which is the only point at which wanting more makes
+                    sense. No scroll listener needed to get that behaviour. */}
+                {hasMore && (
+                  <li className="pt-1">
+                    <button
+                      type="button"
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                      className="w-full rounded-md border border-shelf-plank py-1.5 text-xs text-shelf-text-muted hover:bg-shelf-input hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                    >
+                      {loadingMore ? "Loading…" : "Show more results"}
+                    </button>
+                  </li>
+                )}
+              </ul>
             )}
 
             <button
