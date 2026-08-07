@@ -9,11 +9,17 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Run on all paths EXCEPT static assets and images — matching Supabase's
-  // recommended matcher. Excluding them avoids pointless refresh work on every
-  // asset request. `_next/static`, `_next/image`, favicon, and common image
-  // extensions are skipped.
+  // Run on all paths EXCEPT static assets, images, and the API proxy — the
+  // first two matching Supabase's recommended matcher. Excluding them avoids
+  // pointless refresh work on every asset request.
+  //
+  // `api/py` is our own addition. next.config.ts rewrites that prefix to
+  // FastAPI, and those calls authenticate with an explicit `Authorization:
+  // Bearer` header that FastAPI verifies against Supabase's JWKS — they never
+  // read the session cookie, so refreshing it does nothing for them. Left in,
+  // every browser call to the API paid a network round trip to Supabase Auth
+  // (updateSession -> getUser) before the rewrite even ran.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!api/py|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

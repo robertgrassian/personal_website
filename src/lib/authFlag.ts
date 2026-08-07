@@ -20,8 +20,8 @@
 // FastAPI. Never gate anything that matters on this flag.
 //
 // It also cannot answer "is this viewer the owner of THIS library?" — the JWT's
-// `sub` is a user id, not a username, so useIsLibraryOwner still needs its
-// /me/profile round trip and still resolves after hydration.
+// `sub` is a user id, not a username, so useViewerRelationship still needs its
+// /me/relationship round trip and still resolves after hydration.
 
 // Presence-style, so CSS matches html[data-authed] regardless of value.
 //

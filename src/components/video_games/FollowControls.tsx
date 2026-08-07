@@ -51,6 +51,25 @@ export function FollowStateProvider({
   );
 }
 
+// "Is the viewer looking at their own library?" — the question that decides
+// whether edit affordances (pencils, "Add game", the Unrated shelf) render.
+//
+// This reads a field the relationship response already carries rather than
+// asking a second endpoint. /me/relationship/{owner} returns `isMe` precisely
+// so one request settles both "hide the Follow button entirely" and "show edit
+// controls"; schemas/me.py documents it as such. Until this existed, a separate
+// hook fetched /me/profile and string-compared usernames to re-derive the same
+// boolean, so every signed-in page view made two authenticated round trips that
+// resolved independently — edit pencils could appear while the Follow button
+// was still deciding.
+//
+// Any failure (403 not onboarded, 404 unknown username, network) leaves
+// `relationship` at "unknown", so this returns false: no edit controls, which
+// is the safe direction.
+export function useIsOwner(): boolean {
+  return useContext(FollowStateContext)?.relationship === "me";
+}
+
 // "unknown" covers both signed-out and not-yet-resolved; "me" is your own
 // library. Neither gets controls, and rendering nothing until the answer
 // arrives is what stops a Follow button flashing on your own page.

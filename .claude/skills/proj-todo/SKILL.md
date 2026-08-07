@@ -20,12 +20,15 @@ disable-model-invocation: false
 
 Keyword prefixes like "done" or "list" are a hint, never a rule: "the wishlist thing is done" is a completion, and "add a todo to list the systems on each shelf" is a new item despite both words appearing. When the request genuinely fits two sections, prefer the non-destructive one and say what you assumed. A bare invocation with nothing after it means show the list.
 
-**What the two open sections mean**, since almost every decision below depends on it:
+**What the three open sections mean**, since almost every decision below depends on it:
 
-- **Up Next** — work that is actually queued: confirmed bugs, in-flight work, and steps someone is waiting on. If it would be reasonable to start it today, it belongs here. Keep it short enough to read at a glance; a dozen entries means it has become a second backlog.
+- **Up Next** — the queue. What would reasonably be started this week, whatever kind of work it is. **Hard cap of 5**, enforced on every write (see the structure check). This is the only section with a cap, and the cap is the point: an uncapped queue is just a backlog with a better name.
+- **Bugs** — every confirmed defect that is not urgent enough for Up Next. Ordered by severity, roughly, but no strict guarantee. Uncapped, because a bug list that evicts bugs is lying.
 - **Backlog / Ideas** — everything else. Ideas, nice-to-haves, and work that is real but not scheduled. No ordering guarantee beyond newest-first.
 
-**File order is Up Next, then Backlog / Ideas, then Recently Completed** — open work first, the archive last, because the archive is the longest section and the least often read. Moved there 2026-07-30; do not "fix" it back. Every rule below finds its section by heading name, never by position, so the order is a readability choice rather than something the logic depends on.
+**Bugs got its own section 2026-08-07, and the reason is worth keeping.** The old rule sent every "confirmed bug" straight to Up Next. Bug reports are the most common kind of item this project generates, and nothing in the skill ever demoted anything, so Up Next was a one-way door that filled monotonically: at the time of the change it held five items, four of them bugs, with a diacritic-matching miss sitting at the same priority as an unbuilt endpoint the privacy policy already promised. Splitting them makes the admission test objective ("is this a defect?") instead of a severity judgment the skill would have to re-make on every add and re-grade forever after.
+
+**File order is Up Next, Bugs, Backlog / Ideas, then Recently Completed** — open work first, the archive last, because the archive is the longest section and the least often read. Moved there 2026-07-30; do not "fix" it back. Every rule below finds its section by heading name, never by position, so the order is a readability choice rather than something the logic depends on.
 
 ## Check the file's structure
 

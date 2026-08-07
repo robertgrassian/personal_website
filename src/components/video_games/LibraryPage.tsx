@@ -95,12 +95,19 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
 
   return (
     <main className="min-h-screen bg-shelf-bg shelf-theme">
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        {/* The sign-in/out control lives here rather than the global nav: the
-            portfolio has no accounts, the library is the only app that does.
-            items-start keeps it aligned to the heading's first line when a
-            long display name wraps. */}
-        <FollowStateProvider ownerUsername={profile.username}>
+      {/* The provider wraps the whole page, not just the header, because
+          GameLibrary reads useIsOwner() from it to decide whether to render edit
+          controls. Widening it costs nothing on the server/client boundary:
+          `children` is a serialized RSC slot rather than an import, so the
+          server-rendered subtree (SignupCta, CrtTv) ships no extra JavaScript,
+          and when `relationship` resolves React re-renders only the provider,
+          since the child elements were created by this server parent. */}
+      <FollowStateProvider ownerUsername={profile.username}>
+        <div className="max-w-7xl mx-auto px-6 py-12">
+          {/* The sign-in/out control lives here rather than the global nav: the
+              portfolio has no accounts, the library is the only app that does.
+              items-start keeps it aligned to the heading's first line when a
+              long display name wraps. */}
           <div className="flex items-start justify-between gap-4">
             <div>
               {/* Same wording on both routes, since both show the same library.
@@ -162,32 +169,29 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
               <AuthButton />
             </div>
           </div>
-        </FollowStateProvider>
-        {/* useSearchParams (inside LibraryCount) requires a Suspense boundary.
-            The fallback shows the default-view count so there's no flash. */}
-        <Suspense fallback={<p className="mt-2 text-shelf-text-muted">{playedCount} games</p>}>
-          <LibraryCount playedCount={playedCount} wishlistCount={wishlistCount} />
-        </Suspense>
+          {/* useSearchParams (inside LibraryCount) requires a Suspense boundary.
+              The fallback shows the default-view count so there's no flash. */}
+          <Suspense fallback={<p className="mt-2 text-shelf-text-muted">{playedCount} games</p>}>
+            <LibraryCount playedCount={playedCount} wishlistCount={wishlistCount} />
+          </Suspense>
 
-        {showSignupCta && <SignupCta />}
+          {showSignupCta && <SignupCta />}
 
-        {currentlyPlayingGames.length > 0 && <CrtTv games={currentlyPlayingGames} compact />}
+          {currentlyPlayingGames.length > 0 && <CrtTv games={currentlyPlayingGames} compact />}
 
-        {/* Suspense is required because GameLibrary uses useSearchParams() */}
-        <Suspense fallback={null}>
-          <GameLibrary
-            games={libraryGames}
-            wishlist={wishlist}
-            currentlyPlayingGames={currentlyPlayingGames}
-            unratedGames={unratedGames}
-            // Which library this is. GameLibrary hands it to useIsLibraryOwner
-            // so the viewer's own username can be compared against it.
-            ownerUsername={profile.username}
-            followers={followers}
-            following={following}
-          />
-        </Suspense>
-      </div>
+          {/* Suspense is required because GameLibrary uses useSearchParams() */}
+          <Suspense fallback={null}>
+            <GameLibrary
+              games={libraryGames}
+              wishlist={wishlist}
+              currentlyPlayingGames={currentlyPlayingGames}
+              unratedGames={unratedGames}
+              followers={followers}
+              following={following}
+            />
+          </Suspense>
+        </div>
+      </FollowStateProvider>
     </main>
   );
 }

@@ -19,7 +19,7 @@ import {
   sortWishlist,
 } from "./pipeline";
 import { useGameLibraryUrlState } from "./useGameLibraryUrlState";
-import { useIsLibraryOwner } from "./useIsLibraryOwner";
+import { useIsOwner } from "./FollowControls";
 import { EditGameModal } from "./EditGameModal";
 import { EditWishlistModal } from "./EditWishlistModal";
 import { AddGameModal } from "./AddGameModal";
@@ -32,34 +32,33 @@ type GameLibraryProps = {
   // stats panel so "Recently Played" can surface them.
   currentlyPlayingGames: Game[];
   // Games with no rating — rendered as an owner-only shelf so they stay
-  // reachable (and re-ratable) after a rating is cleared. Defaults to [] for
-  // callers that predate it.
-  unratedGames?: Game[];
-  // Whose library this is. Only used to answer "may the viewer edit it?" —
-  // the shelves themselves render the same for everyone.
-  ownerUsername: string;
+  // reachable (and re-ratable) after a rating is cleared.
+  unratedGames: Game[];
   // The owner's follow graph, backing the Following/Followers tabs. Public
   // data fetched server-side, so it is cached with the page like the games.
-  followers?: UserSummary[];
-  following?: UserSummary[];
+  followers: UserSummary[];
+  following: UserSummary[];
 };
 
 export function GameLibrary({
   games,
   wishlist,
   currentlyPlayingGames,
-  unratedGames = [],
-  ownerUsername,
-  followers = [],
-  following = [],
+  unratedGames,
+  followers,
+  following,
 }: GameLibraryProps) {
   const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
-  // Owner check resolves client-side after hydration (the page HTML is
-  // static and shared by all viewers). false until proven otherwise, so
-  // visitors never see a flash of edit controls.
-  const canEdit = useIsLibraryOwner(ownerUsername);
+  // Owner check resolves client-side after hydration (the page HTML is static
+  // and shared by all viewers). false until proven otherwise, so visitors never
+  // see a flash of edit controls.
+  //
+  // Read from the FollowStateProvider that LibraryPage wraps this in, which
+  // means the same request that decides the Follow button also decides these
+  // controls — they can no longer disagree mid-flight.
+  const canEdit = useIsOwner();
 
   // The game being edited, tracked by id (not object) so the open dialog
   // always reflects the latest server data after a revalidation replaces the
