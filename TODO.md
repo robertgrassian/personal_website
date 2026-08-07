@@ -200,7 +200,7 @@ ease-out` on the matching rule in `video-games.css`. iOS Safari fakes `:hover` o
       overwrite.
 
 - [ ] **Make database migrations run automatically as part of CD**, instead of `alembic upgrade
-  head` being run by hand from a laptop pointed at production.<br>
+head` being run by hand from a laptop pointed at production.<br>
       _Premise correction, and it is most of the work:_ there is no CD pipeline to add a step to.
       `.github/workflows/ci.yml` has only `build` and `api` jobs, both of which test; deploys
       happen through Vercel's own GitHub integration, and `vercel.json` contains nothing but the
@@ -287,8 +287,10 @@ ease-out` on the matching rule in `video-games.css`. iOS Safari fakes `:hover` o
       and both color schemes. Note a link inside a toast raises a question the inline version
       does not: the edit modal is still open, so "view all sessions" has to decide whether it
       replaces the modal's contents or closes it and navigates.
-- [ ] **A way to view all sessions for a game.** Requested alongside the toast above as its own
-      item: today you can create sessions and close them, but nothing in the UI ever lists them.<br>
+- [ ] **An easy way to view a game's sessions, and ideally edit old ones.** Requested alongside
+      the toast above as its own item, then re-asked 2026-08-07 with the editing half attached:
+      today you can create sessions and close them, but nothing in the UI ever lists them, and
+      nothing anywhere can change one after the fact.<br>
       _Two-thirds of the backend already exists, in a useful way._ `list_play_sessions`
       (`api/app/repositories/users.py`) already loads every raw `play_sessions` row for the
       whole library on every read, then collapses them into the five derived fields `GameRead`
@@ -303,13 +305,26 @@ ease-out` on the matching rule in `video-games.css`. iOS Safari fakes `:hover` o
       the prerendered, cached `/video-games` page. A dedicated read is more code but keeps the
       shelf payload lean. If it becomes a public endpoint rather than a `/me/*` one, remember
       libraries are public, so sessions become public too: decide that on purpose.<br>
+      _Editing is the more expensive half, and the backend genuinely does not do it._ `PATCH
+    /me/sessions/{id}` looks like a general session edit but is not: its body is `SessionClose`
+      (`api/app/schemas/me.py`), which carries only `endDate` plus an optional rating, and
+      `close_my_session` 409s on a session that is already closed. So changing a past session's
+      start date, correcting its end date, or deleting a session logged against the wrong game all
+      need new endpoints (a real `SessionUpdate` and a `DELETE`) plus service and repository work,
+      not just UI. Two rules the create path already enforces and any edit must re-enforce:
+      `endDate` not before `startDate`, and at most one open session per game (`create_my_session`
+      returns 409 otherwise) — reopening a closed session by clearing its end date walks straight
+      into that. Deleting the last session of a currently-playing game also silently un-plays it,
+      which is a visible change to the CRT and worth confirming in the UI rather than just
+      doing.<br>
       _Where it lives is open._ Options: a section in the edit modal (owner-only, closest to
       where sessions are created), or part of the richer game-details view that the "make viewing
       a game's details better" item below is already circling — that item wants a bigger reading
-      surface, and so does this. Related: the "notes / play journal" item below floats hanging
-      dated entries off `play_sessions` rather than the game row, which would make this the same
-      screen; and editing or deleting a mis-logged session has no UI either, which is the obvious
-      next ask once a list exists.
+      surface, and so does this. Editing pushes it toward the bigger surface: a list of rows each
+      with two dates and a delete is more than the edit modal comfortably holds. Related: the
+      "notes / play journal" item below floats hanging dated entries off `play_sessions` rather
+      than the game row, which would make this the same screen; and the audit-log/undo item above
+      is the safety net for a mis-clicked session delete.
 
 - [ ] **Logging a past session should pick the whole range in one calendar popup**, instead of
       picking the start, hitting check, then the end, hitting check again. Noticed on mobile
