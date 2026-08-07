@@ -45,6 +45,11 @@ The drift to look for:
 2. **Fix cross-references broken by the move.** A remaining open item that said "see the gotcha above" needs repointing once that text moves to another section.
 3. **Trim Recently Completed to 20 entries**, dropping the oldest from the bottom. Before dropping one, check whether it carries reference material still cited elsewhere in the file; if so, fold that detail into whatever item cites it rather than losing it.
 4. **Prune stale framing in section headers and open items** — a note saying work is blocked on something that has since shipped is worse than no note.
+5. **Enforce the Up Next cap of 5.** If Up Next holds more than five open items, demote the excess: rank them by the Up Next test below, move the weakest to **Bugs** if it is a defect and **Backlog / Ideas** otherwise, and say which moved and why. Never demote silently — this is the one structural fix the user cannot see coming, and a queue that quietly reorders itself is worse than one that overflows.
+
+   **Demote, never delete.** An item that loses its Up Next slot is still wanted; only the "Removing an item" mode deletes.
+
+6. **A confirmed defect sitting in Backlog / Ideas belongs in Bugs**, unless it is in Up Next. Ideas about how something _could_ work are not defects; only "this is broken" is. When it is genuinely ambiguous, leave it where it is rather than churning the file.
 
 ## Reading or answering a question
 
@@ -60,6 +65,8 @@ Two things worth doing while you have it open, because they are cheap and the us
 ## What to work on next
 
 "What's next", "what should I work on", and similar. **Answer from `TODO.md` alone — do not explore the codebase.** Read the file, summarize what is in **Up Next**, and recommend one thing to start with.
+
+**Read Bugs too, but lead with Up Next.** Up Next is the answer to this question; Bugs is context. Mention the bug list in a line at the end ("three open bugs, the worst being X") rather than merging the two into one ranked list, since the whole point of the split is that a queued feature and a tolerable defect are not competing for the same slot. If a bug in that section has become urgent enough to lead with, say so explicitly and offer to promote it, rather than just recommending it from where it sits.
 
 Give a recommendation rather than a menu. If items block each other, say so and order them; if something is cheap now and expensive later, that is usually the one to lead with. Note when an item's stated blocker has since cleared.
 

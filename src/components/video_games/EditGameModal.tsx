@@ -1,10 +1,19 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
-import { localToday, RATINGS, type Game, type Rating } from "@/lib/games";
+import { useOptimistic, useState } from "react";
+import { localToday, type Game, type Rating } from "@/lib/games";
 import { deleteGame, logSession, stopSession, updateGameRating } from "@/app/video-games/actions";
 import { ModalShell } from "./ModalShell";
-import { fieldClass, labelClass } from "./formStyles";
+import { useServerAction } from "./useServerAction";
+import { RatingPicker } from "./RatingPicker";
+import {
+  buttonClass,
+  dangerButtonClass,
+  dangerLinkClass,
+  fieldClass,
+  ghostButtonClass,
+  labelClass,
+} from "./formStyles";
 
 // Date inputs size to their content rather than filling the row, so they take
 // the shared tokens plus their own padding instead of `inputClass`.
@@ -30,8 +39,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   // isPending covers the whole write round-trip: it stays true until the
   // revalidated data lands, so session buttons stay disabled through the
   // moment the game's play state visibly updates.
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const { isPending, error, run } = useServerAction();
 
   // Session UI state. stopStep = the rate-on-stop picker is showing;
   // logOpen = the past-session form is showing.
@@ -43,71 +51,52 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   const [deleteStep, setDeleteStep] = useState(false);
 
   const rate = (next: Rating | "") => {
-    if (game.id === undefined) return;
     const gameId = game.id;
-    startTransition(async () => {
-      setError(null);
-      setOptimisticRating(next);
-      const result = await updateGameRating(gameId, next);
-      if (!result.ok) setError(result.message);
+    if (gameId === undefined) return;
+    run(() => updateGameRating(gameId, next), {
+      optimistic: () => setOptimisticRating(next),
     });
   };
 
   const startPlaying = () => {
-    if (game.id === undefined) return;
     const gameId = game.id;
+    if (gameId === undefined) return;
     // Clear any leftover rate-on-stop step from a previous playthrough (the
     // session could have been closed elsewhere while the picker was open).
     setStopStep(false);
-    startTransition(async () => {
-      setError(null);
-      const result = await logSession(gameId, localToday(), null);
-      if (!result.ok) setError(result.message);
-    });
+    run(() => logSession(gameId, localToday(), null));
   };
 
   // rating: a name sets it, "" clears it, undefined keeps whatever it is —
   // all applied atomically with the close on the API side.
   const stopPlaying = (rating?: Rating | "") => {
-    if (game.openSessionId == null) return;
     const sessionId = game.openSessionId;
-    startTransition(async () => {
-      setError(null);
-      const result = await stopSession(sessionId, localToday(), rating);
-      if (result.ok) setStopStep(false);
-      else setError(result.message);
+    if (sessionId == null) return;
+    run(() => stopSession(sessionId, localToday(), rating), {
+      onSuccess: () => setStopStep(false),
     });
   };
 
   const saveLoggedSession = () => {
-    if (game.id === undefined || logStart === "") return;
     const gameId = game.id;
+    if (gameId === undefined || logStart === "") return;
     // An empty end date logs a backdated session that's still going — the
     // game becomes currently playing (or a 409 if it already is).
     const end = logEnd === "" ? null : logEnd;
-    startTransition(async () => {
-      setError(null);
-      const result = await logSession(gameId, logStart, end);
-      if (result.ok) {
+    run(() => logSession(gameId, logStart, end), {
+      onSuccess: () => {
         setLogOpen(false);
         setLogStart("");
         setLogEnd("");
-      } else {
-        setError(result.message);
-      }
+      },
     });
   };
 
   const removeGame = () => {
-    if (game.id === undefined) return;
     const gameId = game.id;
-    startTransition(async () => {
-      setError(null);
-      const result = await deleteGame(gameId);
-      // The game is gone — close the dialog; revalidation removes the card.
-      if (result.ok) onClose();
-      else setError(result.message);
-    });
+    if (gameId === undefined) return;
+    // The game is gone — close the dialog; revalidation removes the card.
+    run(() => deleteGame(gameId), { onSuccess: onClose });
   };
 
   const playing = game.currentlyPlaying && game.openSessionId != null;
@@ -126,41 +115,12 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
         <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
           Rating
         </p>
-        <div className="mt-2 grid grid-cols-5 gap-1.5">
-          {RATINGS.map((r) => {
-            const active = r.name === optimisticRating;
-            return (
-              <button
-                key={r.letter}
-                type="button"
-                aria-pressed={active}
-                onClick={() => rate(active ? "" : r.name)}
-                title={active ? "Remove rating" : `Rate ${r.name}`}
-                className={`flex flex-col items-center gap-0.5 rounded-md border py-2 transition-colors cursor-pointer ${
-                  active
-                    ? "border-transparent text-black/80"
-                    : "border-shelf-plank text-shelf-text hover:bg-shelf-input"
-                }`}
-                style={active ? { backgroundColor: r.color } : undefined}
-              >
-                <span
-                  className="text-base font-bold leading-none"
-                  style={active ? undefined : { color: r.color }}
-                >
-                  {r.letter}
-                </span>
-                <span className="text-[10px] leading-none">{r.name}</span>
-              </button>
-            );
-          })}
+        <div className="mt-2">
+          <RatingPicker variant="labeled" value={optimisticRating} onPick={rate} />
         </div>
 
         {optimisticRating !== "" && (
-          <button
-            type="button"
-            onClick={() => rate("")}
-            className="mt-3 text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer"
-          >
+          <button type="button" onClick={() => rate("")} className={`mt-3 ${ghostButtonClass}`}>
             Remove rating
           </button>
         )}
@@ -184,35 +144,33 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
                 type="button"
                 onClick={() => setStopStep(true)}
                 disabled={isPending}
-                className="mt-2 rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                className={`mt-2 ${buttonClass}`}
               >
                 Stop playing
               </button>
             ) : (
               <div className="mt-2">
                 <p className="text-xs text-shelf-text-muted">Finished: how was it?</p>
-                <div className="mt-1.5 grid grid-cols-5 gap-1.5">
-                  {RATINGS.map((r) => (
-                    <button
-                      key={r.letter}
-                      type="button"
-                      onClick={() => stopPlaying(r.name)}
-                      disabled={isPending}
-                      title={`Stop and rate ${r.name}`}
-                      aria-label={`Stop and rate ${r.name}`}
-                      className="rounded-md border border-shelf-plank py-1.5 text-sm font-bold hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
-                      style={{ color: r.color }}
-                    >
-                      {r.letter}
-                    </button>
-                  ))}
+                {/* No `value`, and clearable={false}: these five are actions
+                    that close the session AND set a rating, not a toggle over a
+                    current one. Leaving value unset keeps every button
+                    unselected, so the game's existing rating never renders as
+                    "already chosen" here — picking it again would still be a
+                    meaningful click. */}
+                <div className="mt-1.5">
+                  <RatingPicker
+                    onPick={(r) => stopPlaying(r as Rating)}
+                    disabled={isPending}
+                    clearable={false}
+                    describe={(name) => `Stop and rate ${name}`}
+                  />
                 </div>
                 <div className="mt-2 flex gap-4">
                   <button
                     type="button"
                     onClick={() => stopPlaying(undefined)}
                     disabled={isPending}
-                    className="text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50"
+                    className={ghostButtonClass}
                   >
                     {game.rating !== "" ? `Stop, keep "${game.rating}"` : "Stop without rating"}
                   </button>
@@ -220,7 +178,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
                     type="button"
                     onClick={() => setStopStep(false)}
                     disabled={isPending}
-                    className="text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50"
+                    className={ghostButtonClass}
                   >
                     Cancel
                   </button>
@@ -233,7 +191,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
             type="button"
             onClick={startPlaying}
             disabled={isPending}
-            className="mt-2 rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+            className={`mt-2 ${buttonClass}`}
           >
             Start playing
           </button>
@@ -243,7 +201,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
           type="button"
           onClick={() => setLogOpen((open) => !open)}
           aria-expanded={logOpen}
-          className="mt-3 block text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer"
+          className={`mt-3 block ${ghostButtonClass}`}
         >
           Log a past session
         </button>
@@ -274,7 +232,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
               type="button"
               onClick={saveLoggedSession}
               disabled={isPending || logStart === "" || logDatesInvalid}
-              className="rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+              className={buttonClass}
             >
               Save
             </button>
@@ -290,7 +248,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
               type="button"
               onClick={() => setDeleteStep(true)}
               disabled={isPending}
-              className="text-xs text-red-600 dark:text-red-400 underline underline-offset-2 hover:opacity-80 transition-opacity cursor-pointer disabled:opacity-50"
+              className={dangerLinkClass}
             >
               Remove from library
             </button>
@@ -314,7 +272,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
                   type="button"
                   onClick={removeGame}
                   disabled={isPending}
-                  className="rounded-md border border-red-600/50 dark:border-red-400/50 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-600/10 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                  className={dangerButtonClass}
                 >
                   Remove
                 </button>
@@ -322,7 +280,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
                   type="button"
                   onClick={() => setDeleteStep(false)}
                   disabled={isPending}
-                  className="rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                  className={buttonClass}
                 >
                   Cancel
                 </button>

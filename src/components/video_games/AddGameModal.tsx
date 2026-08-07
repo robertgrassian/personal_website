@@ -1,12 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState, useTransition } from "react";
-import { localToday, RATINGS, type IgdbSearchResult, type NewGame, type Rating } from "@/lib/games";
+import { useEffect, useRef, useState } from "react";
+import { localToday, type IgdbSearchResult, type NewGame } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
 import { addGame, addWishlistItem, lookupGameGenres, searchGames } from "@/app/video-games/actions";
 import { ModalShell } from "./ModalShell";
-import { inputClass, labelClass } from "./formStyles";
+import { useServerAction } from "./useServerAction";
+import type { MutateResult } from "@/lib/meApi";
+import { buttonClass, ghostButtonClass, inputClass, labelClass } from "./formStyles";
+import { RatingPicker } from "./RatingPicker";
 
 // The confirm form's working copy: NewGame except genres, which stay a raw
 // comma-separated string while typing (splitting on every keystroke would
@@ -56,8 +59,7 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
   // above uses.
   const genreSeq = useRef(0);
 
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const { isPending, error, setError, run } = useServerAction();
 
   // Handed to ModalShell as the initial focus target, so this dialog opens
   // ready to type instead of focused on its close button.
@@ -224,37 +226,31 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
       .split(",")
       .map((g) => g.trim())
       .filter(Boolean);
-    startTransition(async () => {
-      setError(null);
-      let result;
+    // The two targets share every field except the last one, so the common
+    // shape is built once and each branch adds only what is its own: a rating
+    // for the library, starred + dateAdded for the wishlist.
+    const shared = {
+      name: draft.name,
+      system: draft.system,
+      genres,
+      releaseDate: draft.releaseDate,
+      imageUrl: draft.imageUrl,
+      igdbId: draft.igdbId,
+    };
+    const submit = (): Promise<MutateResult> => {
       if (target === "library") {
-        const game: NewGame = {
-          name: draft.name,
-          system: draft.system,
-          genres,
-          releaseDate: draft.releaseDate,
-          imageUrl: draft.imageUrl,
-          igdbId: draft.igdbId,
-          rating: draft.rating,
-        };
-        result = await addGame(game);
-      } else {
-        const item: NewWishlistItem = {
-          name: draft.name,
-          system: draft.system,
-          genres,
-          releaseDate: draft.releaseDate,
-          imageUrl: draft.imageUrl,
-          igdbId: draft.igdbId,
-          starred: draft.starred,
-          // Browser-local date — the API's default is UTC "today".
-          dateAdded: localToday(),
-        };
-        result = await addWishlistItem(item);
+        const game: NewGame = { ...shared, rating: draft.rating };
+        return addGame(game);
       }
-      if (result.ok) onClose();
-      else setError(result.message);
-    });
+      const item: NewWishlistItem = {
+        ...shared,
+        starred: draft.starred,
+        // Browser-local date — the API's default is UTC "today".
+        dateAdded: localToday(),
+      };
+      return addWishlistItem(item);
+    };
+    run(submit, { onSuccess: onClose });
   };
 
   // Existing shelves first (the value you usually want), then the pick's own
@@ -388,7 +384,7 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
               onClick={startManual}
               // self-start because a flex column stretches its children:
               // without it this underlined link would span the full width.
-              className="mt-4 shrink-0 self-start text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer"
+              className={`mt-4 shrink-0 self-start ${ghostButtonClass}`}
             >
               Can&rsquo;t find it? Add it manually
             </button>
@@ -483,30 +479,11 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
                 {target === "library" ? (
                   <div>
                     <p className={labelClass}>Rating (optional)</p>
-                    <div className="mt-1 grid grid-cols-5 gap-1.5">
-                      {RATINGS.map((r) => {
-                        const active = r.name === draft.rating;
-                        return (
-                          <button
-                            key={r.letter}
-                            type="button"
-                            aria-pressed={active}
-                            onClick={() =>
-                              setDraft({ ...draft, rating: active ? "" : (r.name as Rating) })
-                            }
-                            title={active ? "Remove rating" : `Rate ${r.name}`}
-                            aria-label={active ? "Remove rating" : `Rate ${r.name}`}
-                            className={`rounded-md border py-1.5 text-sm font-bold transition-colors cursor-pointer ${
-                              active
-                                ? "border-transparent text-black/80"
-                                : "border-shelf-plank hover:bg-shelf-input"
-                            }`}
-                            style={active ? { backgroundColor: r.color } : { color: r.color }}
-                          >
-                            {r.letter}
-                          </button>
-                        );
-                      })}
+                    <div className="mt-1">
+                      <RatingPicker
+                        value={draft.rating}
+                        onPick={(rating) => setDraft({ ...draft, rating })}
+                      />
                     </div>
                   </div>
                 ) : (
@@ -526,19 +503,14 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
             {/* Pinned below the scroll area, so "Add to library" is reachable
                 without scrolling to the bottom of a long form. */}
             <div className="mt-4 flex shrink-0 items-center gap-3">
-              <button
-                type="button"
-                onClick={save}
-                disabled={saveDisabled}
-                className="rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
-              >
+              <button type="button" onClick={save} disabled={saveDisabled} className={buttonClass}>
                 {target === "library" ? "Add to library" : "Add to wishlist"}
               </button>
               <button
                 type="button"
                 onClick={() => setDraft(null)}
                 disabled={isPending}
-                className="text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50"
+                className={ghostButtonClass}
               >
                 Back to search
               </button>

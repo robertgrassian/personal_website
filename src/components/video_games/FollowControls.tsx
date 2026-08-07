@@ -17,8 +17,9 @@
 // does not turn the heading into client-side JavaScript.
 
 import Link from "next/link";
-import { createContext, useContext, useState, useTransition, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { CheckIcon } from "@/components/Icon";
+import { useServerAction } from "./useServerAction";
 import { followUserAction, unfollowUserAction } from "@/app/video-games/actions";
 import {
   useViewerRelationship,
@@ -81,8 +82,7 @@ function useResolvedFollowState(): FollowState | null {
 
 export function FollowButton() {
   const state = useResolvedFollowState();
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const { isPending, error, run } = useServerAction();
 
   if (!state) return null;
   const { ownerUsername, relationship, setRelationship } = state;
@@ -90,24 +90,17 @@ export function FollowButton() {
 
   function toggle() {
     const next = isFollowing ? "not-following" : "following";
-    startTransition(async () => {
-      setError(null);
+    run(() => (isFollowing ? unfollowUserAction(ownerUsername) : followUserAction(ownerUsername)), {
       // Flip first so the button responds immediately. useOptimistic is not
-      // usable here: it converges by falling back to a prop, and this state has
-      // no prop to fall back to — it was fetched, not passed in. So the revert
-      // below is manual.
+      // usable here: it converges by falling back to a prop, and this state
+      // has no prop to fall back to — it was fetched, not passed in. So the
+      // revert in onError is manual.
       //
       // Both writes name the user they are about, so neither lands if the
       // viewer has navigated to a different library while the request was in
       // flight (see SetViewerRelationship).
-      setRelationship(ownerUsername, next);
-      const result = isFollowing
-        ? await unfollowUserAction(ownerUsername)
-        : await followUserAction(ownerUsername);
-      if (!result.ok) {
-        setRelationship(ownerUsername, relationship);
-        setError(result.message);
-      }
+      optimistic: () => setRelationship(ownerUsername, next),
+      onError: () => setRelationship(ownerUsername, relationship),
     });
   }
 

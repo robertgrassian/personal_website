@@ -24,6 +24,7 @@ import { EditGameModal } from "./EditGameModal";
 import { EditWishlistModal } from "./EditWishlistModal";
 import { AddGameModal } from "./AddGameModal";
 import type { GameCaseInput } from "./GameCase";
+import { accentButtonClass } from "./formStyles";
 
 type GameLibraryProps = {
   games: Game[];
@@ -330,7 +331,7 @@ export function GameLibrary({
                       // Site amber accent + text-background, the same pairing the
                       // login button and the sign-up CTA use, so it reads correctly
                       // in light and dark.
-                      className="rounded-md bg-link px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 cursor-pointer"
+                      className={`${accentButtonClass} text-sm`}
                     >
                       {view === "played" ? "Add your first game" : "Add your first wish"}
                     </button>
