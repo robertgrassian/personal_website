@@ -13,10 +13,11 @@ The organizing goal is **sharing the site with people**, so Up Next holds what s
 before that happens.
 
 **Up Next is capped at 5, and being a bug is not what gets you in here.** Confirmed defects live
-in **Bugs** below; this section is for work that is in flight, blocking the sharing goal, or a
-promise the site already makes in user-facing copy. Adding a sixth item means demoting one, on
-purpose. (Split out 2026-08-07: the old rule sent every bug straight here, so four of five slots
-were defects and a search-matching miss outranked nothing at all.)
+in **Bugs** below. This section is for work that is in flight, blocking the goal above, or a
+promise the site already makes in user-facing copy but cannot honor — plus anything explicitly
+asked for, which needs no reason and is marked `(Promoted by request YYYY-MM-DD.)` so it does not
+get demoted back out. Adding a sixth item means demoting one, on purpose. (Split out 2026-08-07:
+the old rule sent every bug straight here, so four of five slots were defects.)
 
 - [ ] **Implement account deletion (`DELETE /api/py/me/account`).** Promoted from Backlog
       2026-07-30: the last unbuilt thing the spec actually committed to, and the one item here
@@ -75,7 +76,7 @@ to keep that section at five._
       flip `<button>` in `GameCase.tsx` is still the cheap hedge and costs nothing.<br>
       _Prime suspect: hover emulation._ The flip button's inner `.game-case-inner` div carries
       `group-hover:-translate-y-2 group-hover:shadow-xl`, with `transition: translate 0.2s
-    ease-out` on the matching rule in `video-games.css`. iOS Safari fakes `:hover` on first
+  ease-out` on the matching rule in `video-games.css`. iOS Safari fakes `:hover` on first
       touch for elements that have hover styles, so the tap can spend a beat playing the lift
       before the click ever fires. Fix is to gate the lift behind `@media (hover: hover)` rather
       than to remove it, so desktop keeps it. Note that same button's className already
@@ -145,6 +146,35 @@ to keep that section at five._
       wishlist filter, which shares this function.
 
 ## Backlog / Ideas
+
+- [ ] **Make database migrations run automatically as part of CD**, instead of `alembic upgrade
+    head` being run by hand from a laptop pointed at production.<br>
+      _Premise correction, and it is most of the work:_ there is no CD pipeline to add a step to.
+      `.github/workflows/ci.yml` has only `build` and `api` jobs, both of which test; deploys
+      happen through Vercel's own GitHub integration, and `vercel.json` contains nothing but the
+      daily health cron. So this means **creating** a deployment workflow, not extending one.<br>
+      _The ordering problem is the real design question._ Vercel offers no pre-deploy hook, so a
+      GitHub Action triggered on push to `main` races Vercel's build: whichever finishes first
+      wins, and if the deploy lands first there is a window where new code queries an old schema.
+      The usual answer is to make every migration backward-compatible (expand, migrate, contract
+      across separate deploys) so the race stops mattering — that is a discipline to adopt
+      deliberately, not something the workflow enforces. Worth deciding before automating, since
+      the whole value of automating is not thinking about it each time.<br>
+      _Two things that must not be got wrong:_ **(1)** preview deploys must never migrate. They
+      point at production through a read-only role, so a migration from a preview branch is
+      either an error or a disaster depending on the role. Gate on the branch, not on
+      `APP_ENV`. **(2)** the production connection string becomes a GitHub secret, where today it
+      exists only on your laptop and in Supabase. That is a genuine expansion of where the
+      credential lives, and worth weighing against how rarely migrations actually run.<br>
+      _Counter-argument worth keeping:_ auto-applying means a migration reaches production
+      without anyone reading its plan first. This project's habit so far is the opposite —
+      `docs/genre-backfill-runbook.md` exists because a preview-then-apply pass caught real
+      damage that a green test run had missed. `alembic upgrade head` is idempotent and safe to
+      re-run, so a middle option is a workflow that runs it on manual dispatch only: no laptop
+      credentials, still a human deciding when.<br>
+      Note `alembic/env.py` reads the URL from `DATABASE_URL` via the settings object with no
+      alias, and `normalize_database_url` rewrites the `postgresql://` scheme itself, so the
+      workflow can pass Supabase's connection string through unmodified.
 
 - [ ] **The nine structural refactors left over from the game-library simplification review.**
       Tiers 1 and 2 of that review shipped (PR #87); Tier 3 is what was judged
