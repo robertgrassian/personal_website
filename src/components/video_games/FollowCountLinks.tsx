@@ -16,7 +16,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { followerLabel } from "@/lib/follows";
-import { DEFAULT_VIEW, VALID_VIEW, type View } from "./libraryConfig";
+import { parseView, type View } from "./libraryConfig";
 
 type FollowCountLinksProps = {
   followerCount: number;
@@ -34,10 +34,8 @@ const INACTIVE = "hover:text-link hover:decoration-link";
 
 export function FollowCountLinks({ followerCount, followingCount }: FollowCountLinksProps) {
   const pathname = usePathname();
-  // Same validation the URL-state hook uses: an unknown ?view falls back to the
-  // default, so neither count shows as active.
-  const raw = useSearchParams().get("view");
-  const view: View = VALID_VIEW.includes(raw as View) ? (raw as View) : DEFAULT_VIEW;
+  // An unknown ?view falls back to the default, so neither count shows active.
+  const view = parseView(useSearchParams().get("view"));
 
   // Real anchors rather than the router.replace() the tabs use. These read as
   // "go to this person's followers" — worth a history entry, so Back returns to

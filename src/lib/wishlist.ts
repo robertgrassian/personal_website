@@ -1,5 +1,5 @@
 // Shared types for the wishlist — no Node.js imports, safe for client and
-// server components. Server-side CSV parsing lives in wishlistServer.ts.
+// server components. The server-side read lives in libraryApi.ts.
 
 import type { BaseGame } from "./baseGame";
 

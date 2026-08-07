@@ -29,9 +29,7 @@ class Profile(Base):
     # comparisons are case-insensitive).
     username: Mapped[str] = mapped_column(CITEXT, unique=True)
     display_name: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
         # Final name via the metadata naming convention: ck_profiles_username_format.

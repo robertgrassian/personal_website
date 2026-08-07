@@ -49,9 +49,7 @@ def is_following(db: Session, follower_id: uuid.UUID, followee_id: uuid.UUID) ->
     return bool(
         db.execute(
             select(
-                exists().where(
-                    Follow.follower_id == follower_id, Follow.followee_id == followee_id
-                )
+                exists().where(Follow.follower_id == follower_id, Follow.followee_id == followee_id)
             )
         ).scalar()
     )

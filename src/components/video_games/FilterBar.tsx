@@ -3,10 +3,14 @@ import type { Filters, Rating } from "@/lib/games";
 import { RATINGS } from "@/lib/games";
 import type { WishlistFilters } from "@/lib/wishlist";
 import type { GroupBy, SortOrder } from "./libraryConfig";
-
-// Filter keys shared by both views — one setter handles all three.
-// `rating` is played-only and gets its own typed callback in PlayedProps.
-type SharedFilterKey = "search" | "system" | "genre";
+// Filter keys shared by both views — one setter handles all three. `rating` is
+// played-only and gets its own typed callback in PlayedProps. Imported rather
+// than re-declared: this and the hook must agree on the key set, and two
+// identical unions in two files agree only by luck.
+import type { SharedFilterKey } from "./useGameLibraryUrlState";
+// Base styles shared between the search input and all select dropdowns, from
+// the same source the modal fields use.
+import { filterFieldClass as inputBaseClass, filterSelectClass as selectClass } from "./formStyles";
 
 // Full label maps; parent passes `validGroupBy`/`validSortOrder` to pick the subset.
 const GROUP_BY_LABELS: Record<GroupBy, string> = {
@@ -31,14 +35,6 @@ const SORT_LABELS: Record<SortOrder, string> = {
 // Minimum scroll distance (px) before toggling filter bar visibility.
 // Filters out micro-reversals from slow or momentum scrolling.
 const MIN_SCROLL_DELTA = 10;
-
-// Base styles shared between the search input and all select dropdowns.
-const inputBaseClass =
-  "bg-shelf-input border border-shelf-input-border text-shelf-input-text text-sm rounded " +
-  "px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-shelf-input-ring";
-
-// Selects get cursor-pointer on top of the base — inputs don't need it.
-const selectClass = `${inputBaseClass} cursor-pointer`;
 
 // Props are a discriminated union on `view` — rating-specific props only
 // exist in PlayedProps, and TS narrows to them inside `view === "played"`.

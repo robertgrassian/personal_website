@@ -14,11 +14,13 @@ import logging
 import re
 import uuid
 
+from fastapi import status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.auth import AuthenticatedUser
 from app.core.config import FOUNDER_USERNAME, get_settings
+from app.core.errors import DomainError
 from app.core.supabase_admin import delete_auth_user
 from app.models import Profile
 from app.repositories import me as me_repo
@@ -44,6 +46,7 @@ from app.services.users import derive_play_state, to_game_read, to_wishlist_read
 USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{2,29}$")
 
 logger = logging.getLogger(__name__)
+
 
 def _both_spellings(names: set[str]) -> set[str]:
     """Every name in the set, in both its snake_case and kebab-case spelling.
@@ -97,7 +100,10 @@ RESERVED_USERNAMES = frozenset(
             "settings",
             "account",
             # branding / impersonation
-            "rgrassian",  # the founder handle (seeded); un-claimable by others
+            # The founder handle (seeded), derived rather than re-typed: as a
+            # literal, renaming FOUNDER_USERNAME would un-reserve the handle
+            # signup had just created.
+            FOUNDER_USERNAME,
             "robert",  # kept reserved too (former founder-handle candidate)
             "grassian",
             "official",
@@ -111,52 +117,69 @@ RESERVED_USERNAMES = frozenset(
 )
 
 
-class ProfileExistsError(Exception):
+class ProfileExistsError(DomainError):
     """The caller already has a profile — onboarding is a one-time action."""
 
+    status_code = status.HTTP_409_CONFLICT
 
-class UsernameError(Exception):
+
+class UsernameError(DomainError):
     """Username rejected: bad format, reserved, or already taken. Carries a
-    machine-readable ``reason`` so the router/FE can branch without parsing
-    the message."""
+    machine-readable ``reason`` so the FE can branch without parsing the
+    message.
+
+    The one domain error whose status depends on the instance rather than the
+    class: a taken name is a conflict, while a malformed or reserved one is
+    unprocessable input. Set here so the decision travels with the error
+    instead of being re-derived by whichever route raised it."""
 
     def __init__(self, reason: str, message: str) -> None:
         super().__init__(message)
         self.reason = reason  # "format" | "reserved" | "taken"
-
-
-class SignupCapReachedError(Exception):
-    """MAX_USERS reached — signup is closed."""
-
-
-class LibraryFullError(Exception):
-    """MAX_GAMES reached — this library can't take another game."""
-
-    def __init__(self, limit: int) -> None:
-        super().__init__(
-            f"Library is full — {limit} games is the maximum. "
-            "Remove something before adding more."
+        self.status_code = (
+            status.HTTP_409_CONFLICT if reason == "taken" else status.HTTP_422_UNPROCESSABLE_CONTENT
         )
 
 
-class GameNotFoundError(Exception):
+class SignupCapReachedError(DomainError):
+    """MAX_USERS reached — signup is closed."""
+
+    status_code = status.HTTP_403_FORBIDDEN
+
+
+class LibraryFullError(DomainError):
+    """MAX_GAMES reached — this library can't take another game."""
+
+    status_code = status.HTTP_403_FORBIDDEN
+
+    def __init__(self, limit: int) -> None:
+        super().__init__(
+            f"Library is full — {limit} games is the maximum. Remove something before adding more."
+        )
+
+
+class GameNotFoundError(DomainError):
     """No such game in the caller's library. Deliberately covers both "id
     doesn't exist" and "id belongs to someone else" — /me/* treats the
     caller's library as the entire namespace, so foreign rows are simply
     not found (404), never revealed as forbidden (403)."""
 
+    status_code = status.HTTP_404_NOT_FOUND
+
     def __init__(self, game_id: int) -> None:
         super().__init__(f"Game {game_id} not found in your library")
 
 
-class GameExistsError(Exception):
+class GameExistsError(DomainError):
     """The caller's library already has this (name, system) combination."""
+
+    status_code = status.HTTP_409_CONFLICT
 
     def __init__(self, name: str, system: str) -> None:
         super().__init__(f"{name} ({system}) is already in your library.")
 
 
-class OnboardingRequiredError(Exception):
+class OnboardingRequiredError(DomainError):
     """Authenticated but no profile row yet. Several tables reference profiles
     (games.user_id, follows.follower_id), so writing any of them before
     onboarding is an FK violation. The explicit check turns what would be a 500
@@ -165,59 +188,75 @@ class OnboardingRequiredError(Exception):
     ``action`` names what was attempted, so a follow is not told to complete
     onboarding "before adding games"."""
 
+    status_code = status.HTTP_403_FORBIDDEN
+
     def __init__(self, action: str = "doing that") -> None:
         super().__init__(f"Complete onboarding before {action}.")
 
 
-class WishlistItemExistsError(Exception):
+class WishlistItemExistsError(DomainError):
     """The caller's wishlist already has this name (dedupe is by name alone)."""
+
+    status_code = status.HTTP_409_CONFLICT
 
     def __init__(self, name: str) -> None:
         super().__init__(f"{name} is already on your wishlist.")
 
 
-class WishlistItemNotFoundError(Exception):
+class WishlistItemNotFoundError(DomainError):
     """No such wishlist item in the caller's list — 404-over-403, as usual."""
+
+    status_code = status.HTTP_404_NOT_FOUND
 
     def __init__(self, item_id: int) -> None:
         super().__init__(f"Wishlist item {item_id} not found.")
 
 
-class SystemRequiredError(Exception):
+class SystemRequiredError(DomainError):
     """Promoting needs a system (games.system is NOT NULL) and neither the
     wishlist row nor the request supplied one — invalid input, so 422."""
+
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def __init__(self) -> None:
         super().__init__("Pick a system to add this game to the library.")
 
 
-class SessionNotFoundError(Exception):
+class SessionNotFoundError(DomainError):
     """No such session under the caller's games — same 404-over-403 policy as
     GameNotFoundError: foreign and nonexistent ids are indistinguishable."""
+
+    status_code = status.HTTP_404_NOT_FOUND
 
     def __init__(self, session_id: int) -> None:
         super().__init__(f"Session {session_id} not found in your library")
 
 
-class AlreadyPlayingError(Exception):
+class AlreadyPlayingError(DomainError):
     """Tried to open a session on a game that already has one. Mirrors the
     old session skill's "already_playing" answer; the message carries the
     existing start date so the UI can say since when."""
+
+    status_code = status.HTTP_409_CONFLICT
 
     def __init__(self, game_name: str, since: str) -> None:
         super().__init__(f"{game_name} is already being played (since {since}).")
 
 
-class SessionAlreadyClosedError(Exception):
+class SessionAlreadyClosedError(DomainError):
     """Tried to close a session that already has an end date."""
+
+    status_code = status.HTTP_409_CONFLICT
 
     def __init__(self, session_id: int) -> None:
         super().__init__(f"Session {session_id} is already closed.")
 
 
-class SessionDatesError(Exception):
+class SessionDatesError(DomainError):
     """Close date precedes the session's start date — invalid input, not a
     conflict, so the router maps it to a 422."""
+
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def get_my_profile(db: Session, user: AuthenticatedUser) -> MyProfileRead | None:
@@ -258,9 +297,7 @@ def _resolve_founder_id(db: Session, configured_username: str | None) -> uuid.UU
         return None
     founder = users_repo.get_profile_by_username(db, configured_username)
     if founder is None:
-        logger.warning(
-            "Founder %r has no profile row; skipping auto-follow.", configured_username
-        )
+        logger.warning("Founder %r has no profile row; skipping auto-follow.", configured_username)
         return None
     return founder.id
 

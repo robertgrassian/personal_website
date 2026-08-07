@@ -87,6 +87,68 @@ function isValidRating(rating: string): rating is Rating | "" {
   return rating === "" || RATINGS.some((r) => r.name === rating);
 }
 
+/** Run a mutation and, only if the API accepted it, purge the caller's cached
+ *  reads. `alsoRevalidate` names a second library whose pages this write also
+ *  changed — only follows need it.
+ *
+ *  Every write below goes through here rather than repeating the pairing, so
+ *  "revalidate if and only if result.ok" is enforced in one place instead of
+ *  being restated once per action (where a new action can silently forget it).
+ *  The ordering contract revalidateMyLibrary documents is a property of this
+ *  function now: it is only ever reached after an accepted write. */
+async function write(
+  run: () => Promise<MutateResult>,
+  alsoRevalidate?: string
+): Promise<MutateResult> {
+  const result = await run();
+  if (result.ok) {
+    await revalidateMyLibrary();
+    if (alsoRevalidate !== undefined) revalidateOtherLibrary(alsoRevalidate);
+  }
+  return result;
+}
+
+/** Reject a row id that isn't an integer before it leaves the Next server.
+ *  Returns the refusal to hand straight back, or null when the id is fine. */
+function rejectBadId(id: number, what: string): MutateResult | null {
+  return Number.isInteger(id) ? null : { ok: false, message: `Invalid ${what} request.` };
+}
+
+// The fields NewGame and NewWishlistItem have in common — the ones an IGDB pick
+// fills in. Both add paths validate and normalize them identically, so the
+// https://images.igdb.com/ check and the date shape live here once rather than
+// being two copies that can be tightened apart.
+type SharedEntryFields = {
+  name: string;
+  system: string;
+  genres: string[];
+  releaseDate: string | null;
+  imageUrl: string;
+  igdbId: number | null;
+};
+
+/** Null when the shared fields are malformed; otherwise the entry with those
+ *  fields trimmed and its blank genres dropped. */
+function normalizeSharedFields<T extends SharedEntryFields>(entry: T): T | null {
+  const releaseDateOk = entry.releaseDate === null || ISO_DATE_RE.test(entry.releaseDate);
+  const imageUrlOk = entry.imageUrl === "" || entry.imageUrl.startsWith("https://images.igdb.com/");
+  if (
+    entry.name.trim() === "" ||
+    !releaseDateOk ||
+    !imageUrlOk ||
+    (entry.igdbId !== null && !Number.isInteger(entry.igdbId)) ||
+    !Array.isArray(entry.genres)
+  ) {
+    return null;
+  }
+  return {
+    ...entry,
+    name: entry.name.trim(),
+    system: entry.system.trim(),
+    genres: entry.genres.map((g) => g.trim()).filter(Boolean),
+  };
+}
+
 /** Search IGDB for the add-game picker. A read, but it must run server-side:
  *  the browser has no IGDB credentials, and the proxy needs the Bearer token
  *  translation meApi does. No revalidation — nothing changed. */
@@ -125,70 +187,31 @@ export async function lookupGameGenres(name: string): Promise<LookupGenresResult
 
 /** Add a game to the library (from an IGDB pick or manual entry). */
 export async function addGame(game: NewGame): Promise<MutateResult> {
-  const releaseDateOk = game.releaseDate === null || ISO_DATE_RE.test(game.releaseDate);
-  const imageUrlOk = game.imageUrl === "" || game.imageUrl.startsWith("https://images.igdb.com/");
-  if (
-    game.name.trim() === "" ||
-    game.system.trim() === "" ||
-    !releaseDateOk ||
-    !imageUrlOk ||
-    !isValidRating(game.rating) ||
-    (game.igdbId !== null && !Number.isInteger(game.igdbId)) ||
-    !Array.isArray(game.genres)
-  ) {
+  const normalized = normalizeSharedFields(game);
+  // A game needs a system and a valid rating on top of the shared fields; a
+  // wishlist entry does not, which is why these two stay here.
+  if (normalized === null || normalized.system === "" || !isValidRating(game.rating)) {
     return { ok: false, message: "Invalid add request." };
   }
 
-  const result = await createMyGame({
-    ...game,
-    name: game.name.trim(),
-    system: game.system.trim(),
-    genres: game.genres.map((g) => g.trim()).filter(Boolean),
-  });
-  if (result.ok) {
-    await revalidateMyLibrary();
-  }
-  return result;
+  return write(() => createMyGame(normalized));
 }
 
 /** Remove a game from the library; its play sessions cascade away with it. */
 export async function deleteGame(gameId: number): Promise<MutateResult> {
-  if (!Number.isInteger(gameId)) {
-    return { ok: false, message: "Invalid delete request." };
-  }
-
-  const result = await deleteMyGame(gameId);
-  if (result.ok) {
-    await revalidateMyLibrary();
-  }
-  return result;
+  return rejectBadId(gameId, "delete") ?? write(() => deleteMyGame(gameId));
 }
 
 /** Add a wishlist entry (IGDB pick or manual; only name is required). */
 export async function addWishlistItem(item: NewWishlistItem): Promise<MutateResult> {
-  const releaseDateOk = item.releaseDate === null || ISO_DATE_RE.test(item.releaseDate);
-  const imageUrlOk = item.imageUrl === "" || item.imageUrl.startsWith("https://images.igdb.com/");
-  if (
-    item.name.trim() === "" ||
-    !releaseDateOk ||
-    !imageUrlOk ||
-    !ISO_DATE_RE.test(item.dateAdded) ||
-    (item.igdbId !== null && !Number.isInteger(item.igdbId)) ||
-    !Array.isArray(item.genres)
-  ) {
+  const normalized = normalizeSharedFields(item);
+  // dateAdded is wishlist-only: the browser sends its local "today" so the
+  // entry isn't stamped with a UTC date the owner never saw.
+  if (normalized === null || !ISO_DATE_RE.test(item.dateAdded)) {
     return { ok: false, message: "Invalid wishlist request." };
   }
 
-  const result = await createMyWishlistItem({
-    ...item,
-    name: item.name.trim(),
-    system: item.system.trim(),
-    genres: item.genres.map((g) => g.trim()).filter(Boolean),
-  });
-  if (result.ok) {
-    await revalidateMyLibrary();
-  }
-  return result;
+  return write(() => createMyWishlistItem(normalized));
 }
 
 /** Edit a wishlist entry — pass only the fields to change. */
@@ -196,41 +219,19 @@ export async function updateWishlistItem(
   itemId: number,
   fields: { starred?: boolean; notes?: string; system?: string }
 ): Promise<MutateResult> {
-  if (!Number.isInteger(itemId)) {
-    return { ok: false, message: "Invalid wishlist request." };
-  }
-
-  const result = await updateMyWishlistItem(itemId, fields);
-  if (result.ok) {
-    await revalidateMyLibrary();
-  }
-  return result;
+  return rejectBadId(itemId, "wishlist") ?? write(() => updateMyWishlistItem(itemId, fields));
 }
 
 /** Remove a wishlist entry. */
 export async function deleteWishlistItem(itemId: number): Promise<MutateResult> {
-  if (!Number.isInteger(itemId)) {
-    return { ok: false, message: "Invalid wishlist request." };
-  }
-
-  const result = await deleteMyWishlistItem(itemId);
-  if (result.ok) {
-    await revalidateMyLibrary();
-  }
-  return result;
+  return rejectBadId(itemId, "wishlist") ?? write(() => deleteMyWishlistItem(itemId));
 }
 
 /** Promote a wishlist entry into the library ("" system = use the stored one). */
 export async function promoteWishlistItem(itemId: number, system: string): Promise<MutateResult> {
-  if (!Number.isInteger(itemId)) {
-    return { ok: false, message: "Invalid promote request." };
-  }
-
-  const result = await promoteMyWishlistItem(itemId, system.trim());
-  if (result.ok) {
-    await revalidateMyLibrary();
-  }
-  return result;
+  return (
+    rejectBadId(itemId, "promote") ?? write(() => promoteMyWishlistItem(itemId, system.trim()))
+  );
 }
 
 export async function updateGameRating(gameId: number, rating: Rating | ""): Promise<MutateResult> {
@@ -241,13 +242,9 @@ export async function updateGameRating(gameId: number, rating: Rating | ""): Pro
     return { ok: false, message: "Invalid rating request." };
   }
 
-  const result = await updateMyGameRating(gameId, rating);
-  if (result.ok) {
-    // Purge every cached read (games + wishlist) and re-render the static
-    // pages built from them on their next request.
-    await revalidateMyLibrary();
-  }
-  return result;
+  // On success this purges every cached read (games + wishlist) and re-renders
+  // the static pages built from them on their next request.
+  return write(() => updateMyGameRating(gameId, rating));
 }
 
 /** Start playing a game (endDate null → open session) or log a past
@@ -265,11 +262,7 @@ export async function logSession(
     return { ok: false, message: "Invalid session request." };
   }
 
-  const result = await createMySession(gameId, startDate, endDate);
-  if (result.ok) {
-    await revalidateMyLibrary();
-  }
-  return result;
+  return write(() => createMySession(gameId, startDate, endDate));
 }
 
 /** Stop playing: close the open session, optionally rating the game in the
@@ -287,11 +280,7 @@ export async function stopSession(
     return { ok: false, message: "Invalid stop request." };
   }
 
-  const result = await closeMySession(sessionId, endDate, rating);
-  if (result.ok) {
-    await revalidateMyLibrary();
-  }
-  return result;
+  return write(() => closeMySession(sessionId, endDate, rating));
 }
 
 /** Follow a user. Revalidates BOTH libraries: the caller's following list grew
@@ -301,12 +290,7 @@ export async function followUserAction(username: string): Promise<MutateResult> 
   if (typeof username !== "string" || username === "") {
     return { ok: false, message: "Invalid follow request." };
   }
-  const result = await followUser(username);
-  if (result.ok) {
-    await revalidateMyLibrary();
-    revalidateOtherLibrary(username);
-  }
-  return result;
+  return write(() => followUser(username), username);
 }
 
 /** Unfollow a user. Same two-tag revalidation as following. */
@@ -314,10 +298,5 @@ export async function unfollowUserAction(username: string): Promise<MutateResult
   if (typeof username !== "string" || username === "") {
     return { ok: false, message: "Invalid unfollow request." };
   }
-  const result = await unfollowUser(username);
-  if (result.ok) {
-    await revalidateMyLibrary();
-    revalidateOtherLibrary(username);
-  }
-  return result;
+  return write(() => unfollowUser(username), username);
 }

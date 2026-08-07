@@ -2,13 +2,20 @@
 
 import type { BaseGame } from "./baseGame";
 
-// Re-export under the old name so existing `gameGenres` imports keep working.
-export { baseGameGenres as gameGenres } from "./baseGame";
-
-// Owner of the /video-games shelf. Client-safe on purpose: the server read
-// path uses it as the API username, the browser uses it to decide whether the
-// signed-in viewer owns this library (edit affordances), and write actions
-// use it to build the cache tag to revalidate.
+// Owner of the /video-games shelf, i.e. the founder — the seeded profile the
+// fixed routes render. Client-safe on purpose: the server read path uses it as
+// the API username, /video-games and /currently-playing use it to pick whose
+// shelf to show, and onboarding uses it to build the cache tag to revalidate
+// after the signup auto-follow.
+//
+// Mirrored on the backend as FOUNDER_USERNAME (api/app/core/config.py), which
+// is the source of truth for signup auto-follow and the reserved-name list.
+// Renaming one without the other silently breaks the fixed routes here or the
+// auto-follow there, so change both together.
+//
+// It does NOT decide edit affordances: ownership is per-library and resolved
+// per-viewer (see useIsLibraryOwner), since any user's library can be edited by
+// its own owner.
 export const LIBRARY_OWNER_USERNAME = "rgrassian";
 
 // Single source of truth: all ratings in order, best to worst.

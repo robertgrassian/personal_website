@@ -79,7 +79,6 @@ class Settings(BaseSettings):
     # script.
     max_games: int = 2000
 
-
     # --- IGDB proxy ------------------------------------------------------------
     # Twitch application credentials (IGDB authenticates via Twitch OAuth).
     # Server-side only, never exposed to clients; unset → /igdb/search

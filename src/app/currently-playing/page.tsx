@@ -1,4 +1,4 @@
-import { getGames } from "@/lib/gamesServer";
+import { getGames } from "@/lib/libraryApi";
 import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 import { CrtTv } from "@/components/crt/CrtTv";
 

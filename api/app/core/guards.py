@@ -10,7 +10,6 @@ from app.core.auth import CurrentUser
 from app.core.config import Settings, get_settings
 from app.core.db import get_db
 from app.services import rate_limit
-from app.services.rate_limit import RateLimitedError
 
 # One shared budget across every write. Deliberately not per-endpoint: the
 # thing worth bounding is total damage per user per minute, and a caller who
@@ -47,22 +46,17 @@ def rate_limit_writes(user: CurrentUser, db: Annotated[Session, Depends(get_db)]
     puts it where it can be seen and reviewed, next to the preview guard, and
     means a new write endpoint is one obvious line away from being covered.
 
-    Raises the HTTP error directly instead of a domain exception: dependencies
-    run before the handler, so a handler's try/except could not catch it.
+    RateLimitedError propagates rather than being translated here: it is a
+    DomainError carrying its own 429 and Retry-After, and the app-wide handler
+    sits outside the router, so it catches what a dependency raises just as it
+    catches what a handler does.
     """
-    try:
-        rate_limit.enforce(
-            db,
-            user.id,
-            WRITE_RATE_LIMIT_BUCKET,
-            WRITE_RATE_LIMIT_MAX,
-            WRITE_RATE_LIMIT_WINDOW,
-            f"Too many changes at once — limited to {WRITE_RATE_LIMIT_MAX} per minute. "
-            "Wait a moment and try again.",
-        )
-    except RateLimitedError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=str(exc),
-            headers={"Retry-After": str(exc.retry_after_seconds)},
-        ) from exc
+    rate_limit.enforce(
+        db,
+        user.id,
+        WRITE_RATE_LIMIT_BUCKET,
+        WRITE_RATE_LIMIT_MAX,
+        WRITE_RATE_LIMIT_WINDOW,
+        f"Too many changes at once — limited to {WRITE_RATE_LIMIT_MAX} per minute. "
+        "Wait a moment and try again.",
+    )

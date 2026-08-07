@@ -1,14 +1,13 @@
 "use client";
 
-import { useOptimistic, useRef, useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import type { WishlistGame } from "@/lib/wishlist";
 import {
   deleteWishlistItem,
   promoteWishlistItem,
   updateWishlistItem,
 } from "@/app/video-games/actions";
-import { CloseIcon } from "@/components/Icon";
-import { useModalChrome } from "./useModalChrome";
+import { ModalShell } from "./ModalShell";
 import { inputClass, labelClass } from "./formStyles";
 
 type EditWishlistModalProps = {
@@ -40,11 +39,6 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
   const [promoteStep, setPromoteStep] = useState(false);
   const [promoteSystem, setPromoteSystem] = useState(item.system);
   const [deleteStep, setDeleteStep] = useState(false);
-
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-
-  // Scroll lock, focus-into/restore, and Escape-to-close.
-  useModalChrome(onClose, closeButtonRef);
 
   const patch = (fields: { starred?: boolean; notes?: string }) => {
     if (item.id === undefined) return;
@@ -96,38 +90,19 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
   const notesDirty = notesDraft !== item.notes;
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4">
-      <div
-        aria-hidden="true"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-      />
-
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Edit wishlist entry ${item.name}`}
-        className="relative w-full max-w-sm rounded-lg border border-shelf-plank bg-shelf-bg p-5 shadow-2xl"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="text-shelf-text font-semibold leading-snug">{item.name}</h2>
-            <p className="text-shelf-text-muted text-xs mt-0.5">
-              {item.system || "System undecided"}
-              {item.dateAdded && ` · wishlisted ${item.dateAdded}`}
-            </p>
-          </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="shrink-0 rounded-md p-1 text-shelf-text-muted hover:text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer"
-          >
-            <CloseIcon className="w-5 h-5" aria-hidden />
-          </button>
-        </div>
-
+    <ModalShell
+      label={`Edit wishlist entry ${item.name}`}
+      title={item.name}
+      subtitle={
+        <>
+          {item.system || "System undecided"}
+          {item.dateAdded && ` · wishlisted ${item.dateAdded}`}
+        </>
+      }
+      onClose={onClose}
+      error={error}
+    >
+      <>
         <label className="mt-5 flex items-center gap-2 text-sm text-shelf-text cursor-pointer">
           <input
             type="checkbox"
@@ -247,13 +222,7 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
             </div>
           )}
         </div>
-
-        {error && (
-          <p role="alert" className="mt-3 text-xs text-red-500 dark:text-red-400">
-            {error}
-          </p>
-        )}
-      </div>
-    </div>
+      </>
+    </ModalShell>
   );
 }
