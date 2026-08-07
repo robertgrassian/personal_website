@@ -76,7 +76,7 @@ to keep that section at five._
       flip `<button>` in `GameCase.tsx` is still the cheap hedge and costs nothing.<br>
       _Prime suspect: hover emulation._ The flip button's inner `.game-case-inner` div carries
       `group-hover:-translate-y-2 group-hover:shadow-xl`, with `transition: translate 0.2s
-  ease-out` on the matching rule in `video-games.css`. iOS Safari fakes `:hover` on first
+ease-out` on the matching rule in `video-games.css`. iOS Safari fakes `:hover` on first
       touch for elements that have hover styles, so the tap can spend a beat playing the lift
       before the click ever fires. Fix is to gate the lift behind `@media (hover: hover)` rather
       than to remove it, so desktop keeps it. Note that same button's className already
@@ -147,8 +147,60 @@ to keep that section at five._
 
 ## Backlog / Ideas
 
+- [ ] **Editing a game should need a "Confirm" press before the change takes effect.** Today a
+      rating write fires on the click itself: `RatingPicker`'s `onPick` calls `rate()` in
+      `EditGameModal.tsx`, which runs the `updateGameRating` Server Action immediately, so there
+      is no moment between picking a value and it being saved. The same is true of every other
+      control in that dialog (start/stop session, log a past session); `AddGameModal`'s rating
+      picker is the exception, since it is part of a form that already has a submit button.<br>
+      _What makes this more than adding a button:_ the rating picker is wired to `useOptimistic`
+      precisely because the write is instant, and `optimisticRating` is also what the "Remove
+      rating" button and the unrated hint below it read. Deferring the write turns that into
+      ordinary draft state (pick → local value → Confirm → action), so the optimistic hook either
+      goes away or moves to wrap the confirm. Decide too whether Confirm covers the whole dialog
+      or just the rating: `stopPlaying` applies a rating **atomically with closing the session**
+      on the API side, so a per-field confirm has to leave that path alone or it splits one write
+      into two.<br>
+      _Counter-argument worth keeping:_ one tap to re-rate a game is the nicest thing about the
+      current modal, and rating is already reversible from the same dialog. A confirm step earns
+      its cost mainly once the modal is a real multi-field form, which is exactly what the "make
+      library and wishlist entries fully editable" item below plans, and that item would supply a
+      Save button for free. Worth deciding whether to do this on its own or fold it into that.<br>
+      Note the pattern already exists for destructive actions: `ConfirmStep.tsx` is a two-step
+      trigger → prompt → confirm control used by "Remove from library". Related: the
+      "confirmation toast" item below is the other half of this (knowing a write landed), and the
+      audit-log/undo item directly below is the alternative answer to the same worry — undo after
+      the fact instead of confirm before it.
+- [ ] **An audit log of important library actions, primarily so a change can be undone.** No such
+      table exists today: `api/app/models/` holds only `profile`, `game`, `wishlist_item`,
+      `follow` and `igdb`, and nothing in the write path records what changed. Rating a game
+      wrongly, deleting a game, or promoting a wishlist entry are all one-way from the UI.<br>
+      _The ask, in order of what it is for:_ **(1)** undo, implemented by replaying from the log
+      (undoing "rating A → B" is a normal write of A, itself recorded as a new row); **(2)** a
+      general record of important actions to grow other features on: a recent-activity feed,
+      per-game change history.<br>
+      _The design decision everything hangs on: what a row holds._ An action name plus
+      before/after values as JSON is enough for undo and cheap to write, but it is a second copy
+      of the data that can drift. Deleting a game is the case that forces the issue:
+      `play_sessions` cascades on game delete (there is a comment on the FK in
+      `api/app/models/game.py`), so undoing a delete cannot restore the sessions unless the log
+      row carried them, and a restored game gets a new id, orphaning any later log row that
+      referenced the old one. Decide whether delete is undoable at all, or whether undo covers
+      only field edits.<br>
+      _Where it gets written:_ every owner write goes routers → services → repositories under
+      `/api/py/me/*`, so the log belongs at the service layer, in the same transaction as the
+      change — a log entry that can go missing is not one you can undo from. Note
+      `rate_limit_writes` commits **separately** on purpose, for the opposite reason (see the
+      Tier 3 refactor item above); do not copy that shape here.<br>
+      _Two smaller things to settle:_ retention, since this is the one table with no natural cap
+      (`max_games` bounds rows, nothing bounds edits); and whether undo is an affordance with a
+      time window (an "Undo" link in a toast, which wants the toast item below first) or a
+      history view the owner browses. Either way decide what happens when state moved on:
+      undoing a rating edit after a later edit should probably refuse rather than silently
+      overwrite.
+
 - [ ] **Make database migrations run automatically as part of CD**, instead of `alembic upgrade
-    head` being run by hand from a laptop pointed at production.<br>
+  head` being run by hand from a laptop pointed at production.<br>
       _Premise correction, and it is most of the work:_ there is no CD pipeline to add a step to.
       `.github/workflows/ci.yml` has only `build` and `api` jobs, both of which test; deploys
       happen through Vercel's own GitHub integration, and `vercel.json` contains nothing but the
