@@ -8,15 +8,9 @@ import {
   updateWishlistItem,
 } from "@/app/video-games/actions";
 import { ModalShell } from "./ModalShell";
+import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
-import {
-  buttonClass,
-  dangerButtonClass,
-  dangerLinkClass,
-  ghostButtonClass,
-  inputClass,
-  labelClass,
-} from "./formStyles";
+import { buttonClass, ghostButtonClass, inputClass, labelClass } from "./formStyles";
 
 type EditWishlistModalProps = {
   item: WishlistGame;
@@ -41,11 +35,10 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
   // per keystroke would be miserable. Starred toggles write immediately.
   const [notesDraft, setNotesDraft] = useState(item.notes);
 
-  // promoteStep = the "I bought it" confirm (with system picker) is showing;
-  // deleteStep = the remove confirm is showing.
+  // promoteStep = the "I bought it" confirm (with system picker) is showing.
+  // The remove confirm's own step state lives inside ConfirmStep.
   const [promoteStep, setPromoteStep] = useState(false);
   const [promoteSystem, setPromoteSystem] = useState(item.system);
-  const [deleteStep, setDeleteStep] = useState(false);
 
   const patch = (fields: { starred?: boolean; notes?: string }) => {
     const itemId = item.id;
@@ -178,40 +171,18 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
             </div>
           )}
 
-          {!deleteStep ? (
-            <button
-              type="button"
-              onClick={() => setDeleteStep(true)}
-              disabled={isPending}
-              className={`mt-3 block ${dangerLinkClass}`}
-            >
-              Remove from wishlist
-            </button>
-          ) : (
-            <div className="mt-3">
-              <p className="text-sm text-shelf-text">
+          <ConfirmStep
+            triggerLabel="Remove from wishlist"
+            triggerClassName="mt-3 block"
+            confirmLabel="Remove"
+            onConfirm={remove}
+            disabled={isPending}
+            prompt={
+              <>
                 Remove <span className="font-medium">{item.name}</span> from the wishlist?
-              </p>
-              <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={remove}
-                  disabled={isPending}
-                  className={dangerButtonClass}
-                >
-                  Remove
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleteStep(false)}
-                  disabled={isPending}
-                  className={buttonClass}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+              </>
+            }
+          />
         </div>
       </>
     </ModalShell>

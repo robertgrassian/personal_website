@@ -4,16 +4,10 @@ import { useOptimistic, useState } from "react";
 import { localToday, type Game, type Rating } from "@/lib/games";
 import { deleteGame, logSession, stopSession, updateGameRating } from "@/app/video-games/actions";
 import { ModalShell } from "./ModalShell";
+import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
-import {
-  buttonClass,
-  dangerButtonClass,
-  dangerLinkClass,
-  fieldClass,
-  ghostButtonClass,
-  labelClass,
-} from "./formStyles";
+import { buttonClass, fieldClass, ghostButtonClass, labelClass } from "./formStyles";
 
 // Date inputs size to their content rather than filling the row, so they take
 // the shared tokens plus their own padding instead of `inputClass`.
@@ -47,8 +41,6 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   const [logOpen, setLogOpen] = useState(false);
   const [logStart, setLogStart] = useState("");
   const [logEnd, setLogEnd] = useState("");
-  // deleteStep = the remove confirm (with session count) is showing.
-  const [deleteStep, setDeleteStep] = useState(false);
 
   const rate = (next: Rating | "") => {
     const gameId = game.id;
@@ -243,18 +235,13 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
         )}
 
         <div className="mt-5 border-t border-shelf-plank pt-3">
-          {!deleteStep ? (
-            <button
-              type="button"
-              onClick={() => setDeleteStep(true)}
-              disabled={isPending}
-              className={dangerLinkClass}
-            >
-              Remove from library
-            </button>
-          ) : (
-            <div>
-              <p className="text-sm text-shelf-text">
+          <ConfirmStep
+            triggerLabel="Remove from library"
+            confirmLabel="Remove"
+            onConfirm={removeGame}
+            disabled={isPending}
+            prompt={
+              <>
                 Remove <span className="font-medium">{game.name}</span>?
                 {sessionCount > 0 && (
                   <span className="text-shelf-text-muted">
@@ -266,27 +253,9 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
                     .
                   </span>
                 )}
-              </p>
-              <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={removeGame}
-                  disabled={isPending}
-                  className={dangerButtonClass}
-                >
-                  Remove
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleteStep(false)}
-                  disabled={isPending}
-                  className={buttonClass}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+              </>
+            }
+          />
         </div>
       </>
     </ModalShell>

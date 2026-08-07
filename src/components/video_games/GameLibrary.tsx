@@ -177,6 +177,22 @@ export function GameLibrary({
       .map((group) => ({ ...group, games: sortWishlist(group.games, sortOrder) }));
   }, [view, games, wishlist, activeFilters, activeWishlistFilters, groupBy, sortOrder]);
 
+  // The seven props both views pass identically. Spread rather than repeated,
+  // so a new shared prop cannot land on one view and not the other.
+  //
+  // `view` stays a literal at each call site on purpose: FilterBarProps is a
+  // discriminated union on it, and that is what still narrows onRatingChange to
+  // the played view only.
+  const filterBarCommon = {
+    onSharedFilterChange: setSharedFilter,
+    groupBy,
+    sortOrder,
+    validGroupBy,
+    validSortOrder,
+    onGroupByChange: setGroupBy,
+    onSortOrderChange: setSortOrder,
+  };
+
   const activeTotal = view === "played" ? games.length : wishlist.length;
   const filteredCount = activeShelves.reduce((sum, s) => sum + s.games.length, 0);
 
@@ -268,37 +284,26 @@ export function GameLibrary({
 
           {view === "played" ? (
             <FilterBar
+              {...filterBarCommon}
               view="played"
               filters={activeFilters}
-              onSharedFilterChange={setSharedFilter}
               onRatingChange={setRating}
-              groupBy={groupBy}
-              sortOrder={sortOrder}
-              validGroupBy={validGroupBy}
-              validSortOrder={validSortOrder}
               allSystems={allSystems}
               allGenres={allGenres}
               availableRatings={availableRatings}
               availableSystems={availableSystems}
               availableGenres={availableGenres}
-              onGroupByChange={setGroupBy}
               onSortOrderChange={setSortOrder}
             />
           ) : (
             <FilterBar
+              {...filterBarCommon}
               view="wishlist"
               filters={activeWishlistFilters}
-              onSharedFilterChange={setSharedFilter}
-              groupBy={groupBy}
-              sortOrder={sortOrder}
-              validGroupBy={validGroupBy}
-              validSortOrder={validSortOrder}
               allSystems={allSystemsWishlist}
               allGenres={allGenresWishlist}
               availableSystems={availableSystemsWishlist}
               availableGenres={availableGenresWishlist}
-              onGroupByChange={setGroupBy}
-              onSortOrderChange={setSortOrder}
             />
           )}
 
@@ -315,14 +320,14 @@ export function GameLibrary({
               // filtered-to-nothing shelf needs neither.
               isNothingHere ? (
                 <div className="mt-24 flex flex-col items-center gap-4 text-center">
+                  {/* Two words vary across the four cases, so they are the only
+                      thing branched on. Written as a nested ternary, this was
+                      four near-identical sentences that could drift apart from
+                      each other one edit at a time. */}
                   <p className="text-lg text-shelf-text-muted">
-                    {canEdit
-                      ? view === "played"
-                        ? "Your library is empty."
-                        : "Your wishlist is empty."
-                      : view === "played"
-                        ? "This library is empty."
-                        : "This wishlist is empty."}
+                    {`${canEdit ? "Your" : "This"} ${
+                      view === "played" ? "library" : "wishlist"
+                    } is empty.`}
                   </p>
                   {canEdit && (
                     <button

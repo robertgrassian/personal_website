@@ -20,10 +20,14 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 
 
-def delete_auth_user(user_id: uuid.UUID) -> bool:
-    """Delete an auth.users row via the Admin API. Best-effort: returns False
-    (after logging) instead of raising, because callers use this as cleanup on
-    an error path — failing the cleanup must not mask the primary response."""
+def delete_auth_user(user_id: uuid.UUID) -> None:
+    """Delete an auth.users row via the Admin API.
+
+    Best-effort: logs and returns instead of raising, because the only caller
+    uses this as cleanup on an error path, and a failed cleanup must not mask
+    the primary response. Returns nothing on purpose — every outcome is already
+    logged here, and a bool nobody branched on only looked like a result worth
+    checking."""
     settings = get_settings()
     if not (settings.supabase_url and settings.supabase_service_role_key):
         logger.warning(
@@ -31,7 +35,7 @@ def delete_auth_user(user_id: uuid.UUID) -> bool:
             "SUPABASE_SERVICE_ROLE_KEY); skipping auth user cleanup for %s",
             user_id,
         )
-        return False
+        return
     try:
         response = httpx.delete(
             f"{settings.supabase_url}/auth/v1/admin/users/{user_id}",
@@ -42,7 +46,5 @@ def delete_auth_user(user_id: uuid.UUID) -> bool:
             timeout=5.0,
         )
         response.raise_for_status()
-        return True
     except httpx.HTTPError:
         logger.exception("Failed to delete auth user %s via admin API", user_id)
-        return False

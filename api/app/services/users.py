@@ -6,10 +6,13 @@ no HTTP knowledge) and routers map it to a 404. Chosen over returning None so
 call sites can't silently forget the check and the error carries the username
 for the response body.
 
-Play-state derivation is a direct port of ``derivePlayState()`` in
-src/lib/gamesServer.ts: an open session (NULL end_date) means "currently
+Play-state semantics: an open session (NULL end_date) means "currently
 playing"; the newest open start_date is "playing since"; the newest closed
 end_date is "last played" ("" when there are no closed sessions).
+
+These rules began as a port of ``derivePlayState()`` in src/lib/gamesServer.ts,
+which no longer exists — the TypeScript read path was retired once the API
+became the only data source, so this module is now the sole definition.
 """
 
 from collections import defaultdict

@@ -5,6 +5,7 @@ import type { Game } from "@/lib/games";
 import { GameStats } from "./GameStats";
 import { SqlQueryPanel } from "./SqlQueryPanel";
 import { CloseIcon } from "@/components/Icon";
+import { useModalChrome } from "./useModalChrome";
 
 type StatsPanelProps = {
   games: Game[];
@@ -29,13 +30,6 @@ export function StatsPanel({ games, currentlyPlayingGames, isOpen, onClose }: St
     return [...games, ...currentlyPlayingGames.filter((g) => !names.has(g.name))];
   }, [games, currentlyPlayingGames]);
 
-  // "Latest ref" pattern: keeps onClose stable as a dep-free ref so the
-  // scroll-lock effect doesn't re-run when the parent re-renders.
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  });
-
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   // Reset to the default tab when the panel closes so re-opening always starts on Overview.
@@ -43,27 +37,15 @@ export function StatsPanel({ games, currentlyPlayingGames, isOpen, onClose }: St
     if (!isOpen) setActiveTab("overview");
   }, [isOpen]);
 
-  // Lock body scroll and listen for Escape while the panel is open.
-  // Restores the previous overflow value on cleanup rather than blindly
-  // resetting to "" — safe if another scroll lock is active concurrently.
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    closeButtonRef.current?.focus();
-
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseRef.current();
-    };
-    window.addEventListener("keydown", handleKey);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKey);
-    };
-  }, [isOpen]); // onClose intentionally omitted — accessed via ref above
+  // Scroll lock, Escape-to-close and focus handling, shared with the three
+  // owner dialogs. This panel stays mounted while closed (it slides in via a
+  // transform rather than mounting), so it passes isOpen as `enabled` where
+  // those pass nothing.
+  //
+  // One behavior gain over the hand-rolled version this replaces: the shared
+  // hook also returns focus to whatever opened the panel when it closes, rather
+  // than leaving focus on a now-hidden close button.
+  useModalChrome(onClose, closeButtonRef, isOpen);
 
   return (
     <>

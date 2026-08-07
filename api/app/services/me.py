@@ -332,7 +332,7 @@ def create_my_profile(
     # and a DB-level guard on a COUNT isn't worth the complexity.
     if me_repo.count_profiles(db) >= settings.max_users:
         # Clean up the orphaned auth user before refusing (best-effort; the
-        # admin client logs and returns False if unconfigured).
+        # admin client logs and returns if unconfigured or if the call fails).
         delete_auth_user(user.id)
         raise SignupCapReachedError("Signups are currently at capacity. Please check back later.")
 
