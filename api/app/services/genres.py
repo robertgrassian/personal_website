@@ -51,6 +51,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.text import fold_text as _fold
+from app.models.game import MAX_GENRES
 from app.services import rate_limit
 
 logger = logging.getLogger(__name__)
@@ -295,9 +296,6 @@ _INFOBOX_VIDEO_GAME = re.compile(r"\{\{\s*Infobox\s+video\s+game", re.IGNORECASE
 # {{hlist|...}} of genres) ends the value at exactly the right place too.
 _INFOBOX_FIELD = r"^\s*\|\s*{field}s?\s*=\s*(.*?)(?=^\s*\|\s*\w|\}}\}}|\Z)"
 
-# Guards against a malformed or vandalized article turning into hundreds of
-# genres. Nothing legitimately lists more than a handful.
-MAX_GENRES = 12
 
 _LIST_TEMPLATES = re.compile(
     r"\{\{\s*(?:hlist|plainlist|flatlist|ubl|unbulleted list)\s*\|", re.IGNORECASE

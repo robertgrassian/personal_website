@@ -559,9 +559,10 @@ def close_my_session(
     """Stop playing: set the session's end date, optionally rating the game in
     the same transaction (rate-on-stop). Rating follows PATCH semantics —
     omitted leaves it alone, ""/null clears to unrated."""
-    play_session = me_repo.get_session_for_owner(db, session_id, user.id)
-    if play_session is None:
+    found = me_repo.get_session_for_owner(db, session_id, user.id)
+    if found is None:
         raise SessionNotFoundError(session_id)
+    play_session, game = found
     if play_session.end_date is not None:
         raise SessionAlreadyClosedError(session_id)
     if payload.end_date < play_session.start_date:
@@ -570,9 +571,6 @@ def close_my_session(
             f"({play_session.start_date.isoformat()})."
         )
 
-    # Ownership was proven by the session lookup; this fetch just materializes
-    # the game row for the rating write and the response payload.
-    game = me_repo.get_game_for_owner(db, play_session.game_id, user.id)
     rate = "rating" in payload.model_fields_set
     me_repo.finish_session(
         db,

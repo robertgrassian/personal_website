@@ -136,10 +136,13 @@ def get_user_wishlist(db: Session, username: str) -> list[WishlistGameRead]:
 def get_user_profile(db: Session, username: str) -> ProfileRead:
     """Public profile payload — public data only, no per-viewer fields
     (spec §7.2: this response is cacheable and shared across viewers)."""
-    profile = _require_profile(db, username)
+    found = users_repo.get_profile_with_counts(db, username)
+    if found is None:
+        raise UserNotFoundError(username)
+    profile, follower_count, following_count = found
     return ProfileRead(
         username=profile.username,
         display_name=profile.display_name,
-        follower_count=users_repo.count_followers(db, profile.id),
-        following_count=users_repo.count_following(db, profile.id),
+        follower_count=follower_count,
+        following_count=following_count,
     )
