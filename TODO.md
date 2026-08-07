@@ -37,6 +37,17 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 Promote one into Up Next when it starts blocking the sharing goal above, and demote something else
 to keep that section at five._
 
+- [ ] This may or may not be a bug: but i think when adding a game, under genres,
+      "Wikipedia had no match, showing IGDB's genres" always appears. Steps to reproduce:
+      I was on the wishlist, clicked add game to wishlist, searched fire emblem fortune's weave",
+      once selected, it at first populated with some longer list of genres, and then re-rendered with
+      just one genre and the text above saying "Wikipedia had no match, showing IGDB's genres".
+      When i checked, wikipedia did have an article for this game, and the genre matched what
+      was shown in the second render, making me thing everything worked correctly but the text
+      about wikipedia showed anyways. Things we should fix: - we shouldnt show 2 renders of genres, we should wait to show genres until they have been
+      determined by our BE, the user should only see one render, with everything finalized populated - we should never show "Wikipedia had no match, showing IGDB's genres". its an implementation
+      detail that the user doesnt need to know about.
+
 - [ ] **Filtering should apply to the Unrated shelf too: search for a game and the Unrated shelf
       stays put.** The premise is exactly right, and the code says so out loud: `GameLibrary.tsx`
       renders the Unrated `<ShelfSection>` with the raw `unratedGames` array, outside the
@@ -146,6 +157,10 @@ ease-out` on the matching rule in `video-games.css`. iOS Safari fakes `:hover` o
       wishlist filter, which shares this function.
 
 ## Backlog / Ideas
+
+- [ ] **Remove genre keyword search when adding a game.** This was added as a helpful way to
+      find games, but its not really useful in practice and adds complexity and latency, we
+      should remove it.
 
 - [ ] **Editing a game should need a "Confirm" press before the change takes effect.** Today a
       rating write fires on the click itself: `RatingPicker`'s `onPick` calls `rate()` in
@@ -306,7 +321,7 @@ head` being run by hand from a laptop pointed at production.<br>
       shelf payload lean. If it becomes a public endpoint rather than a `/me/*` one, remember
       libraries are public, so sessions become public too: decide that on purpose.<br>
       _Editing is the more expensive half, and the backend genuinely does not do it._ `PATCH
-    /me/sessions/{id}` looks like a general session edit but is not: its body is `SessionClose`
+/me/sessions/{id}` looks like a general session edit but is not: its body is `SessionClose`
       (`api/app/schemas/me.py`), which carries only `endDate` plus an optional rating, and
       `close_my_session` 409s on a session that is already closed. So changing a past session's
       start date, correcting its end date, or deleting a session logged against the wrong game all
