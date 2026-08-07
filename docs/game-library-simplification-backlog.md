@@ -5,6 +5,33 @@ Recommendations from a `/simplify` review of the instanced-library work
 that were **reviewed but not applied**. Four commits' worth were applied on
 branch `claude/game-library-simplify-chau4b`; everything below is what is left.
 
+## Status (updated 2026-08-07)
+
+**All of Tier 1 and all of Tier 2 have since been implemented**, on branch
+`claude/game-library-simplify-tier2` stacked on top of the branch above. The
+tier sections below are kept as the written record of what each change was for
+and what it was weighed against, not as a to-do list. Two decisions made while
+implementing, since they were left open here:
+
+- **T2.7** took option **(b)** — the wire contract stays and the counts become
+  correlated scalar subqueries in the existing profile SELECT, rather than
+  option (a)'s deletion of the fields.
+- **T2.9** standardized on **12**, not 10. No test asserts a 422 at eleven
+  genres, and `test_genre_cleaning.py:54` already pinned the cap at 12.
+
+Two small departures from what is written below, both deliberate:
+
+- **T2.3** leaves `text-sm` out of `accentButtonClass`, so the onboarding submit
+  keeps its larger size. Folding the size in would have either shrunk that
+  button silently or left it as a fifth hand-written copy of the light/dark
+  pairing, which is the failure the constant exists to prevent.
+- **T2.4**'s `run` returns void and takes an `onError` callback, rather than
+  returning the result as sketched below. The work happens inside a transition
+  that outlives the call, so a returned value would have been a promise callers
+  had to remember not to ignore.
+
+**Tier 3 is untouched** and remains the real backlog.
+
 ## Provenance
 
 Twelve review agents ran across three scopes, four angles each (reuse,
@@ -326,7 +353,11 @@ counterpart and is `server-only`, so it cannot be reused here.
 
 With one remaining call site this is **not urgent** — it becomes worth doing the
 moment a second one appears. Noted so the next person adding a per-viewer read
-writes the helper instead of a third copy.
+writes the helper instead of a third copy. **Still open**, and the only part of
+Tier 2 that is: a helper for one call site would be indirection without payoff.
+
+The `src/lib/supabase/client.ts` half of this item **was** done — it now returns
+a per-tab singleton instead of a fresh `createBrowserClient()` per call.
 
 Related, from the group-2 efficiency review: `src/lib/supabase/client.ts`
 returns a fresh `createBrowserClient()` on every call, and there are two callers

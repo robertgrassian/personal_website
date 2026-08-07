@@ -1,9 +1,15 @@
 # Plan: index `play_sessions.game_id`
 
-Status: **written, not applied.** The migration exists at
-`api/alembic/versions/c7d2e4a91b06_index_play_sessions_game_id.py` and has been
-tested locally, but has not been run against production. Read this first and
-decide.
+Status: **code complete; not yet applied to production.** The migration exists at
+`api/alembic/versions/c7d2e4a91b06_index_play_sessions_game_id.py`, it is the
+current Alembic head, and `app/models/game.py` declares the matching `Index`, so
+`alembic check` reports no drift. Verified 2026-08-07 against a throwaway
+Postgres 16: `alembic upgrade head` applies cleanly and the suite is green
+(349 passed) afterwards.
+
+**The only thing left is running it against production.** There is no code
+decision outstanding; read the rest of this for the reasoning, then apply it the
+same way as the other migrations.
 
 ## What the problem is
 
