@@ -374,8 +374,31 @@ head` being run by hand from a laptop pointed at production.<br>
       _Two things to hold onto, per the ask:_ keep the rotating case, it is the best thing on
       the page; and do **not** solve this by cramming more onto the back face, which is a
       ~2.5rem-tall text column at `text-[10px]` and already full.<br>
-      _One idea, not a decision:_ a "more" affordance on the back that opens a popup with the
-      full metadata. Worth considering alongside it: a hover/long-press tooltip listing all
+      _Leading candidate, added 2026-08-07:_ **clicking a case makes it grow and travel to the
+      center of the screen as it flips**, so the back face is a full reading surface rather than
+      a 96px-wide column: every genre listed, and plausibly the owner edit controls hosted right
+      there on the back instead of in `EditGameModal`. This would _replace_ the truncation problem
+      rather than work around it, which is why it is written as this item's likely answer rather
+      than a separate one.<br>
+      _What that shape costs, since it is more than a scale transform:_ the case is
+      `w-24` inside `ShelfSection`'s `repeat(auto-fill, 96px)` grid, so a case that grows in place
+      either reflows the shelf or gets clipped by it. The enlarged case therefore wants to leave
+      the shelf flow (a portal or a fixed-position overlay with a scrim) while a placeholder holds
+      its slot, and the flip animation and the travel animation have to be one continuous motion
+      or it will read as two separate things happening. `.game-case-inner` currently owns both the
+      `preserve-3d` flip and the `group-hover` lift (`src/app/video-games/video-games.css`), so
+      whichever element animates position cannot be that same element without fighting its
+      transform. Note the mobile flip-lag bug in Bugs above is about this exact element: fix that
+      first or this lands on top of it.<br>
+      _If edit moves onto the back face, decide what happens to `EditGameModal`._ It is not just
+      a rating picker — it holds start/stop session, log a past session, remove from library, and
+      the `useOptimistic` rating write. Hosting all of that on a card face means either the card
+      becomes the modal (and `EditGameModal` is deleted) or the two coexist and drift. Related and
+      pulling the same way: "make library and wishlist entries fully editable" wants one shared
+      field form in both modals, and "an easy way to view a game's sessions" explicitly wants a
+      bigger surface than the edit modal comfortably holds. Sequence those three deliberately.<br>
+      _Smaller alternatives, kept in case the big version is too much:_ a "more" affordance on
+      the back that opens a popup with the full metadata, a hover/long-press tooltip listing all
       genres, a details panel that slides in beside the shelf rather than over it, or making
       each genre a chip that sets the genre filter (which turns the overflow problem into a
       navigation feature).<br>
