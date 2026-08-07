@@ -25,10 +25,9 @@ export const labelClass =
 // ---------------------------------------------------------------------------
 // Button recipes
 //
-// Four shapes, previously re-typed as long literals at ~20 call sites. Naming
-// them is not only about length: every one of these encodes a light/dark
-// pairing, and the repo's rule is that no color may work in only one scheme.
-// A copied-and-tweaked literal is exactly how that rule gets broken, because
+// Compose buttons from these rather than writing the classes inline. Each one
+// encodes a light/dark pairing, and the repo's rule is that no color may work in
+// only one scheme — a copied-and-tweaked literal breaks that rule easily, since
 // the tweak is usually made while looking at one scheme.
 //
 // Call sites keep positional modifiers (`mt-2`, `block`, `w-full`) rather than
@@ -64,15 +63,12 @@ export const dangerLinkClass =
   "hover:opacity-80 transition-opacity cursor-pointer disabled:opacity-50";
 
 // The one filled, high-emphasis button: sign in, sign up, "Add game". `bg-link`
-// with `text-background` is the pairing that works in both schemes, because
-// both tokens flip together — a literal color on either side would invert
-// wrongly in one of them. That pairing is the reason this constant exists.
+// with `text-background` is the pairing that works in both schemes, because both
+// tokens flip together — a literal color on either side would invert wrongly in
+// one of them.
 //
-// Carries no text size on purpose. The onboarding submit is deliberately a step
-// larger than the in-library buttons, and folding `text-sm` in here would either
-// shrink it silently or leave it as a fifth hand-written copy of the color
-// pairing — which is the failure mode this is meant to prevent. Each call site
-// states its own size.
+// Carries no text size: call sites set their own, because the onboarding submit
+// is deliberately a step larger than the in-library buttons.
 export const accentButtonClass =
   "rounded-md bg-link px-4 py-2 font-medium text-background " +
   "transition-opacity hover:opacity-90 cursor-pointer disabled:opacity-50";

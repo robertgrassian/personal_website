@@ -25,9 +25,8 @@ def delete_auth_user(user_id: uuid.UUID) -> None:
 
     Best-effort: logs and returns instead of raising, because the only caller
     uses this as cleanup on an error path, and a failed cleanup must not mask
-    the primary response. Returns nothing on purpose — every outcome is already
-    logged here, and a bool nobody branched on only looked like a result worth
-    checking."""
+    the primary response. Every outcome is logged here, so there is nothing for
+    a caller to branch on."""
     settings = get_settings()
     if not (settings.supabase_url and settings.supabase_service_role_key):
         logger.warning(

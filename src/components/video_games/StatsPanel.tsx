@@ -37,14 +37,10 @@ export function StatsPanel({ games, currentlyPlayingGames, isOpen, onClose }: St
     if (!isOpen) setActiveTab("overview");
   }, [isOpen]);
 
-  // Scroll lock, Escape-to-close and focus handling, shared with the three
-  // owner dialogs. This panel stays mounted while closed (it slides in via a
-  // transform rather than mounting), so it passes isOpen as `enabled` where
-  // those pass nothing.
-  //
-  // One behavior gain over the hand-rolled version this replaces: the shared
-  // hook also returns focus to whatever opened the panel when it closes, rather
-  // than leaving focus on a now-hidden close button.
+  // Scroll lock, Escape-to-close, and focus handling (into the panel on open,
+  // back to the opener on close), shared with the three owner dialogs. This
+  // panel stays mounted while closed — it slides in via a transform rather than
+  // mounting — so it passes isOpen as `enabled` where those pass nothing.
   useModalChrome(onClose, closeButtonRef, isOpen);
 
   return (

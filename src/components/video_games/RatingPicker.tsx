@@ -2,18 +2,13 @@
 
 import { RATINGS, type Rating } from "@/lib/games";
 
-// The five-letter rating grid, shared by the three places that let you pick one.
+// The five-letter rating grid, shared by every surface that lets you pick one.
 //
 // The colors are applied with `style` rather than Tailwind classes on purpose:
 // each rating's color is a CSS custom property (--rating-s … --rating-f in
 // globals.css), and Tailwind cannot generate a utility per rating from a value
 // it only learns at runtime. Those variables carry light and dark values, so
 // the inline style is still theme-aware.
-//
-// Note which side the color lands on. Selected, it becomes the background and
-// the letter goes to `text-black/80`; unselected, it is the letter's own color.
-// That asymmetry is why the two cases set different style properties instead of
-// toggling one class.
 //
 // This is NOT the same thing as RatingIndicator / RatingBadge / RatingRibbon —
 // those are non-interactive badges for shelf cases and render a rating you

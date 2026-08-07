@@ -57,17 +57,16 @@ export async function submitOnboarding(
 
   // The founder's page changes too, and nothing else purges it. Signup creates
   // TWO follow edges (new user → founder and back, api/app/services/me.py), so
-  // it moves the founder's follower count, following count and both lists —
-  // exactly what the follow actions revalidate two tags for. Without this,
-  // /video-games keeps serving its prerendered follower count until some
+  // it moves the founder's follower count, following count and both lists.
+  // Without this, /video-games serves its prerendered follower count until some
   // unrelated write of Robert's happens to purge the tag.
+  //
+  // followsTag rather than the umbrella tag: signup cannot touch the founder's
+  // games or wishlist, so purging those would re-fetch a 155-game library to
+  // publish a changed follower count.
   //
   // Safe to hardcode: the founder handle is a constant on both sides
   // (LIBRARY_OWNER_USERNAME here, FOUNDER_USERNAME in api/app/core/config.py).
-  //
-  // followsTag rather than the umbrella tag: signup cannot touch the founder's
-  // games or wishlist, and purging those would re-fetch a 155-game library to
-  // publish a changed follower count.
   revalidateTag(followsTag(LIBRARY_OWNER_USERNAME));
 
   // Success: profile created. redirect() throws NEXT_REDIRECT, which Next

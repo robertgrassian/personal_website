@@ -7,13 +7,13 @@ import type { LibraryProfile } from "./profile";
 import type { UserSummary } from "./follows";
 
 // This module owns the FastAPI origin and the fetch mechanics for the library
-// read path — the site's only data source since the CSVs were retired.
+// read path.
 
 // Resolves the FastAPI origin for BOTH the public read path and the
-// authenticated /me/* write path (meApi.ts imports this). Since the CSVs were
-// retired there's no fallback data source, so an unresolvable origin is a
-// misconfiguration that must fail loudly (at build time for the static library
-// pages), never render an empty library.
+// authenticated /me/* write path (meApi.ts imports this). There is no fallback
+// data source, so an unresolvable origin is a misconfiguration that must fail
+// loudly (at build time for the static library pages), never render an empty
+// library.
 //
 // Checked at call time (not module load) so it reflects the live process env.
 // Resolution order:
@@ -66,14 +66,12 @@ export function targetsForeignEnvironmentApi(): boolean {
 //
 // Two levels, and every read carries both. The umbrella tag is the "purge
 // everything for this user" escape hatch; the resource tags are what writes
-// normally use. Before the split, one tag covered all five reads, so rating a
-// single game refetched games, wishlist, followers, following AND profile —
-// five endpoints and ~12 Postgres queries to reflect a change in one of them.
+// normally use, so a rating edit refetches games alone rather than all five
+// reads (~12 Postgres queries) to reflect a change in one of them.
 //
-// Adding a read means adding its tag here and to the write table in
-// video-games/actions.ts. Getting that pairing wrong serves a stale page, which
-// is worse than the redundant fetching it replaced, so the actions file
-// enumerates every write against these names explicitly.
+// Adding a read means adding its tag here and pairing it with the writes that
+// can change it, in video-games/actions.ts. Too narrow a tag serves a stale
+// page, which is why that file names the tags for every write explicitly.
 export function libraryCacheTag(username: string): string {
   return `library:${username.toLowerCase()}`;
 }
@@ -202,9 +200,9 @@ async function fetchUserResource<T>(
   return (await res.json()) as T;
 }
 
-// The library API (FastAPI/Postgres) is the only data source — the CSV read
-// path these used to have was retired with the CSVs themselves (a frozen
-// snapshot lives in api/scripts/fixtures/ as the local seed source).
+// The library API (FastAPI/Postgres) is the only data source. The CSVs under
+// api/scripts/fixtures/ are a frozen snapshot used to seed a local dev database,
+// never read by the running site.
 //
 // `username` is required rather than defaulting to the /video-games owner:
 // with /video-games/u/[username] there is no single right library to fall back

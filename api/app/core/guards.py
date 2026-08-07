@@ -62,19 +62,17 @@ def rate_limit_writes(user: CurrentUser, db: Annotated[Session, Depends(get_db)]
     )
 
 
-# The guard set every mutating route needs, named once. Defined below the two
-# dependencies because Depends() has to capture the actual function objects.
+# The guard set every mutating route needs. Defined below the two dependencies
+# because Depends() has to capture the actual function objects.
 #
-# Spelled out verbatim on each route, this pair was twelve identical lines whose
-# coverage depended on a human remembering both halves on every new mutating
-# route — and omitting one fails silently, leaving the endpoint unlimited and
-# writable on preview. `dependencies=WRITE_GUARDS` keeps the guard visible in
-# the decorator (the reason it lives there rather than inside each service) while
-# making "which guards?" a single answer.
+# Attach this to every new mutating route. Omitting a guard fails silently — the
+# endpoint is simply unlimited and writable on preview, with nothing to notice —
+# so one name is safer than two Depends() a reader has to check for individually.
+# It stays in the route decorator rather than moving inside each service so the
+# coverage is visible where the route is declared.
 #
-# Deliberately not applied at the router level: routers/me.py mixes reads and
-# writes, and the read routes must not be charged against the write budget.
-# routers/igdb.py and routers/genres.py stay explicit for the opposite reason —
-# they are GETs that happen to write through a cache, so an odd-looking explicit
-# `Depends(forbid_in_preview)` is the honest signal there.
+# Not applied at the router level: routers/me.py mixes reads and writes, and the
+# read routes must not be charged against the write budget. routers/igdb.py and
+# routers/genres.py list `Depends(forbid_in_preview)` explicitly instead — they
+# are GETs that write through a cache, so the guard is worth seeing in place.
 WRITE_GUARDS = [Depends(forbid_in_preview), Depends(rate_limit_writes)]

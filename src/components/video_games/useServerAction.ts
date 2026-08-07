@@ -14,16 +14,10 @@ import type { MutateResult } from "@/lib/meApi";
 // `isPending` stay disabled until the shelves visibly update, instead of
 // re-enabling a beat early while the old data is still on screen.
 //
-// `onSuccess` covers the common case (usually `onClose`) so no caller writes
-// the `if (result.ok)` itself. `onError` exists for the one caller that must do
-// more than display a message: FollowControls flips its button before the write
-// and has to put it back when the write is refused. The error is still set
-// either way, so an `onError` handler only adds to the default behavior.
-//
-// `run` returns void rather than the result, deliberately. The work happens
-// inside a transition that outlives the call, so anything handed back would be
-// a promise callers would have to remember not to ignore — the callbacks put
-// the follow-up work where it actually runs.
+// `run` returns void rather than the result: the work happens inside a
+// transition that outlives the call, so anything handed back would be a promise
+// callers had to remember not to ignore. Follow-up work goes in the callbacks
+// below, which run where the work actually finishes.
 export type ServerActionState = {
   isPending: boolean;
   error: string | null;

@@ -39,9 +39,8 @@ type LibraryPageProps = {
 
 export async function LibraryPage({ username, showSignupCta = false }: LibraryPageProps) {
   // Awaited first and alone: a username nobody owns must become a 404 page,
-  // not the loud "the API is unwell" error that getGames() would throw for
-  // the same 404. Costs one extra round trip on a cache miss, and the three
-  // reads share a cache tag so they warm and expire together.
+  // not the loud "the API is unwell" error that getGames() would throw for the
+  // same 404. Costs one extra round trip on a cache miss.
   const profile = await getProfile(username);
   if (!profile) {
     // ...with one exception. The founder's profile is seeded, not user-created,
@@ -95,13 +94,13 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
 
   return (
     <main className="min-h-screen bg-shelf-bg shelf-theme">
-      {/* The provider wraps the whole page, not just the header, because
-          GameLibrary reads useIsOwner() from it to decide whether to render edit
-          controls. Widening it costs nothing on the server/client boundary:
-          `children` is a serialized RSC slot rather than an import, so the
-          server-rendered subtree (SignupCta, CrtTv) ships no extra JavaScript,
-          and when `relationship` resolves React re-renders only the provider,
-          since the child elements were created by this server parent. */}
+      {/* Wraps the whole page, not just the header: GameLibrary reads
+          useIsOwner() from this context to decide whether to render edit
+          controls. Spanning a server-rendered subtree costs nothing, because
+          `children` is a serialized RSC slot rather than an import — SignupCta
+          and CrtTv ship no extra JavaScript, and when `relationship` resolves
+          React re-renders only the provider, since this server parent created
+          the child elements. */}
       <FollowStateProvider ownerUsername={profile.username}>
         <div className="max-w-7xl mx-auto px-6 py-12">
           {/* The sign-in/out control lives here rather than the global nav: the

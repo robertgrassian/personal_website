@@ -1,8 +1,7 @@
 """Unit tests for the play-state derivation pure function (spec §4.3).
 
-No database: PlaySession is instantiated in memory. The cases mirror the
-semantics these rules were originally ported from (derivePlayState() in the
-since-retired src/lib/gamesServer.ts); services/users.py now owns them.
+No database: PlaySession is instantiated in memory. The cases cover the
+semantics documented on services/users.py, which defines them.
 """
 
 from datetime import date

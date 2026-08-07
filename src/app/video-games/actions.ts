@@ -38,11 +38,9 @@ type TagFor = (username: string) => string;
 /** Purge the cached reads for the library the CALLER owns, after a successful
  *  write of theirs.
  *
- *  `tags` names which of the caller's resources this write touched. Passing
- *  only what changed is the whole point: every read used to share one tag, so
- *  a single rating edit refetched games, wishlist, followers, following and
- *  profile. Rating ten games in a sitting cost ~50 API round trips where ~10
- *  would do.
+ *  `tags` names which of the caller's resources this write touched. Naming only
+ *  what changed is the point: the five library reads are separately tagged, so a
+ *  rating edit costs one refetch rather than five.
  *
  *  The username is resolved from the caller's own token, never taken as an
  *  argument: Server Actions are a public HTTP surface, so a username parameter
@@ -113,11 +111,9 @@ function isValidRating(rating: string): rating is Rating | "" {
  *  The ordering contract revalidateMyLibrary documents is a property of this
  *  function now: it is only ever reached after an accepted write.
  *
- *  `tags` is required rather than defaulted, deliberately. A default would make
- *  the wrong answer the quiet one: too narrow a tag serves a stale page, which
- *  is a worse failure than the redundant fetching this replaced and shows up as
- *  "the site didn't update" rather than as an error. Requiring it forces every
- *  new action to state what it changed. */
+ *  `tags` is required rather than defaulted, deliberately. Too narrow a tag
+ *  serves a stale page, which surfaces as "the site didn't update" rather than
+ *  as an error — so every action is made to state what it changed. */
 async function write(
   run: () => Promise<MutateResult>,
   tags: TagFor[],

@@ -314,16 +314,15 @@ export function GameLibrary({
               shelf below it, reading as a gap rather than as trailing space. */}
           <div className="pb-24">
             {activeShelves.length === 0 ? (
-              // Three different situations used to share one message. They call for
-              // different things: a brand-new owner needs a way in, a visitor to an
-              // empty library needs to know it's empty rather than broken, and a
-              // filtered-to-nothing shelf needs neither.
+              // Three situations, three needs: a brand-new owner needs a way in, a
+              // visitor to an empty library needs to know it's empty rather than
+              // broken, and a filtered-to-nothing shelf needs neither.
               isNothingHere ? (
                 <div className="mt-24 flex flex-col items-center gap-4 text-center">
                   {/* Two words vary across the four cases, so they are the only
-                      thing branched on. Written as a nested ternary, this was
-                      four near-identical sentences that could drift apart from
-                      each other one edit at a time. */}
+                      thing branched on — spelling out four near-identical
+                      sentences instead lets them drift apart one edit at a
+                      time. */}
                   <p className="text-lg text-shelf-text-muted">
                     {`${canEdit ? "Your" : "This"} ${
                       view === "played" ? "library" : "wishlist"

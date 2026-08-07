@@ -6,10 +6,9 @@ import { buttonClass, dangerButtonClass, dangerLinkClass } from "./formStyles";
 // A destructive action behind a two-step confirm: a quiet red link that swaps
 // itself for a prompt plus Remove / Cancel.
 //
-// The step state lives here rather than in the parent. It is only ever read by
-// this markup, and hoisting it gave each modal a `deleteStep` boolean to
-// declare, reset and thread through — state whose scope was already exactly one
-// subtree.
+// The step state lives here rather than in the parent, because this markup is
+// the only thing that reads it. Hoisting it would give each modal a boolean to
+// declare and reset for no benefit.
 //
 // Why the trigger is a link and the confirm is an outlined button rather than a
 // filled one: the destructive path should never be the most prominent control
