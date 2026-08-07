@@ -158,6 +158,10 @@ ease-out` on the matching rule in `video-games.css`. iOS Safari fakes `:hover` o
 
 ## Backlog / Ideas
 
+- [ ] **Remove genre keyword search when adding a game.** This was added as a helpful way to
+      find games, but its not really useful in practice and adds complexity and latency, we
+      should remove it.
+
 - [ ] **Editing a game should need a "Confirm" press before the change takes effect.** Today a
       rating write fires on the click itself: `RatingPicker`'s `onPick` calls `rate()` in
       `EditGameModal.tsx`, which runs the `updateGameRating` Server Action immediately, so there
@@ -317,7 +321,7 @@ head` being run by hand from a laptop pointed at production.<br>
       shelf payload lean. If it becomes a public endpoint rather than a `/me/*` one, remember
       libraries are public, so sessions become public too: decide that on purpose.<br>
       _Editing is the more expensive half, and the backend genuinely does not do it._ `PATCH
-  /me/sessions/{id}` looks like a general session edit but is not: its body is `SessionClose`
+/me/sessions/{id}` looks like a general session edit but is not: its body is `SessionClose`
       (`api/app/schemas/me.py`), which carries only `endDate` plus an optional rating, and
       `close_my_session` 409s on a session that is already closed. So changing a past session's
       start date, correcting its end date, or deleting a session logged against the wrong game all
