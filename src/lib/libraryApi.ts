@@ -7,13 +7,13 @@ import type { LibraryProfile } from "./profile";
 import type { UserSummary } from "./follows";
 
 // This module owns the FastAPI origin and the fetch mechanics for the library
-// read path — the site's only data source since the CSVs were retired.
+// read path.
 
 // Resolves the FastAPI origin for BOTH the public read path and the
-// authenticated /me/* write path (meApi.ts imports this). Since the CSVs were
-// retired there's no fallback data source, so an unresolvable origin is a
-// misconfiguration that must fail loudly (at build time for the static library
-// pages), never render an empty library.
+// authenticated /me/* write path (meApi.ts imports this). There is no fallback
+// data source, so an unresolvable origin is a misconfiguration that must fail
+// loudly (at build time for the static library pages), never render an empty
+// library.
 //
 // Checked at call time (not module load) so it reflects the live process env.
 // Resolution order:
@@ -60,11 +60,34 @@ export function targetsForeignEnvironmentApi(): boolean {
   return Boolean(vercelEnv) && vercelEnv !== "production";
 }
 
-// Single cache tag per user covering games AND wishlist. Writes call
-// revalidateTag(libraryCacheTag(username)) — the one shared name both sides
-// must agree on, so it lives here next to the reads that use it.
+// Cache tags, lowercased because usernames are citext in Postgres: /u/RGrassian
+// and /u/rgrassian are one library and must share one tag, or a write under one
+// spelling leaves the other serving stale pages.
+//
+// Two levels, and every read carries both. The umbrella tag is the "purge
+// everything for this user" escape hatch; the resource tags are what writes
+// normally use, so a rating edit refetches games alone rather than all five
+// reads (~12 Postgres queries) to reflect a change in one of them.
+//
+// Adding a read means adding its tag here and pairing it with the writes that
+// can change it, in video-games/actions.ts. Too narrow a tag serves a stale
+// page, which is why that file names the tags for every write explicitly.
 export function libraryCacheTag(username: string): string {
   return `library:${username.toLowerCase()}`;
+}
+
+export function gamesTag(username: string): string {
+  return `${libraryCacheTag(username)}:games`;
+}
+
+export function wishlistTag(username: string): string {
+  return `${libraryCacheTag(username)}:wishlist`;
+}
+
+// Covers the follower/following lists AND the profile, because the profile
+// payload carries followerCount/followingCount — a follow changes all three.
+export function followsTag(username: string): string {
+  return `${libraryCacheTag(username)}:follows`;
 }
 
 // True while `next build` is prerendering pages, false when serving a request.
@@ -110,30 +133,40 @@ function wrapFetchError(err: unknown, what: string, url: string): Error {
 // Every library read is "one resource belonging to one user", so this helper
 // owns all four things that never vary between them: the origin, the
 // /api/py/users/{username} prefix, the escaping of that user-supplied segment,
-// and the cache tag. Callers below supply only what actually differs.
+// and the cache tagging. Callers below supply only what actually differs.
+//
+// `resourceTag` is the narrow tag for this specific resource; the umbrella tag
+// is added here so no caller can forget it.
 //
 // Two shapes, one implementation. Without `allowMissing` a 404 is a thrown
 // error like any other bad status; with it, a 404 becomes null so the caller
 // can distinguish "no such user" from "the API is unwell". Overloads (rather
 // than a boolean returning `T | null` for everyone) keep the common callers
 // free of a null they can never receive.
-async function fetchUserResource<T>(username: string, subpath: string, what: string): Promise<T>;
 async function fetchUserResource<T>(
   username: string,
   subpath: string,
   what: string,
+  resourceTag: (username: string) => string
+): Promise<T>;
+async function fetchUserResource<T>(
+  username: string,
+  subpath: string,
+  what: string,
+  resourceTag: (username: string) => string,
   allowMissing: true
 ): Promise<T | null>;
 async function fetchUserResource<T>(
   username: string,
   subpath: string,
   what: string,
+  resourceTag: (username: string) => string,
   allowMissing = false
 ): Promise<T | null> {
   // encodeURIComponent because /video-games/u/[username] puts user-shaped input
   // into these URLs: the segment is escaped rather than trusted.
   const url = `${requireLibraryApiOrigin()}/api/py/users/${encodeURIComponent(username)}${subpath}`;
-  const tags = [libraryCacheTag(username)];
+  const tags = [libraryCacheTag(username), resourceTag(username)];
   let res: Response;
   try {
     res = await fetchWithTimeout(url, tags);
@@ -167,9 +200,9 @@ async function fetchUserResource<T>(
   return (await res.json()) as T;
 }
 
-// The library API (FastAPI/Postgres) is the only data source — the CSV read
-// path these used to have was retired with the CSVs themselves (a frozen
-// snapshot lives in api/scripts/fixtures/ as the local seed source).
+// The library API (FastAPI/Postgres) is the only data source. The CSVs under
+// api/scripts/fixtures/ are a frozen snapshot used to seed a local dev database,
+// never read by the running site.
 //
 // `username` is required rather than defaulting to the /video-games owner:
 // with /video-games/u/[username] there is no single right library to fall back
@@ -178,16 +211,16 @@ async function fetchUserResource<T>(
 // Play state (currentlyPlaying / lastPlayed / playingSince) arrives already
 // derived by the API.
 export function getGames(username: string): Promise<Game[]> {
-  return fetchUserResource<Game[]>(username, "/games", "games");
+  return fetchUserResource<Game[]>(username, "/games", "games", gamesTag);
 }
 
 export function getWishlist(username: string): Promise<WishlistGame[]> {
-  return fetchUserResource<WishlistGame[]>(username, "/wishlist", "wishlist");
+  return fetchUserResource<WishlistGame[]>(username, "/wishlist", "wishlist", wishlistTag);
 }
 
-// Follower/following lists. Same cache tag as everything else on the page: a
-// follow changes the counts and lists on BOTH users' pages, so both tags get
-// revalidated after the write (see the follow actions).
+// Follower/following lists, tagged followsTag: a follow changes the lists on
+// BOTH users' pages, so both users' follows tags get revalidated after the
+// write (see the follow actions).
 //
 // A 404 degrades to an empty list instead of throwing, which is what makes
 // these endpoints deployable at all. `next build` prerenders /video-games
@@ -206,7 +239,7 @@ async function fetchFollowList(
   username: string,
   kind: "followers" | "following"
 ): Promise<UserSummary[]> {
-  const list = await fetchUserResource<UserSummary[]>(username, `/${kind}`, kind, true);
+  const list = await fetchUserResource<UserSummary[]>(username, `/${kind}`, kind, followsTag, true);
   if (list === null) {
     // Warn rather than stay silent: after this feature's first deploy, a 404
     // here means something genuinely wrong, and an empty follower list is
@@ -232,9 +265,12 @@ export function getFollowing(username: string): Promise<UserSummary[]> {
 // library page should await first: it settles whether the page exists at all
 // before the shelves are worth fetching.
 //
-// Shares the library cache tag with games and wishlist: one tag per user covers
-// everything a library page renders, so a single revalidateTag after a write
-// refreshes all of it.
+// Tagged followsTag rather than getting its own: the only fields on this
+// payload that a write can change are followerCount/followingCount, so a follow
+// is the only thing that needs to purge it. (Display name and username are set
+// at onboarding and there is no rename endpoint — see the TODO item about what
+// a rename would have to touch.) It still carries the umbrella tag, so a
+// "purge everything" call reaches it.
 export function getProfile(username: string): Promise<LibraryProfile | null> {
-  return fetchUserResource<LibraryProfile>(username, "", "profile", true);
+  return fetchUserResource<LibraryProfile>(username, "", "profile", followsTag, true);
 }

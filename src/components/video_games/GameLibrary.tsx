@@ -19,11 +19,12 @@ import {
   sortWishlist,
 } from "./pipeline";
 import { useGameLibraryUrlState } from "./useGameLibraryUrlState";
-import { useIsLibraryOwner } from "./useIsLibraryOwner";
+import { useIsOwner } from "./FollowControls";
 import { EditGameModal } from "./EditGameModal";
 import { EditWishlistModal } from "./EditWishlistModal";
 import { AddGameModal } from "./AddGameModal";
 import type { GameCaseInput } from "./GameCase";
+import { accentButtonClass } from "./formStyles";
 
 type GameLibraryProps = {
   games: Game[];
@@ -32,34 +33,33 @@ type GameLibraryProps = {
   // stats panel so "Recently Played" can surface them.
   currentlyPlayingGames: Game[];
   // Games with no rating — rendered as an owner-only shelf so they stay
-  // reachable (and re-ratable) after a rating is cleared. Defaults to [] for
-  // callers that predate it.
-  unratedGames?: Game[];
-  // Whose library this is. Only used to answer "may the viewer edit it?" —
-  // the shelves themselves render the same for everyone.
-  ownerUsername: string;
+  // reachable (and re-ratable) after a rating is cleared.
+  unratedGames: Game[];
   // The owner's follow graph, backing the Following/Followers tabs. Public
   // data fetched server-side, so it is cached with the page like the games.
-  followers?: UserSummary[];
-  following?: UserSummary[];
+  followers: UserSummary[];
+  following: UserSummary[];
 };
 
 export function GameLibrary({
   games,
   wishlist,
   currentlyPlayingGames,
-  unratedGames = [],
-  ownerUsername,
-  followers = [],
-  following = [],
+  unratedGames,
+  followers,
+  following,
 }: GameLibraryProps) {
   const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
-  // Owner check resolves client-side after hydration (the page HTML is
-  // static and shared by all viewers). false until proven otherwise, so
-  // visitors never see a flash of edit controls.
-  const canEdit = useIsLibraryOwner(ownerUsername);
+  // Owner check resolves client-side after hydration (the page HTML is static
+  // and shared by all viewers). false until proven otherwise, so visitors never
+  // see a flash of edit controls.
+  //
+  // Read from the FollowStateProvider that LibraryPage wraps this in, which
+  // means the same request that decides the Follow button also decides these
+  // controls — they can no longer disagree mid-flight.
+  const canEdit = useIsOwner();
 
   // The game being edited, tracked by id (not object) so the open dialog
   // always reflects the latest server data after a revalidation replaces the
@@ -177,6 +177,22 @@ export function GameLibrary({
       .map((group) => ({ ...group, games: sortWishlist(group.games, sortOrder) }));
   }, [view, games, wishlist, activeFilters, activeWishlistFilters, groupBy, sortOrder]);
 
+  // The seven props both views pass identically. Spread rather than repeated,
+  // so a new shared prop cannot land on one view and not the other.
+  //
+  // `view` stays a literal at each call site on purpose: FilterBarProps is a
+  // discriminated union on it, and that is what still narrows onRatingChange to
+  // the played view only.
+  const filterBarCommon = {
+    onSharedFilterChange: setSharedFilter,
+    groupBy,
+    sortOrder,
+    validGroupBy,
+    validSortOrder,
+    onGroupByChange: setGroupBy,
+    onSortOrderChange: setSortOrder,
+  };
+
   const activeTotal = view === "played" ? games.length : wishlist.length;
   const filteredCount = activeShelves.reduce((sum, s) => sum + s.games.length, 0);
 
@@ -268,37 +284,26 @@ export function GameLibrary({
 
           {view === "played" ? (
             <FilterBar
+              {...filterBarCommon}
               view="played"
               filters={activeFilters}
-              onSharedFilterChange={setSharedFilter}
               onRatingChange={setRating}
-              groupBy={groupBy}
-              sortOrder={sortOrder}
-              validGroupBy={validGroupBy}
-              validSortOrder={validSortOrder}
               allSystems={allSystems}
               allGenres={allGenres}
               availableRatings={availableRatings}
               availableSystems={availableSystems}
               availableGenres={availableGenres}
-              onGroupByChange={setGroupBy}
               onSortOrderChange={setSortOrder}
             />
           ) : (
             <FilterBar
+              {...filterBarCommon}
               view="wishlist"
               filters={activeWishlistFilters}
-              onSharedFilterChange={setSharedFilter}
-              groupBy={groupBy}
-              sortOrder={sortOrder}
-              validGroupBy={validGroupBy}
-              validSortOrder={validSortOrder}
               allSystems={allSystemsWishlist}
               allGenres={allGenresWishlist}
               availableSystems={availableSystemsWishlist}
               availableGenres={availableGenresWishlist}
-              onGroupByChange={setGroupBy}
-              onSortOrderChange={setSortOrder}
             />
           )}
 
@@ -309,20 +314,19 @@ export function GameLibrary({
               shelf below it, reading as a gap rather than as trailing space. */}
           <div className="pb-24">
             {activeShelves.length === 0 ? (
-              // Three different situations used to share one message. They call for
-              // different things: a brand-new owner needs a way in, a visitor to an
-              // empty library needs to know it's empty rather than broken, and a
-              // filtered-to-nothing shelf needs neither.
+              // Three situations, three needs: a brand-new owner needs a way in, a
+              // visitor to an empty library needs to know it's empty rather than
+              // broken, and a filtered-to-nothing shelf needs neither.
               isNothingHere ? (
                 <div className="mt-24 flex flex-col items-center gap-4 text-center">
+                  {/* Two words vary across the four cases, so they are the only
+                      thing branched on — spelling out four near-identical
+                      sentences instead lets them drift apart one edit at a
+                      time. */}
                   <p className="text-lg text-shelf-text-muted">
-                    {canEdit
-                      ? view === "played"
-                        ? "Your library is empty."
-                        : "Your wishlist is empty."
-                      : view === "played"
-                        ? "This library is empty."
-                        : "This wishlist is empty."}
+                    {`${canEdit ? "Your" : "This"} ${
+                      view === "played" ? "library" : "wishlist"
+                    } is empty.`}
                   </p>
                   {canEdit && (
                     <button
@@ -331,7 +335,7 @@ export function GameLibrary({
                       // Site amber accent + text-background, the same pairing the
                       // login button and the sign-up CTA use, so it reads correctly
                       // in light and dark.
-                      className="rounded-md bg-link px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 cursor-pointer"
+                      className={`${accentButtonClass} text-sm`}
                     >
                       {view === "played" ? "Add your first game" : "Add your first wish"}
                     </button>

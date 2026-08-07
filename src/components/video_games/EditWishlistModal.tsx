@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useState } from "react";
 import type { WishlistGame } from "@/lib/wishlist";
 import {
   deleteWishlistItem,
@@ -8,7 +8,9 @@ import {
   updateWishlistItem,
 } from "@/app/video-games/actions";
 import { ModalShell } from "./ModalShell";
-import { inputClass, labelClass } from "./formStyles";
+import { ConfirmStep } from "./ConfirmStep";
+import { useServerAction } from "./useServerAction";
+import { buttonClass, ghostButtonClass, inputClass, labelClass } from "./formStyles";
 
 type EditWishlistModalProps = {
   item: WishlistGame;
@@ -22,8 +24,7 @@ type EditWishlistModalProps = {
 // library ("I bought it") or remove. Same mount-only lifecycle: scroll lock
 // and Escape bind on mount, focus returns to the opener on unmount.
 export function EditWishlistModal({ item, existingSystems, onClose }: EditWishlistModalProps) {
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const { isPending, error, run } = useServerAction();
 
   // Optimistic star, matching EditGameModal's rating: the checkbox flips on
   // click instead of after the round-trip, converges on the prop once
@@ -34,57 +35,40 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
   // per keystroke would be miserable. Starred toggles write immediately.
   const [notesDraft, setNotesDraft] = useState(item.notes);
 
-  // promoteStep = the "I bought it" confirm (with system picker) is showing;
-  // deleteStep = the remove confirm is showing.
+  // promoteStep = the "I bought it" confirm (with system picker) is showing.
+  // The remove confirm's own step state lives inside ConfirmStep.
   const [promoteStep, setPromoteStep] = useState(false);
   const [promoteSystem, setPromoteSystem] = useState(item.system);
-  const [deleteStep, setDeleteStep] = useState(false);
 
   const patch = (fields: { starred?: boolean; notes?: string }) => {
-    if (item.id === undefined) return;
     const itemId = item.id;
-    startTransition(async () => {
-      setError(null);
-      const result = await updateWishlistItem(itemId, fields);
-      if (!result.ok) setError(result.message);
-    });
+    if (itemId === undefined) return;
+    run(() => updateWishlistItem(itemId, fields));
   };
 
   const toggleStarred = (next: boolean) => {
-    if (item.id === undefined) return;
     const itemId = item.id;
-    startTransition(async () => {
-      setError(null);
-      // Set inside the transition — that's what ties the optimistic value's
-      // lifetime to the async work below.
-      setOptimisticStarred(next);
-      const result = await updateWishlistItem(itemId, { starred: next });
-      if (!result.ok) setError(result.message);
+    if (itemId === undefined) return;
+    // The optimistic set goes in `optimistic`, which run() calls inside the
+    // transition — that's what ties the optimistic value's lifetime to the
+    // write, so a failure reverts it automatically.
+    run(() => updateWishlistItem(itemId, { starred: next }), {
+      optimistic: () => setOptimisticStarred(next),
     });
   };
 
   const promote = () => {
-    if (item.id === undefined) return;
     const itemId = item.id;
-    startTransition(async () => {
-      setError(null);
-      const result = await promoteWishlistItem(itemId, promoteSystem);
-      // The item moved to the library — the wishlist row (and this dialog's
-      // subject) is gone, so close.
-      if (result.ok) onClose();
-      else setError(result.message);
-    });
+    if (itemId === undefined) return;
+    // The item moved to the library — the wishlist row (and this dialog's
+    // subject) is gone, so close.
+    run(() => promoteWishlistItem(itemId, promoteSystem), { onSuccess: onClose });
   };
 
   const remove = () => {
-    if (item.id === undefined) return;
     const itemId = item.id;
-    startTransition(async () => {
-      setError(null);
-      const result = await deleteWishlistItem(itemId);
-      if (result.ok) onClose();
-      else setError(result.message);
-    });
+    if (itemId === undefined) return;
+    run(() => deleteWishlistItem(itemId), { onSuccess: onClose });
   };
 
   const notesDirty = notesDraft !== item.notes;
@@ -129,7 +113,7 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
             type="button"
             onClick={() => patch({ notes: notesDraft })}
             disabled={isPending}
-            className="mt-2 rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+            className={`mt-2 ${buttonClass}`}
           >
             Save notes
           </button>
@@ -141,7 +125,7 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
               type="button"
               onClick={() => setPromoteStep(true)}
               disabled={isPending || item.id === undefined}
-              className="rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+              className={buttonClass}
             >
               I bought it, move to library
             </button>
@@ -171,7 +155,7 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
                   type="button"
                   onClick={promote}
                   disabled={isPending || promoteSystem.trim() === ""}
-                  className="rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                  className={buttonClass}
                 >
                   Move to library
                 </button>
@@ -179,7 +163,7 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
                   type="button"
                   onClick={() => setPromoteStep(false)}
                   disabled={isPending}
-                  className="text-xs text-shelf-text-muted underline underline-offset-2 hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50"
+                  className={ghostButtonClass}
                 >
                   Cancel
                 </button>
@@ -187,40 +171,18 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
             </div>
           )}
 
-          {!deleteStep ? (
-            <button
-              type="button"
-              onClick={() => setDeleteStep(true)}
-              disabled={isPending}
-              className="mt-3 block text-xs text-red-600 dark:text-red-400 underline underline-offset-2 hover:opacity-80 transition-opacity cursor-pointer disabled:opacity-50"
-            >
-              Remove from wishlist
-            </button>
-          ) : (
-            <div className="mt-3">
-              <p className="text-sm text-shelf-text">
+          <ConfirmStep
+            triggerLabel="Remove from wishlist"
+            triggerClassName="mt-3 block"
+            confirmLabel="Remove"
+            onConfirm={remove}
+            disabled={isPending}
+            prompt={
+              <>
                 Remove <span className="font-medium">{item.name}</span> from the wishlist?
-              </p>
-              <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={remove}
-                  disabled={isPending}
-                  className="rounded-md border border-red-600/50 dark:border-red-400/50 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-600/10 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
-                >
-                  Remove
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleteStep(false)}
-                  disabled={isPending}
-                  className="rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+              </>
+            }
+          />
         </div>
       </>
     </ModalShell>

@@ -2,7 +2,8 @@
 
 // Server Actions for owner edits to the game library. Each action is a thin
 // BFF hop: forward the request to FastAPI with the caller's token (via meApi),
-// then — only on success — revalidate the library cache tag. revalidateTag()
+// then — only on success — revalidate the cache tags for the resources that
+// write actually changed (see the write() helper). revalidateTag()
 // can only run on the Next server, which is why writes route through actions
 // instead of the browser calling FastAPI directly: the cache invalidation and
 // the write must live in the same place.
@@ -26,12 +27,20 @@ import {
   type MutateResult,
   type SearchIgdbResult,
 } from "@/lib/meApi";
-import { libraryCacheTag } from "@/lib/libraryApi";
+import { followsTag, gamesTag, wishlistTag } from "@/lib/libraryApi";
 import { RATINGS, type NewGame, type Rating } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
 
+/** A cache-tag builder from src/lib/libraryApi: gamesTag, wishlistTag or
+ *  followsTag. Writes name the resources they actually changed. */
+type TagFor = (username: string) => string;
+
 /** Purge the cached reads for the library the CALLER owns, after a successful
  *  write of theirs.
+ *
+ *  `tags` names which of the caller's resources this write touched. Naming only
+ *  what changed is the point: the five library reads are separately tagged, so a
+ *  rating edit costs one refetch rather than five.
  *
  *  The username is resolved from the caller's own token, never taken as an
  *  argument: Server Actions are a public HTTP surface, so a username parameter
@@ -45,11 +54,12 @@ import type { NewWishlistItem } from "@/lib/wishlist";
  *  CALL THIS ONLY AFTER A WRITE THE API ACCEPTED — every call site below is
  *  inside an `if (result.ok)`. fetchMyUsername trusts an unverified cookie on
  *  a cache hit, and that succeeded write is what proves the session real. */
-async function revalidateMyLibrary(): Promise<void> {
+async function revalidateMyLibrary(tags: TagFor[]): Promise<void> {
   // fetchMyUsername, not fetchMyProfile: same answer, but memoized per user so
   // this doesn't add an API round trip to every single write.
   const username = await fetchMyUsername();
-  if (username) revalidateTag(libraryCacheTag(username));
+  if (!username) return;
+  for (const tag of tags) revalidateTag(tag(username));
 }
 
 /** Purge the cached reads for ANOTHER user's library, after a write of ours
@@ -73,10 +83,14 @@ async function revalidateMyLibrary(): Promise<void> {
  *  a session, is rate-limited, and signup is capped — but worth naming so the
  *  next person weighing a client-supplied tag has the real number.
  *
- *  Case is not a hazard here: libraryCacheTag lowercases, and usernames are
- *  citext, so `RGrassian` and `rgrassian` purge the same tag. */
+ *  Case is not a hazard here: the tag builders lowercase, and usernames are
+ *  citext, so `RGrassian` and `rgrassian` purge the same tag.
+ *
+ *  Only followsTag, never the umbrella: a follow cannot change the target's
+ *  games or wishlist, so purging those would re-fetch a 155-game library to
+ *  reflect a change in a follower count. */
 function revalidateOtherLibrary(username: string): void {
-  revalidateTag(libraryCacheTag(username));
+  revalidateTag(followsTag(username));
 }
 
 // The API validates dates for real (parsing, ordering); this only rejects
@@ -88,21 +102,26 @@ function isValidRating(rating: string): rating is Rating | "" {
 }
 
 /** Run a mutation and, only if the API accepted it, purge the caller's cached
- *  reads. `alsoRevalidate` names a second library whose pages this write also
- *  changed — only follows need it.
+ *  reads for the resources named in `tags`. `alsoRevalidate` names a second
+ *  library whose pages this write also changed — only follows need it.
  *
  *  Every write below goes through here rather than repeating the pairing, so
  *  "revalidate if and only if result.ok" is enforced in one place instead of
  *  being restated once per action (where a new action can silently forget it).
  *  The ordering contract revalidateMyLibrary documents is a property of this
- *  function now: it is only ever reached after an accepted write. */
+ *  function now: it is only ever reached after an accepted write.
+ *
+ *  `tags` is required rather than defaulted, deliberately. Too narrow a tag
+ *  serves a stale page, which surfaces as "the site didn't update" rather than
+ *  as an error — so every action is made to state what it changed. */
 async function write(
   run: () => Promise<MutateResult>,
+  tags: TagFor[],
   alsoRevalidate?: string
 ): Promise<MutateResult> {
   const result = await run();
   if (result.ok) {
-    await revalidateMyLibrary();
+    await revalidateMyLibrary(tags);
     if (alsoRevalidate !== undefined) revalidateOtherLibrary(alsoRevalidate);
   }
   return result;
@@ -194,12 +213,12 @@ export async function addGame(game: NewGame): Promise<MutateResult> {
     return { ok: false, message: "Invalid add request." };
   }
 
-  return write(() => createMyGame(normalized));
+  return write(() => createMyGame(normalized), [gamesTag]);
 }
 
 /** Remove a game from the library; its play sessions cascade away with it. */
 export async function deleteGame(gameId: number): Promise<MutateResult> {
-  return rejectBadId(gameId, "delete") ?? write(() => deleteMyGame(gameId));
+  return rejectBadId(gameId, "delete") ?? write(() => deleteMyGame(gameId), [gamesTag]);
 }
 
 /** Add a wishlist entry (IGDB pick or manual; only name is required). */
@@ -211,7 +230,7 @@ export async function addWishlistItem(item: NewWishlistItem): Promise<MutateResu
     return { ok: false, message: "Invalid wishlist request." };
   }
 
-  return write(() => createMyWishlistItem(normalized));
+  return write(() => createMyWishlistItem(normalized), [wishlistTag]);
 }
 
 /** Edit a wishlist entry — pass only the fields to change. */
@@ -219,18 +238,29 @@ export async function updateWishlistItem(
   itemId: number,
   fields: { starred?: boolean; notes?: string; system?: string }
 ): Promise<MutateResult> {
-  return rejectBadId(itemId, "wishlist") ?? write(() => updateMyWishlistItem(itemId, fields));
+  return (
+    rejectBadId(itemId, "wishlist") ??
+    write(() => updateMyWishlistItem(itemId, fields), [wishlistTag])
+  );
 }
 
 /** Remove a wishlist entry. */
 export async function deleteWishlistItem(itemId: number): Promise<MutateResult> {
-  return rejectBadId(itemId, "wishlist") ?? write(() => deleteMyWishlistItem(itemId));
+  return (
+    rejectBadId(itemId, "wishlist") ?? write(() => deleteMyWishlistItem(itemId), [wishlistTag])
+  );
 }
 
-/** Promote a wishlist entry into the library ("" system = use the stored one). */
+/** Promote a wishlist entry into the library ("" system = use the stored one).
+ *
+ *  The one write that purges two of the caller's own tags: promote MOVES a row
+ *  between resources, so the wishlist loses an entry and the library gains one.
+ *  Tagging it games-only would leave the promoted row visibly still on the
+ *  wishlist. */
 export async function promoteWishlistItem(itemId: number, system: string): Promise<MutateResult> {
   return (
-    rejectBadId(itemId, "promote") ?? write(() => promoteMyWishlistItem(itemId, system.trim()))
+    rejectBadId(itemId, "promote") ??
+    write(() => promoteMyWishlistItem(itemId, system.trim()), [gamesTag, wishlistTag])
   );
 }
 
@@ -242,9 +272,10 @@ export async function updateGameRating(gameId: number, rating: Rating | ""): Pro
     return { ok: false, message: "Invalid rating request." };
   }
 
-  // On success this purges every cached read (games + wishlist) and re-renders
-  // the static pages built from them on their next request.
-  return write(() => updateMyGameRating(gameId, rating));
+  // On success this purges the cached games read and re-renders the static
+  // pages built from it on their next request. Not the wishlist or the follow
+  // lists: a rating cannot change either.
+  return write(() => updateMyGameRating(gameId, rating), [gamesTag]);
 }
 
 /** Start playing a game (endDate null → open session) or log a past
@@ -262,7 +293,7 @@ export async function logSession(
     return { ok: false, message: "Invalid session request." };
   }
 
-  return write(() => createMySession(gameId, startDate, endDate));
+  return write(() => createMySession(gameId, startDate, endDate), [gamesTag]);
 }
 
 /** Stop playing: close the open session, optionally rating the game in the
@@ -280,7 +311,7 @@ export async function stopSession(
     return { ok: false, message: "Invalid stop request." };
   }
 
-  return write(() => closeMySession(sessionId, endDate, rating));
+  return write(() => closeMySession(sessionId, endDate, rating), [gamesTag]);
 }
 
 /** Follow a user. Revalidates BOTH libraries: the caller's following list grew
@@ -290,7 +321,7 @@ export async function followUserAction(username: string): Promise<MutateResult> 
   if (typeof username !== "string" || username === "") {
     return { ok: false, message: "Invalid follow request." };
   }
-  return write(() => followUser(username), username);
+  return write(() => followUser(username), [followsTag], username);
 }
 
 /** Unfollow a user. Same two-tag revalidation as following. */
@@ -298,5 +329,5 @@ export async function unfollowUserAction(username: string): Promise<MutateResult
   if (typeof username !== "string" || username === "") {
     return { ok: false, message: "Invalid unfollow request." };
   }
-  return write(() => unfollowUser(username), username);
+  return write(() => unfollowUser(username), [followsTag], username);
 }

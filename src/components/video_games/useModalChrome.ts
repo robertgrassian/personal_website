@@ -1,17 +1,23 @@
 import { useEffect, useRef, type RefObject } from "react";
 
-// Shared chrome for the mount-only owner dialogs (AddGameModal, EditGameModal,
-// EditWishlistModal). Those components render only while open, so these
-// effects run on mount and clean up on unmount — no isOpen plumbing. The hook
-// locks body scroll, moves focus into the dialog (to initialFocusRef), closes
-// on Escape, and restores focus to whatever opened it on unmount.
+// Shared chrome for the owner dialogs. Locks body scroll, moves focus into the
+// dialog (to initialFocusRef), closes on Escape, and restores focus to whatever
+// opened it when it closes.
+//
+// Two lifecycles, one hook. The mount-only dialogs (AddGameModal,
+// EditGameModal, EditWishlistModal) render only while open, so they leave
+// `enabled` at its default and the effects run on mount and clean up on unmount
+// — no isOpen plumbing. StatsPanel cannot work that way: it slide-animates in
+// via `translate-x-full` and so stays mounted while closed, which is why it
+// passes `enabled={isOpen}` and the effect body bails when false.
 //
 // Generic over the focus target's element type so callers can pass a
 // `useRef<HTMLButtonElement>`/`useRef<HTMLInputElement>` without a variance
 // cast.
 export function useModalChrome<T extends HTMLElement>(
   onClose: () => void,
-  initialFocusRef: RefObject<T | null>
+  initialFocusRef: RefObject<T | null>,
+  enabled = true
 ): void {
   // Latest-ref pattern: the Escape listener reads onClose through a ref so the
   // mount effect below never needs onClose in its deps (and never re-runs).
@@ -21,6 +27,8 @@ export function useModalChrome<T extends HTMLElement>(
   });
 
   useEffect(() => {
+    if (!enabled) return;
+
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     // Remember what opened the dialog so focus can return to it on close
@@ -41,6 +49,8 @@ export function useModalChrome<T extends HTMLElement>(
         previouslyFocused.focus();
       }
     };
-    // initialFocusRef is a stable ref object; this effect runs once on mount.
-  }, [initialFocusRef]);
+    // initialFocusRef is a stable ref object, so for a mount-only dialog this
+    // runs once on mount. For a stays-mounted one it re-runs when `enabled`
+    // flips, which is what makes open/close behave like mount/unmount.
+  }, [initialFocusRef, enabled]);
 }

@@ -6,10 +6,10 @@ no HTTP knowledge) and routers map it to a 404. Chosen over returning None so
 call sites can't silently forget the check and the error carries the username
 for the response body.
 
-Play-state derivation is a direct port of ``derivePlayState()`` in
-src/lib/gamesServer.ts: an open session (NULL end_date) means "currently
-playing"; the newest open start_date is "playing since"; the newest closed
-end_date is "last played" ("" when there are no closed sessions).
+Play-state semantics, defined here and nowhere else: an open session (NULL
+end_date) means "currently playing"; the newest open start_date is "playing
+since"; the newest closed end_date is "last played" ("" when there are no closed
+sessions).
 """
 
 from collections import defaultdict
@@ -136,10 +136,13 @@ def get_user_wishlist(db: Session, username: str) -> list[WishlistGameRead]:
 def get_user_profile(db: Session, username: str) -> ProfileRead:
     """Public profile payload — public data only, no per-viewer fields
     (spec §7.2: this response is cacheable and shared across viewers)."""
-    profile = _require_profile(db, username)
+    found = users_repo.get_profile_with_counts(db, username)
+    if found is None:
+        raise UserNotFoundError(username)
+    profile, follower_count, following_count = found
     return ProfileRead(
         username=profile.username,
         display_name=profile.display_name,
-        follower_count=users_repo.count_followers(db, profile.id),
-        following_count=users_repo.count_following(db, profile.id),
+        follower_count=follower_count,
+        following_count=following_count,
     )

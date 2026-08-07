@@ -5,12 +5,12 @@ Every route here depends on ``CurrentUser`` — the JWT verification dependency
 runs. HTTP concerns only: map the service's domain exceptions to status codes.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 
 from app.core.auth import CurrentUser
 from app.core.config import API_PREFIX
 from app.core.db import DbSession
-from app.core.guards import forbid_in_preview, rate_limit_writes
+from app.core.guards import WRITE_GUARDS
 from app.schemas.me import (
     GameCreate,
     GameUpdate,
@@ -47,8 +47,7 @@ def read_my_profile(user: CurrentUser, db: DbSession) -> MyProfileRead:
 @router.post(
     "/me/profile",
     status_code=status.HTTP_201_CREATED,
-    # First mutating endpoint: refuse writes on preview deploys.
-    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+    dependencies=WRITE_GUARDS,
 )
 def create_my_profile(user: CurrentUser, db: DbSession, payload: ProfileCreate) -> MyProfileRead:
     """Complete onboarding by creating the caller's profile.
@@ -65,7 +64,7 @@ def create_my_profile(user: CurrentUser, db: DbSession, payload: ProfileCreate) 
 @router.post(
     "/me/games",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+    dependencies=WRITE_GUARDS,
 )
 def create_my_game(user: CurrentUser, db: DbSession, payload: GameCreate) -> GameRead:
     """Add a game to the caller's library (from an IGDB pick or entered by
@@ -82,7 +81,7 @@ def create_my_game(user: CurrentUser, db: DbSession, payload: GameCreate) -> Gam
 @router.delete(
     "/me/games/{game_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+    dependencies=WRITE_GUARDS,
 )
 def delete_my_game(user: CurrentUser, db: DbSession, game_id: int) -> None:
     """Remove a game and (via cascade) its play sessions. 404 covers both a
@@ -92,7 +91,7 @@ def delete_my_game(user: CurrentUser, db: DbSession, game_id: int) -> None:
 
 @router.patch(
     "/me/games/{game_id}",
-    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+    dependencies=WRITE_GUARDS,
 )
 def update_my_game(user: CurrentUser, db: DbSession, game_id: int, payload: GameUpdate) -> GameRead:
     """Partially edit one of the caller's games (currently: rating).
@@ -107,7 +106,7 @@ def update_my_game(user: CurrentUser, db: DbSession, game_id: int, payload: Game
 @router.post(
     "/me/wishlist",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+    dependencies=WRITE_GUARDS,
 )
 def create_my_wishlist_item(
     user: CurrentUser, db: DbSession, payload: WishlistCreate
@@ -122,7 +121,7 @@ def create_my_wishlist_item(
 
 @router.patch(
     "/me/wishlist/{item_id}",
-    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+    dependencies=WRITE_GUARDS,
 )
 def update_my_wishlist_item(
     user: CurrentUser, db: DbSession, item_id: int, payload: WishlistUpdate
@@ -135,7 +134,7 @@ def update_my_wishlist_item(
 @router.delete(
     "/me/wishlist/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+    dependencies=WRITE_GUARDS,
 )
 def delete_my_wishlist_item(user: CurrentUser, db: DbSession, item_id: int) -> None:
     """Remove a wishlist entry. 404 = nonexistent or someone else's."""
@@ -145,7 +144,7 @@ def delete_my_wishlist_item(user: CurrentUser, db: DbSession, item_id: int) -> N
 @router.post(
     "/me/wishlist/{item_id}/promote",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+    dependencies=WRITE_GUARDS,
 )
 def promote_my_wishlist_item(
     user: CurrentUser, db: DbSession, item_id: int, payload: WishlistPromote
@@ -164,7 +163,7 @@ def promote_my_wishlist_item(
 @router.post(
     "/me/games/{game_id}/sessions",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+    dependencies=WRITE_GUARDS,
 )
 def create_my_session(
     user: CurrentUser, db: DbSession, game_id: int, payload: SessionCreate
@@ -183,7 +182,7 @@ def create_my_session(
 
 @router.patch(
     "/me/sessions/{session_id}",
-    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+    dependencies=WRITE_GUARDS,
 )
 def close_my_session(
     user: CurrentUser, db: DbSession, session_id: int, payload: SessionClose
@@ -215,7 +214,7 @@ def read_my_relationship(user: CurrentUser, db: DbSession, username: str) -> Rel
 @router.post(
     "/me/following/{username}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+    dependencies=WRITE_GUARDS,
 )
 def follow_user(user: CurrentUser, db: DbSession, username: str) -> None:
     """Follow a user. Idempotent: following someone you already follow is 204,
@@ -232,7 +231,7 @@ def follow_user(user: CurrentUser, db: DbSession, username: str) -> None:
 @router.delete(
     "/me/following/{username}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(forbid_in_preview), Depends(rate_limit_writes)],
+    dependencies=WRITE_GUARDS,
 )
 def unfollow_user(user: CurrentUser, db: DbSession, username: str) -> None:
     """Unfollow a user. Idempotent, like follow. The founder edge created at

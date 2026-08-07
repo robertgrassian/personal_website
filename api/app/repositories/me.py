@@ -104,15 +104,25 @@ def create_session(
     return play_session
 
 
-def get_session_for_owner(db: Session, session_id: int, user_id: uuid.UUID) -> PlaySession | None:
+def get_session_for_owner(
+    db: Session, session_id: int, user_id: uuid.UUID
+) -> tuple[PlaySession, Game] | None:
     # Ownership hops through the game row (sessions have no user_id column):
     # a foreign or nonexistent session comes back None → 404, same policy as
     # get_game_for_owner.
-    return db.execute(
-        select(PlaySession)
+    #
+    # Returns the game as well as the session. The join is required for the
+    # ownership check either way, so the database is already reading that row —
+    # selecting it costs nothing and saves the caller a second lookup by id for
+    # the row it just proved ownership through.
+    row = db.execute(
+        select(PlaySession, Game)
         .join(Game, Game.id == PlaySession.game_id)
         .where(PlaySession.id == session_id, Game.user_id == user_id)
-    ).scalar_one_or_none()
+    ).one_or_none()
+    if row is None:
+        return None
+    return row[0], row[1]
 
 
 def finish_session(

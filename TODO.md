@@ -12,6 +12,13 @@ backend-as-a-service" argument. Nothing is mid-flight, so from here this file is
 The organizing goal is **sharing the site with people**, so Up Next holds what should be true
 before that happens.
 
+**Up Next is capped at 5, and being a bug is not what gets you in here.** Confirmed defects live
+in **Bugs** below. This section is for work that is in flight, blocking the goal above, or a
+promise the site already makes in user-facing copy but cannot honor — plus anything explicitly
+asked for, which needs no reason and is marked `(Promoted by request YYYY-MM-DD.)` so it does not
+get demoted back out. Adding a sixth item means demoting one, on purpose. (Split out 2026-08-07:
+the old rule sent every bug straight here, so four of five slots were defects.)
+
 - [ ] **Implement account deletion (`DELETE /api/py/me/account`).** Promoted from Backlog
       2026-07-30: the last unbuilt thing the spec actually committed to, and the one item here
       that is a promise rather than a polish. Spec decision #22 planned it (cascade down from
@@ -24,34 +31,96 @@ before that happens.
       `rate_limits` has no FK to `profiles`, so those rows will not cascade and need deleting
       explicitly.
 
+## Bugs
+
+_Confirmed defects that are not urgent enough for Up Next. Roughly severity-ordered, worst first.
+Promote one into Up Next when it starts blocking the sharing goal above, and demote something else
+to keep that section at five._
+
+- [ ] **Filtering should apply to the Unrated shelf too: search for a game and the Unrated shelf
+      stays put.** The premise is exactly right, and the code says so out loud: `GameLibrary.tsx`
+      renders the Unrated `<ShelfSection>` with the raw `unratedGames` array, outside the
+      `useMemo` pipeline that produces `activeShelves`, and the comment
+      above it calls that deliberate ("a small owner utility surface, not part of the public
+      browsing experience"). So search, system and genre all miss it, and filtering to nothing
+      shows "No games match your filters" _above_ a full Unrated shelf.<br>
+      _The instinct that it is a different entity is also right, and it starts upstream._
+      `LibraryPage.tsx` splits the API's games into `libraryGames` (`rating !== ""`) and
+      `unratedGames` (`rating === ""`) and passes them to `GameLibrary` as two separate props, so
+      the pipeline never sees the unrated ones at all. The real fix is at that seam: feed one list
+      through the pipeline and let grouping produce the Unrated shelf, rather than filtering one
+      list and appending the other.<br>
+      _Why it was two lists, and what breaks when they become one:_ **(a)** `groupBy: "rating"`
+      already has an `"Unrated"` group with a sort key pinned last (`RATING_ORDER` in
+      `pipeline.ts`) — it renders empty today only because unrated games never reach it, so
+      that grouping mode gets fixed for free. But **every other** grouping mode (system, genre,
+      decade, none) would then mix unrated games into the normal shelves, which is a real product
+      change, not a bug fix: the Unrated shelf's whole job is being the one place a rating-less
+      game is reachable to re-rate. Decide whether unrated games join their system/genre shelf or
+      stay a separate group in every mode. **(b)** `playedCount` (`LibraryPage.tsx`) is
+      computed from the unsplit `games` array, so it stays correct either way, but it counts
+      games the shelves don't show. **(c)** The shelf is still `canEdit`-gated, so a visitor
+      sees none of this.<br>
+      Related: the "Show the Unrated shelf to everyone" backlog item names this same
+      pipeline exclusion as its sub-point (1); doing this first turns that item back into the
+      one-line `canEdit` change it wants to be.
+
+- [ ] **Tapping a game case to flip it feels laggy on mobile: there is a visible gap between
+      press and the animation starting, which desktop does not have.** Reported 2026-08-07.
+      Nothing below is confirmed on a device: investigate before fixing, since the two likeliest
+      causes want opposite changes.<br>
+      _One premise to rule out first:_ this is probably **not** the classic 300ms tap delay.
+      There is no `export const viewport` in `src/app/layout.tsx`, so Next's default
+      `width=device-width, initial-scale=1` applies, and both mobile Safari and Chrome drop the
+      double-tap-zoom wait on a viewport declared that way. `touch-action: manipulation` on the
+      flip `<button>` in `GameCase.tsx` is still the cheap hedge and costs nothing.<br>
+      _Prime suspect: hover emulation._ The flip button's inner `.game-case-inner` div carries
+      `group-hover:-translate-y-2 group-hover:shadow-xl`, with `transition: translate 0.2s
+  ease-out` on the matching rule in `video-games.css`. iOS Safari fakes `:hover` on first
+      touch for elements that have hover styles, so the tap can spend a beat playing the lift
+      before the click ever fires. Fix is to gate the lift behind `@media (hover: hover)` rather
+      than to remove it, so desktop keeps it. Note that same button's className already
+      special-cases touch for the cursor (`cursor-pointer sm:cursor-default`), which is a
+      **breakpoint** test, not a hover-capability one, and is worth correcting in the same pass.<br>
+      _Second suspect: first-flip compositing cost._ `.game-case-scene` sets `perspective` and
+      `.game-case-inner` sets `transform-style: preserve-3d` (`video-games.css`). The
+      first `rotateY` promotes the case to its own layer, and on a phone with ~155 cases on the
+      page each holding a `next/image` fill, that promotion can eat a frame or two. If profiling
+      points here, `will-change: transform` on the case helps — but only applied narrowly (on
+      hover/focus, or on the flipped case), since setting it on every case at once is how you
+      make the whole page slower instead.<br>
+      _How to tell them apart:_ Safari's Web Inspector timeline on a real device, or just
+      temporarily delete the `group-hover:` classes and see if the delay goes. Do not fix this by
+      swapping `onClick` for `onTouchStart` — that breaks flicking-to-scroll over a shelf, since a
+      touch that begins on a case is usually a scroll.
+
 - [ ] **On mobile, the add-game details/rating step scrolls in both directions and does not fit
       its box.** Reported 2026-08-06 from a phone: after picking a title in `AddGameModal`, the
       confirm form (name / system / genres / release date / rating) feels larger than the dialog
       containing it, and dragging a finger pans it horizontally as well as vertically. It should
       size to the screen and fit.<br>
       _Half the premise needs correcting, and it points at the real cause._ The dialog is already
-      viewport-relative: `max-h-[80dvh] w-full max-w-md` inside a `fixed inset-0 … p-4` grid
-      (`AddGameModal.tsx:276,292`), so the panel itself cannot exceed the screen, and the
-      confirm body's vertical scrolling is deliberate (`min-h-0 flex-1 overflow-y-auto`,
-      `:418`, with the save buttons pinned outside it). So "make the height dynamic" is not the
-      fix — the height already is.<br>
-      _Most likely culprit: iOS auto-zoom on focus._ Mobile Safari zooms the whole page in when
-      you focus an input whose font-size is under 16px, and `inputClass` (`formStyles.ts:5`) is
-      `text-sm` = 14px on every field here. Once zoomed, the layout is genuinely wider than the
-      window and pans in both axes, which matches the report exactly. There is no `export const
-      viewport` in `src/app/layout.tsx`, so Next's default meta applies and scaling is allowed.
-      Fix by bumping the inputs to 16px on small screens rather than by adding
-      `maximum-scale=1`, which disables pinch-zoom for everyone and is an accessibility
-      regression.<br>
+      viewport-relative: the panel carries `max-h-[80dvh] w-full max-w-md` inside a
+      `fixed inset-0 … p-4` grid, so it cannot exceed the screen, and the confirm body's vertical
+      scrolling is deliberate (`min-h-0 flex-1 overflow-y-auto`, with the save buttons pinned
+      outside it). So "make the height dynamic" is not the fix — the height already is.<br>
+      _Most likely culprit, not yet reproduced on a device: iOS auto-zoom on focus._ Mobile Safari
+      zooms the whole page in when you focus an input whose font-size is under 16px, and
+      `inputClass` (`formStyles.ts`) is `text-sm` = 14px on every field here. Once zoomed, the
+      layout is genuinely wider than the window and pans in both axes, which matches the report
+      exactly. There is no `export const viewport` in `src/app/layout.tsx`, so Next's default meta
+      applies and scaling is allowed. Confirm this is it before fixing; if it holds, bump the
+      inputs to 16px on small screens rather than adding `maximum-scale=1`, which disables
+      pinch-zoom for everyone and is an accessibility regression.<br>
       _A second, independent mechanism worth ruling out._ Per CSS, when one axis of `overflow`
-      is not `visible` the other computes from `visible` to `auto` — so `overflow-y-auto` on
-      `:418` makes that div horizontally scrollable the moment any child is one pixel too wide.
-      `input[type="date"]` (`:491`) is the usual offender, since it carries an intrinsic control
-      width that `w-full` does not always beat. `overflow-x-hidden` plus `min-w-0` on the field
-      wrappers settles it. Note the search step's results `<ul>` (`:344`) has the same
+      is not `visible` the other computes from `visible` to `auto` — so the confirm body's
+      `overflow-y-auto` makes that div horizontally scrollable the moment any child is one pixel
+      too wide. The `input[type="date"]` is the usual offender, since it carries an intrinsic
+      control width that `w-full` does not always beat. `overflow-x-hidden` plus `min-w-0` on the
+      field wrappers settles it. Note the search step's results `<ul>` has the same
       overflow-y and the same exposure, so fix both.<br>
       _And check the scroll lock while in there:_ `useModalChrome` sets
-      `document.body.style.overflow = "hidden"` (`useModalChrome.ts:25`), which iOS Safari
+      `document.body.style.overflow = "hidden"`, which iOS Safari
       ignores for touch, so some of the "it moves under my finger" may be the page behind the
       dialog rather than the dialog. `overscroll-behavior: contain` on the scroll area is the
       cheap half. Same three modals share this hook, so any fix lands on `EditGameModal` and
@@ -61,7 +130,7 @@ before that happens.
 
 - [ ] **Library filter search should fuzzy match, but stay strict** — specifically, typing
       "pokemon" should find the games spelled with the accented "é". Today
-      `passesBaseFilters` (`src/components/video_games/pipeline.ts:27`) is a plain
+      `passesBaseFilters` (`src/components/video_games/pipeline.ts`) is a plain
       `name.toLowerCase().includes(search.toLowerCase())`, so it is case-insensitive and nothing
       more: "Pokémon" is invisible to "pokemon", and every shelf goes empty while you are
       halfway through typing the word.<br>
@@ -78,16 +147,83 @@ before that happens.
 
 ## Backlog / Ideas
 
+- [ ] **Make database migrations run automatically as part of CD**, instead of `alembic upgrade
+    head` being run by hand from a laptop pointed at production.<br>
+      _Premise correction, and it is most of the work:_ there is no CD pipeline to add a step to.
+      `.github/workflows/ci.yml` has only `build` and `api` jobs, both of which test; deploys
+      happen through Vercel's own GitHub integration, and `vercel.json` contains nothing but the
+      daily health cron. So this means **creating** a deployment workflow, not extending one.<br>
+      _The ordering problem is the real design question._ Vercel offers no pre-deploy hook, so a
+      GitHub Action triggered on push to `main` races Vercel's build: whichever finishes first
+      wins, and if the deploy lands first there is a window where new code queries an old schema.
+      The usual answer is to make every migration backward-compatible (expand, migrate, contract
+      across separate deploys) so the race stops mattering — that is a discipline to adopt
+      deliberately, not something the workflow enforces. Worth deciding before automating, since
+      the whole value of automating is not thinking about it each time.<br>
+      _Two things that must not be got wrong:_ **(1)** preview deploys must never migrate. They
+      point at production through a read-only role, so a migration from a preview branch is
+      either an error or a disaster depending on the role. Gate on the branch, not on
+      `APP_ENV`. **(2)** the production connection string becomes a GitHub secret, where today it
+      exists only on your laptop and in Supabase. That is a genuine expansion of where the
+      credential lives, and worth weighing against how rarely migrations actually run.<br>
+      _Counter-argument worth keeping:_ auto-applying means a migration reaches production
+      without anyone reading its plan first. This project's habit so far is the opposite —
+      `docs/genre-backfill-runbook.md` exists because a preview-then-apply pass caught real
+      damage that a green test run had missed. `alembic upgrade head` is idempotent and safe to
+      re-run, so a middle option is a workflow that runs it on manual dispatch only: no laptop
+      credentials, still a human deciding when.<br>
+      Note `alembic/env.py` reads the URL from `DATABASE_URL` via the settings object with no
+      alias, and `normalize_database_url` rewrites the `postgresql://` scheme itself, so the
+      workflow can pass Supabase's connection string through unmodified.
+
+- [ ] **The nine structural refactors left over from the game-library simplification review.**
+      Tiers 1 and 2 of that review shipped (PR #87); Tier 3 is what was judged
+      "day-shaped change, not a cleanup" and deferred. Recorded here because the doc holding
+      them was deleted once the first two tiers landed: **full write-ups are in git history at
+      commit `f0a0cbb`, `docs/game-library-simplification-backlog.md`.** Do them one PR at a
+      time, not as a batch.<br>
+      _The two carrying a real decision, not just work:_ **(a)** `rate_limit_writes` commits its
+      counter increment in its own transaction, which under `NullPool` costs a second physical
+      connect per write. Folding it into the handler's transaction removes that — but the charge
+      is committed separately _on purpose_, so it survives a handler that raises. Fold it in and
+      a failed write stops counting against the budget, which is a rate-limit bypass. Decide
+      whether failed writes should be charged before touching it. **(b)** Splitting `GameLibrary`
+      into shelves vs. people tabs is the cleanup; the honest answer is that the follower lists
+      are a different _page_ (`/video-games/u/[username]/followers`), which would let
+      `PeopleList` stay a server component and keep the follow graph off the client entirely.
+      That is a routing change, so decide which one you are doing.<br>
+      _The rest, roughly by payoff:_ split `AddGameModal` (~574 lines) at the
+      `draft === null` seam it already branches on, so search state unmounts when the confirm
+      form opens; replace "may this viewer edit?" travelling as an optional `onEditGame` prop
+      with a context, since `GameCase` currently re-derives permission from prop presence;
+      hoist the `LIBRARY_OWNER_USERNAME` special case out of `LibraryPage` (the component whose
+      whole job is "any user's library") into the one route that knows it is pinned; add a
+      `CurrentProfile` FastAPI dependency so six `/me` routes stop re-fetching the profile by
+      hand, which also breaks the odd `services/follows.py` → `services/me.py` import;
+      split `services/genres.py` (~629 lines) into a pure vocabulary module and a Wikipedia
+      client, which is what `scripts/backfill_genres.py` actually reaches into; and a set of
+      per-keystroke render wins in `pipeline.ts` (hoist the lowercased search needle out of the
+      filter callback, collapse three `filterGames` scans into one, memoize `GameCase`).<br>
+      _One is deliberately ranked last:_ deriving play state in SQL. `derive_play_state` is a
+      pure, unit-tested function (`tests/test_play_state.py`), and moving it into SQL trades
+      Python you can test for SQL you cannot, for six session rows across 155 games. If you
+      touch it at all, take only the cheap half — select the four columns instead of whole ORM
+      objects.<br>
+      _Worth doing after, not before:_ making `Game.id`, `sessionCount` and `openSessionId`
+      non-optional. It is correct (the API schemas mark them required, and the optionality
+      forces guards that can never fire) but it touches the same components as the splits above,
+      so it is much cheaper once those land.
+
 - [ ] **Show a confirmation toast after logging a session, so you know it worked.** Possibly with
       a "view all sessions for {game}" link in it, per the item below.<br>
       _What happens today:_ on success `saveLoggedSession` collapses the form and clears the
-      fields (`EditGameModal.tsx:97-101`) and the dialog stays open. So there is _a_ signal, just
+      fields (`EditGameModal.tsx`) and the dialog stays open. So there is _a_ signal, just
       not an affirmative one, and only failure gets words (`setError`). The gap is worst for a
       backdated **closed** session: nothing else on screen changes, because a past session with an
       end date moves no shelf and does not light up the CRT. An open-ended log is the opposite
       case, where the game becomes currently-playing and the change is obvious.<br>
       _One thing this codebase already gets right:_ `isPending` deliberately spans the whole write
-      _plus_ revalidation (comment at `EditGameModal.tsx:30-32`), so a toast fired when the
+      _plus_ revalidation (comment at `EditGameModal.tsx`), so a toast fired when the
       transition settles is telling the truth about the data having landed, not just about the
       request having been accepted.<br>
       _What makes it more than a `<div>`:_ there is **no toast infrastructure anywhere in `src/`**
@@ -102,12 +238,12 @@ before that happens.
 - [ ] **A way to view all sessions for a game.** Requested alongside the toast above as its own
       item: today you can create sessions and close them, but nothing in the UI ever lists them.<br>
       _Two-thirds of the backend already exists, in a useful way._ `list_play_sessions`
-      (`api/app/repositories/users.py:26`) already loads every raw `play_sessions` row for the
+      (`api/app/repositories/users.py`) already loads every raw `play_sessions` row for the
       whole library on every read, then collapses them into the five derived fields `GameRead`
       exposes (`session_count`, `currently_playing`, `last_played`, `playing_since`,
       `open_session_id` — `api/app/schemas/users.py`). So the rows are in hand server-side and
       no new query is needed. What does not exist is any **GET** for sessions: `me.py` has only
-      `POST /me/games/{id}/sessions` (`:236`) and `PATCH /me/sessions/{id}` (`:261`), and
+      `POST /me/games/{id}/sessions` and `PATCH /me/sessions/{id}`, and
       `users.py` exposes none at all.<br>
       _The decision that shape hangs on:_ widen `GameRead` to carry the session list, or add a
       dedicated endpoint. Widening is nearly free to implement but inflates every library payload
@@ -127,12 +263,12 @@ before that happens.
       picking the start, hitting check, then the end, hitting check again. Noticed on mobile
       2026-08-06; it is the same on desktop, since the cause is not mobile-specific.<br>
       _What is there now:_ two independent `<input type="date">` controls, "From"
-      (`EditGameModal.tsx:283`) and "To" (`:293`), inside the `logOpen` block. Each opens the
+      (`EditGameModal.tsx`) and "To", inside the `logOpen` block. Each opens the
       platform's own picker, so two dates means two sheets and two confirmations. They are
       already linked in the only ways HTML allows: `min={logStart}` on the To field, `max` of
-      today on both, and a `logDatesInvalid` guard (`:120`) disabling Save on an inverted range.<br>
+      today on both, and a `logDatesInvalid` guard disabling Save on an inverted range.<br>
       _The constraint that rules out a stock range picker:_ the end date is optional on purpose.
-      "Leave 'To' empty if you're still playing it" (`:311`) logs a backdated session that is
+      "Leave 'To' empty if you're still playing it" logs a backdated session that is
       still open, which is what makes the game currently-playing. Most range pickers model a
       range as two required endpoints, so whatever is used needs a first-class "no end yet"
       state, not a blank the user must understand to leave alone.<br>
@@ -149,7 +285,7 @@ before that happens.
       markup inside `EditGameModal`.
 
 - [ ] **Make viewing a game's details better: the back of the case truncates genres and there is
-      no way to see the rest. Design is part of this task.** `GameCaseBack.tsx:70-77` renders
+      no way to see the rest. Design is part of this task.** `GameCaseBack.tsx` renders
       `genres.slice(0, 2)` plus a `+N more` span — and that span is plain text, not a control,
       so the hidden genres are genuinely unreachable from the shelf. Genres are the only
       truncated field: name is `line-clamp-2`, system and release date render in full.<br>
@@ -162,25 +298,26 @@ before that happens.
       each genre a chip that sets the genre filter (which turns the overflow problem into a
       navigation feature).<br>
       _The wiring detail that will bite whichever design wins:_ the entire case is one
-      `<button>` with `onClick={() => setFlipped(f => !f)}` (`GameCase.tsx:97-102`), so a
+      `<button>` with `onClick={() => setFlipped(f => !f)}` (`GameCase.tsx`), so a
       clickable element **inside** the back face is a button nested in a button, which is
       invalid HTML and unreliable for keyboard and screen-reader users. `GameCase` already
       solved this once for the owner pencil: it is an absolutely-positioned **sibling** of the
-      flip button, not a child (there is a comment at `GameCase.tsx:88-92` and again at
-      `:206-211` explaining exactly that). Follow that pattern, or make the back face stop
-      being a button. Whatever opens must also work on touch, where there is no hover.<br>
+      flip button, not a child (there are two comments in `GameCase.tsx` explaining exactly
+      that, one above the flip button and one on the pencil). Follow that pattern, or make the
+      back face stop being a button. Whatever opens must also work on touch, where there is no
+      hover.<br>
       Related: the "notes / play journal" backlog item below wants a bigger reading surface for
       per-game data too, so a details view built here is likely where notes end up living.
 
 - [ ] **Set up monitoring / alerting, specifically to get notified when a new user signs up for
       the game library.** There is nothing today: no error tracking, no analytics, no email or
       webhook plumbing anywhere in the repo. The only observability is stdlib `logging` in a
-      handful of places (`api/app/services/me.py:46`, `core/supabase_admin.py:20`) landing in
+      handful of places (`api/app/services/me.py`, `core/supabase_admin.py`) landing in
       Vercel function logs, which nobody watches.<br>
       _The event to hook is the profile insert, not the auth user._ OAuth mints a Supabase
       `auth.users` row before onboarding, so an abandoned onboarding leaves one with no profile,
       and an over-cap signup has its auth user deleted again
-      (`create_my_profile`, `api/app/services/me.py:268-325`). The single moment that means
+      (`create_my_profile`, `api/app/services/me.py`). The single moment that means
       "a real person joined" is `create_profile_with_follows` succeeding at line 307.<br>
       _What makes it more than a POST in the handler:_ the API runs as a Vercel serverless
       function (`api/index.py`), so there is no daemon to watch anything. Two shapes, and they
@@ -194,7 +331,7 @@ before that happens.
       `/api/py/health`.<br>
       _Decide the channel too_ (push, email, a Slack/Discord incoming webhook). Email means
       standing up a transactional provider that does not exist yet; a webhook does not. Note the
-      volume this is sized for: `max_users` is 100 (`api/app/core/config.py:73`), so this is a
+      volume this is sized for: `max_users` is 100 (`api/app/core/config.py`), so this is a
       handful of notifications ever, which argues for the cheapest thing that works.<br>
       Related but different: the **Analytics on signups** item below wants the funnel (how far
       people get from landing to first game), where this one wants a ping when someone lands.
@@ -229,24 +366,6 @@ before that happens.
       partly because there is no third-party analytics to disclose: a self-hosted counter or
       Vercel's own analytics keeps it that way, a third-party script means updating `/privacy`.
 
-- [ ] **Collapse the two per-viewer API calls on a library page into one.** Loading any library
-      fires two independent authenticated requests that overlap: `useIsLibraryOwner`
-      (`src/components/video_games/useIsLibraryOwner.ts`) fetches `/api/py/me/profile` to answer
-      "is this mine?", and `useViewerRelationship`
-      (`src/components/video_games/useViewerRelationship.ts`) fetches
-      `/api/py/me/relationship/{username}` to answer "am I following them?". Each also calls
-      `supabase.auth.getSession()` separately.<br>
-      _The overlap is exact:_ `RelationshipRead` already returns `isMe`
-      (`api/app/schemas/me.py`), which is precisely what `useIsLibraryOwner` computes by
-      comparing usernames. So the relationship response can answer both questions and the
-      profile fetch can go — no API change needed.<br>
-      _What makes it more than deleting a hook:_ the two live in different component trees.
-      `useIsLibraryOwner` is called inside `GameLibrary`, while `useViewerRelationship` sits in
-      `FollowStateProvider` around the header, so sharing one answer means either lifting the
-      provider to wrap both or moving the owner check into that context — and `GameLibrary`'s
-      `canEdit` threads into pencils, the Unrated shelf and the empty states, so the blast radius
-      is wider than the fetch itself. Cross-reference the pop-in item below: whoever fixes that
-      is in the same code and should do both at once.
 - [ ] **User search, so you can find people to follow without knowing their username.** Held back
       from Phase 5 (2026-07-30) to keep that MVP small; the follow graph itself shipped, and with
       auto-follow seeding both lists, browsing Following/Followers is a working discovery path, so
@@ -265,9 +384,9 @@ before that happens.
       is indistinguishable and the index is doing nothing yet either way.
 - [ ] **Give library games a "notes" field, like wishlist entries already have, then grow it
       into a real play journal.** Today notes exist only on the wishlist side:
-      `wishlist_items.notes` (`api/app/models/wishlist_item.py:41`, `max_length=1000` in
-      `api/app/schemas/me.py:144`) with a 2-row textarea plus a "Save notes" button in
-      `EditWishlistModal.tsx:141-161`. The `games` table has no notes column at all.<br>
+      `wishlist_items.notes` (`api/app/models/wishlist_item.py`, `max_length=1000` in
+      `api/app/schemas/me.py`) with a 2-row textarea plus a "Save notes" button in
+      `EditWishlistModal.tsx`. The `games` table has no notes column at all.<br>
       _The want:_ "when I play a game I usually keep an md file to track progress and write
       notes; I want to do that from the site instead of another app." So the quick-entry
       textarea stays for one-liners, and both modals also get a larger popup view for writing
@@ -281,7 +400,7 @@ before that happens.
       Related: the session model already knows when you played, so dated entries could hang
       off `play_sessions` rather than the game row.
 - [ ] **Overhaul the wishlist promote flow: it is "played", not "bought".** Today
-      `EditWishlistModal.tsx:171` offers "I bought it, move to library" and the promote step
+      `EditWishlistModal.tsx` offers "I bought it, move to library" and the promote step
       just asks for a system (`WishlistPromote`), landing the game on the Unrated shelf.
       Two premises are wrong: moving to the library means you _played_ it (which might be a
       current session or a past one), and a wishlist entry may be a game already in the
@@ -291,12 +410,12 @@ before that happens.
       When the game is already in the library and the move button is hidden, offer "Track a
       play session?" straight away.<br>
       _The wiring:_ the modal only receives `item` and `existingSystems`
-      (`EditWishlistModal.tsx:14-19`), so "is this already in the library?" needs the library
+      (`EditWishlistModal.tsx`), so "is this already in the library?" needs the library
       names threaded in from `GameLibrary` (which has `games` in hand) — and matching by name
       alone will misfire across systems, so decide whether `igdb_id` is the key. Starting a
       session from here means reaching the same `logSession` path `EditGameModal` uses.
 - [ ] **Make library and wishlist entries fully editable, and keep the two edit modals 1:1.**
-      Both sides are stuck today: `GameUpdate` (`api/app/schemas/me.py:82-96`) is
+      Both sides are stuck today: `GameUpdate` (`api/app/schemas/me.py`) is
       **rating-only** by design ("future metadata edits extend this model"), so
       `EditGameModal` cannot touch name, system, genres, release date or cover art either —
       the earlier framing that only the wishlist was limited was wrong. `EditWishlistModal`
@@ -316,8 +435,8 @@ before that happens.
       URLs would reopen exactly that. Genre editing here also unblocks the genre-vocabulary
       backlog item below, which currently needs a one-off script for want of a write path.
 - [ ] **Fold "+ Add to wishlist" into a single "+ Add game" that picks its destination.**
-      `GameLibrary.tsx:211` swaps the button label by view, and `AddGameModal` already takes a
-      `target: "library" | "wishlist"` prop (`AddGameModal.tsx:26`) that swaps the rating
+      `GameLibrary.tsx` swaps the button label by view, and `AddGameModal` already takes a
+      `target: "library" | "wishlist"` prop (`AddGameModal.tsx`) that swaps the rating
       picker for a star checkbox and makes the system optional. So the modal can already do
       both: what is missing is a destination switcher (two tabs) inside it, defaulted to
       whichever view the button was clicked from.<br>
@@ -326,23 +445,28 @@ before that happens.
       block submit, not silently post.
 - [ ] **Make the view tabs and the add button sticky, like the filter bar.** The
       "Played" / "Want to Play" strip and the "+ Add game" / "Stats" row
-      (`GameLibrary.tsx:184-226`) scroll away, while `FilterBar` sticks at
-      `top-[var(--nav-height)]` (`FilterBar.tsx:263`).<br>
+      (`GameLibrary.tsx`) scroll away, while `FilterBar` sticks at
+      `top-[var(--nav-height)]` (`FilterBar.tsx`).<br>
       _Not just adding `sticky`:_ the filter bar's offset is `--nav-height` exactly, so a
       sticky tab strip above it either overlaps or has to be part of the same sticky block,
       with the filter bar's `top` becoming nav height plus strip height. `FilterBar` also
       snapshots its document-relative top once in a `useLayoutEffect`
-      (`FilterBar.tsx:161-168`) to drive the mobile hide-on-scroll-down behavior, and that
+      (`FilterBar.tsx`) to drive the mobile hide-on-scroll-down behavior, and that
       measurement assumes nothing sticky sits above it. Simplest shape is probably one sticky
       container holding both, so they hide and show as a unit on mobile.
 - [ ] **Owner edit affordances still pop in after hydration.** The pencils, "Add game" and the
-      Unrated shelf appear a beat after first paint on your own library, because
-      `useIsLibraryOwner` (`src/components/video_games/useIsLibraryOwner.ts`) resolves in a
-      `useEffect`. The pre-paint `data-authed` flag that fixed the CTA banner and `AuthButton`
+      Unrated shelf appear a beat after first paint on your own library, because the answer
+      resolves in a `useEffect` — `useViewerRelationship`
+      (`src/components/video_games/useViewerRelationship.ts`), read through `useIsOwner()` in
+      `FollowControls.tsx`. **Premise updated 2026-08-07:** this used to name
+      `useIsLibraryOwner` and a `/me/profile` fetch; that hook is deleted and the two per-viewer
+      requests are now one (see Recently Completed). That halved the work but did not fix this —
+      one round trip after hydration still lands after first paint.<br>
+      The pre-paint `data-authed` flag that fixed the CTA banner and `AuthButton`
       (2026-07-29, see Recently Completed) **cannot** be extended to cover this: the cookie proves
       a session exists but not whose it is, and the JWT's `sub` claim is a user id, not a
       username, so answering "is this viewer the owner of THIS library?" needs the
-      `/me/profile` round trip either way.<br>
+      `/me/relationship` round trip either way.<br>
       _Options, none free:_ have the API return the username in a separate readable cookie at
       sign-in (cheap, but adds a second source of truth for identity that can go stale after a
       rename); or accept the pop-in and make it less jarring by reserving space so nothing
@@ -374,7 +498,7 @@ before that happens.
       `revalidateMyLibrary()` in `src/app/video-games/actions.ts` as of PR #69, so it does not
       need restating here. Both constraints disappear if the memo does — dropping it costs one
       extra round trip per write and nothing else.
-- [ ] **Show the "Unrated" shelf to everyone, not just the owner.** `GameLibrary.tsx:332`
+- [ ] **Show the "Unrated" shelf to everyone, not just the owner.** `GameLibrary.tsx`
       gates it on `canEdit`, so visitors to `/video-games/u/{username}` never see games you have played
       but not rated. It was built as an owner utility (every unrated game keeps a case and a
       pencil, so clearing a rating stays reversible from the UI) and that framing is what
@@ -386,18 +510,20 @@ before that happens.
       cases without pencils.<br>
       _Three things that stop being invisible once visitors can see it:_
       **(1)** The shelf sits deliberately outside the filter/group/sort pipeline
-      (`GameLibrary.tsx:328-334`), so it ignores search, system and genre filters. Tolerable
+      (`GameLibrary.tsx`), so it ignores search, system and genre filters. Tolerable
       for a private utility strip; confusing in public browsing, where filtering to "SNES"
-      would still leave unrelated unrated games on screen. Decide whether it joins the
-      pipeline as a real group or stays appended.
-      **(2)** The headline count disagrees. `playedCount` (`LibraryPage.tsx:62`) is rated
+      would still leave unrelated unrated games on screen. **This is now its own Up Next item**
+      ("Filtering should apply to the Unrated shelf too"), raised independently as an
+      owner-facing bug — if that lands first, all this item has left is dropping `canEdit` from
+      the render condition.
+      **(2)** The headline count disagrees. `playedCount` (`LibraryPage.tsx`) is rated
       games plus currently-playing, so an unrated game you're not playing is on a visible
       shelf but not in "N games". Either widen the count or accept and document the gap.
       **(3)** Unrated in-progress games would appear both on the CRT and on this shelf. That
       double-billing already happens for the owner, so it may be fine — just decide on
       purpose rather than by accident.
 - [ ] **Restrict the add-game "system" suggestions to the platforms the game actually released
-      on.** Today `AddGameModal.tsx:260` builds the `<datalist>` as a _union_ —
+      on.** Today `AddGameModal.tsx` builds the `<datalist>` as a _union_ —
       `[...new Set([...existingSystems, ...(draft?.platforms ?? [])])]` — with every shelf
       system you already own listed **first**, so the picked game's real IGDB platforms are
       buried at the bottom of a long list. Want: once a game is picked from IGDB, the
@@ -458,6 +584,22 @@ before that happens.
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **The two per-viewer API calls on a library page collapsed into one** (2026-08-07).
+      `useIsLibraryOwner.ts` is deleted. Edit affordances now read `isMe` off the relationship
+      response via a `useIsOwner()` selector exported from `FollowControls.tsx`, so one request
+      answers both "am I following them?" and "may I edit this?" — `RelationshipRead` had
+      carried `is_me` for exactly this since Phase 5.<br>
+      _The blast radius was the provider, not the hook._ `FollowStateProvider` wrapped only the
+      header, so it was hoisted in `LibraryPage.tsx` to wrap the whole `max-w-7xl` div and
+      `GameLibrary` lost its `ownerUsername` prop, which existed only to feed the deleted hook.
+      Widening the provider costs nothing across the server/client boundary: `children` is a
+      serialized RSC slot rather than an import, so the server-rendered subtree ships no extra
+      JS and React re-renders only the provider when the answer lands.<br>
+      _The visible win beyond the round trip:_ the two answers used to resolve independently, so
+      edit pencils could appear while the Follow button was still deciding. Now they cannot
+      disagree.<br>
+      _Still open:_ the pop-in item below. Edit controls resolve one request sooner but still in
+      a `useEffect`, so they continue to appear a beat after first paint.
 - [x] **Add-game IGDB search: more results, platform in the query, fuzzy fallback, better
       ranking** (2026-08-05). `SEARCH_LIMIT` 10 → 25 plus `offset` paging behind a "Show more
       results" button (`page` query param, capped at `MAX_PAGE = 4`; the click bypasses the
@@ -656,7 +798,10 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       the work: it hit every viewer on every load of both library routes.<br>
       _What it cannot fix, contrary to the original entry:_ the owner edit affordances. A cookie
       says a session exists, not whose it is (the JWT's `sub` is a user id, not a username), so
-      `useIsLibraryOwner` still needs its `/me/profile` round trip. Own backlog item now.<br>
+      the owner check still needs a round trip after hydration. Own backlog item now. (That check
+      was `useIsLibraryOwner` + `/me/profile` when this was written; since 2026-08-07 it is
+      `useViewerRelationship` + `/me/relationship`, one request instead of two — the reasoning
+      here is unchanged.)<br>
       _Two costs accepted:_ `sessionCookieKey` duplicates supabase-js's own storage-key
       derivation (`sb-${hostname.split(".")[0]}-auth-token`), so if that ever changes the flag
       silently stops setting and the flash quietly returns — it degrades rather than breaks, but
@@ -738,7 +883,13 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       auth surfaces moved under the game library; the sign-up CTA banner; profile header
       and real empty states; per-user write limits and a `MAX_GAMES` cap. 173 tests.
       Its manual steps (brand verification, Vercel env vars, prod migration) are all done and
-      recorded as their own entries below
+      recorded as their own entries below.<br>
+      _The CI slice's one durable gotcha_ (folded in here when its own entry aged out): the
+      `api` job needs `api/scripts/ci_auth_schema.sql`, a minimal stand-in for Supabase's
+      `auth.users`/`auth.identities`. GoTrue owns those tables everywhere else so Alembic never
+      creates them, but migration `f985740c0df9` adds a real FK to `auth.users` — without the
+      stand-in, migrations cannot run on bare Postgres. Before this job, 107 of 161 tests
+      silently skipped in CI for want of a `DATABASE_URL`.
 - [x] Prod CSV → Postgres cutover confirmed serving: `https://rgrassian.com/video-games`
       returns 200 and `/api/py/health` reports `{"status":"ok","env":"prod","db":"ok"}`.
       (The optimistic-UI click-through and the first-write cold-start timing were not
@@ -749,11 +900,3 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       origin must fail loudly rather than prerender an empty library, and the error already
       says "Is the API running? Start it with `npm run dev:api`." Start the API before
       building locally
-- [x] CI now runs the Python half of the toolchain (spec decision #8) — a second `api` job in
-      `.github/workflows/ci.yml` runs `ruff check` + the full `pytest` suite against a
-      postgres:16 service container. Previously 107 of 161 tests silently skipped in CI for
-      want of a `DATABASE_URL`. Needed one new file, `api/scripts/ci_auth_schema.sql`: a
-      minimal stand-in for Supabase's `auth.users`/`auth.identities`. GoTrue owns those
-      tables everywhere else, so Alembic never creates them — but migration
-      `f985740c0df9` adds a real FK to `auth.users`, so migrations can't run on bare
-      Postgres without it

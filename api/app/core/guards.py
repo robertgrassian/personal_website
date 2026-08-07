@@ -60,3 +60,19 @@ def rate_limit_writes(user: CurrentUser, db: Annotated[Session, Depends(get_db)]
         f"Too many changes at once — limited to {WRITE_RATE_LIMIT_MAX} per minute. "
         "Wait a moment and try again.",
     )
+
+
+# The guard set every mutating route needs. Defined below the two dependencies
+# because Depends() has to capture the actual function objects.
+#
+# Attach this to every new mutating route. Omitting a guard fails silently — the
+# endpoint is simply unlimited and writable on preview, with nothing to notice —
+# so one name is safer than two Depends() a reader has to check for individually.
+# It stays in the route decorator rather than moving inside each service so the
+# coverage is visible where the route is declared.
+#
+# Not applied at the router level: routers/me.py mixes reads and writes, and the
+# read routes must not be charged against the write budget. routers/igdb.py and
+# routers/genres.py list `Depends(forbid_in_preview)` explicitly instead — they
+# are GETs that write through a cache, so the guard is worth seeing in place.
+WRITE_GUARDS = [Depends(forbid_in_preview), Depends(rate_limit_writes)]

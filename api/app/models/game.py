@@ -33,6 +33,16 @@ RATING_NAMES: tuple[str, ...] = ("Perfect", "Great", "Good", "Okay", "Bad")
 # check` would report a spurious constraint change.
 RATING_CHECK_SQL = "rating IN ({})".format(",".join(f"'{name}'" for name in RATING_NAMES))
 
+# How many genres one game may carry. Bounds a malformed or vandalized
+# Wikipedia article, not a real library — nothing legitimately lists more than a
+# handful.
+#
+# Imported by both the create schemas (as Field(max_length=...)) and
+# services/genres.py, so the cap is one number. Keep it that way: Pydantic
+# applies max_length before the validator runs, so a second literal here would
+# cap HTTP writes at one value and the backfill path at another.
+MAX_GENRES = 12
+
 
 class Game(Base):
     """One row = one game in one user's library (denormalized by design)."""

@@ -8,7 +8,7 @@
 import { redirect } from "next/navigation";
 import { revalidateTag } from "next/cache";
 import { createMyProfile } from "@/lib/meApi";
-import { libraryCacheTag } from "@/lib/libraryApi";
+import { followsTag, libraryCacheTag } from "@/lib/libraryApi";
 import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 import { userLibraryPath } from "@/lib/profile";
 
@@ -48,19 +48,26 @@ export async function submitOnboarding(
   // both silent and unrecoverable for the affected user. Next's caching of
   // non-OK responses is an implementation detail, not a documented guarantee,
   // and it is the kind of thing a minor release can change underneath us.
+  //
+  // The umbrella tag on purpose, not a narrow one: the thing being guarded
+  // against is a cached 404 for a username that had no rows at all, so there is
+  // no single resource to name. This is exactly the "purge everything for this
+  // user" case the umbrella tag exists for.
   revalidateTag(libraryCacheTag(result.profile.username));
 
   // The founder's page changes too, and nothing else purges it. Signup creates
   // TWO follow edges (new user → founder and back, api/app/services/me.py), so
-  // it moves the founder's follower count, following count and both lists —
-  // exactly what the follow actions revalidate two tags for. Without this,
-  // /video-games keeps serving its prerendered follower count until some
+  // it moves the founder's follower count, following count and both lists.
+  // Without this, /video-games serves its prerendered follower count until some
   // unrelated write of Robert's happens to purge the tag.
+  //
+  // followsTag rather than the umbrella tag: signup cannot touch the founder's
+  // games or wishlist, so purging those would re-fetch a 155-game library to
+  // publish a changed follower count.
   //
   // Safe to hardcode: the founder handle is a constant on both sides
   // (LIBRARY_OWNER_USERNAME here, FOUNDER_USERNAME in api/app/core/config.py).
-  // A no-op when the new user IS the founder, since the tag is the same one.
-  revalidateTag(libraryCacheTag(LIBRARY_OWNER_USERNAME));
+  revalidateTag(followsTag(LIBRARY_OWNER_USERNAME));
 
   // Success: profile created. redirect() throws NEXT_REDIRECT, which Next
   // turns into a client navigation — so nothing after this line runs, and the

@@ -8,7 +8,7 @@
 //
 // Authenticated per-viewer READS are a separate, deliberate pattern: client
 // components may call /api/py/me/* directly with the token from the browser
-// Supabase client (e.g. useIsLibraryOwner) — the session is readable in the
+// Supabase client (e.g. useViewerRelationship) — the session is readable in the
 // browser by design of @supabase/ssr, and read-only calls need no
 // revalidation. Writes never take that path.
 import "server-only";

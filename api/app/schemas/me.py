@@ -10,7 +10,7 @@ from datetime import date
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from app.models.game import RATING_NAMES
+from app.models.game import MAX_GENRES, RATING_NAMES
 from app.schemas.users import CamelModel
 
 # Request bodies reject unknown keys ("extra": a typo like {"ratings": ...}
@@ -95,10 +95,9 @@ def clean_genres(value: list[str]) -> list[str]:
     them as separate options. Done here rather than in the modal so it also
     covers Server Action calls that never touch the UI.
     """
-    # Bounds what a malformed source can write. GameCreate/WishlistCreate also
-    # cap the list at 10, but the backfill writes through here without going via
-    # those schemas, so the guard belongs on the shared validator too.
-    MAX_GENRES = 12
+    # Bounds what a malformed source can write. The create schemas cap the list
+    # with the same constant, but the backfill writes through here without going
+    # via those schemas, so the guard belongs on the shared validator too.
     cleaned: list[str] = []
     seen: set[str] = set()
     for genre in value:
@@ -143,7 +142,7 @@ class GameCreate(CamelModel):
 
     name: str = Field(min_length=1, max_length=200)
     system: str = Field(min_length=1, max_length=100)
-    genres: list[str] = Field(default_factory=list, max_length=10)
+    genres: list[str] = Field(default_factory=list, max_length=MAX_GENRES)
     release_date: date | None = None
     image_url: str = Field(default="", max_length=500)
     igdb_id: int | None = None
@@ -169,7 +168,7 @@ class WishlistCreate(CamelModel):
 
     name: str = Field(min_length=1, max_length=200)
     system: str = Field(default="", max_length=100)
-    genres: list[str] = Field(default_factory=list, max_length=10)
+    genres: list[str] = Field(default_factory=list, max_length=MAX_GENRES)
     release_date: date | None = None
     image_url: str = Field(default="", max_length=500)
     igdb_id: int | None = None

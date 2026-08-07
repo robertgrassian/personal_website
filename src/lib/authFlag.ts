@@ -20,8 +20,8 @@
 // FastAPI. Never gate anything that matters on this flag.
 //
 // It also cannot answer "is this viewer the owner of THIS library?" — the JWT's
-// `sub` is a user id, not a username, so useIsLibraryOwner still needs its
-// /me/profile round trip and still resolves after hydration.
+// `sub` is a user id, not a username, so useViewerRelationship still needs its
+// /me/relationship round trip and still resolves after hydration.
 
 // Presence-style, so CSS matches html[data-authed] regardless of value.
 //
@@ -29,13 +29,16 @@
 // this, and data-hide-authed/data-hide-anon are literals there and in
 // AuthButton/SignupCta. CSS cannot import a TS constant, so a rename type-checks
 // and builds clean while silently disabling the mechanism. Grep, don't rename.
-export const AUTHED_ATTR = "data-authed";
+//
+// Module-private: nothing outside this file references it, and keeping it that
+// way is what makes the warning above accurate about the real surface.
+const AUTHED_ATTR = "data-authed";
 
 // Mirrors supabase-js's own derivation. Duplicating a library internal is a
 // coupling, but the loose alternative ("any sb-* cookie") is worse — see the
 // code-verifier note below. Also covers local dev, where the host is 127.0.0.1
 // and the key is `sb-127-auth-token`.
-export function sessionCookieKey(supabaseUrl: string): string {
+function sessionCookieKey(supabaseUrl: string): string {
   return `sb-${new URL(supabaseUrl).hostname.split(".")[0]}-auth-token`;
 }
 

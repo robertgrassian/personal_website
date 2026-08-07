@@ -6,9 +6,11 @@ import { createClient } from "@/lib/supabase/client";
 // Resolves the viewer's relationship to the library they're looking at, so the
 // follow button and the "back to my library" link know what to render.
 //
-// Same constraint and same shape as useIsLibraryOwner: the page HTML is
-// identical for every viewer (one is prerendered static, the other cached), so
-// this can only be answered client-side after hydration. It cannot use the
+// The page HTML is identical for every viewer (one route is prerendered static,
+// the other cached), so this can only be answered client-side after hydration.
+// Its `isMe` result also decides whether edit affordances render, via
+// FollowControls' useIsOwner — one request, one answer, so the Follow button and
+// the edit pencils can never contradict each other. It cannot use the
 // pre-paint data-authed flag either — that proves a session exists, not whose,
 // and "am I following this person?" is a question only the API can answer.
 //
@@ -45,8 +47,8 @@ export function useViewerRelationship(
   useEffect(() => {
     let cancelled = false;
 
-    // Reset before resolving, exactly as in useIsLibraryOwner and for the same
-    // reason: navigating from one /video-games/u/[username] page to another
+    // Reset before resolving. Load-bearing, not defensive: navigating from one
+    // /video-games/u/[username] page to another
     // reconciles this component rather than remounting it. Without the reset a
     // "following" answer would persist onto the next person's library, showing
     // "Following" for someone you have never followed — and the unfollow it

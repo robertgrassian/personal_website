@@ -6,6 +6,7 @@
 // token.
 import { useActionState } from "react";
 import { submitOnboarding, type OnboardingState } from "./actions";
+import { accentButtonClass } from "@/components/video_games/formStyles";
 
 export function OnboardingForm({ suggestedUsername }: { suggestedUsername: string }) {
   // useActionState (React 19): given (action, initialState) it returns the
@@ -54,11 +55,7 @@ export function OnboardingForm({ suggestedUsername }: { suggestedUsername: strin
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="rounded-md bg-link px-4 py-2 font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
-      >
+      <button type="submit" disabled={isPending} className={accentButtonClass}>
         {isPending ? "Creating…" : "Create my library"}
       </button>
 

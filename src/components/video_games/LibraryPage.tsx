@@ -39,9 +39,8 @@ type LibraryPageProps = {
 
 export async function LibraryPage({ username, showSignupCta = false }: LibraryPageProps) {
   // Awaited first and alone: a username nobody owns must become a 404 page,
-  // not the loud "the API is unwell" error that getGames() would throw for
-  // the same 404. Costs one extra round trip on a cache miss, and the three
-  // reads share a cache tag so they warm and expire together.
+  // not the loud "the API is unwell" error that getGames() would throw for the
+  // same 404. Costs one extra round trip on a cache miss.
   const profile = await getProfile(username);
   if (!profile) {
     // ...with one exception. The founder's profile is seeded, not user-created,
@@ -95,12 +94,19 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
 
   return (
     <main className="min-h-screen bg-shelf-bg shelf-theme">
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        {/* The sign-in/out control lives here rather than the global nav: the
-            portfolio has no accounts, the library is the only app that does.
-            items-start keeps it aligned to the heading's first line when a
-            long display name wraps. */}
-        <FollowStateProvider ownerUsername={profile.username}>
+      {/* Wraps the whole page, not just the header: GameLibrary reads
+          useIsOwner() from this context to decide whether to render edit
+          controls. Spanning a server-rendered subtree costs nothing, because
+          `children` is a serialized RSC slot rather than an import — SignupCta
+          and CrtTv ship no extra JavaScript, and when `relationship` resolves
+          React re-renders only the provider, since this server parent created
+          the child elements. */}
+      <FollowStateProvider ownerUsername={profile.username}>
+        <div className="max-w-7xl mx-auto px-6 py-12">
+          {/* The sign-in/out control lives here rather than the global nav: the
+              portfolio has no accounts, the library is the only app that does.
+              items-start keeps it aligned to the heading's first line when a
+              long display name wraps. */}
           <div className="flex items-start justify-between gap-4">
             <div>
               {/* Same wording on both routes, since both show the same library.
@@ -162,32 +168,29 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
               <AuthButton />
             </div>
           </div>
-        </FollowStateProvider>
-        {/* useSearchParams (inside LibraryCount) requires a Suspense boundary.
-            The fallback shows the default-view count so there's no flash. */}
-        <Suspense fallback={<p className="mt-2 text-shelf-text-muted">{playedCount} games</p>}>
-          <LibraryCount playedCount={playedCount} wishlistCount={wishlistCount} />
-        </Suspense>
+          {/* useSearchParams (inside LibraryCount) requires a Suspense boundary.
+              The fallback shows the default-view count so there's no flash. */}
+          <Suspense fallback={<p className="mt-2 text-shelf-text-muted">{playedCount} games</p>}>
+            <LibraryCount playedCount={playedCount} wishlistCount={wishlistCount} />
+          </Suspense>
 
-        {showSignupCta && <SignupCta />}
+          {showSignupCta && <SignupCta />}
 
-        {currentlyPlayingGames.length > 0 && <CrtTv games={currentlyPlayingGames} compact />}
+          {currentlyPlayingGames.length > 0 && <CrtTv games={currentlyPlayingGames} compact />}
 
-        {/* Suspense is required because GameLibrary uses useSearchParams() */}
-        <Suspense fallback={null}>
-          <GameLibrary
-            games={libraryGames}
-            wishlist={wishlist}
-            currentlyPlayingGames={currentlyPlayingGames}
-            unratedGames={unratedGames}
-            // Which library this is. GameLibrary hands it to useIsLibraryOwner
-            // so the viewer's own username can be compared against it.
-            ownerUsername={profile.username}
-            followers={followers}
-            following={following}
-          />
-        </Suspense>
-      </div>
+          {/* Suspense is required because GameLibrary uses useSearchParams() */}
+          <Suspense fallback={null}>
+            <GameLibrary
+              games={libraryGames}
+              wishlist={wishlist}
+              currentlyPlayingGames={currentlyPlayingGames}
+              unratedGames={unratedGames}
+              followers={followers}
+              following={following}
+            />
+          </Suspense>
+        </div>
+      </FollowStateProvider>
     </main>
   );
 }

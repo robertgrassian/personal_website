@@ -5,7 +5,7 @@
 // The public profile behind a library page. Public data only: this payload is
 // cached and shared across viewers, so nothing per-viewer belongs here (the
 // "is this my library?" question is answered client-side after hydration —
-// see useIsLibraryOwner).
+// see useViewerRelationship).
 export type LibraryProfile = {
   username: string;
   displayName: string;
