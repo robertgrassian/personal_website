@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import type { Game } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
 import { ShelfSection } from "./ShelfSection";
 import { FilterBar } from "./FilterBar";
-import { StatsPanel } from "./StatsPanel";
 import type { GameView } from "./libraryConfig";
 import {
   filterGames,
@@ -18,6 +18,15 @@ import {
 import { useFilterOptions } from "./useFilterOptions";
 import type { UrlState } from "./useGameLibraryUrlState";
 import { accentButtonClass } from "./formStyles";
+
+// Loaded on demand rather than in the page bundle. The panel pulls in GameStats
+// (five aggregation passes) and SqlQueryPanel, neither of which most visitors
+// ever open. `ssr: false` because there is nothing useful to prerender: the
+// panel is closed on first paint by definition. (alasql, the heavy dependency,
+// is already deferred separately inside SqlQueryPanel.)
+const StatsPanel = dynamic(() => import("./StatsPanel").then((m) => m.StatsPanel), {
+  ssr: false,
+});
 
 type GameShelvesProps = {
   games: Game[];
@@ -72,6 +81,32 @@ export function GameShelves({
     setRating,
     clearFilters,
   } = urlState;
+
+  // The panel used to mount for every visitor and merely slide out of view on
+  // a CSS transform, so its aggregation passes ran and its DOM was hydrated for
+  // everyone. Two pieces of state rather than one:
+  //
+  //   statsMounted   latched true on first open and never back, so closing the
+  //                  panel keeps whatever you typed into the SQL tab
+  //   statsVisible   the isOpen the panel actually sees, flipped one frame
+  //                  after mount so the slide-in has a start state to animate
+  //                  from instead of appearing already open
+  //
+  // The frame trick is best-effort: on the very first open the dynamic import
+  // may resolve after the animation frame has passed, in which case the panel
+  // mounts open and the slide-in is skipped that once. Every later open
+  // animates normally.
+  const [statsMounted, setStatsMounted] = useState(false);
+  const [statsVisible, setStatsVisible] = useState(false);
+  useEffect(() => {
+    if (!statsOpen) {
+      setStatsVisible(false);
+      return;
+    }
+    setStatsMounted(true);
+    const frame = requestAnimationFrame(() => setStatsVisible(true));
+    return () => cancelAnimationFrame(frame);
+  }, [statsOpen]);
 
   // "There is genuinely nothing in this view", as opposed to "the filters
   // excluded everything". Rated and unrated are both checked because an owner
@@ -224,11 +259,11 @@ export function GameShelves({
         )}
       </div>
 
-      {view === "played" && (
+      {view === "played" && statsMounted && (
         <StatsPanel
           games={games}
           currentlyPlayingGames={currentlyPlayingGames}
-          isOpen={statsOpen}
+          isOpen={statsVisible}
           onClose={onStatsClose}
         />
       )}
