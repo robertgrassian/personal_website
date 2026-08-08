@@ -20,7 +20,12 @@ import {
 // Filter keys that behave identically across views — one shared setter.
 export type SharedFilterKey = "search" | "system" | "genre";
 
-type UrlState = {
+// Exported so GameLibrary can hand the whole thing to GameShelves as one prop.
+// The alternative was eleven pass-through props, or GameShelves calling the
+// hook a second time — which would work, since everything here derives from the
+// URL, but would duplicate the parse and hide that the two components are
+// reading one piece of state.
+export type UrlState = {
   view: View;
   groupBy: GroupBy;
   sortOrder: SortOrder;
