@@ -19,17 +19,8 @@ asked for, which needs no reason and is marked `(Promoted by request YYYY-MM-DD.
 get demoted back out. Adding a sixth item means demoting one, on purpose. (Split out 2026-08-07:
 the old rule sent every bug straight here, so four of five slots were defects.)
 
-- [ ] **Implement account deletion (`DELETE /api/py/me/account`).** Promoted from Backlog
-      2026-07-30: the last unbuilt thing the spec actually committed to, and the one item here
-      that is a promise rather than a polish. Spec decision #22 planned it (cascade down from
-      `profiles` + `auth.users` removal via the Supabase Admin API, which
-      `core/supabase_admin.py` already wraps for the over-cap cleanup), but it was never built.
-      Noticed 2026-07-28 while editing `/privacy`: the policy described deleting your account
-      as though it were self-serve, so the copy now points at email instead, which is the only
-      mechanism that actually exists. Once the endpoint and a UI control ship, update that
-      paragraph (there is a comment in `src/app/privacy/page.tsx` marking it). Note
-      `rate_limits` has no FK to `profiles`, so those rows will not cascade and need deleting
-      explicitly.
+_Nothing queued. The next thing to work on is whichever bug below has started to matter, or
+whatever gets promoted here by request._
 
 ## Bugs
 
@@ -689,6 +680,25 @@ head` being run by hand from a laptop pointed at production.<br>
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Account deletion shipped** (2026-08-07, branch `worktree-account-deletion`).
+      `DELETE /api/py/me/account`, a control at `/video-games/account` reached from an
+      "Account" link in the library header, and `/privacy` rewritten to point at it instead of
+      email.<br>
+      _Two things worth keeping._ The cascade root is `auth.users`, not `profiles` — the FK
+      runs profiles → auth.users, so the service cannot `db.delete(profile)` and expect the
+      auth user to follow; it calls the Admin API and lets the cascade run down. And
+      `rate_limits` has no FK to `profiles` (deliberate, so it can cover pre-onboarding
+      callers), so `rate_limit` repo's `delete_for_user` clears it by hand, after the Admin
+      call so a 503 leaves the account whole.<br>
+      _Two decisions that could be revisited._ `supabase_admin.py` now has both
+      `delete_auth_user` (best-effort, for the over-cap signup cleanup) and
+      `delete_auth_user_or_raise` (503s, for this), because a swallowed failure here would
+      report a deletion that never happened. And other users who followed a deleted account
+      keep a stale `followsTag` until something else purges it: fixing that properly means the
+      API returning the affected usernames, which costs the 204 every other DELETE returns.
+      Only the founder's tag is purged today, which covers every real case while the founder is
+      the only account with followers.
+
 - [x] **The two per-viewer API calls on a library page collapsed into one** (2026-08-07).
       `useIsLibraryOwner.ts` is deleted. Edit affordances now read `isMe` off the relationship
       response via a `useIsOwner()` selector exported from `FollowControls.tsx`, so one request
@@ -999,9 +1009,3 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       returns 200 and `/api/py/health` reports `{"status":"ok","env":"prod","db":"ok"}`.
       (The optimistic-UI click-through and the first-write cold-start timing were not
       measured — do those next time you edit something in prod)
-- [x] `npm run build` investigated — **not broken**. It is green on `main` (17/17 pages); it
-      fails only when the library API is unreachable at build time, which is deliberate:
-      `requireLibraryApiOrigin()` (`src/lib/libraryApi.ts`) documents that an unresolvable
-      origin must fail loudly rather than prerender an empty library, and the error already
-      says "Is the API running? Start it with `npm run dev:api`." Start the API before
-      building locally

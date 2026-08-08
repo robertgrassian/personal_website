@@ -163,7 +163,8 @@ export async function fetchMyProfile(): Promise<MyProfile | null> {
 //
 // IF A RENAME FEATURE EVER LANDS, THIS MUST GO (or be invalidated by it):
 // a stale entry would revalidate the old username's tag, leaving the renamed
-// library's pages stale instead.
+// library's pages stale instead. Account deletion is the milder version of the
+// same hazard and is already handled: deleteMyAccount() drops the entry.
 const usernameByUserId = new Map<string, string>();
 
 /** The caller's username, or null when signed out / not onboarded.
@@ -240,6 +241,29 @@ const PROFILE_ERRORS: Record<
   403: { reason: "at_capacity", fallback: "Signups are currently at capacity." },
   429: { reason: "rate_limited", fallback: "Too many attempts, wait a moment and try again." },
 };
+
+/** Delete the caller's account: the auth user, the profile, and everything that
+ *  cascades from it. The API answers 204, or 503 if it cannot reach the
+ *  accounts service, in which case nothing was deleted.
+ *
+ *  Clears this user's `usernameByUserId` entry on success, rather than exposing
+ *  an invalidator for callers to remember: a stale entry would keep resolving a
+ *  freed username for the life of the serverless instance, and if someone
+ *  re-registered it that instance would purge a stranger's cache tag. The map
+ *  stays private, and the one operation that invalidates it owns the cleanup.
+ *
+ *  The session cookie is untouched here. It is browser state, so the caller
+ *  must also sign out client-side or the UI keeps believing it is signed in. */
+export async function deleteMyAccount(): Promise<MutateResult> {
+  const supabase = await createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const result = await mutate("/api/py/me/account", "DELETE", null, "delete your account");
+  if (result.ok && session) usernameByUserId.delete(session.user.id);
+  return result;
+}
 
 // Simple ok/error result for /me mutations — no reason discrimination yet
 // because the callers only show a message; add reasons when one actually
