@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Game } from "@/lib/games";
 import { GameStats } from "./GameStats";
 import { SqlQueryPanel } from "./SqlQueryPanel";
@@ -19,16 +19,6 @@ type PanelTab = "overview" | "query";
 
 export function StatsPanel({ games, currentlyPlayingGames, isOpen, onClose }: StatsPanelProps) {
   const [activeTab, setActiveTab] = useState<PanelTab>("overview");
-
-  // The SQL table is rated games plus any in-progress game not already there
-  // (an unrated game being played now), so `currently_playing` is queryable.
-  // GameStats instead receives the two lists separately (below) because it needs
-  // currently-playing games ranked first in "Recently Played" — an order it
-  // can't recover from a pre-merged list.
-  const queryableGames = useMemo(() => {
-    const names = new Set(games.map((g) => g.name));
-    return [...games, ...currentlyPlayingGames.filter((g) => !names.has(g.name))];
-  }, [games, currentlyPlayingGames]);
 
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -106,7 +96,12 @@ export function StatsPanel({ games, currentlyPlayingGames, isOpen, onClose }: St
             <GameStats games={games} currentlyPlayingGames={currentlyPlayingGames} />
           </div>
           <div className={activeTab === "query" ? "" : "hidden"}>
-            <SqlQueryPanel games={queryableGames} />
+            {/* `games` is the whole played library, so an unrated in-progress
+                game is already in the SQL table and `currently_playing` is
+                queryable without merging the two lists. GameStats above still
+                takes them separately: it needs currently-playing games ranked
+                first in "Recently Played", an order a merged list loses. */}
+            <SqlQueryPanel games={games} />
           </div>
         </div>
       </aside>
