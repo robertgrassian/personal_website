@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
-import type { Filters, Rating } from "@/lib/games";
-import { RATINGS } from "@/lib/games";
+import type { Filters, RatingFilter } from "@/lib/games";
+import { RATINGS, UNRATED_LABEL } from "@/lib/games";
 import type { WishlistFilters } from "@/lib/wishlist";
 import type { GroupBy, SortOrder } from "./libraryConfig";
 // Filter keys shared by both views — one setter handles all three. `rating` is
@@ -56,7 +56,7 @@ type SharedProps = {
 type PlayedProps = SharedProps & {
   view: "played";
   filters: Filters;
-  onRatingChange: (value: Rating | "") => void;
+  onRatingChange: (value: RatingFilter) => void;
   availableRatings: Set<string>;
 };
 
@@ -277,9 +277,11 @@ export function FilterBar(props: FilterBarProps) {
           {view === "played" && (
             <FilterSelect
               value={props.filters.rating}
-              onChange={(v) => props.onRatingChange(v as Rating | "")}
+              onChange={(v) => props.onRatingChange(v as RatingFilter)}
               allLabel="All Ratings"
-              options={RATINGS.map((r) => r.name)}
+              // Unrated last, matching where its shelf lands under
+              // groupBy="rating" so the dropdown reads in shelf order.
+              options={[...RATINGS.map((r) => r.name), UNRATED_LABEL]}
               available={props.availableRatings}
               className={`${selectClass} w-full sm:w-auto`}
             />

@@ -71,25 +71,22 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
     getFollowing(username),
   ]);
   // All in-progress games — the CRT cycles through them like TV channels, and
-  // the stats panel uses them so "Recently Played" can include a currently-playing
-  // game even when it's unrated (and thus absent from the rated shelves below).
-  // Filtered before the rating cut below, so an unrated in-progress game still
-  // appears on the CRT.
+  // the stats panel uses them so "Recently Played" can rank a currently-playing
+  // game first, an order it can't recover from the full list.
   const currentlyPlayingGames = games.filter((g) => g.currentlyPlaying);
-  // Shelves hold finished, rated games only. A game with no rating yet (usually
-  // the one currently being played) is excluded here; once it gets a rating it
-  // shows up on the shelves — and in both places if it's still being played.
-  const libraryGames = games.filter((g) => g.rating !== "");
-  // Unrated games power the owner-only "Unrated" shelf inside GameLibrary —
-  // without it, clearing a rating would make a game unreachable from the UI
-  // (no case, no pencil, no way to re-rate). Passed for every viewer but only
-  // rendered after the client-side owner check, so the static HTML stays
-  // identical for everyone.
-  const unratedGames = games.filter((g) => g.rating === "");
-  // Headline counts. "Played" spans the whole collection you've engaged with:
-  // every rated game plus anything currently in progress. The `||` de-dupes a
-  // game that's both rated and currently playing — it's counted once.
-  const playedCount = games.filter((g) => g.rating !== "" || g.currentlyPlaying).length;
+  // `games` goes to GameLibrary whole, rated and unrated alike. It used to be
+  // split on `rating !== ""` here, which left the unrated half outside the
+  // filter/group/sort pipeline entirely — invisible to search, and stuck on
+  // screen when a filter matched nothing. An unrated game is still a game that
+  // was played, so it belongs on the shelves with the rest; `groupBy: "rating"`
+  // collects them under "Unrated" (pinned last), and the rating filter has an
+  // "Unrated" option for looking at just those.
+  //
+  // Headline count: every game in the played view, since every one of them now
+  // reaches a shelf. A currently-playing game appears both here and on the CRT
+  // above, which is the same double-billing a rated in-progress game has always
+  // had.
+  const playedCount = games.length;
   const wishlistCount = wishlist.length;
 
   return (
@@ -181,10 +178,9 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
           {/* Suspense is required because GameLibrary uses useSearchParams() */}
           <Suspense fallback={null}>
             <GameLibrary
-              games={libraryGames}
+              games={games}
               wishlist={wishlist}
               currentlyPlayingGames={currentlyPlayingGames}
-              unratedGames={unratedGames}
               followers={followers}
               following={following}
             />
