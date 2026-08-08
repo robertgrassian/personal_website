@@ -666,6 +666,125 @@ def test_patch_game_forbidden_in_preview(
 
 
 # ---------------------------------------------------------------------------
+# DELETE /me/account
+# ---------------------------------------------------------------------------
+#
+# The endpoint's real cascade root is the GoTrue Admin API call, which CI has no
+# credentials for. These tests stub app.services.me.delete_auth_user_or_raise
+# with the equivalent raw SQL so the DB half (what actually cascades, and the
+# rate_limits rows that do not) is exercised for real. The HTTP half is covered
+# by test_delete_account_unconfigured_admin_is_503, which asserts the endpoint
+# refuses rather than lying when the credentials are absent.
+
+
+def _stub_admin_delete(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.services.me.delete_auth_user_or_raise", _delete_auth_user)
+
+
+def _count(sql: str, user_id: uuid.UUID) -> int:
+    sm = get_sessionmaker()
+    with sm() as session:
+        return session.execute(text(sql), {"id": user_id}).scalar_one()
+
+
+@requires_db
+def test_delete_account_removes_everything_owned(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id, game_id = fresh_user_with_game
+    _stub_admin_delete(monkeypatch)
+    client = client_as(user_id)
+    _add_wishlist(user_id, {"name": "Someday Quest"})
+    # Onboarding auto-follows the founder both ways, so follow edges already
+    # exist without creating any here.
+    assert _count("SELECT count(*) FROM follows WHERE follower_id = :id", user_id) > 0
+    # The write guard has charged this user's "writes" bucket by now, which is
+    # the row that has no FK and would survive the cascade.
+    assert _count("SELECT count(*) FROM rate_limits WHERE user_id = :id", user_id) > 0
+
+    assert client.delete("/api/py/me/account").status_code == 204
+
+    assert _count("SELECT count(*) FROM auth.users WHERE id = :id", user_id) == 0
+    assert _count("SELECT count(*) FROM profiles WHERE id = :id", user_id) == 0
+    assert _count("SELECT count(*) FROM games WHERE user_id = :id", user_id) == 0
+    assert _count("SELECT count(*) FROM wishlist_items WHERE user_id = :id", user_id) == 0
+    assert _count("SELECT count(*) FROM rate_limits WHERE user_id = :id", user_id) == 0
+    assert (
+        _count(
+            "SELECT count(*) FROM follows WHERE follower_id = :id OR followee_id = :id",
+            user_id,
+        )
+        == 0
+    )
+    sm = get_sessionmaker()
+    with sm() as session:
+        assert session.query(PlaySession).filter(PlaySession.game_id == game_id).count() == 0
+
+
+@requires_db
+def test_delete_account_without_profile_succeeds(
+    fresh_auth_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Signing in mints the auth user before onboarding runs, so "authenticated
+    # with no profile" is a real account. It must be deletable, not a 403.
+    user_id, _ = fresh_auth_user
+    _stub_admin_delete(monkeypatch)
+    assert client_as(user_id).delete("/api/py/me/account").status_code == 204
+    assert _count("SELECT count(*) FROM auth.users WHERE id = :id", user_id) == 0
+
+
+@requires_db
+def test_delete_account_is_idempotent(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Access tokens are verified by signature, so one outlives the user it
+    # names: a repeat delete authenticates fine and finds nothing to delete.
+    # That is the outcome the caller wanted, so it is a 204, not an error.
+    user_id, _ = fresh_user_with_game
+    _stub_admin_delete(monkeypatch)
+    assert client_as(user_id).delete("/api/py/me/account").status_code == 204
+    assert client_as(user_id).delete("/api/py/me/account").status_code == 204
+
+
+@requires_db
+def test_delete_account_unconfigured_admin_is_503(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Nothing stubbed: without admin credentials the endpoint must refuse and
+    # leave the account whole, rather than reporting a deletion it cannot do.
+    user_id, _ = fresh_user_with_game
+    # setenv to "" rather than delenv: Settings has env_file=<repo>/.env, so
+    # removing the process env var would just fall through to whatever the
+    # developer has in that file. An empty string is falsy and overrides it.
+    monkeypatch.setenv("SUPABASE_URL", "")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    get_settings.cache_clear()
+    try:
+        response = client_as(user_id).delete("/api/py/me/account")
+        assert response.status_code == 503
+        assert "nothing was deleted" in response.json()["detail"]
+        assert _count("SELECT count(*) FROM profiles WHERE id = :id", user_id) == 1
+        assert _count("SELECT count(*) FROM games WHERE user_id = :id", user_id) == 1
+    finally:
+        get_settings.cache_clear()
+
+
+@requires_db
+def test_delete_account_forbidden_in_preview(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id, _ = fresh_user_with_game
+    _stub_admin_delete(monkeypatch)
+    monkeypatch.setenv("APP_ENV", "preview")
+    get_settings.cache_clear()
+    try:
+        assert client_as(user_id).delete("/api/py/me/account").status_code == 503
+        assert _count("SELECT count(*) FROM profiles WHERE id = :id", user_id) == 1
+    finally:
+        get_settings.cache_clear()
+
+
+# ---------------------------------------------------------------------------
 # POST /me/games (add a game)
 # ---------------------------------------------------------------------------
 

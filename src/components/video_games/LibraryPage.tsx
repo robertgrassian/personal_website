@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 // The stylesheets live with the component that needs them rather than in each
 // route's layout: two routes render this shell now, and a per-route import
@@ -22,6 +23,7 @@ import {
   FollowCountLinksFallback,
 } from "@/components/video_games/FollowCountLinks";
 import { SignupCta } from "@/components/video_games/SignupCta";
+import { headerLinkClass } from "@/components/video_games/formStyles";
 
 // One library page, two routes: /video-games (Robert's shelf, at its stable
 // URL) and /video-games/u/[username] (anyone's). Extracted so the two can never
@@ -165,6 +167,13 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
                 resolves after hydration from the same context. */}
             <div className="flex items-center gap-3">
               <BackToMyLibrary />
+              {/* Always rendered, hidden from signed-out visitors by CSS on the
+                  pre-paint flag — the same mechanism AuthButton uses, so the
+                  cluster never pops in a beat after paint. The page itself
+                  re-checks the session server-side; this flag is display only. */}
+              <Link href="/video-games/account" className={headerLinkClass} data-hide-anon="">
+                Account
+              </Link>
               <AuthButton />
             </div>
           </div>

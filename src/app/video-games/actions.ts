@@ -13,6 +13,7 @@ import {
   createMyGame,
   createMySession,
   createMyWishlistItem,
+  deleteMyAccount,
   deleteMyGame,
   deleteMyWishlistItem,
   fetchMyUsername,
@@ -27,8 +28,8 @@ import {
   type MutateResult,
   type SearchIgdbResult,
 } from "@/lib/meApi";
-import { followsTag, gamesTag, wishlistTag } from "@/lib/libraryApi";
-import { RATINGS, type NewGame, type Rating } from "@/lib/games";
+import { followsTag, gamesTag, libraryCacheTag, wishlistTag } from "@/lib/libraryApi";
+import { LIBRARY_OWNER_USERNAME, RATINGS, type NewGame, type Rating } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
 
 /** A cache-tag builder from src/lib/libraryApi: gamesTag, wishlistTag or
@@ -330,4 +331,43 @@ export async function unfollowUserAction(username: string): Promise<MutateResult
     return { ok: false, message: "Invalid unfollow request." };
   }
   return write(() => unfollowUser(username), [followsTag], username);
+}
+
+/** Delete the caller's account and everything in it.
+ *
+ *  The one write here that cannot use write(): that helper resolves the
+ *  username AFTER the mutation, and by then the profile is gone, so
+ *  fetchMyUsername() would return null and nothing would be purged. The
+ *  username is read first instead. Doing so does not break fetchMyUsername's
+ *  "only after an accepted write" rule, which exists so a forged cookie cannot
+ *  choose whose tag gets purged: the value is only USED inside the
+ *  `if (result.ok)` below, and a forged cookie's DELETE fails 401 first.
+ *
+ *  The umbrella tag, not a narrow one: every cached read for this library is
+ *  now a 404, so there is no single resource to name.
+ *
+ *  Does not redirect. The client has to sign out first (the session cookie is
+ *  browser state and survives the server-side delete), so navigation is its
+ *  call, not ours. */
+export async function deleteAccountAction(): Promise<MutateResult> {
+  const username = await fetchMyUsername();
+
+  const result = await deleteMyAccount();
+  if (!result.ok) return result;
+
+  if (username) revalidateTag(libraryCacheTag(username));
+
+  // Signup wires every new account to the founder in both directions
+  // (api/app/services/me.py), so deleting one always moves the founder's
+  // follower count, following count and both lists. Same hardcoded constant and
+  // same reasoning as the mirror case in src/app/onboarding/actions.ts.
+  revalidateTag(followsTag(LIBRARY_OWNER_USERNAME));
+
+  // Anyone ELSE who followed this account keeps a stale follows page until
+  // their tag is purged by something else. Fixing it properly means the API
+  // reporting which usernames were affected, which would mean giving up the
+  // 204 that every other DELETE here returns. Not worth it while the founder is
+  // the only account with followers.
+
+  return result;
 }

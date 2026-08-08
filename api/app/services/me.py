@@ -21,9 +21,10 @@ from sqlalchemy.orm import Session
 from app.core.auth import AuthenticatedUser
 from app.core.config import FOUNDER_USERNAME, get_settings
 from app.core.errors import DomainError
-from app.core.supabase_admin import delete_auth_user
+from app.core.supabase_admin import delete_auth_user, delete_auth_user_or_raise
 from app.models import Profile
 from app.repositories import me as me_repo
+from app.repositories import rate_limit as rate_limit_repo
 from app.repositories import users as users_repo
 from app.schemas.me import (
     GameCreate,
@@ -360,6 +361,33 @@ def create_my_profile(
             raise ProfileExistsError("Profile already exists for this account.") from exc
         raise UsernameError("taken", f"The username '{username}' is already taken.") from exc
     return MyProfileRead(username=profile.username, display_name=profile.display_name)
+
+
+def delete_my_account(db: Session, user: AuthenticatedUser) -> None:
+    """Delete the caller's account and everything belonging to it.
+
+    The auth.users row is the root of the cascade, not the profile: profiles.id
+    references auth.users(id) ON DELETE CASCADE, and games / wishlist_items /
+    both directions of follows cascade from profiles (play_sessions from
+    games). So this cannot be a ``db.delete(profile)`` — the cascade runs the
+    other way, and deleting the profile locally would leave the auth user able
+    to sign back in to a half-deleted account.
+
+    Order is deliberate. The Admin API call goes first, so a failure there
+    (503) leaves the account entirely intact rather than partly dismantled.
+    Only once it has succeeded do the rate-limit counters get cleared, which is
+    also why that step cannot be a route dependency: rate_limit_writes in
+    WRITE_GUARDS inserts a row for this user on the way in, and a dependency
+    could not be ordered after it.
+
+    No OnboardingRequiredError: an authenticated user with no profile row is a
+    real, deletable account (OAuth mints the auth user before onboarding runs),
+    and it is the state that most deserves a working delete. Nothing here reads
+    the profile, so the no-profile case needs no special path.
+    """
+    delete_auth_user_or_raise(user.id)
+    rate_limit_repo.delete_for_user(db, user.id)
+    logger.info("Deleted account %s", user.id)
 
 
 def create_my_game(db: Session, user: AuthenticatedUser, payload: GameCreate) -> GameRead:
