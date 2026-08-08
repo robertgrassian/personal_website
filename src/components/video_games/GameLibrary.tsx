@@ -18,6 +18,7 @@ import {
   groupWishlist,
   sortWishlist,
 } from "./pipeline";
+import { useFilterOptions } from "./useFilterOptions";
 import { useGameLibraryUrlState } from "./useGameLibraryUrlState";
 import { useIsOwner } from "./FollowControls";
 import { EditGameModal } from "./EditGameModal";
@@ -101,59 +102,21 @@ export function GameLibrary({
   const isNothingHere =
     view === "played" ? games.length === 0 && unratedGames.length === 0 : wishlist.length === 0;
 
-  // Option lists for each view's dropdowns — memoized on the immutable props.
-  const allSystems = useMemo(() => [...new Set(games.map((g) => g.system))].sort(), [games]);
-  const allGenres = useMemo(() => [...new Set(games.flatMap((g) => g.genres))].sort(), [games]);
-  const allSystemsWishlist = useMemo(
-    () => [...new Set(wishlist.map((w) => w.system))].sort(),
-    [wishlist]
-  );
-  const allGenresWishlist = useMemo(
-    () => [...new Set(wishlist.flatMap((w) => w.genres))].sort(),
-    [wishlist]
-  );
   // Shelf-system suggestions for the add/promote forms. Deliberately distinct
-  // from `allSystems`: the filter dropdown should only offer systems you can
-  // actually filter to (rated games), but a system that currently exists only
-  // on an unrated game is still one of your shelves, so it belongs here.
+  // from the filter bar's `allSystems`: that dropdown should only offer systems
+  // you can actually filter to (rated games), but a system that currently
+  // exists only on an unrated game is still one of your shelves, so it belongs
+  // here. Stays in this component because it feeds the modals, not the filters.
   const systemSuggestions = useMemo(
     () => [...new Set([...games, ...unratedGames].map((g) => g.system))].sort(),
     [games, unratedGames]
   );
 
-  // "Available" sets — values that still yield results given the other active
-  // filters. Options outside these sets render as disabled in the dropdowns.
-  const availableRatings = useMemo(
-    () =>
-      new Set(
-        filterGames(games, { ...activeFilters, rating: "" })
-          .map((g) => g.rating)
-          .filter((r) => r !== "")
-      ),
-    [games, activeFilters]
-  );
-  const availableSystems = useMemo(
-    () => new Set(filterGames(games, { ...activeFilters, system: "" }).map((g) => g.system)),
-    [games, activeFilters]
-  );
-  const availableGenres = useMemo(
-    () => new Set(filterGames(games, { ...activeFilters, genre: "" }).flatMap((g) => g.genres)),
-    [games, activeFilters]
-  );
-  const availableSystemsWishlist = useMemo(
-    () =>
-      new Set(
-        filterWishlist(wishlist, { ...activeWishlistFilters, system: "" }).map((w) => w.system)
-      ),
-    [wishlist, activeWishlistFilters]
-  );
-  const availableGenresWishlist = useMemo(
-    () =>
-      new Set(
-        filterWishlist(wishlist, { ...activeWishlistFilters, genre: "" }).flatMap((w) => w.genres)
-      ),
-    [wishlist, activeWishlistFilters]
-  );
+  // Dropdown options plus the "would still yield results" subsets, for
+  // whichever view is mounted. See useFilterOptions for why this is one call
+  // rather than eight memos declared here.
+  const { allSystems, allGenres, availableRatings, availableSystems, availableGenres } =
+    useFilterOptions({ games, wishlist, view, activeFilters, activeWishlistFilters });
 
   // filter → group → sort, branched by view so each pipeline runs against
   // data of its own type (Game[] vs WishlistGame[]).
@@ -300,10 +263,10 @@ export function GameLibrary({
               {...filterBarCommon}
               view="wishlist"
               filters={activeWishlistFilters}
-              allSystems={allSystemsWishlist}
-              allGenres={allGenresWishlist}
-              availableSystems={availableSystemsWishlist}
-              availableGenres={availableGenresWishlist}
+              allSystems={allSystems}
+              allGenres={allGenres}
+              availableSystems={availableSystems}
+              availableGenres={availableGenres}
             />
           )}
 

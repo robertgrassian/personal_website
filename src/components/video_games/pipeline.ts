@@ -120,6 +120,50 @@ export function filterGames(games: Game[], filters: Filters): Game[] {
   });
 }
 
+// The values each dropdown can still offer without emptying the shelves.
+// Options outside these sets render disabled in FilterBar.
+export type AvailableGameFilters = {
+  ratings: Set<string>;
+  systems: Set<string>;
+  genres: Set<string>;
+};
+
+/** Collect all three "available" sets in a single traversal.
+ *
+ *  Each set answers "what could this dropdown be changed to?", so each one is
+ *  computed against the other filters with its own key dropped: available
+ *  systems ignore the current system, available genres ignore the current
+ *  genre, and so on. Done literally that is three full filterGames() scans
+ *  (nine predicate evaluations per game). Here the four components are
+ *  evaluated once each and the three sets read the combinations they need, so
+ *  it is four evaluations over one pass.
+ *
+ *  Search is the one component every set shares, which is why a search miss
+ *  can skip the game entirely. */
+export function collectAvailableGameFilters(games: Game[], filters: Filters): AvailableGameFilters {
+  const { needle, system, genre } = prepareBaseFilters(filters);
+  const ratings = new Set<string>();
+  const systems = new Set<string>();
+  const genres = new Set<string>();
+
+  for (const game of games) {
+    if (needle && !game.name.toLowerCase().includes(needle)) continue;
+    const matchesSystem = !system || game.system === system;
+    const matchesGenre = !genre || game.genres.includes(genre);
+    const matchesRating = !filters.rating || game.rating === filters.rating;
+
+    // Unrated games are excluded from the rating dropdown: "" is not an option
+    // it offers, so listing it would enable nothing.
+    if (matchesSystem && matchesGenre && game.rating) ratings.add(game.rating);
+    if (matchesRating && matchesGenre) systems.add(game.system);
+    if (matchesRating && matchesSystem) {
+      for (const g of game.genres) genres.add(g);
+    }
+  }
+
+  return { ratings, systems, genres };
+}
+
 function getGroupKeys(game: Game, groupBy: GroupBy): string[] {
   const shared = sharedGroupKeys(game, groupBy);
   if (shared) return shared;
@@ -175,6 +219,32 @@ export function sortGames(games: Game[], sortOrder: SortOrder): Game[] {
 export function filterWishlist(list: WishlistGame[], filters: WishlistFilters): WishlistGame[] {
   const base = prepareBaseFilters(filters);
   return list.filter((w) => passesBaseFilters(w, base));
+}
+
+// The wishlist half of collectAvailableGameFilters. Two sets rather than three
+// (no rating on a wishlist entry), same one-pass shape.
+export type AvailableWishlistFilters = {
+  systems: Set<string>;
+  genres: Set<string>;
+};
+
+export function collectAvailableWishlistFilters(
+  list: WishlistGame[],
+  filters: WishlistFilters
+): AvailableWishlistFilters {
+  const { needle, system, genre } = prepareBaseFilters(filters);
+  const systems = new Set<string>();
+  const genres = new Set<string>();
+
+  for (const w of list) {
+    if (needle && !w.name.toLowerCase().includes(needle)) continue;
+    if (!genre || w.genres.includes(genre)) systems.add(w.system);
+    if (!system || w.system === system) {
+      for (const g of w.genres) genres.add(g);
+    }
+  }
+
+  return { systems, genres };
 }
 
 const STARRED_LABEL = "Starred";
