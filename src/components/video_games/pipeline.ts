@@ -18,13 +18,42 @@ const RATING_ORDER: Record<RatingGroup, number> = Object.fromEntries([
   ["Unrated", RATINGS.length],
 ]);
 
+// One collator for the whole module, rather than a fresh one per comparison.
+// `"a".localeCompare("b")` has to resolve the locale and build a collator on
+// every call; Intl.Collator does that work once and hands back a reusable
+// compare function with identical semantics. It matters here because sorting
+// 155 games is ~1,100 comparisons, re-run on every keystroke.
+const collator = new Intl.Collator();
+
+// Ordering for strings that are fixed-width ASCII (ISO dates, "1990s"), where
+// byte order and collation order agree. Roughly 10x cheaper per comparison than
+// full ICU collation, which is why these do not go through `collator` above.
+// Only safe because the inputs are machine-generated: never use this on a name.
+export function compareIso(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 // --- Shared helpers ---
 
 // Filter fields present on both Filters and WishlistFilters.
 type BaseFilters = { search: string; system: string; genre: string };
 
-function passesBaseFilters(game: BaseGame, filters: BaseFilters): boolean {
-  if (filters.search && !game.name.toLowerCase().includes(filters.search.toLowerCase())) {
+// The same fields with the search term already lowercased. Built once per
+// filter pass instead of once per game: `search` is a single query string, so
+// lowercasing it inside the per-game predicate did the identical work ~155
+// times for nothing on every keystroke.
+type PreparedBaseFilters = { needle: string; system: string; genre: string };
+
+function prepareBaseFilters(filters: BaseFilters): PreparedBaseFilters {
+  return {
+    needle: filters.search.toLowerCase(),
+    system: filters.system,
+    genre: filters.genre,
+  };
+}
+
+function passesBaseFilters(game: BaseGame, filters: PreparedBaseFilters): boolean {
+  if (filters.needle && !game.name.toLowerCase().includes(filters.needle)) {
     return false;
   }
   if (filters.system && game.system !== filters.system) return false;
@@ -62,13 +91,13 @@ function fallbackGroupKeys(groupBy: GroupBy, view: string): string[] {
 function sharedCompare(a: BaseGame, b: BaseGame, sortOrder: SortOrder): number | null {
   switch (sortOrder) {
     case "name-asc":
-      return a.name.localeCompare(b.name);
+      return collator.compare(a.name, b.name);
     case "name-desc":
-      return b.name.localeCompare(a.name);
+      return collator.compare(b.name, a.name);
     case "release-oldest":
-      return a.releaseDate.localeCompare(b.releaseDate);
+      return compareIso(a.releaseDate, b.releaseDate);
     case "release-newest":
-      return b.releaseDate.localeCompare(a.releaseDate);
+      return compareIso(b.releaseDate, a.releaseDate);
     default:
       return null;
   }
@@ -77,14 +106,15 @@ function sharedCompare(a: BaseGame, b: BaseGame, sortOrder: SortOrder): number |
 // Last-resort compare: alphabetical + warn.
 function fallbackCompare(a: BaseGame, b: BaseGame, sortOrder: SortOrder, view: string): number {
   console.warn(`pipeline: unsupported sortOrder "${sortOrder}" in ${view} view — sorting by name`);
-  return a.name.localeCompare(b.name);
+  return collator.compare(a.name, b.name);
 }
 
 // --- Played pipeline ---
 
 export function filterGames(games: Game[], filters: Filters): Game[] {
+  const base = prepareBaseFilters(filters);
   return games.filter((game) => {
-    if (!passesBaseFilters(game, filters)) return false;
+    if (!passesBaseFilters(game, base)) return false;
     if (filters.rating && game.rating !== filters.rating) return false;
     return true;
   });
@@ -113,7 +143,7 @@ export function groupGames(
     .map(([label, games]) => ({ label, games }))
     .sort((a, b) => {
       if (groupBy === "system") {
-        return b.games.length - a.games.length || a.label.localeCompare(b.label);
+        return b.games.length - a.games.length || collator.compare(a.label, b.label);
       }
       if (groupBy === "rating") {
         return (
@@ -121,7 +151,7 @@ export function groupGames(
           (RATING_ORDER[b.label as RatingGroup] ?? Infinity)
         );
       }
-      return a.label.localeCompare(b.label);
+      return collator.compare(a.label, b.label);
     });
 }
 
@@ -131,9 +161,9 @@ export function sortGames(games: Game[], sortOrder: SortOrder): Game[] {
     if (shared !== null) return shared;
     switch (sortOrder) {
       case "played-newest":
-        return (b.lastPlayed || "0000").localeCompare(a.lastPlayed || "0000");
+        return compareIso(b.lastPlayed || "0000", a.lastPlayed || "0000");
       case "played-oldest":
-        return (a.lastPlayed || "9999").localeCompare(b.lastPlayed || "9999");
+        return compareIso(a.lastPlayed || "9999", b.lastPlayed || "9999");
       default:
         return fallbackCompare(a, b, sortOrder, "played");
     }
@@ -143,7 +173,8 @@ export function sortGames(games: Game[], sortOrder: SortOrder): Game[] {
 // --- Wishlist pipeline ---
 
 export function filterWishlist(list: WishlistGame[], filters: WishlistFilters): WishlistGame[] {
-  return list.filter((w) => passesBaseFilters(w, filters));
+  const base = prepareBaseFilters(filters);
+  return list.filter((w) => passesBaseFilters(w, base));
 }
 
 const STARRED_LABEL = "Starred";
@@ -174,9 +205,9 @@ export function groupWishlist(
     .map(([label, games]) => ({ label, games }))
     .sort((a, b) => {
       if (groupBy === "system") {
-        return b.games.length - a.games.length || a.label.localeCompare(b.label);
+        return b.games.length - a.games.length || collator.compare(a.label, b.label);
       }
-      return a.label.localeCompare(b.label);
+      return collator.compare(a.label, b.label);
     });
 
   // Prepended rather than sorted in, so no group can ever outrank it.
@@ -189,9 +220,9 @@ export function sortWishlist(list: WishlistGame[], sortOrder: SortOrder): Wishli
     if (shared !== null) return shared;
     switch (sortOrder) {
       case "added-newest":
-        return (b.dateAdded || "0000").localeCompare(a.dateAdded || "0000");
+        return compareIso(b.dateAdded || "0000", a.dateAdded || "0000");
       case "added-oldest":
-        return (a.dateAdded || "9999").localeCompare(b.dateAdded || "9999");
+        return compareIso(a.dateAdded || "9999", b.dateAdded || "9999");
       default:
         return fallbackCompare(a, b, sortOrder, "wishlist");
     }

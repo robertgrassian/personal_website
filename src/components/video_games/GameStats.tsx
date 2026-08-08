@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import type { Game } from "@/lib/games";
 import { RATINGS } from "@/lib/games";
+import { compareIso } from "./pipeline";
 
 type GameStatsProps = {
   games: Game[];
@@ -125,8 +126,8 @@ export function GameStats({ games, currentlyPlayingGames }: GameStatsProps) {
       })
       .sort((a, b) => {
         if (a.currentlyPlaying !== b.currentlyPlaying) return a.currentlyPlaying ? -1 : 1;
-        if (a.currentlyPlaying) return b.playingSince.localeCompare(a.playingSince);
-        return b.lastPlayed.localeCompare(a.lastPlayed);
+        if (a.currentlyPlaying) return compareIso(b.playingSince, a.playingSince);
+        return compareIso(b.lastPlayed, a.lastPlayed);
       })
       .slice(0, 3);
 
@@ -140,7 +141,9 @@ export function GameStats({ games, currentlyPlayingGames }: GameStatsProps) {
     }
     const decades = [...decadeMap.entries()]
       .map(([decade, count]) => ({ decade, count }))
-      .sort((a, b) => a.decade.localeCompare(b.decade));
+      // "1990s", "2000s" — fixed-width and machine-generated, so byte order is
+      // collation order.
+      .sort((a, b) => compareIso(a.decade, b.decade));
 
     return {
       total: games.length,
