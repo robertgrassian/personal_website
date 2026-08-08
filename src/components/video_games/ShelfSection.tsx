@@ -4,13 +4,13 @@ type ShelfSectionProps = {
   label: string;
   // Game[] and WishlistGame[] both fit via structural typing — no union needed.
   games: GameCaseInput[];
-  // Provided only when the viewer owns this library; each case forwards its
-  // own game so GameLibrary knows which one to open the edit dialog for.
-  onEditGame?: (game: GameCaseInput) => void;
 };
 
-// ShelfSection renders one shelf — an optional header row plus a "plank" of game cases.
-export function ShelfSection({ label, games, onEditGame }: ShelfSectionProps) {
+// ShelfSection renders one shelf — an optional header row plus a "plank" of
+// game cases. Purely presentational: whether a card shows an edit pencil is
+// read from LibraryEditingContext by GameCase itself, so this component no
+// longer carries an editing concern through on its behalf.
+export function ShelfSection({ label, games }: ShelfSectionProps) {
   return (
     <section className="mt-10">
       {/* Shelf label — omitted when label is empty (e.g. "group by none") */}
@@ -37,11 +37,7 @@ export function ShelfSection({ label, games, onEditGame }: ShelfSectionProps) {
         style={{ gridTemplateColumns: "repeat(auto-fill, 96px)" }}
       >
         {games.map((game) => (
-          <GameCase
-            key={game.name + "-" + game.system}
-            game={game}
-            onEdit={onEditGame && (() => onEditGame(game))}
-          />
+          <GameCase key={game.name + "-" + game.system} game={game} />
         ))}
       </div>
     </section>

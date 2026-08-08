@@ -14,6 +14,7 @@ import { EditGameModal } from "./EditGameModal";
 import { EditWishlistModal } from "./EditWishlistModal";
 import { AddGameModal } from "./AddGameModal";
 import type { GameCaseInput } from "./GameCase";
+import { LibraryEditingProvider } from "./LibraryEditingContext";
 
 type GameLibraryProps = {
   games: Game[];
@@ -88,8 +89,8 @@ export function GameLibrary({
     [editingWishlistId, wishlist]
   );
 
-  // useCallback so ShelfSection's per-game closures — and the GameCase memo
-  // that depends on them — are not invalidated on every render.
+  // useCallback so the context value below keeps a stable identity, which is
+  // what lets the React.memo on GameCase actually bite.
   const handleEditGame = useCallback(
     (game: GameCaseInput) => {
       if (view === "wishlist") setEditingWishlistId(game.id ?? null);
@@ -97,6 +98,8 @@ export function GameLibrary({
     },
     [view]
   );
+  // null for a visitor — GameCase gates the pencil on exactly this.
+  const openEditor = canEdit ? handleEditGame : null;
   const handleAddGame = useCallback(() => setAddOpen(true), []);
   const handleStatsClose = useCallback(() => setStatsOpen(false), []);
 
@@ -111,93 +114,96 @@ export function GameLibrary({
   );
 
   return (
-    <div className="mt-8">
-      {/* View tab strip — underline pattern shared with StatsPanel.
+    // Wraps the whole body, not just the shelves: the Unrated shelf, the
+    // grouped shelves and any future card surface all read the same answer.
+    <LibraryEditingProvider openEditor={openEditor}>
+      <div className="mt-8">
+        {/* View tab strip — underline pattern shared with StatsPanel.
           justify-between puts the Stats button on the same baseline row as the
           tabs (played-only), keeping the strip a single compact line. */}
-      <div className="flex items-center justify-between border-b border-shelf-plank mb-4">
-        <div className="flex">
-          {VALID_GAME_VIEW.map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setView(v)}
-              className={`py-2.5 mr-4 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
-                view === v
-                  ? "border-link text-link"
-                  : "border-transparent text-shelf-text-muted hover:text-link hover:border-shelf-plank"
-              }`}
-            >
-              {VIEW_LABEL[v]}
-            </button>
-          ))}
+        <div className="flex items-center justify-between border-b border-shelf-plank mb-4">
+          <div className="flex">
+            {VALID_GAME_VIEW.map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setView(v)}
+                className={`py-2.5 mr-4 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
+                  view === v
+                    ? "border-link text-link"
+                    : "border-transparent text-shelf-text-muted hover:text-link hover:border-shelf-plank"
+                }`}
+              >
+                {VIEW_LABEL[v]}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1">
+            {canEdit && isGameView(view) && (
+              <button
+                type="button"
+                onClick={handleAddGame}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
+              >
+                <span aria-hidden="true" className="text-base leading-none">
+                  +
+                </span>
+                <span>{view === "played" ? "Add game" : "Add to wishlist"}</span>
+              </button>
+            )}
+            {view === "played" && (
+              <button
+                type="button"
+                onClick={() => setStatsOpen(true)}
+                aria-label="Open library stats"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
+              >
+                <ChartBarIcon className="w-4 h-4" aria-hidden />
+                <span>Stats</span>
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-1">
-          {canEdit && isGameView(view) && (
-            <button
-              type="button"
-              onClick={handleAddGame}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
-            >
-              <span aria-hidden="true" className="text-base leading-none">
-                +
-              </span>
-              <span>{view === "played" ? "Add game" : "Add to wishlist"}</span>
-            </button>
-          )}
-          {view === "played" && (
-            <button
-              type="button"
-              onClick={() => setStatsOpen(true)}
-              aria-label="Open library stats"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
-            >
-              <ChartBarIcon className="w-4 h-4" aria-hidden />
-              <span>Stats</span>
-            </button>
-          )}
-        </div>
-      </div>
 
-      {/* One branch for the whole body: game tabs render the shelves and their
+        {/* One branch for the whole body: game tabs render the shelves and their
           filter chrome, people tabs render a list of users. */}
-      {isGameView(view) ? (
-        <GameShelves
-          games={games}
-          wishlist={wishlist}
-          currentlyPlayingGames={currentlyPlayingGames}
-          unratedGames={unratedGames}
-          view={view}
-          canEdit={canEdit}
-          urlState={urlState}
-          onAddGame={handleAddGame}
-          onEditGame={handleEditGame}
-          statsOpen={statsOpen}
-          onStatsClose={handleStatsClose}
-        />
-      ) : (
-        <PeopleList
-          view={view}
-          users={view === "following" ? following : followers}
-          isOwner={canEdit}
-        />
-      )}
+        {isGameView(view) ? (
+          <GameShelves
+            games={games}
+            wishlist={wishlist}
+            currentlyPlayingGames={currentlyPlayingGames}
+            unratedGames={unratedGames}
+            view={view}
+            canEdit={canEdit}
+            urlState={urlState}
+            onAddGame={handleAddGame}
+            statsOpen={statsOpen}
+            onStatsClose={handleStatsClose}
+          />
+        ) : (
+          <PeopleList
+            view={view}
+            users={view === "following" ? following : followers}
+            isOwner={canEdit}
+          />
+        )}
 
-      {editingGame && <EditGameModal game={editingGame} onClose={() => setEditingGameId(null)} />}
-      {editingWishlistItem && (
-        <EditWishlistModal
-          item={editingWishlistItem}
-          existingSystems={systemSuggestions}
-          onClose={() => setEditingWishlistId(null)}
-        />
-      )}
-      {addOpen && (
-        <AddGameModal
-          target={view === "played" ? "library" : "wishlist"}
-          existingSystems={systemSuggestions}
-          onClose={() => setAddOpen(false)}
-        />
-      )}
-    </div>
+        {editingGame && <EditGameModal game={editingGame} onClose={() => setEditingGameId(null)} />}
+        {editingWishlistItem && (
+          <EditWishlistModal
+            item={editingWishlistItem}
+            existingSystems={systemSuggestions}
+            onClose={() => setEditingWishlistId(null)}
+          />
+        )}
+        {addOpen && (
+          <AddGameModal
+            target={view === "played" ? "library" : "wishlist"}
+            existingSystems={systemSuggestions}
+            onClose={() => setAddOpen(false)}
+          />
+        )}
+      </div>
+    </LibraryEditingProvider>
   );
 }

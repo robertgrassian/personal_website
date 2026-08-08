@@ -17,7 +17,6 @@ import {
 } from "./pipeline";
 import { useFilterOptions } from "./useFilterOptions";
 import type { UrlState } from "./useGameLibraryUrlState";
-import type { GameCaseInput } from "./GameCase";
 import { accentButtonClass } from "./formStyles";
 
 type GameShelvesProps = {
@@ -33,10 +32,12 @@ type GameShelvesProps = {
   // which is the whole point of the split. The filter/group/sort machinery no
   // longer has to opt out of itself on a tab that lists usernames.
   view: GameView;
+  // Still needed here for the copy ("Your library" vs "This library") and for
+  // the owner-only Unrated shelf. Whether a *card* shows a pencil is no longer
+  // this component's business: GameCase reads that from LibraryEditingContext.
   canEdit: boolean;
   urlState: UrlState;
   onAddGame: () => void;
-  onEditGame: (game: GameCaseInput) => void;
   // Owned by GameLibrary because the button that opens it lives in the tab
   // strip up there, while the panel it opens belongs down here.
   statsOpen: boolean;
@@ -55,7 +56,6 @@ export function GameShelves({
   canEdit,
   urlState,
   onAddGame,
-  onEditGame,
   statsOpen,
   onStatsClose,
 }: GameShelvesProps) {
@@ -210,12 +210,7 @@ export function GameShelves({
           // the group from the filter bar above it.
           <div className="mt-6">
             {activeShelves.map((shelf) => (
-              <ShelfSection
-                key={shelf.label}
-                label={shelf.label}
-                games={shelf.games}
-                onEditGame={canEdit ? onEditGame : undefined}
-              />
+              <ShelfSection key={shelf.label} label={shelf.label} games={shelf.games} />
             ))}
           </div>
         )}
@@ -225,7 +220,7 @@ export function GameShelves({
             Deliberately outside the filter/group/sort pipeline — it's a small
             owner utility surface, not part of the public browsing experience. */}
         {view === "played" && canEdit && unratedGames.length > 0 && (
-          <ShelfSection label="Unrated" games={unratedGames} onEditGame={onEditGame} />
+          <ShelfSection label="Unrated" games={unratedGames} />
         )}
       </div>
 

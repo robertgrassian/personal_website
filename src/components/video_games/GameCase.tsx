@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, memo } from "react";
 import Image from "next/image";
 import type { BaseGame } from "@/lib/baseGame";
 import { type Rating, RATINGS } from "@/lib/games";
@@ -8,6 +8,7 @@ import { PencilIcon } from "@/components/Icon";
 import { RatingIndicator } from "./RatingIndicator";
 import { GameCaseBack } from "./GameCaseBack";
 import { GameCaseSpine } from "./GameCaseSpine";
+import { useLibraryEditing } from "./LibraryEditingContext";
 
 // View-agnostic input: Game supplies `rating` (badge); WishlistGame supplies
 // `starred` (star overlay). Never both — render logic picks one. `id` is the
@@ -20,12 +21,12 @@ export type GameCaseInput = BaseGame & {
 
 type GameCaseProps = {
   game: GameCaseInput;
-  // Provided only when the viewer owns this library — shows the pencil that
-  // opens the edit dialog (the dialog itself lives in GameLibrary).
-  onEdit?: () => void;
 };
 
-export function GameCase({ game, onEdit }: GameCaseProps) {
+function GameCaseImpl({ game }: GameCaseProps) {
+  // Whether this viewer may edit, and how to open the editor, read straight
+  // from context instead of arriving as a prop through ShelfSection.
+  const { openEditor } = useLibraryEditing();
   // `flipped` drives the 3D CSS flip — true shows the metadata back face.
   const [flipped, setFlipped] = useState(false);
   // Badge disappears and reappears at the animation midpoint (300ms = half of 0.6s flip)
@@ -68,15 +69,14 @@ export function GameCase({ game, onEdit }: GameCaseProps) {
       .catch(() => {});
   }, []);
 
-  // Editable = the owner is viewing (onEdit provided) AND the row is
-  // API-backed (has an id) AND it's a library game (wishlist entries have no
-  // rating field at all — undefined, distinct from "" = unrated).
-  // `onEdit` is only supplied to an owner, and an `id` means the row is
-  // API-backed so a mutation has something to target. Deliberately NOT gated on
-  // `rating`: that's a Game-only field, and requiring it hid the pencil on every
-  // wishlist card — which made EditWishlistModal unreachable. GameLibrary's
-  // handleEditGame picks the right dialog per view, so both kinds are editable.
-  const editable = onEdit !== undefined && game.id !== undefined;
+  // Editable = the owner is viewing (openEditor is non-null) AND the row is
+  // API-backed (has an id, so a mutation has something to target).
+  //
+  // Deliberately NOT gated on `rating`: that's a Game-only field, and requiring
+  // it hid the pencil on every wishlist card — which made EditWishlistModal
+  // unreachable. GameLibrary's handleEditGame picks the right dialog per view,
+  // so both kinds are editable.
+  const editable = openEditor !== null && game.id !== undefined;
 
   const hasImage = game.imageUrl !== "" && !imageError;
   const ratingLetter = game.rating
@@ -213,7 +213,8 @@ export function GameCase({ game, onEdit }: GameCaseProps) {
         <button
           type="button"
           aria-label={`Edit ${game.name}`}
-          onClick={onEdit}
+          // `editable` already proved openEditor is non-null.
+          onClick={() => openEditor?.(game)}
           className="absolute top-1 left-1 z-10 rounded-full bg-black/60 p-1 text-white/90
                      group-hover:-translate-y-2 transition-[translate,background-color,color] duration-200 ease-out
                      hover:bg-black/80 hover:text-white cursor-pointer
@@ -225,3 +226,12 @@ export function GameCase({ game, onEdit }: GameCaseProps) {
     </div>
   );
 }
+
+// Memoized because a keystroke in the search box re-renders every visible card:
+// ~155 cases, ~1,500 elements, reconciling to change nothing. It only bites now
+// that the edit callback comes from context — while ShelfSection allocated a
+// fresh `() => onEditGame(game)` per card per render, the props were never
+// equal and the memo would have been dead weight. Game objects come from the
+// server payload and keep a stable identity, so the default shallow comparison
+// is enough.
+export const GameCase = memo(GameCaseImpl);
