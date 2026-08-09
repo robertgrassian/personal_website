@@ -6,16 +6,18 @@
 // should prevent them, but a warning beats a white-screen crash.
 
 import type { Game, Filters, Rating } from "@/lib/games";
-import { RATINGS } from "@/lib/games";
+import { RATINGS, UNRATED_LABEL } from "@/lib/games";
 import { type BaseGame, baseGameGenres } from "@/lib/baseGame";
 import type { WishlistGame, WishlistFilters } from "@/lib/wishlist";
 import type { GroupBy, SortOrder } from "./libraryConfig";
 
-type RatingGroup = Rating | "Unrated";
+type RatingGroup = Rating | typeof UNRATED_LABEL;
 
+// Unrated sorts after every real rating, so the Unrated shelf is always last
+// under groupBy="rating" no matter how many ratings exist.
 const RATING_ORDER: Record<RatingGroup, number> = Object.fromEntries([
   ...RATINGS.map((r, i) => [r.name, i]),
-  ["Unrated", RATINGS.length],
+  [UNRATED_LABEL, RATINGS.length],
 ]);
 
 // One collator for the whole module, rather than a fresh one per comparison.
@@ -115,7 +117,10 @@ export function filterGames(games: Game[], filters: Filters): Game[] {
   const base = prepareBaseFilters(filters);
   return games.filter((game) => {
     if (!passesBaseFilters(game, base)) return false;
-    if (filters.rating && game.rating !== filters.rating) return false;
+    // `game.rating || UNRATED_LABEL` is the same normalization getGroupKeys and
+    // collectAvailableGameFilters use: a rating-less game stores "", which no
+    // filter value ever equals, so it has to be named before it can be compared.
+    if (filters.rating && (game.rating || UNRATED_LABEL) !== filters.rating) return false;
     return true;
   });
 }
@@ -148,13 +153,18 @@ export function collectAvailableGameFilters(games: Game[], filters: Filters): Av
 
   for (const game of games) {
     if (needle && !game.name.toLowerCase().includes(needle)) continue;
+    // Named before it is compared or collected, the same normalization
+    // filterGames and getGroupKeys use. A rating-less game stores "", which is
+    // the "no filter" value and so equals nothing the dropdown offers.
+    const rating = game.rating || UNRATED_LABEL;
     const matchesSystem = !system || game.system === system;
     const matchesGenre = !genre || game.genres.includes(genre);
-    const matchesRating = !filters.rating || game.rating === filters.rating;
+    const matchesRating = !filters.rating || rating === filters.rating;
 
-    // Unrated games are excluded from the rating dropdown: "" is not an option
-    // it offers, so listing it would enable nothing.
-    if (matchesSystem && matchesGenre && game.rating) ratings.add(game.rating);
+    // "Unrated" is a rating option like any other, so it enables and disables
+    // on the same rule. It used to be dropped here, back when unrated games
+    // lived on their own shelf outside the pipeline.
+    if (matchesSystem && matchesGenre) ratings.add(rating);
     if (matchesRating && matchesGenre) systems.add(game.system);
     if (matchesRating && matchesSystem) {
       for (const g of game.genres) genres.add(g);
@@ -167,7 +177,7 @@ export function collectAvailableGameFilters(games: Game[], filters: Filters): Av
 function getGroupKeys(game: Game, groupBy: GroupBy): string[] {
   const shared = sharedGroupKeys(game, groupBy);
   if (shared) return shared;
-  if (groupBy === "rating") return [game.rating || "Unrated"];
+  if (groupBy === "rating") return [game.rating || UNRATED_LABEL];
   return fallbackGroupKeys(groupBy, "played");
 }
 

@@ -17,14 +17,12 @@ import type { GameCaseInput } from "./GameCase";
 import { LibraryEditingProvider } from "./LibraryEditingContext";
 
 type GameLibraryProps = {
+  // Every played game, rated and unrated alike — one list through one pipeline.
   games: Game[];
   wishlist: WishlistGame[];
-  // In-progress games (may be unrated, so not in `games`); forwarded to the
-  // stats panel so "Recently Played" can surface them.
+  // In-progress games, a subset of `games`; forwarded to the stats panel so
+  // "Recently Played" can rank them first.
   currentlyPlayingGames: Game[];
-  // Games with no rating — rendered as an owner-only shelf so they stay
-  // reachable (and re-ratable) after a rating is cleared.
-  unratedGames: Game[];
   // The owner's follow graph, backing the Following/Followers tabs. Public
   // data fetched server-side, so it is cached with the page like the games.
   followers: UserSummary[];
@@ -40,7 +38,6 @@ export function GameLibrary({
   games,
   wishlist,
   currentlyPlayingGames,
-  unratedGames,
   followers,
   following,
 }: GameLibraryProps) {
@@ -69,19 +66,15 @@ export function GameLibrary({
   // views open different dialogs (EditGameModal vs EditWishlistModal).
   const [editingWishlistId, setEditingWishlistId] = useState<number | null>(null);
 
-  // Bail on the id before scanning. These ran three array scans on every
+  // Bail on the id before scanning. These ran an array scan each on every
   // render, including every keystroke in the search box, to look up a dialog
   // that is closed almost all of the time.
   //
-  // Searching rated AND unrated keeps the dialog open (and consistent) when a
-  // rating change moves the game between those shelves.
+  // Looking up by id rather than by position keeps the dialog open and
+  // consistent when a rating change moves the game to a different shelf.
   const editingGame = useMemo(
-    () =>
-      editingGameId === null
-        ? undefined
-        : (games.find((g) => g.id === editingGameId) ??
-          unratedGames.find((g) => g.id === editingGameId)),
-    [editingGameId, games, unratedGames]
+    () => (editingGameId === null ? undefined : games.find((g) => g.id === editingGameId)),
+    [editingGameId, games]
   );
   const editingWishlistItem = useMemo(
     () =>
@@ -104,19 +97,20 @@ export function GameLibrary({
   const handleStatsOpen = useCallback(() => setStatsOpen(true), []);
   const handleStatsClose = useCallback(() => setStatsOpen(false), []);
 
-  // Shelf-system suggestions for the add/promote forms. Deliberately distinct
-  // from the filter bar's `allSystems`: that dropdown should only offer systems
-  // you can actually filter to (rated games), but a system that currently
-  // exists only on an unrated game is still one of your shelves, so it belongs
-  // here. Stays in this component because it feeds the modals, not the filters.
-  const systemSuggestions = useMemo(
-    () => [...new Set([...games, ...unratedGames].map((g) => g.system))].sort(),
-    [games, unratedGames]
-  );
+  // Shelf systems, offered as suggestions in the add and promote forms.
+  //
+  // This is the same list the filter bar's system dropdown shows, and used not
+  // to be: the dropdown could only offer systems you could filter to, which
+  // excluded any system that existed solely on an unrated game. Now that
+  // unrated games are ordinary library members, both lists are just "every
+  // system in `games`". Computed here rather than read off useFilterOptions
+  // because that hook lives with the shelves and these feed the modals; it is
+  // one pass over a prop that only changes when the server data does.
+  const existingSystems = useMemo(() => [...new Set(games.map((g) => g.system))].sort(), [games]);
 
   return (
-    // Wraps the whole body, not just the shelves: the Unrated shelf, the
-    // grouped shelves and any future card surface all read the same answer.
+    // Wraps the whole body, not just the shelves, so every card surface reads
+    // one answer however the views are rearranged later.
     <LibraryEditingProvider openEditor={openEditor}>
       <div className="mt-8">
         {/* View tab strip — underline pattern shared with StatsPanel.
@@ -173,7 +167,6 @@ export function GameLibrary({
             games={games}
             wishlist={wishlist}
             currentlyPlayingGames={currentlyPlayingGames}
-            unratedGames={unratedGames}
             view={view}
             canEdit={canEdit}
             urlState={urlState}
@@ -193,14 +186,14 @@ export function GameLibrary({
         {editingWishlistItem && (
           <EditWishlistModal
             item={editingWishlistItem}
-            existingSystems={systemSuggestions}
+            existingSystems={existingSystems}
             onClose={() => setEditingWishlistId(null)}
           />
         )}
         {addOpen && (
           <AddGameModal
             target={view === "played" ? "library" : "wishlist"}
-            existingSystems={systemSuggestions}
+            existingSystems={existingSystems}
             onClose={() => setAddOpen(false)}
           />
         )}

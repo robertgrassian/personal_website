@@ -31,12 +31,9 @@ const StatsPanel = dynamic(() => import("./StatsPanel").then((m) => m.StatsPanel
 type GameShelvesProps = {
   games: Game[];
   wishlist: WishlistGame[];
-  // In-progress games (may be unrated, so not in `games`); forwarded to the
-  // stats panel so "Recently Played" can surface them.
+  // In-progress games, a subset of `games`; forwarded to the stats panel so
+  // "Recently Played" can rank them first.
   currentlyPlayingGames: Game[];
-  // Games with no rating — rendered as an owner-only shelf so they stay
-  // reachable (and re-ratable) after a rating is cleared.
-  unratedGames: Game[];
   // The same value as `urlState.view`, narrowed to GameView: this component
   // only mounts on a shelf tab, which is the whole point of the split, and the
   // filter/group/sort machinery no longer has to opt out of itself on a tab
@@ -44,8 +41,8 @@ type GameShelvesProps = {
   // because only the caller's `isGameView` check can do the narrowing. Read
   // this one, never `urlState.view`, so the two cannot be seen to disagree.
   view: GameView;
-  // Still needed here for the copy ("Your library" vs "This library") and for
-  // the owner-only Unrated shelf. Whether a *card* shows a pencil is no longer
+  // Still needed here for the copy ("Your library" vs "This library") and the
+  // empty-library call to action. Whether a *card* shows a pencil is no longer
   // this component's business: GameCase reads that from LibraryEditingContext.
   canEdit: boolean;
   urlState: UrlState;
@@ -63,7 +60,6 @@ export function GameShelves({
   games,
   wishlist,
   currentlyPlayingGames,
-  unratedGames,
   view,
   canEdit,
   urlState,
@@ -112,11 +108,8 @@ export function GameShelves({
   }, [statsOpen]);
 
   // "There is genuinely nothing in this view", as opposed to "the filters
-  // excluded everything". Rated and unrated are both checked because an owner
-  // whose only games are unrated still has a library — they'd see it on the
-  // Unrated shelf, so telling them it's empty would be wrong.
-  const isNothingHere =
-    view === "played" ? games.length === 0 && unratedGames.length === 0 : wishlist.length === 0;
+  // excluded everything".
+  const isNothingHere = view === "played" ? games.length === 0 : wishlist.length === 0;
 
   // Dropdown options plus the "would still yield results" subsets, for
   // whichever view is mounted. See useFilterOptions for why this is one call
@@ -204,11 +197,16 @@ export function GameShelves({
         <FilterBar {...filterBarCommon} view="wishlist" filters={activeWishlistFilters} />
       )}
 
-      {/* One padded container around BOTH shelf groups. The pb-24 keeps the
-          last shelf clear of the viewport bottom, so it has to sit on
-          whichever group is genuinely last — when it lived on the grouped
-          block alone, its 6rem landed *between* that block and the Unrated
-          shelf below it, reading as a gap rather than as trailing space. */}
+      {/* pb-24 keeps the last shelf clear of the viewport bottom.
+
+          There is one shelf group here, not two. A separate owner-only
+          "Unrated" shelf used to hang below this block, outside the
+          filter/group/sort pipeline; it was removed because unrated games are
+          now ordinary library members, shown to everyone and reached through
+          the same pipeline as everything else. They mix into their normal
+          shelves under groupBy system/genre/decade/none, collect under
+          "Unrated" (pinned last) under groupBy=rating, and answer to search and
+          to every filter — which the separate shelf never did. */}
       <div className="pb-24">
         {activeShelves.length === 0 ? (
           // Three situations, three needs: a brand-new owner needs a way in, a
@@ -251,14 +249,6 @@ export function GameShelves({
               <ShelfSection key={shelf.label} label={shelf.label} games={shelf.games} />
             ))}
           </div>
-        )}
-
-        {/* Owner-only "Unrated" shelf: every unrated game keeps a case (and a
-            pencil), so clearing a rating is always reversible from the UI.
-            Deliberately outside the filter/group/sort pipeline — it's a small
-            owner utility surface, not part of the public browsing experience. */}
-        {view === "played" && canEdit && unratedGames.length > 0 && (
-          <ShelfSection label="Unrated" games={unratedGames} />
         )}
       </div>
 

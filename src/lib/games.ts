@@ -37,10 +37,21 @@ export type RatingLetter = (typeof RATINGS)[number]["letter"];
 // Excludes S, which gets RatingRibbon instead of RatingBadge.
 export type BadgeRank = Exclude<RatingLetter, "S">;
 
+// The label a rating-less game is filed under: the rating-filter option, the
+// `groupBy: "rating"` shelf, and the stats histogram row all use this one string.
+export const UNRATED_LABEL = "Unrated";
+
+// Deliberately NOT the same type as `Game["rating"]`, which stays `Rating | ""`.
+// A game's rating is a value it has; a rating *filter* is a question you ask of
+// it, and "show me the unrated ones" is a question you can't store on a row.
+// Keeping them apart is what stops UNRATED_LABEL reaching the write path
+// (updateGameRating, RatingPicker), where it isn't a legal rating.
+export type RatingFilter = Rating | typeof UNRATED_LABEL | "";
+
 // Defined here alongside Game/Rating to avoid a circular dependency on GameLibrary.
 export type Filters = {
   search: string;
-  rating: Rating | ""; // "" = no filter applied
+  rating: RatingFilter; // "" = no filter applied
   system: string; // "" = all systems
   genre: string; // "" = all genres
 };
