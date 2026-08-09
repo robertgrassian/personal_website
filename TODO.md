@@ -119,6 +119,40 @@ ease-out` on the matching rule in `video-games.css`. iOS Safari fakes `:hover` o
       Remake", ignoring `:` and `-`) rather than edit distance. Same helper should apply to the
       wishlist filter, which shares this function.
 
+- [ ] **You can add a game you already have in your library. Filter games you own out of the
+      add-game search, and reject a duplicate add server-side.** Reported 2026-08-08.<br>
+      _Half of this already exists, and the half that does defines the real gap._
+      `create_my_game` (`api/app/services/me.py`) already checks
+      `find_game_by_name_and_system` and raises `GameExistsError` (409, "Name (System) is
+      already in your library."), with the `uq_games_user_id_name_system` constraint as the
+      concurrency backstop and an `IntegrityError` catch re-raising the same error. So a same
+      name + same system add is already blocked today. What gets through is the **same name on a
+      different system** — the unique key is `(user_id, name, system)`, so Chrono Trigger (SNES)
+      and Chrono Trigger (DS) are two rows by design.<br>
+      _So the product decision is the actual work, not the validation._ Match by name alone and
+      you can no longer record having played a game on two platforms, which is a real thing the
+      current shape supports on purpose. Options: keep the per-system rows but **warn** rather
+      than block on a name collision; or declare one row per game and drop system to a field you
+      edit. Decide this before writing a check, because the check is three lines either way.<br>
+      _The search-filter half is unambiguously missing and is probably the better fix._
+      `GameSearchStep` (`src/components/video_games/GameSearchStep.tsx`) takes only
+      `initialQuery`/`inputRef`/`onPick`/`onManual` — it never sees the library, so it cannot
+      grey out or annotate a result you already own. Threading the owned set down from
+      `GameLibrary` (which has `games` in hand, the same thread the wishlist-promote item below
+      needs) lets results render as "already in your library" instead of vanishing, which is
+      friendlier than a silent filter and sidesteps the multi-system question entirely.<br>
+      _Key on `igdb_id`, not name, wherever possible._ Both `games` and `wishlist_items` carry
+      it, and it is exact where a name match is not ("Resident Evil 4" vs "Resident Evil 4:
+      Remake"). Name is only the fallback for manually-entered games, which have no `igdb_id`.<br>
+      Related, and worth sequencing together: the **"Normalize game metadata into a shared
+      catalog"** item in Backlog (a `game_metadata` table with per-user link tables) makes
+      "do I already have this game?" a link-table lookup rather than a string comparison, and
+      names `igdb_id` as its backfill key — so doing that first makes this nearly free, and doing
+      this first should at least not entrench name-matching. The **"Overhaul the wishlist promote
+      flow"** item hits the identical question one column over ("a wishlist entry may be a game
+      already in the library") and already flags that matching by name alone misfires across
+      systems: answer it once for both.
+
 ## Backlog / Ideas
 
 - [ ] **Remove genre keyword search when adding a game.** This was added as a helpful way to
