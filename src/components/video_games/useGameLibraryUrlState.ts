@@ -67,10 +67,23 @@ export function useGameLibraryUrlState(): UrlState {
     searchInputRef.current = searchInput;
   }); // no dep array — runs after every render
 
-  // The ?search value this hook last pushed, awaiting its own echo. Written
-  // just before every router.replace that carries a search value, consumed by
-  // the sync effect below. null = not waiting on anything.
-  const pendingSearchPush = useRef<string | null>(null);
+  // Every ?search value this hook has written and not yet seen echoed back.
+  //
+  // A single slot was not enough, and the way it failed is worth keeping.
+  // `router.replace` runs inside a transition with a server round trip, so with
+  // one slot a second push could be registered before the first one's echo
+  // arrived; the older echo then failed the match, was read as an external
+  // navigation, and was applied to the input. While typing that silently put
+  // back a shorter string. While DELETING it put back a longer one, which is
+  // visible: a character you just erased reappearing on its own. Same bug, and
+  // deleting is simply the direction that shows it.
+  //
+  // Values rather than a count, because a count assumes every push produces
+  // exactly one echo, and a coalesced transition that never echoes would drain
+  // it wrong and start swallowing real navigations forever. Matching on value
+  // is self-correcting: at worst a stale entry means one genuine navigation to
+  // that exact string is ignored, which leaves the box holding what was typed.
+  const pushedSearchValues = useRef<Set<string>>(new Set());
 
   // Sync local input when the URL changes externally: browser Back, or a link
   // that arrives with its own ?search.
@@ -85,13 +98,12 @@ export function useGameLibraryUrlState(): UrlState {
   // because it has moved on and is the newer truth.
   useEffect(() => {
     const fromUrl = searchParams.get("search") ?? "";
-    if (pendingSearchPush.current !== null) {
-      const isOwnEcho = fromUrl === pendingSearchPush.current;
-      // Consumed either way: one push, one echo. If some other value arrived
-      // first it is a real navigation, which outranks a write we made.
-      pendingSearchPush.current = null;
-      if (isOwnEcho) return;
-    }
+    // delete() answers "was this one of ours?" and consumes it in one step.
+    if (pushedSearchValues.current.delete(fromUrl)) return;
+    // Nothing we wrote, so a real navigation: Back, Forward, or a link that
+    // arrived with its own ?search. It wins, and anything still outstanding is
+    // now moot.
+    pushedSearchValues.current.clear();
     setSearchInput(fromUrl);
   }, [searchParams]);
 
@@ -103,7 +115,7 @@ export function useGameLibraryUrlState(): UrlState {
       } else {
         params.set("search", searchInput);
       }
-      pendingSearchPush.current = searchInput;
+      pushedSearchValues.current.add(searchInput);
       const qs = params.toString();
       startTransition(() => {
         router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
@@ -180,7 +192,7 @@ export function useGameLibraryUrlState(): UrlState {
     } else {
       params.set("search", live);
     }
-    pendingSearchPush.current = live;
+    pushedSearchValues.current.add(live);
     return params;
   }, [searchParams]);
 
@@ -268,7 +280,7 @@ export function useGameLibraryUrlState(): UrlState {
     const params = new URLSearchParams(searchParams.toString());
     // Not paramsWithLiveSearch: this is the one setter that means to discard
     // the live value, so it registers the empty push itself.
-    pendingSearchPush.current = "";
+    pushedSearchValues.current.add("");
     params.delete("search");
     params.delete("rating");
     params.delete("system");
