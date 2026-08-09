@@ -121,9 +121,16 @@ export function GameLibrary({
   // schema and so not on `Game`/`WishlistGame`. See the TODO item.
   //
   // Scoped to the collection being added to: adding to the wishlist checks the
-  // wishlist, adding to the library checks the library.
+  // wishlist, adding to the library checks the library. Both the map and the
+  // dialog derive from this one value rather than each testing `view`
+  // themselves — written as two separate predicates they disagreed on the
+  // people views (`?view=followers` reached the dialog with the wishlist as its
+  // target but the library as its map), which is reachable because `addOpen`
+  // survives a view change.
+  const addTarget = view === "played" ? "library" : "wishlist";
   const ownedNames = useMemo(() => {
-    const source: Array<{ name: string; system: string }> = view === "wishlist" ? wishlist : games;
+    const source: Array<{ name: string; system: string }> =
+      addTarget === "wishlist" ? wishlist : games;
     const byName = new Map<string, string[]>();
     for (const entry of source) {
       const key = foldForSearch(entry.name);
@@ -135,7 +142,7 @@ export function GameLibrary({
       }
     }
     return byName;
-  }, [view, games, wishlist]);
+  }, [addTarget, games, wishlist]);
 
   return (
     // Wraps the whole body, not just the shelves, so every card surface reads
@@ -221,7 +228,7 @@ export function GameLibrary({
         )}
         {addOpen && (
           <AddGameModal
-            target={view === "played" ? "library" : "wishlist"}
+            target={addTarget}
             existingSystems={existingSystems}
             ownedNames={ownedNames}
             onClose={() => setAddOpen(false)}
