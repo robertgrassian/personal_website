@@ -19,40 +19,65 @@ asked for, which needs no reason and is marked `(Promoted by request YYYY-MM-DD.
 get demoted back out. Adding a sixth item means demoting one, on purpose. (Split out 2026-08-07:
 the old rule sent every bug straight here, so four of five slots were defects.)
 
-- [ ] **Give games their own table: normalize metadata into a shared catalog.** (Promoted by request 2026-08-09.) Was in Backlog since the spec deferred it. Normalize game metadata into a shared catalog (a `game_metadata` table + per-user `played_games`/`wishlist_games` link tables) — today `games` and `wishlist_items` each carry their own copy of name/system/genres/release*date/image_url. Spec §4.2 deliberately chose denormalized-with-`igdb_id` for v1 (canonical rows need an ownership/moderation story; user-entered games lack a canonical key). Revisit at Phase 4 when cross-user duplication actually exists — the `igdb_id` column on both tables is the planned backfill key (group by it, extract canonical rows, repoint).<br>
-      \_Systems split across the two levels* (decided 2026-08-09, alongside the systems-as-a-list
-      item above): `game_metadata` holds **every platform the game released on**, which is the
-      catalog's fact and is what IGDB already returns, while the per-user link row holds **the
-      systems that user has played it on**, which is the user's fact and is the subset. Keep the
-      two apart even before this table exists — the systems-list change should store the user's
-      subset, so this migration moves that column rather than reinterpreting it.<br>
-      _Fold the systems-as-a-list change into this rather than doing it first._ That item
-      (still in Backlog, with the rating and session costs written up) was written to be done
-      independently **because this one was deferred indefinitely**; promoting this removes that
-      reason. Both rewrite every `games` row and both are lossy in the same places, so running
-      them as one migration means one preview pass and one merge of duplicate-name rows instead
-      of two. The link table is where the user's systems list wants to live anyway.<br>
+- [ ] **Give games their own table: normalize metadata into a shared catalog, and give a
+      library entry a LIST of systems.** (Promoted by request 2026-08-09.) Two things that were
+      briefly tracked separately and are one migration: they rewrite every `games` row, they are
+      lossy in the same places, and doing them together means one preview pass and one merge of
+      duplicate-name rows instead of two.<br>
+      _The catalog half._ A `game_metadata` table plus per-user `played_games` / `wishlist_games`
+      link tables. Today `games` and `wishlist_items` each carry their own copy of name, system,
+      genres, `release_date` and `image_url`. Spec §4.2 deliberately chose denormalized-with-
+      `igdb_id` for v1, because canonical rows need an ownership/moderation story and
+      user-entered games have no canonical key; that question is still open and is the thing to
+      answer first. The `igdb_id` column on both tables is the planned backfill key: group by it,
+      extract canonical rows, repoint.<br>
+      _The systems half._ Decided 2026-08-09: "I don't think there should be different entries
+      for different systems. Systems should be a list, so a user can say they've played the game
+      on X, Y and Z." `games.system` is a single `Text` column (`api/app/models/game.py`) and
+      `uq_games_user_id_name_system` is the dedupe rule, so Chrono Trigger on SNES and on DS are
+      two rows today. They become one entry with `systems: ["SNES", "DS"]`, unique on
+      `(user_id, name)`.<br>
+      _Systems split across the two levels._ `game_metadata` holds **every platform the game
+      released on**, which is the catalog's fact and what IGDB already returns; the per-user link
+      row holds **the systems that user has played it on**, which is the user's fact and a
+      subset. Keeping them apart is what makes "all allowable systems" answerable without asking
+      every user.<br>
+      _The frontend is mostly ready for the list, which is the pleasant surprise._ Multi-valued
+      grouping and filtering already exist for genres: `groupGames` pushes a game onto one shelf
+      per key from `getGroupKeys`, and `passesBaseFilters` already does an `includes` on
+      `game.genres`. So "a game appears on both its SNES and DS shelf" is the genre code path
+      with a different field, not new machinery. What needs deciding is which system supplies the
+      per-console fallback color and `data-system` on a case that now has several
+      (`GameCase.tsx`, `--system-fallback`); first-in-list is the cheap answer.<br>
+      _Two lossy spots, both about data that already exists._ **(1) Rating.** One entry means one
+      rating, so an owner who rated two ports differently loses one in the merge. Defensible (you
+      rate the game, not the port) but it wants a preview pass, the habit
+      `docs/genre-backfill-runbook.md` exists for. **(2) Sessions.** `play_sessions` carries no
+      system of its own, so today a session's platform is implied by its game row and that
+      implication disappears here. Adding `play_sessions.system` is the more expressive answer
+      ("SNES in 2019, Switch in 2024") and would let the list be enriched from sessions — but it
+      cannot be _derived_ from them, since most entries have no sessions at all, so the stored
+      list stays the source of truth. If that column is added, constrain it to the systems on its
+      own link row; application-level is fine at this size.<br>
       _`play_sessions` keeps pointing at the USER's row, not the catalog row_ (decided
       2026-08-09). Today `play_sessions.game_id` FKs `games.id`, and `games` IS the user's
-      library, so this is a property to preserve through the migration rather than a change: the
-      FK moves to the link table's id. The trap is that a naive migration repoints it at
-      `game_metadata`, because that is where "the game" now appears to live.<br>
-      Three reasons it has to be the link row. **(1)** A session is a fact about a user, so a FK
-      to the catalog would need `user_id` alongside it, which denormalizes ownership back in and
-      makes "a session for a game not in my library" representable. **(2)** The
-      `ON DELETE CASCADE` on that FK is what makes "remove from library" take the play history
-      with it (there is a comment saying so on the column, and the delete UI warns with the
-      session count first); against the catalog that cascade would be wrong in both directions.
-      **(3)** Merging two catalog rows that turn out to be the same game — the likely cleanup
-      once manual entries get matched to canonical ones — then only repoints link rows, and
-      touches no session at all.<br>
-      Follows from that: if `play_sessions` gains a `system` column (see the systems-as-a-list
-      item), the value should be constrained to the systems on its own link row. Application-level
-      is fine at this size; a lookup table for that alone would not earn itself.<br>
+      library, so this is a property to preserve rather than a change: the FK moves to the link
+      table's id. The trap is a naive migration repointing it at `game_metadata`, because that is
+      where "the game" now appears to live. Three reasons it has to be the link row. **(1)** A
+      session is a fact about a user, so a catalog FK would need `user_id` alongside it, which
+      denormalizes ownership back in and makes "a session for a game not in my library"
+      representable. **(2)** The `ON DELETE CASCADE` on that FK is what makes "remove from
+      library" take the play history with it (there is a comment saying so on the column, and the
+      delete UI warns with the session count first); against a shared catalog that cascade is
+      wrong in both directions. **(3)** Merging two catalog rows that turn out to be the same
+      game — the likely cleanup once manual entries get matched to canonical ones — then only
+      repoints link rows and touches no session.<br>
       _What it unblocks:_ **"You can add a game you already have in your library"** in Bugs is
-      waiting on exactly this shape, and becomes a link-table lookup rather than a string
-      comparison. **"Overhaul the wishlist promote flow"** asks the same question one column over.
-      **"An easy way to view a game's sessions"** reads whatever this FK ends up being.
+      waiting on exactly this shape and becomes a link-table lookup rather than a string
+      comparison. **"Restrict the add-game 'system' suggestions to the platforms the game actually
+      released on"** in Backlog is the client-side half of "all allowable systems". **"Overhaul
+      the wishlist promote flow"** asks the same question one column over, and **"An easy way to
+      view a game's sessions"** reads whatever this FK ends up being.
 
 ## Bugs
 
@@ -68,8 +93,8 @@ to keep that section at five._
       your wishlist"). It annotates and never blocks, because the remaining question is exactly
       what it must not answer on its own.<br>
       _The product decision is now made, and it blocks the rest._ **Decided 2026-08-09: one
-      entry per game, with systems as a list** (see "A library entry should carry a LIST of
-      systems" in Backlog). That answers what had been the open question. `create_my_game`
+      entry per game, with systems as a list** (folded into the "Give games their own table"
+      item in Up Next). That answers what had been the open question. `create_my_game`
       (`api/app/services/me.py`) already raises `GameExistsError` (409) on a same name + same
       system add, with `uq_games_user_id_name_system` as the concurrency backstop; what gets
       through is the same name on a **different** system, which is two rows only because the
@@ -93,43 +118,6 @@ to keep that section at five._
       matching misfires across systems: answer it once for both.
 
 ## Backlog / Ideas
-
-- [ ] **A library entry should carry a LIST of systems, not one row per system.** Decided
-      2026-08-09: "I don't think there should be different entries for different systems. Systems
-      should be a list, so a user can say they've played the game on X, Y and Z." This settles the
-      question the duplicate-add bug was blocked on, and is a prerequisite for it rather than a
-      consequence.<br>
-      _What it changes:_ `games.system` is a single `Text` column (`api/app/models/game.py`) and
-      `uq_games_user_id_name_system` is the dedupe rule, so Chrono Trigger on SNES and on DS are
-      two rows today. This makes them one row with `systems: ["SNES", "DS"]` and moves the unique
-      key to `(user_id, name)`.<br>
-      _The frontend is mostly ready for it, which is the pleasant surprise._ Multi-valued grouping
-      and filtering already exist for genres: `groupGames` pushes a game onto one shelf per key
-      returned by `getGroupKeys`, and `passesBaseFilters` already does an `includes` on
-      `game.genres`. So "a game appears on both its SNES and DS shelf" is the genre code path with
-      a different field, not new machinery. What does need deciding is which system supplies the
-      per-console fallback color and `data-system` attribute on a case that now has several
-      (`GameCase.tsx`, `--system-fallback`); first-in-list is the cheap answer.<br>
-      _The two real decisions, both about data that already exists._ **(1) Rating.** One entry
-      means one rating, so an owner who rated two ports differently loses one of them in the
-      merge. Defensible (you rate the game, not the port) but it is a lossy migration and should
-      be run with a preview pass, the habit `docs/genre-backfill-runbook.md` exists for.
-      **(2) Sessions.** `play_sessions` hangs off `game_id` and carries no system of its own, so
-      today a session's platform is implied by its game row and that implication disappears here.
-      Adding `play_sessions.system` is the more expressive answer ("SNES in 2019, Switch in 2024")
-      and would let the systems list be enriched from sessions — but it cannot be _derived_ from
-      them, since most library entries have no sessions at all, so the stored list stays the
-      source of truth either way.<br>
-      _Sequencing changed 2026-08-09: do this **as part of** the catalog normalization, now that
-      it sits in Up Next._ The original plan was to do this first and independently, on the
-      grounds that the catalog item was deferred with no trigger date and waiting on it meant
-      waiting indefinitely. Promoting it removed that reason. The two rewrite the same rows and
-      are lossy in the same places, so one migration means one preview pass and one merge of
-      duplicate-name rows; the per-user link table is where this list belongs anyway. Do it
-      separately only if the catalog work stalls again. Related: **"You can add a game you already have"** in
-      Bugs is blocked on this and becomes nearly trivial after it, and **"Restrict the add-game
-      'system' suggestions to the platforms the game actually released on"** below is the client
-      half of the same idea (IGDB's platform list as the allowable set).
 
 - [ ] **Remove genre keyword search when adding a game.** This was added as a helpful way to
       find games, but its not really useful in practice and adds complexity and latency, we
