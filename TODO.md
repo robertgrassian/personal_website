@@ -28,39 +28,33 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 Promote one into Up Next when it starts blocking the sharing goal above, and demote something else
 to keep that section at five._
 
-- [ ] **You can add a game you already have in your library. Filter games you own out of the
-      add-game search, and reject a duplicate add server-side.** Reported 2026-08-08.<br>
-      _Half of this already exists, and the half that does defines the real gap._
-      `create_my_game` (`api/app/services/me.py`) already checks
-      `find_game_by_name_and_system` and raises `GameExistsError` (409, "Name (System) is
-      already in your library."), with the `uq_games_user_id_name_system` constraint as the
-      concurrency backstop and an `IntegrityError` catch re-raising the same error. So a same
-      name + same system add is already blocked today. What gets through is the **same name on a
-      different system** — the unique key is `(user_id, name, system)`, so Chrono Trigger (SNES)
-      and Chrono Trigger (DS) are two rows by design.<br>
-      _So the product decision is the actual work, not the validation._ Match by name alone and
-      you can no longer record having played a game on two platforms, which is a real thing the
-      current shape supports on purpose. Options: keep the per-system rows but **warn** rather
-      than block on a name collision; or declare one row per game and drop system to a field you
-      edit. Decide this before writing a check, because the check is three lines either way.<br>
-      _The search-filter half is unambiguously missing and is probably the better fix._
-      `GameSearchStep` (`src/components/video_games/GameSearchStep.tsx`) takes only
-      `initialQuery`/`inputRef`/`onPick`/`onManual` — it never sees the library, so it cannot
-      grey out or annotate a result you already own. Threading the owned set down from
-      `GameLibrary` (which has `games` in hand, the same thread the wishlist-promote item below
-      needs) lets results render as "already in your library" instead of vanishing, which is
-      friendlier than a silent filter and sidesteps the multi-system question entirely.<br>
-      _Key on `igdb_id`, not name, wherever possible._ Both `games` and `wishlist_items` carry
-      it, and it is exact where a name match is not ("Resident Evil 4" vs "Resident Evil 4:
-      Remake"). Name is only the fallback for manually-entered games, which have no `igdb_id`.<br>
-      Related, and worth sequencing together: the **"Normalize game metadata into a shared
-      catalog"** item in Backlog (a `game_metadata` table with per-user link tables) makes
-      "do I already have this game?" a link-table lookup rather than a string comparison, and
-      names `igdb_id` as its backfill key — so doing that first makes this nearly free, and doing
-      this first should at least not entrench name-matching. The **"Overhaul the wishlist promote
-      flow"** item hits the identical question one column over ("a wishlist entry may be a game
-      already in the library") and already flags that matching by name alone misfires across
-      systems: answer it once for both.
+- [ ] **You can add a game you already have in your library. Reject a duplicate add
+      server-side, and decide what "duplicate" means.** Reported 2026-08-08. **The search half
+      shipped 2026-08-09** (branch `claude/duplicate-add-warning`): `GameLibrary` now builds a
+      folded-name → systems map and threads it through `AddGameModal` to `GameSearchStep`, so a
+      result you already have renders a third line reading "In your library: SNES, DS" (or "On
+      your wishlist"). It annotates and never blocks, because the remaining question is exactly
+      what it must not answer on its own.<br>
+      _What is still open is the product decision, which was always the real work._
+      `create_my_game` (`api/app/services/me.py`) already raises `GameExistsError` (409) on a
+      same name + same system add, with `uq_games_user_id_name_system` as the concurrency
+      backstop. What gets through is the **same name on a different system**, which is two rows
+      by design: Chrono Trigger on SNES and on DS. Match by name alone and you can no longer
+      record having played a game on two platforms. Options: keep per-system rows and **warn**
+      on a name collision, or declare one row per game and demote system to an editable field.
+      The check is three lines either way, so decide first.<br>
+      _Premise correction, found while shipping the search half:_ "key on `igdb_id`" is not
+      available to the client today. The column is on both tables and on the create payloads,
+      but **not on the API's read schema** (`api/app/schemas/users.py`) and so not on `Game` or
+      `WishlistGame` — the shipped annotation matches on folded names for that reason, with the
+      cross-system looseness made visible by listing the systems rather than hidden. Keying on
+      `igdb_id` means widening the read schema, the repository projection and `libraryApi.ts`
+      first, which also enlarges the cached `/video-games` payload by one int per row.<br>
+      Related, and worth sequencing together: **"Normalize game metadata into a shared catalog"**
+      in Backlog makes "do I already have this?" a link-table lookup rather than a string
+      comparison, and names `igdb_id` as its backfill key. **"Overhaul the wishlist promote
+      flow"** hits the identical question one column over and already flags that name-alone
+      matching misfires across systems: answer it once for both.
 
 ## Backlog / Ideas
 

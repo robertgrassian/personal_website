@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { IgdbSearchResult } from "@/lib/games";
 import { searchGames } from "@/app/video-games/actions";
 import { ghostButtonClass, inputClass } from "./formStyles";
+import { foldForSearch } from "./pipeline";
 
 type GameSearchStepProps = {
   // Restores the box when the user comes back from the confirm form. This
@@ -12,6 +13,12 @@ type GameSearchStepProps = {
   // handed up at the seam and back down on return.
   initialQuery: string;
   inputRef: React.RefObject<HTMLInputElement | null>;
+  // Folded name → systems already owned under that name, for the collection
+  // being added to. A hit annotates the row; it never hides or blocks it,
+  // because the same game on a second system is a legitimate add.
+  ownedNames: Map<string, string[]>;
+  // What a hit is called: "In your library" or "On your wishlist".
+  ownedLabel: string;
   // Both report the current query up, so "Back to search" can restore it.
   onPick: (result: IgdbSearchResult, query: string) => void;
   onManual: (query: string) => void;
@@ -21,7 +28,14 @@ type GameSearchStepProps = {
 // results list. Split out of AddGameModal so all of this state unmounts the
 // moment a game is picked — it shares nothing with the confirm form, and used
 // to re-render on every keystroke typed into it.
-export function GameSearchStep({ initialQuery, inputRef, onPick, onManual }: GameSearchStepProps) {
+export function GameSearchStep({
+  initialQuery,
+  inputRef,
+  ownedNames,
+  ownedLabel,
+  onPick,
+  onManual,
+}: GameSearchStepProps) {
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<IgdbSearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -158,38 +172,53 @@ export function GameSearchStep({ initialQuery, inputRef, onPick, onManual }: Gam
           {results.length === 0 && (
             <li className="text-xs text-shelf-text-muted italic">No matches.</li>
           )}
-          {results.map((r) => (
-            <li key={r.igdbId}>
-              <button
-                type="button"
-                onClick={() => onPick(r, query)}
-                className="flex w-full items-center gap-3 rounded-md border border-transparent p-2 text-left hover:border-shelf-plank hover:bg-shelf-input transition-colors cursor-pointer"
-              >
-                {r.coverUrl ? (
-                  <Image
-                    src={r.coverUrl}
-                    alt=""
-                    width={40}
-                    height={54}
-                    className="h-[54px] w-10 shrink-0 rounded object-cover"
-                  />
-                ) : (
-                  <div
-                    aria-hidden="true"
-                    className="h-[54px] w-10 shrink-0 rounded bg-shelf-input"
-                  />
-                )}
-                <span className="min-w-0">
-                  <span className="block truncate text-sm text-shelf-text">{r.name}</span>
-                  <span className="block truncate text-xs text-shelf-text-muted">
-                    {[r.releaseDate.slice(0, 4), r.platforms.join(", ")]
-                      .filter(Boolean)
-                      .join(" · ")}
+          {results.map((r) => {
+            // undefined = not owned. An empty array means owned with no system
+            // recorded, which the wishlist allows, so the two cases are
+            // distinguished by presence rather than by length.
+            const ownedOn = ownedNames.get(foldForSearch(r.name));
+            return (
+              <li key={r.igdbId}>
+                <button
+                  type="button"
+                  onClick={() => onPick(r, query)}
+                  className="flex w-full items-center gap-3 rounded-md border border-transparent p-2 text-left hover:border-shelf-plank hover:bg-shelf-input transition-colors cursor-pointer"
+                >
+                  {r.coverUrl ? (
+                    <Image
+                      src={r.coverUrl}
+                      alt=""
+                      width={40}
+                      height={54}
+                      className="h-[54px] w-10 shrink-0 rounded object-cover"
+                    />
+                  ) : (
+                    <div
+                      aria-hidden="true"
+                      className="h-[54px] w-10 shrink-0 rounded bg-shelf-input"
+                    />
+                  )}
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm text-shelf-text">{r.name}</span>
+                    <span className="block truncate text-xs text-shelf-text-muted">
+                      {[r.releaseDate.slice(0, 4), r.platforms.join(", ")]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                    {/* A third line rather than a badge beside the title: the
+                      systems make it long, and the two lines above are already
+                      truncated, so there is no horizontal room to take. Only
+                      matched rows grow, and they stay inside the 54px cover. */}
+                    {ownedOn !== undefined && (
+                      <span className="text-link block truncate text-xs">
+                        {ownedOn.length > 0 ? `${ownedLabel}: ${ownedOn.join(", ")}` : ownedLabel}
+                      </span>
+                    )}
                   </span>
-                </span>
-              </button>
-            </li>
-          ))}
+                </button>
+              </li>
+            );
+          })}
 
           {/* Inside the scroll area, deliberately: as the last row it is
               only reachable once you have read to the bottom of the
