@@ -1,6 +1,6 @@
 ---
 name: proj-todo
-description: "Owns the project backlog in TODO.md at the repo root — NOT the in-session task tracker (TaskCreate/TaskUpdate), which is unrelated. Invoke for every interaction with that file, reads included: 'add to my todos', 'what should I work on next', 'mark X done', 'is X on my list?', 'drop that item', 'clean up the todo list', and any time you would otherwise read or edit TODO.md yourself."
+description: "Owns the project backlog AND the tracked bug list, both in TODO.md at the repo root — NOT the in-session task tracker (TaskCreate/TaskUpdate), which is unrelated. Invoke for every interaction with that file, reads included: 'add to my todos', 'what should I work on next', 'mark X done', 'is X on my list?', 'drop that item', 'clean up the todo list', and any time you would otherwise read or edit TODO.md yourself. Bugs live in that file too, so invoke it before hunting for defects in the codebase: 'what bugs are open', 'find me a low-hanging-fruit bug to fix', 'what should I fix next', 'is that bug written down', 'file a bug for X' — a request to fix or find a bug starts here, not with a code search."
 argument-hint: "[what you want to do]"
 disable-model-invocation: false
 ---
@@ -11,6 +11,7 @@ disable-model-invocation: false
 | ------------------------------------------ | ------------------------------- |
 | Consult the list, or you need its contents | Reading or answering a question |
 | Pick something to work on                  | What to work on next            |
+| Find a bug to fix, or see what is broken   | Reading or answering a question |
 | A quick overview                           | Showing the list                |
 | Something is finished                      | Marking done                    |
 | Do one of the items now                    | Implementing a task             |

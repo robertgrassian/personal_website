@@ -65,8 +65,10 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
       // Best guess; the field is editable and existing shelves are suggested.
       system: r.platforms[0] ?? "",
       platforms: r.platforms,
-      // IGDB's genres, shown immediately so the field is never empty, then
-      // replaced by the Wikipedia/Wikidata answer when it arrives.
+      // IGDB's genres, as the fallback for when the Wikipedia/Wikidata lookup
+      // misses. Held but not shown until that lookup settles: the confirm form
+      // renders the field as loading until then, so the user sees one genre
+      // list rather than IGDB's being overwritten in front of them.
       genresText: r.genres.join(", "),
       releaseDate: r.releaseDate || null,
       imageUrl: r.coverUrl,
