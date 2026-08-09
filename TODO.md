@@ -35,14 +35,18 @@ to keep that section at five._
       result you already have renders a third line reading "In your library: SNES, DS" (or "On
       your wishlist"). It annotates and never blocks, because the remaining question is exactly
       what it must not answer on its own.<br>
-      _What is still open is the product decision, which was always the real work._
-      `create_my_game` (`api/app/services/me.py`) already raises `GameExistsError` (409) on a
-      same name + same system add, with `uq_games_user_id_name_system` as the concurrency
-      backstop. What gets through is the **same name on a different system**, which is two rows
-      by design: Chrono Trigger on SNES and on DS. Match by name alone and you can no longer
-      record having played a game on two platforms. Options: keep per-system rows and **warn**
-      on a name collision, or declare one row per game and demote system to an editable field.
-      The check is three lines either way, so decide first.<br>
+      _The product decision is now made, and it blocks the rest._ **Decided 2026-08-09: one
+      entry per game, with systems as a list** (see "A library entry should carry a LIST of
+      systems" in Backlog). That answers what had been the open question. `create_my_game`
+      (`api/app/services/me.py`) already raises `GameExistsError` (409) on a same name + same
+      system add, with `uq_games_user_id_name_system` as the concurrency backstop; what gets
+      through is the same name on a **different** system, which is two rows only because the
+      current model has no way to say "same game, second console".<br>
+      _So do not write the check against today's model._ Once entries carry a systems list the
+      unique key becomes `(user_id, name)` and the 409 covers this case for free, while the right
+      behavior for "already have it, different console" stops being a rejection at all: it is
+      adding a system to the existing entry. A check written now would encode the opposite rule
+      and have to be unwritten. **Hold this until the systems-list change lands.**<br>
       _Premise correction, found while shipping the search half:_ "key on `igdb_id`" is not
       available to the client today. The column is on both tables and on the create payloads,
       but **not on the API's read schema** (`api/app/schemas/users.py`) and so not on `Game` or
@@ -57,6 +61,41 @@ to keep that section at five._
       matching misfires across systems: answer it once for both.
 
 ## Backlog / Ideas
+
+- [ ] **A library entry should carry a LIST of systems, not one row per system.** Decided
+      2026-08-09: "I don't think there should be different entries for different systems. Systems
+      should be a list, so a user can say they've played the game on X, Y and Z." This settles the
+      question the duplicate-add bug was blocked on, and is a prerequisite for it rather than a
+      consequence.<br>
+      _What it changes:_ `games.system` is a single `Text` column (`api/app/models/game.py`) and
+      `uq_games_user_id_name_system` is the dedupe rule, so Chrono Trigger on SNES and on DS are
+      two rows today. This makes them one row with `systems: ["SNES", "DS"]` and moves the unique
+      key to `(user_id, name)`.<br>
+      _The frontend is mostly ready for it, which is the pleasant surprise._ Multi-valued grouping
+      and filtering already exist for genres: `groupGames` pushes a game onto one shelf per key
+      returned by `getGroupKeys`, and `passesBaseFilters` already does an `includes` on
+      `game.genres`. So "a game appears on both its SNES and DS shelf" is the genre code path with
+      a different field, not new machinery. What does need deciding is which system supplies the
+      per-console fallback color and `data-system` attribute on a case that now has several
+      (`GameCase.tsx`, `--system-fallback`); first-in-list is the cheap answer.<br>
+      _The two real decisions, both about data that already exists._ **(1) Rating.** One entry
+      means one rating, so an owner who rated two ports differently loses one of them in the
+      merge. Defensible (you rate the game, not the port) but it is a lossy migration and should
+      be run with a preview pass, the habit `docs/genre-backfill-runbook.md` exists for.
+      **(2) Sessions.** `play_sessions` hangs off `game_id` and carries no system of its own, so
+      today a session's platform is implied by its game row and that implication disappears here.
+      Adding `play_sessions.system` is the more expressive answer ("SNES in 2019, Switch in 2024")
+      and would let the systems list be enriched from sessions — but it cannot be _derived_ from
+      them, since most library entries have no sessions at all, so the stored list stays the
+      source of truth either way.<br>
+      _Do this independently of the catalog normalization below, not after it._ The two are
+      unrelated: this is the shape of one user's row, that is deduplication across users. The
+      catalog item has been deferred since the spec on an unresolved ownership/moderation
+      question, so waiting on it means waiting indefinitely, and the systems list is the same
+      column wherever it eventually lives. Related: **"You can add a game you already have"** in
+      Bugs is blocked on this and becomes nearly trivial after it, and **"Restrict the add-game
+      'system' suggestions to the platforms the game actually released on"** below is the client
+      half of the same idea (IGDB's platform list as the allowable set).
 
 - [ ] **Remove genre keyword search when adding a game.** This was added as a helpful way to
       find games, but its not really useful in practice and adds complexity and latency, we
@@ -552,7 +591,13 @@ head` being run by hand from a laptop pointed at production.<br>
       promote form in `EditWishlistModal` only offers existing shelf systems — thread the
       IGDB platforms through there too, and consider doing the same for genres.
 - [ ] Library-level "create session" button (owner-only) — start or log a session for any game without opening that game's pencil/edit modal: a game picker (search the library) + the same start-now / past-dates form the modal has. Stretch goal: accept a game NOT in the library yet ("I just started something new") — the flow would add the game to the library (IGDB search, Phase 3 slice 4's proxy) and open its session in one go. Backend already supports everything except add+start-in-one; UI is the work. Keep simple, iterate later.
-- [ ] Normalize game metadata into a shared catalog (a `game_metadata` table + per-user `played_games`/`wishlist_games` link tables) — today `games` and `wishlist_items` each carry their own copy of name/system/genres/release_date/image_url. Spec §4.2 deliberately chose denormalized-with-`igdb_id` for v1 (canonical rows need an ownership/moderation story; user-entered games lack a canonical key). Revisit at Phase 4 when cross-user duplication actually exists — the `igdb_id` column on both tables is the planned backfill key (group by it, extract canonical rows, repoint).
+- [ ] Normalize game metadata into a shared catalog (a `game_metadata` table + per-user `played_games`/`wishlist_games` link tables) — today `games` and `wishlist_items` each carry their own copy of name/system/genres/release*date/image_url. Spec §4.2 deliberately chose denormalized-with-`igdb_id` for v1 (canonical rows need an ownership/moderation story; user-entered games lack a canonical key). Revisit at Phase 4 when cross-user duplication actually exists — the `igdb_id` column on both tables is the planned backfill key (group by it, extract canonical rows, repoint).<br>
+      \_Systems split across the two levels* (decided 2026-08-09, alongside the systems-as-a-list
+      item above): `game_metadata` holds **every platform the game released on**, which is the
+      catalog's fact and is what IGDB already returns, while the per-user link row holds **the
+      systems that user has played it on**, which is the user's fact and is the subset. Keep the
+      two apart even before this table exists — the systems-list change should store the user's
+      subset, so this migration moves that column rather than reinterpreting it.
 - [ ] Profile pictures for user accounts (instanced game libraries follow-up, post-v1 — likely Supabase Storage + upload/crop flow, shown in the library profile header and follower lists)
 - [ ] Homepage customization per user (instanced game libraries follow-up, post-v1 — let users personalize their library page: hero/backdrop, shelf styling, featured games, etc. Scope TBD)
 - [ ] Staging environment (instanced game libraries follow-up — the project deliberately accepted a "no staging" caveat: previews are read-only against prod, so writes first run for real in prod; revisit with a second Supabase project or branching once the write path exists). **Promoted in priority 2026-07-28:** the preview `500 MIDDLEWARE_INVOCATION_FAILED` (since fixed — see Recently Completed) was this caveat biting for real. Pointing Preview at production's Supabase is the stopgap, but it means preview sign-ins are production accounts. A second Supabase project (own DB + own GoTrue + own Google OAuth client) would give previews a real identity system and finally let the write path be exercised somewhere that isn't prod
