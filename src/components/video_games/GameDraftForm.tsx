@@ -34,6 +34,21 @@ type GameDraftFormProps = {
   onSave: () => void;
 };
 
+// How long the genre field waits before giving up and revealing IGDB's genres.
+//
+// This is the client's own deadline and it is not redundant with the 15s in
+// meApi's TIMEOUT_MS: that one is an AbortSignal on the SERVER's hop to
+// FastAPI, so it bounds the Server Action's work, not the browser's POST to
+// the Server Action. On a stalled connection that promise never settles at
+// all, and without a deadline here the field would stay read-only and empty
+// with no way out but "Back to search".
+//
+// Under the server's own budget on purpose: a lookup still running at 12s has
+// already lost to the fallback in practice, and leaving the owner unable to
+// save for longer than that is worse than occasionally missing a slow but
+// successful Wikipedia answer.
+const GENRE_LOOKUP_DEADLINE_MS = 12_000;
+
 // The confirm step of the add flow: edit the picked game's details and submit.
 // Split out of AddGameModal, which now owns only the shell and the draft.
 // Nothing here is shared with the search step — that was the seam.
@@ -73,11 +88,11 @@ export function GameDraftForm({
    *  way once it settles. Which source won is not something the user is told --
    *  both answers are just "the genres".
    *
-   *  It must not strand the field on its loading placeholder when the call
-   *  throws: the Server Action can reject on the 15s timeout, which left it
-   *  spinning forever. Every path out of the request therefore clears
-   *  `genresLoading`, except the superseded one, where whoever superseded it
-   *  owns the flag.
+   *  It must not strand the field on its loading placeholder, because the field
+   *  is not editable and Save is blocked while it shows. Every path out of the
+   *  request clears `genresLoading` except the superseded one, where whoever
+   *  superseded it owns the flag -- and GENRE_LOOKUP_DEADLINE_MS covers the
+   *  path that is not a path out at all, a request that never settles.
    *
    *  The cleanup is load-bearing, and is the one thing this owes to having
    *  moved out of AddGameModal. `genreSeq` used to live for the whole modal's
@@ -99,10 +114,20 @@ export function GameDraftForm({
     const name = lookupGenresFor;
     const seq = ++genreSeq.current;
     setGenresLoading(true);
+
+    // Giving up bumps the counter as well as clearing the flag, so a response
+    // that lands after the deadline cannot overwrite the fallback genres the
+    // owner is by then looking at, or editing.
+    const deadline = setTimeout(() => {
+      if (seq !== genreSeq.current) return;
+      genreSeq.current += 1;
+      setGenresLoading(false);
+    }, GENRE_LOOKUP_DEADLINE_MS);
+
     void (async () => {
       try {
         const res = await lookupGameGenres(name);
-        // A newer pick, or an unmount, has superseded this response.
+        // A newer pick, an unmount, or the deadline has superseded this.
         if (seq !== genreSeq.current) return;
         if (res.ok && res.genres.length > 0) {
           setDraft((current) =>
@@ -116,10 +141,14 @@ export function GameDraftForm({
         // list without a frame of IGDB's in between.
         setGenresLoading(false);
       } catch {
+        if (seq !== genreSeq.current) return;
         setGenresLoading(false);
+      } finally {
+        clearTimeout(deadline);
       }
     })();
     return () => {
+      clearTimeout(deadline);
       genreSeq.current += 1;
     };
   }, [lookupGenresFor, setDraft]);
@@ -129,8 +158,19 @@ export function GameDraftForm({
   const systemSuggestions = [...new Set([...existingSystems, ...draft.platforms])];
 
   // Wishlist entries may leave the system undecided; library games can't.
+  //
+  // `genresLoading` belongs here for a reason that is not about validity: the
+  // draft still holds IGDB's genres while the field reads empty, so a save
+  // during the lookup would post three genres the owner never saw and land
+  // them on the shelf. That is the same surprise this loading state exists to
+  // remove, moved from the form to the library. Blocked rather than solved by
+  // posting the empty field, which would silently discard genres we have.
+  // Bounded by GENRE_LOOKUP_DEADLINE_MS, so the button cannot stay dead.
   const saveDisabled =
-    isPending || !draft.name.trim() || (target === "library" && !draft.system.trim());
+    isPending ||
+    genresLoading ||
+    !draft.name.trim() ||
+    (target === "library" && !draft.system.trim());
 
   return (
     // Fragment, not one element: the scrolling body and the pinned buttons have
@@ -192,13 +232,21 @@ export function GameDraftForm({
               // what lets the response be applied unconditionally. The previous
               // version had to track whether the user had typed since the
               // request went out, because it could land on top of them.
-              disabled={genresLoading}
+              //
+              // readOnly rather than disabled: disabled drops the field out of
+              // the tab order, and screen readers do not reliably announce a
+              // placeholder on it, so a keyboard user would have met a field
+              // that silently vanished and came back. readOnly blocks typing
+              // just as well while keeping it focusable, and aria-busy is what
+              // actually says why it is not accepting input.
+              readOnly={genresLoading}
+              aria-busy={genresLoading}
               onChange={(e) => setDraft({ ...draft, genresText: e.target.value })}
-              placeholder={genresLoading ? "finding genres..." : "e.g. RPG, Adventure"}
+              placeholder={genresLoading ? "finding genres…" : "e.g. RPG, Adventure"}
               // No dimming: the box is already empty while it loads, and fading
               // an empty box reads as broken rather than as busy. The cursor is
-              // the whole disabled treatment.
-              className={`${inputClass} disabled:cursor-default`}
+              // the whole read-only treatment.
+              className={`${inputClass} read-only:cursor-default`}
             />
           </label>
 
