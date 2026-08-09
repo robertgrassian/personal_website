@@ -6,16 +6,18 @@
 // should prevent them, but a warning beats a white-screen crash.
 
 import type { Game, Filters, Rating } from "@/lib/games";
-import { RATINGS } from "@/lib/games";
+import { RATINGS, UNRATED_LABEL } from "@/lib/games";
 import { type BaseGame, baseGameGenres } from "@/lib/baseGame";
 import type { WishlistGame, WishlistFilters } from "@/lib/wishlist";
 import type { GroupBy, SortOrder } from "./libraryConfig";
 
-type RatingGroup = Rating | "Unrated";
+type RatingGroup = Rating | typeof UNRATED_LABEL;
 
+// Unrated sorts after every real rating, so the Unrated shelf is always last
+// under groupBy="rating" no matter how many ratings exist.
 const RATING_ORDER: Record<RatingGroup, number> = Object.fromEntries([
   ...RATINGS.map((r, i) => [r.name, i]),
-  ["Unrated", RATINGS.length],
+  [UNRATED_LABEL, RATINGS.length],
 ]);
 
 // --- Shared helpers ---
@@ -85,7 +87,10 @@ function fallbackCompare(a: BaseGame, b: BaseGame, sortOrder: SortOrder, view: s
 export function filterGames(games: Game[], filters: Filters): Game[] {
   return games.filter((game) => {
     if (!passesBaseFilters(game, filters)) return false;
-    if (filters.rating && game.rating !== filters.rating) return false;
+    // `game.rating || UNRATED_LABEL` is the same normalization getGroupKeys and
+    // availableRatings use: a rating-less game stores "", which no filter value
+    // ever equals, so it has to be named before it can be compared.
+    if (filters.rating && (game.rating || UNRATED_LABEL) !== filters.rating) return false;
     return true;
   });
 }
@@ -93,7 +98,7 @@ export function filterGames(games: Game[], filters: Filters): Game[] {
 function getGroupKeys(game: Game, groupBy: GroupBy): string[] {
   const shared = sharedGroupKeys(game, groupBy);
   if (shared) return shared;
-  if (groupBy === "rating") return [game.rating || "Unrated"];
+  if (groupBy === "rating") return [game.rating || UNRATED_LABEL];
   return fallbackGroupKeys(groupBy, "played");
 }
 

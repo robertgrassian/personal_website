@@ -4,7 +4,8 @@
 
 import { useState, useEffect, useRef, useTransition, useMemo, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import type { Filters, Rating } from "@/lib/games";
+import type { Filters, RatingFilter } from "@/lib/games";
+import { RATINGS, UNRATED_LABEL } from "@/lib/games";
 import type { WishlistFilters } from "@/lib/wishlist";
 import {
   type View,
@@ -20,6 +21,10 @@ import {
 // Filter keys that behave identically across views — one shared setter.
 export type SharedFilterKey = "search" | "system" | "genre";
 
+// Every accepted ?rating value. Derived from RATINGS so adding a rating needs
+// no change here.
+const VALID_RATING_FILTER: readonly RatingFilter[] = [...RATINGS.map((r) => r.name), UNRATED_LABEL];
+
 type UrlState = {
   view: View;
   groupBy: GroupBy;
@@ -32,7 +37,7 @@ type UrlState = {
   setGroupBy: (value: GroupBy) => void;
   setSortOrder: (value: SortOrder) => void;
   setSharedFilter: (key: SharedFilterKey, value: string) => void;
-  setRating: (value: Rating | "") => void;
+  setRating: (value: RatingFilter) => void;
   clearFilters: () => void;
 };
 
@@ -96,7 +101,17 @@ export function useGameLibraryUrlState(): UrlState {
   // byte-identical results. Changing groupBy or sortOrder, which touch no
   // filter, invalidated them too. Strings compare by value, so both are now
   // cache hits.
-  const rating = (searchParams.get("rating") ?? "") as Rating | "";
+  //
+  // Validated rather than cast: an unknown ?rating would otherwise match no
+  // game and render an empty library, which reads as a broken page rather than
+  // as a bad URL. Possible here because the valid set is static (RATINGS).
+  // ?system and ?genre below have the same failure mode and are still
+  // unvalidated — their valid sets are data-dependent, so the check would have
+  // to live where the games are, not here.
+  const rawRating = searchParams.get("rating");
+  const rating: RatingFilter = VALID_RATING_FILTER.includes(rawRating as RatingFilter)
+    ? (rawRating as RatingFilter)
+    : "";
   const system = searchParams.get("system") ?? "";
   const genre = searchParams.get("genre") ?? "";
 
@@ -188,7 +203,7 @@ export function useGameLibraryUrlState(): UrlState {
   );
 
   const setRating = useCallback(
-    (value: Rating | "") => updateParam("rating", value),
+    (value: RatingFilter) => updateParam("rating", value),
     [updateParam]
   );
 

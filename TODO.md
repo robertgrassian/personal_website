@@ -39,34 +39,6 @@ to keep that section at five._
       determined by our BE, the user should only see one render, with everything finalized populated - we should never show "Wikipedia had no match, showing IGDB's genres". its an implementation
       detail that the user doesnt need to know about.
 
-- [ ] **Filtering should apply to the Unrated shelf too: search for a game and the Unrated shelf
-      stays put.** The premise is exactly right, and the code says so out loud: `GameLibrary.tsx`
-      renders the Unrated `<ShelfSection>` with the raw `unratedGames` array, outside the
-      `useMemo` pipeline that produces `activeShelves`, and the comment
-      above it calls that deliberate ("a small owner utility surface, not part of the public
-      browsing experience"). So search, system and genre all miss it, and filtering to nothing
-      shows "No games match your filters" _above_ a full Unrated shelf.<br>
-      _The instinct that it is a different entity is also right, and it starts upstream._
-      `LibraryPage.tsx` splits the API's games into `libraryGames` (`rating !== ""`) and
-      `unratedGames` (`rating === ""`) and passes them to `GameLibrary` as two separate props, so
-      the pipeline never sees the unrated ones at all. The real fix is at that seam: feed one list
-      through the pipeline and let grouping produce the Unrated shelf, rather than filtering one
-      list and appending the other.<br>
-      _Why it was two lists, and what breaks when they become one:_ **(a)** `groupBy: "rating"`
-      already has an `"Unrated"` group with a sort key pinned last (`RATING_ORDER` in
-      `pipeline.ts`) — it renders empty today only because unrated games never reach it, so
-      that grouping mode gets fixed for free. But **every other** grouping mode (system, genre,
-      decade, none) would then mix unrated games into the normal shelves, which is a real product
-      change, not a bug fix: the Unrated shelf's whole job is being the one place a rating-less
-      game is reachable to re-rate. Decide whether unrated games join their system/genre shelf or
-      stay a separate group in every mode. **(b)** `playedCount` (`LibraryPage.tsx`) is
-      computed from the unsplit `games` array, so it stays correct either way, but it counts
-      games the shelves don't show. **(c)** The shelf is still `canEdit`-gated, so a visitor
-      sees none of this.<br>
-      Related: the "Show the Unrated shelf to everyone" backlog item names this same
-      pipeline exclusion as its sub-point (1); doing this first turns that item back into the
-      one-line `canEdit` change it wants to be.
-
 - [ ] **Tapping a game case to flip it feels laggy on mobile: there is a visible gap between
       press and the animation starting, which desktop does not have.** Reported 2026-08-07.
       Nothing below is confirmed on a device: investigate before fixing, since the two likeliest
@@ -497,7 +469,8 @@ head` being run by hand from a laptop pointed at production.<br>
       off `play_sessions` rather than the game row.
 - [ ] **Overhaul the wishlist promote flow: it is "played", not "bought".** Today
       `EditWishlistModal.tsx` offers "I bought it, move to library" and the promote step
-      just asks for a system (`WishlistPromote`), landing the game on the Unrated shelf.
+      just asks for a system (`WishlistPromote`), so the game arrives unrated: on its normal
+      shelf, and under `groupBy: "rating"` in the "Unrated" group.
       Two premises are wrong: moving to the library means you _played_ it (which might be a
       current session or a past one), and a wishlist entry may be a game already in the
       library that you want to replay.<br>
@@ -550,14 +523,15 @@ head` being run by hand from a laptop pointed at production.<br>
       (`FilterBar.tsx`) to drive the mobile hide-on-scroll-down behavior, and that
       measurement assumes nothing sticky sits above it. Simplest shape is probably one sticky
       container holding both, so they hide and show as a unit on mobile.
-- [ ] **Owner edit affordances still pop in after hydration.** The pencils, "Add game" and the
-      Unrated shelf appear a beat after first paint on your own library, because the answer
+- [ ] **Owner edit affordances still pop in after hydration.** The pencils and "Add game" appear
+      a beat after first paint on your own library, because the answer
       resolves in a `useEffect` — `useViewerRelationship`
       (`src/components/video_games/useViewerRelationship.ts`), read through `useIsOwner()` in
       `FollowControls.tsx`. **Premise updated 2026-08-07:** this used to name
       `useIsLibraryOwner` and a `/me/profile` fetch; that hook is deleted and the two per-viewer
       requests are now one (see Recently Completed). That halved the work but did not fix this —
-      one round trip after hydration still lands after first paint.<br>
+      one round trip after hydration still lands after first paint. The symptom list also lost
+      the Unrated shelf on 2026-08-07: unrated games are no longer `canEdit`-gated at all.<br>
       The pre-paint `data-authed` flag that fixed the CTA banner and `AuthButton`
       (2026-07-29, see Recently Completed) **cannot** be extended to cover this: the cookie proves
       a session exists but not whose it is, and the JWT's `sub` claim is a user id, not a
@@ -594,30 +568,6 @@ head` being run by hand from a laptop pointed at production.<br>
       `revalidateMyLibrary()` in `src/app/video-games/actions.ts` as of PR #69, so it does not
       need restating here. Both constraints disappear if the memo does — dropping it costs one
       extra round trip per write and nothing else.
-- [ ] **Show the "Unrated" shelf to everyone, not just the owner.** `GameLibrary.tsx`
-      gates it on `canEdit`, so visitors to `/video-games/u/{username}` never see games you have played
-      but not rated. It was built as an owner utility (every unrated game keeps a case and a
-      pencil, so clearing a rating stays reversible from the UI) and that framing is what
-      needs to change: an unrated game is still part of the library.<br>
-      _Cheap part:_ the data is already there. `LibraryPage` passes `unratedGames` to every
-      viewer and only the client-side `canEdit` check hides the shelf, so the cached HTML
-      doesn't change and nothing about the caching design is affected. Drop `canEdit` from
-      that condition, and keep passing `onEditGame` **only** when `canEdit` so visitors get
-      cases without pencils.<br>
-      _Three things that stop being invisible once visitors can see it:_
-      **(1)** The shelf sits deliberately outside the filter/group/sort pipeline
-      (`GameLibrary.tsx`), so it ignores search, system and genre filters. Tolerable
-      for a private utility strip; confusing in public browsing, where filtering to "SNES"
-      would still leave unrelated unrated games on screen. **This is now its own Up Next item**
-      ("Filtering should apply to the Unrated shelf too"), raised independently as an
-      owner-facing bug — if that lands first, all this item has left is dropping `canEdit` from
-      the render condition.
-      **(2)** The headline count disagrees. `playedCount` (`LibraryPage.tsx`) is rated
-      games plus currently-playing, so an unrated game you're not playing is on a visible
-      shelf but not in "N games". Either widen the count or accept and document the gap.
-      **(3)** Unrated in-progress games would appear both on the CRT and on this shelf. That
-      double-billing already happens for the owner, so it may be fine — just decide on
-      purpose rather than by accident.
 - [ ] **Restrict the add-game "system" suggestions to the platforms the game actually released
       on.** Today `AddGameModal.tsx` builds the `<datalist>` as a _union_ —
       `[...new Set([...existingSystems, ...(draft?.platforms ?? [])])]` — with every shelf
@@ -680,7 +630,7 @@ head` being run by hand from a laptop pointed at production.<br>
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
-- [x] **Account deletion shipped** (2026-08-07, branch `worktree-account-deletion`).
+- [x] **Account deletion shipped** (2026-08-08, branch `worktree-account-deletion`).
       `DELETE /api/py/me/account`, a control at `/video-games/account` reached from an
       "Account" link in the library header, and `/privacy` rewritten to point at it instead of
       email.<br>
@@ -705,6 +655,27 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       failure, so the `rate_limits` cleanup after it swallows `SQLAlchemyError` — a 500 there
       would tell someone their deletion failed while every row of theirs was already gone.
 
+- [x] **Unrated games are first-class members of the library** (2026-08-07, branch
+      `worktree-fix+unrated-shelf-filtering`). Closes two items at once: "Filtering should apply
+      to the Unrated shelf too" and "Show the Unrated shelf to everyone, not just the owner".
+      `LibraryPage.tsx` no longer splits the API's games on `rating !== ""` — one list goes to
+      `GameLibrary` and through the one filter/group/sort pipeline, so the separate
+      `unratedGames` prop and the `canEdit`-gated trailing `<ShelfSection label="Unrated">` are
+      both gone.<br>
+      _The product decisions taken, since both were genuinely open:_ unrated games **mix into
+      their normal shelves** under groupBy system/genre/decade/none rather than staying a
+      separate group in every mode; under `groupBy: "rating"` they land in the `"Unrated"` group
+      `RATING_ORDER` had always pinned last but which no game could reach. Visitors see them
+      (cases without pencils, via the shared `onEditGame={canEdit ? … : undefined}` every shelf
+      already used). A currently-playing unrated game now appears on both the CRT and a shelf —
+      accepted, since rated in-progress games always double-billed the same way.<br>
+      _Worth knowing:_ the rating filter gained an "Unrated" option, which needed a filter-only
+      `RatingFilter` type in `src/lib/games.ts` (`Rating | "Unrated" | ""`) kept deliberately
+      distinct from `Game["rating"]` — `UNRATED_LABEL` is not a legal rating and must never reach
+      `updateGameRating` or `RatingPicker`. `?rating` is now validated against that set instead
+      of cast, so a junk value falls back to "all" rather than rendering an empty library.
+      `playedCount` collapsed to `games.length`, and `StatsPanel`'s `queryableGames` merge became
+      a no-op and was deleted.
 - [x] **The two per-viewer API calls on a library page collapsed into one** (2026-08-07).
       `useIsLibraryOwner.ts` is deleted. Edit affordances now read `isMe` off the relationship
       response via a `useIsOwner()` selector exported from `FollowControls.tsx`, so one request
@@ -1011,7 +982,3 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       creates them, but migration `f985740c0df9` adds a real FK to `auth.users` — without the
       stand-in, migrations cannot run on bare Postgres. Before this job, 107 of 161 tests
       silently skipped in CI for want of a `DATABASE_URL`.
-- [x] Prod CSV → Postgres cutover confirmed serving: `https://rgrassian.com/video-games`
-      returns 200 and `/api/py/health` reports `{"status":"ok","env":"prod","db":"ok"}`.
-      (The optimistic-UI click-through and the first-write cold-start timing were not
-      measured — do those next time you edit something in prod)

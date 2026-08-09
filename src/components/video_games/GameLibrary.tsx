@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import type { Game } from "@/lib/games";
+import { UNRATED_LABEL, type Game } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
 import { ShelfSection } from "./ShelfSection";
 import { FilterBar } from "./FilterBar";
@@ -27,14 +27,12 @@ import type { GameCaseInput } from "./GameCase";
 import { accentButtonClass } from "./formStyles";
 
 type GameLibraryProps = {
+  // Every played game, rated and unrated alike — one list through one pipeline.
   games: Game[];
   wishlist: WishlistGame[];
-  // In-progress games (may be unrated, so not in `games`); forwarded to the
-  // stats panel so "Recently Played" can surface them.
+  // In-progress games, a subset of `games`; forwarded to the stats panel so
+  // "Recently Played" can rank them first.
   currentlyPlayingGames: Game[];
-  // Games with no rating — rendered as an owner-only shelf so they stay
-  // reachable (and re-ratable) after a rating is cleared.
-  unratedGames: Game[];
   // The owner's follow graph, backing the Following/Followers tabs. Public
   // data fetched server-side, so it is cached with the page like the games.
   followers: UserSummary[];
@@ -45,7 +43,6 @@ export function GameLibrary({
   games,
   wishlist,
   currentlyPlayingGames,
-  unratedGames,
   followers,
   following,
 }: GameLibraryProps) {
@@ -63,11 +60,10 @@ export function GameLibrary({
 
   // The game being edited, tracked by id (not object) so the open dialog
   // always reflects the latest server data after a revalidation replaces the
-  // games array. Searching rated AND unrated keeps the dialog open (and
-  // consistent) when a rating change moves the game between those shelves.
+  // games array — including when a rating change moves the game to a different
+  // shelf, since the lookup is by id rather than by position.
   const [editingGameId, setEditingGameId] = useState<number | null>(null);
-  const editingGame =
-    games.find((g) => g.id === editingGameId) ?? unratedGames.find((g) => g.id === editingGameId);
+  const editingGame = games.find((g) => g.id === editingGameId);
   // Wishlist edits tracked separately — the pencil is shared, but the two
   // views open different dialogs (EditGameModal vs EditWishlistModal).
   const [editingWishlistId, setEditingWishlistId] = useState<number | null>(null);
@@ -95,11 +91,8 @@ export function GameLibrary({
   } = useGameLibraryUrlState();
 
   // "There is genuinely nothing in this view", as opposed to "the filters
-  // excluded everything". Rated and unrated are both checked because an owner
-  // whose only games are unrated still has a library — they'd see it on the
-  // Unrated shelf, so telling them it's empty would be wrong.
-  const isNothingHere =
-    view === "played" ? games.length === 0 && unratedGames.length === 0 : wishlist.length === 0;
+  // excluded everything".
+  const isNothingHere = view === "played" ? games.length === 0 : wishlist.length === 0;
 
   // Option lists for each view's dropdowns — memoized on the immutable props.
   const allSystems = useMemo(() => [...new Set(games.map((g) => g.system))].sort(), [games]);
@@ -112,23 +105,15 @@ export function GameLibrary({
     () => [...new Set(wishlist.flatMap((w) => w.genres))].sort(),
     [wishlist]
   );
-  // Shelf-system suggestions for the add/promote forms. Deliberately distinct
-  // from `allSystems`: the filter dropdown should only offer systems you can
-  // actually filter to (rated games), but a system that currently exists only
-  // on an unrated game is still one of your shelves, so it belongs here.
-  const systemSuggestions = useMemo(
-    () => [...new Set([...games, ...unratedGames].map((g) => g.system))].sort(),
-    [games, unratedGames]
-  );
-
   // "Available" sets — values that still yield results given the other active
   // filters. Options outside these sets render as disabled in the dropdowns.
+  //
+  // Ratings map through UNRATED_LABEL rather than dropping "" so the dropdown's
+  // "Unrated" option enables and disables on the same rule as every real rating.
   const availableRatings = useMemo(
     () =>
       new Set(
-        filterGames(games, { ...activeFilters, rating: "" })
-          .map((g) => g.rating)
-          .filter((r) => r !== "")
+        filterGames(games, { ...activeFilters, rating: "" }).map((g) => g.rating || UNRATED_LABEL)
       ),
     [games, activeFilters]
   );
@@ -307,11 +292,7 @@ export function GameLibrary({
             />
           )}
 
-          {/* One padded container around BOTH shelf groups. The pb-24 keeps the
-              last shelf clear of the viewport bottom, so it has to sit on
-              whichever group is genuinely last — when it lived on the grouped
-              block alone, its 6rem landed *between* that block and the Unrated
-              shelf below it, reading as a gap rather than as trailing space. */}
+          {/* pb-24 keeps the last shelf clear of the viewport bottom. */}
           <div className="pb-24">
             {activeShelves.length === 0 ? (
               // Three situations, three needs: a brand-new owner needs a way in, a
@@ -360,14 +341,6 @@ export function GameLibrary({
                 ))}
               </div>
             )}
-
-            {/* Owner-only "Unrated" shelf: every unrated game keeps a case (and a
-                pencil), so clearing a rating is always reversible from the UI.
-                Deliberately outside the filter/group/sort pipeline — it's a small
-                owner utility surface, not part of the public browsing experience. */}
-            {view === "played" && canEdit && unratedGames.length > 0 && (
-              <ShelfSection label="Unrated" games={unratedGames} onEditGame={handleEditGame} />
-            )}
           </div>
 
           {view === "played" && (
@@ -385,14 +358,14 @@ export function GameLibrary({
       {editingWishlistItem && (
         <EditWishlistModal
           item={editingWishlistItem}
-          existingSystems={systemSuggestions}
+          existingSystems={allSystems}
           onClose={() => setEditingWishlistId(null)}
         />
       )}
       {addOpen && (
         <AddGameModal
           target={view === "played" ? "library" : "wishlist"}
-          existingSystems={systemSuggestions}
+          existingSystems={allSystems}
           onClose={() => setAddOpen(false)}
         />
       )}
