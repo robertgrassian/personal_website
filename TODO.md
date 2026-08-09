@@ -690,14 +690,20 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       `rate_limits` has no FK to `profiles` (deliberate, so it can cover pre-onboarding
       callers), so `rate_limit` repo's `delete_for_user` clears it by hand, after the Admin
       call so a 503 leaves the account whole.<br>
-      _Two decisions that could be revisited._ `supabase_admin.py` now has both
-      `delete_auth_user` (best-effort, for the over-cap signup cleanup) and
-      `delete_auth_user_or_raise` (503s, for this), because a swallowed failure here would
-      report a deletion that never happened. And other users who followed a deleted account
-      keep a stale `followsTag` until something else purges it: fixing that properly means the
-      API returning the affected usernames, which costs the 204 every other DELETE returns.
-      Only the founder's tag is purged today, which covers every real case while the founder is
-      the only account with followers.
+      _The trap that review caught._ A 404 from the Admin API is NOT proof the user is gone.
+      That URL is concatenated from `SUPABASE_URL`, so a trailing slash or a stray `/auth/v1`
+      404s with every row still in place, and the first version reported that as a 204.
+      `delete_auth_user_or_raise` now returns a bool and the service confirms the deletion by
+      re-reading the profile row (`me_repo`'s `profile_exists`, a fresh scalar count rather
+      than `db.get`, whose identity map would answer from cache). Reproduced against local
+      Supabase before and after. Nothing had ever depended on `SUPABASE_URL` being right
+      before this, because its only other consumer logs failures and moves on.<br>
+      _Two more things worth remembering._ The founder's account is undeletable
+      (`FounderUndeletableError`, 403): the handle is in `RESERVED_USERNAMES` so signup could
+      never reclaim it, `/video-games` would `notFound()` forever, and `opengraph-image.tsx`
+      would fail the next production build. And once the Admin call succeeds nothing may report
+      failure, so the `rate_limits` cleanup after it swallows `SQLAlchemyError` — a 500 there
+      would tell someone their deletion failed while every row of theirs was already gone.
 
 - [x] **The two per-viewer API calls on a library page collapsed into one** (2026-08-07).
       `useIsLibraryOwner.ts` is deleted. Edit affordances now read `isMe` off the relationship

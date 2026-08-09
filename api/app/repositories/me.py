@@ -15,6 +15,22 @@ def get_profile_by_id(db: Session, user_id: uuid.UUID) -> Profile | None:
     return db.get(Profile, user_id)
 
 
+def profile_exists(db: Session, user_id: uuid.UUID) -> bool:
+    """Whether a profile row is still there, read straight from the DB.
+
+    Not ``get_profile_by_id(...) is not None``: that is ``db.get``, which
+    answers from the session's identity map when the row has already been
+    loaded. Account deletion asks this question precisely to find out whether
+    something OUTSIDE this session (the ON DELETE CASCADE from auth.users)
+    removed the row, so a cached answer is the wrong answer. A scalar count
+    keeps the ORM out of it entirely.
+    """
+    count = db.execute(
+        select(func.count()).select_from(Profile).where(Profile.id == user_id)
+    ).scalar_one()
+    return count > 0
+
+
 def get_game_for_owner(db: Session, game_id: int, user_id: uuid.UUID) -> Game | None:
     # Ownership lives in the WHERE clause: someone else's game id comes back
     # None, indistinguishable from a nonexistent one — both surface as 404.

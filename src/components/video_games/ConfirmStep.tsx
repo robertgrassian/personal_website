@@ -23,7 +23,17 @@ type ConfirmStepProps = {
   prompt: ReactNode;
   confirmLabel: string;
   onConfirm: () => void;
+  /** Called when the confirm is dismissed, for callers holding state that must
+   *  not survive a reopen — the account delete clears its typed confirmation,
+   *  which would otherwise come back pre-filled and valid. */
+  onCancel?: () => void;
+  /** Disables every control, including Cancel. For in-flight requests. */
   disabled?: boolean;
+  /** Disables ONLY the confirm, leaving Cancel usable. For a caller whose
+   *  prompt contains a gate the user has not satisfied yet — the account
+   *  delete makes you type your username. Backing out must always stay
+   *  available, which is why this is separate from `disabled`. */
+  confirmDisabled?: boolean;
   /** Extra classes for the trigger, for the callers that need `mt-3 block`. */
   triggerClassName?: string;
 };
@@ -33,7 +43,9 @@ export function ConfirmStep({
   prompt,
   confirmLabel,
   onConfirm,
+  onCancel,
   disabled = false,
+  confirmDisabled = false,
   triggerClassName = "",
 }: ConfirmStepProps) {
   const [confirming, setConfirming] = useState(false);
@@ -55,12 +67,20 @@ export function ConfirmStep({
     <div className="mt-3">
       <p className="text-sm text-shelf-text">{prompt}</p>
       <div className="mt-2 flex gap-2">
-        <button type="button" onClick={onConfirm} disabled={disabled} className={dangerButtonClass}>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={disabled || confirmDisabled}
+          className={dangerButtonClass}
+        >
           {confirmLabel}
         </button>
         <button
           type="button"
-          onClick={() => setConfirming(false)}
+          onClick={() => {
+            setConfirming(false);
+            onCancel?.();
+          }}
           disabled={disabled}
           className={buttonClass}
         >

@@ -64,17 +64,30 @@ def _respond(monkeypatch: pytest.MonkeyPatch, status_code: int) -> list[str]:
 def test_or_raise_sends_the_delete(configured, monkeypatch: pytest.MonkeyPatch) -> None:
     calls = _respond(monkeypatch, 204)
     user_id = uuid.uuid4()
-    delete_auth_user_or_raise(user_id)
+    assert delete_auth_user_or_raise(user_id) is True
     assert calls == [f"http://admin.test/auth/v1/admin/users/{user_id}"]
 
 
-def test_or_raise_treats_already_gone_as_success(
+def test_or_raise_reports_404_without_calling_it_success(
     configured, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # A repeat delete on a still-valid token for a deleted account. The caller
-    # asked for the user to not exist, and it does not.
+    # A 404 does not raise (a repeat delete on a still-valid token is a real,
+    # benign case), but it is reported as False rather than treated as done: a
+    # misconfigured SUPABASE_URL 404s too, with every row still in place. Only
+    # the service layer, which can check the profile row, can tell them apart.
     _respond(monkeypatch, 404)
-    delete_auth_user_or_raise(uuid.uuid4())
+    assert delete_auth_user_or_raise(uuid.uuid4()) is False
+
+
+def test_or_raise_translates_invalid_url(configured, monkeypatch: pytest.MonkeyPatch) -> None:
+    # InvalidURL is not an httpx.HTTPError subclass, so without an explicit
+    # handler a malformed SUPABASE_URL surfaces as a 500 rather than the 503.
+    def bad_url(url: str, **kwargs: object) -> httpx.Response:
+        raise httpx.InvalidURL("no scheme")
+
+    monkeypatch.setattr(supabase_admin.httpx, "delete", bad_url)
+    with pytest.raises(AuthUserDeleteError):
+        delete_auth_user_or_raise(uuid.uuid4())
 
 
 def test_or_raise_raises_on_server_error(configured, monkeypatch: pytest.MonkeyPatch) -> None:

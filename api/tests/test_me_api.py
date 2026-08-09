@@ -15,7 +15,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.core import guards
 from app.core.auth import AuthenticatedUser, get_current_user
@@ -678,7 +678,20 @@ def test_patch_game_forbidden_in_preview(
 
 
 def _stub_admin_delete(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("app.services.me.delete_auth_user_or_raise", _delete_auth_user)
+    """Stand in for the Admin API with the equivalent raw SQL, reporting the
+    deletion as real (True) the way a 2xx from GoTrue would."""
+
+    def fake(user_id: uuid.UUID) -> bool:
+        _delete_auth_user(user_id)
+        return True
+
+    monkeypatch.setattr("app.services.me.delete_auth_user_or_raise", fake)
+
+
+def _stub_admin_404(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A 404 from the Admin API with nothing actually deleted, which is what a
+    misconfigured SUPABASE_URL produces."""
+    monkeypatch.setattr("app.services.me.delete_auth_user_or_raise", lambda _user_id: False)
 
 
 def _count(sql: str, user_id: uuid.UUID) -> int:
@@ -765,8 +778,76 @@ def test_delete_account_unconfigured_admin_is_503(
         assert "nothing was deleted" in response.json()["detail"]
         assert _count("SELECT count(*) FROM profiles WHERE id = :id", user_id) == 1
         assert _count("SELECT count(*) FROM games WHERE user_id = :id", user_id) == 1
+        # The one that pins the ordering the docstring argues for. Without it,
+        # swapping the two statements in delete_my_account keeps every other
+        # test green while a failed delete quietly clears the counters.
+        assert _count("SELECT count(*) FROM rate_limits WHERE user_id = :id", user_id) == 1
     finally:
         get_settings.cache_clear()
+
+
+@requires_db
+def test_delete_account_bogus_404_does_not_report_success(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A 404 from the Admin API with every row still in place, which is what a
+    # SUPABASE_URL with a trailing slash or a stray /auth/v1 produces. The
+    # endpoint must NOT report a deletion it did not perform.
+    user_id, _ = fresh_user_with_game
+    _stub_admin_404(monkeypatch)
+
+    response = client_as(user_id).delete("/api/py/me/account")
+
+    assert response.status_code == 503
+    assert _count("SELECT count(*) FROM profiles WHERE id = :id", user_id) == 1
+    assert _count("SELECT count(*) FROM games WHERE user_id = :id", user_id) == 1
+    assert _count("SELECT count(*) FROM rate_limits WHERE user_id = :id", user_id) == 1
+
+
+@requires_db
+def test_delete_account_genuine_404_still_succeeds(
+    fresh_auth_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The other side of the same check: a 404 for a user whose profile really
+    # is gone is the idempotent repeat, and stays a 204.
+    user_id, _ = fresh_auth_user
+    _delete_auth_user(user_id)  # really remove it, so no profile row survives
+    _stub_admin_404(monkeypatch)
+    assert client_as(user_id).delete("/api/py/me/account").status_code == 204
+
+
+@requires_db
+def test_delete_account_refuses_for_the_founder(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Deleting the founder is unrecoverable: the handle is reserved so signup
+    # cannot reclaim it, /video-games would 404 forever, and the next
+    # production build would fail prerendering its OG image.
+    _stub_admin_delete(monkeypatch)
+
+    response = client_as(ROBERT_PROFILE_ID).delete("/api/py/me/account")
+
+    assert response.status_code == 403
+    assert "cannot be deleted" in response.json()["detail"]
+    assert _count("SELECT count(*) FROM profiles WHERE id = :id", ROBERT_PROFILE_ID) == 1
+
+
+@requires_db
+def test_delete_account_survives_a_rate_limit_cleanup_failure(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Once the auth user is gone the account is unrecoverable, so no later
+    # failure may be reported as one: a 500 here would tell someone their
+    # deletion failed while every row of theirs was already destroyed, and the
+    # frontend would then skip both the sign-out and the cache purge.
+    user_id, _ = fresh_user_with_game
+    _stub_admin_delete(monkeypatch)
+
+    def boom(_db: object, _user_id: uuid.UUID) -> None:
+        raise OperationalError("DELETE FROM rate_limits", {}, Exception("connection lost"))
+
+    monkeypatch.setattr("app.services.me.rate_limit_repo.delete_for_user", boom)
+
+    assert client_as(user_id).delete("/api/py/me/account").status_code == 204
+    assert _count("SELECT count(*) FROM profiles WHERE id = :id", user_id) == 0
 
 
 @requires_db

@@ -44,8 +44,15 @@ class AuthUserDeleteError(DomainError):
         )
 
 
-def _delete_auth_user(user_id: uuid.UUID) -> None:
+def _delete_auth_user(user_id: uuid.UUID) -> bool:
     """Issue the Admin API delete, raising on any failure.
+
+    Returns True when the API deleted a user, False when it answered 404. That
+    distinction is the caller's to interpret and NOT a synonym for "already
+    gone": this URL is built by string-concatenating an env var, so a
+    SUPABASE_URL with a trailing slash or an extra ``/auth/v1`` produces a
+    request the gateway 404s with every row still in place. A bare 404 cannot
+    tell the two apart, so this function refuses to guess.
 
     Private because the failure modes it raises (RuntimeError for missing
     config, httpx.HTTPError for the call) are not what either caller wants to
@@ -64,16 +71,11 @@ def _delete_auth_user(user_id: uuid.UUID) -> None:
         },
         timeout=5.0,
     )
-    # Already gone is the outcome both callers wanted, so treat it as success
-    # rather than a failure. This is reachable for real: access tokens are
-    # verified by signature and outlive the user they name, so a second delete
-    # arriving on a still-valid token from an already-deleted account
-    # authenticates fine and 404s here. Raising would tell that caller the
-    # accounts service was unreachable, which is both wrong and alarming.
     if response.status_code == 404:
-        logger.info("Auth user %s was already gone", user_id)
-        return
+        logger.info("Admin API reported no such auth user %s", user_id)
+        return False
     response.raise_for_status()
+    return True
 
 
 def delete_auth_user(user_id: uuid.UUID) -> None:
@@ -90,22 +92,34 @@ def delete_auth_user(user_id: uuid.UUID) -> None:
         logger.warning(
             "Supabase admin API not configured; skipping auth user cleanup for %s", user_id
         )
-    except httpx.HTTPError:
+    # InvalidURL is listed separately because it is NOT an httpx.HTTPError
+    # subclass, so a malformed SUPABASE_URL (spaces, no scheme) would otherwise
+    # escape this handler as a 500 instead of the intended outcome.
+    except (httpx.HTTPError, httpx.InvalidURL):
         logger.exception("Failed to delete auth user %s via admin API", user_id)
 
 
-def delete_auth_user_or_raise(user_id: uuid.UUID) -> None:
+def delete_auth_user_or_raise(user_id: uuid.UUID) -> bool:
     """Delete an auth.users row via the Admin API, raising on failure.
+
+    Returns True when a user was deleted and False when the API answered 404.
+    A False is NOT proof the user is gone — see ``_delete_auth_user`` — so the
+    caller must confirm that some other way before reporting success. The
+    service layer does it by checking the profile row, which the cascade takes
+    with a genuinely deleted auth user.
 
     Raises ``AuthUserDeleteError`` (503) when the admin credentials are missing
     or the call fails. Missing config is a failure here rather than a no-op: an
     environment that cannot delete auth users cannot honor account deletion,
     and reporting success would be a lie."""
     try:
-        _delete_auth_user(user_id)
+        return _delete_auth_user(user_id)
     except RuntimeError:
         logger.error("Supabase admin API not configured; cannot delete account for %s", user_id)
         raise AuthUserDeleteError() from None
-    except httpx.HTTPError as exc:
+    # InvalidURL is not an httpx.HTTPError subclass, so without it a malformed
+    # SUPABASE_URL escapes as a 500. Same true outcome (nothing deleted), worse
+    # message.
+    except (httpx.HTTPError, httpx.InvalidURL) as exc:
         logger.exception("Failed to delete auth user %s via admin API", user_id)
         raise AuthUserDeleteError() from exc

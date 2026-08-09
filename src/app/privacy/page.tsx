@@ -107,10 +107,10 @@ export default function PrivacyPolicy() {
             <Link href="/video-games/account" className={proseLink}>
               account page
             </Link>
-            . Deletion is immediate and permanent: it removes your profile, your sign-in record, and
-            all library data, meaning games, play sessions, wishlist, and follows. There is no
-            backup to restore from. If you would rather not do it yourself, email me at the address
-            below.
+            . Deletion is immediate: it removes your profile, your sign-in record, and all library
+            data, meaning games, play sessions, wishlist, and follows. It cannot be undone or
+            restored through the site. If you would rather not do it yourself, email me at the
+            address below.
           </p>
         </section>
 

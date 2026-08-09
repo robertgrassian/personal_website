@@ -77,7 +77,9 @@ def delete_my_account(user: CurrentUser, db: DbSession) -> None:
 
     Status mapping:
     - 204 deleted
-    - 503 the accounts service is unreachable or unconfigured; nothing deleted
+    - 403 the founder's account, which the rest of the site depends on
+    - 503 the accounts service is unreachable, unconfigured, or answered in a
+      way that could not be confirmed; nothing deleted
     """
     me_service.delete_my_account(db, user)
 

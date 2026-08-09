@@ -8,8 +8,15 @@
 //
 // A self-resolving page in the same shape as /onboarding and /library:
 //   - not signed in        → /video-games/start
-//   - signed in, no profile→ /onboarding (nothing to show yet)
+//   - signed in, no profile→ render the panel without a library
 //   - signed in, onboarded → render the panel
+//
+// The no-profile case is NOT sent to /onboarding, unlike every other resolver
+// here. Signing in with Google mints the auth user before onboarding runs, so
+// someone who lands on the username picker and decides they do not want an
+// account still has a real account. The endpoint deletes it fine; bouncing
+// them to /onboarding would be the only thing standing between them and the
+// delete they came for.
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -40,16 +47,25 @@ export default async function AccountPage() {
   if (!user) redirect("/video-games/start");
 
   const profile = await fetchMyProfile();
-  if (!profile) redirect("/onboarding");
 
   // Both reads are tagged and cached (libraryApi), and this viewer's library
   // page has almost certainly warmed them already, so the counts cost nothing
   // in practice. They are worth fetching: the confirm prompt naming "312 games"
   // is the difference between a warning someone reads and one they click past.
-  const [games, wishlist] = await Promise.all([
-    getGames(profile.username),
-    getWishlist(profile.username),
-  ]);
+  //
+  // Best-effort, though. getGames and getWishlist throw when the library API is
+  // unwell, which would error the whole page and make the delete control
+  // unreachable exactly when the site is misbehaving — the moment someone is
+  // most likely to want it. A null count drops the number from the prompt and
+  // changes nothing else.
+  const counts = profile
+    ? await Promise.all([
+        getGames(profile.username).catch(() => null),
+        getWishlist(profile.username).catch(() => null),
+      ])
+    : null;
+  const gameCount = counts?.[0]?.length ?? null;
+  const wishlistCount = counts?.[1]?.length ?? null;
 
   return (
     <main className="min-h-screen bg-shelf-bg shelf-theme">
@@ -61,28 +77,40 @@ export default async function AccountPage() {
             <dt className="text-shelf-text-muted">Signed in as</dt>
             <dd className="text-shelf-text">{user.email}</dd>
           </div>
-          <div className="flex gap-2">
-            <dt className="text-shelf-text-muted">Username</dt>
-            <dd className="text-shelf-text">{profile.username}</dd>
-          </div>
+          {profile !== null && (
+            <div className="flex gap-2">
+              <dt className="text-shelf-text-muted">Username</dt>
+              <dd className="text-shelf-text">{profile.username}</dd>
+            </div>
+          )}
         </dl>
 
         <p className="mt-6 text-sm">
-          <Link
-            href={userLibraryPath(profile.username)}
-            className="text-link underline underline-offset-4"
-          >
-            Back to your library
-          </Link>
+          {profile !== null ? (
+            <Link
+              href={userLibraryPath(profile.username)}
+              className="text-link underline underline-offset-4"
+            >
+              Back to your library
+            </Link>
+          ) : (
+            <Link href="/onboarding" className="text-link underline underline-offset-4">
+              Finish setting up your library
+            </Link>
+          )}
         </p>
 
         <div className="mt-10 border-t border-shelf-plank pt-8">
           <h2 className="text-lg font-semibold text-shelf-text">Delete account</h2>
           <p className="mt-2 text-sm text-shelf-text">
-            This removes your account and everything in it. There is no undo, and no backup to
-            restore from.
+            This removes your account and everything in it. It cannot be undone, and it cannot be
+            restored through the site.
           </p>
-          <AccountPanel gameCount={games.length} wishlistCount={wishlist.length} />
+          <AccountPanel
+            username={profile?.username ?? null}
+            gameCount={gameCount}
+            wishlistCount={wishlistCount}
+          />
         </div>
       </div>
     </main>
