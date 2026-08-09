@@ -87,13 +87,10 @@ function fallbackCompare(a: BaseGame, b: BaseGame, sortOrder: SortOrder, view: s
 export function filterGames(games: Game[], filters: Filters): Game[] {
   return games.filter((game) => {
     if (!passesBaseFilters(game, filters)) return false;
-    // UNRATED_LABEL is a filter-only value with no matching row value: a
-    // rating-less game stores "", so it can't be compared against directly.
-    if (filters.rating === UNRATED_LABEL) {
-      if (game.rating !== "") return false;
-    } else if (filters.rating && game.rating !== filters.rating) {
-      return false;
-    }
+    // `game.rating || UNRATED_LABEL` is the same normalization getGroupKeys and
+    // availableRatings use: a rating-less game stores "", which no filter value
+    // ever equals, so it has to be named before it can be compared.
+    if (filters.rating && (game.rating || UNRATED_LABEL) !== filters.rating) return false;
     return true;
   });
 }

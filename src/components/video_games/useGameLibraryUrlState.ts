@@ -102,9 +102,12 @@ export function useGameLibraryUrlState(): UrlState {
   // filter, invalidated them too. Strings compare by value, so both are now
   // cache hits.
   //
-  // Validated rather than cast, like groupBy and sortOrder above: an unknown
-  // ?rating would otherwise match no game and render an empty library, which
-  // reads as a broken page rather than as a bad URL.
+  // Validated rather than cast: an unknown ?rating would otherwise match no
+  // game and render an empty library, which reads as a broken page rather than
+  // as a bad URL. Possible here because the valid set is static (RATINGS).
+  // ?system and ?genre below have the same failure mode and are still
+  // unvalidated — their valid sets are data-dependent, so the check would have
+  // to live where the games are, not here.
   const rawRating = searchParams.get("rating");
   const rating: RatingFilter = VALID_RATING_FILTER.includes(rawRating as RatingFilter)
     ? (rawRating as RatingFilter)

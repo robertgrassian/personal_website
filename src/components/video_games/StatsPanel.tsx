@@ -96,11 +96,12 @@ export function StatsPanel({ games, currentlyPlayingGames, isOpen, onClose }: St
             <GameStats games={games} currentlyPlayingGames={currentlyPlayingGames} />
           </div>
           <div className={activeTab === "query" ? "" : "hidden"}>
-            {/* `games` is the whole played library, so an unrated in-progress
-                game is already in the SQL table and `currently_playing` is
-                queryable without merging the two lists. GameStats above still
-                takes them separately: it needs currently-playing games ranked
-                first in "Recently Played", an order a merged list loses. */}
+            {/* `games` is the whole played library, so the SQL table no longer
+                needs the currently-playing rows merged in — and it is now
+                complete, where the old merge silently omitted any unrated game
+                you weren't currently playing. GameStats above still takes the
+                two lists separately, for dedup preference rather than ordering
+                (see its prop comment). */}
             <SqlQueryPanel games={games} />
           </div>
         </div>

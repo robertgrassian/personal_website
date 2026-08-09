@@ -2,12 +2,15 @@
 
 import { useMemo } from "react";
 import type { Game } from "@/lib/games";
-import { RATINGS } from "@/lib/games";
+import { RATINGS, UNRATED_LABEL } from "@/lib/games";
 
 type GameStatsProps = {
   games: Game[];
-  // In-progress games — may be unrated, so not present in `games`. Unioned into
-  // "Recently Played" so a game you're playing now still shows up there.
+  // A subset of `games`, passed separately only so it can lead the "Recently
+  // Played" concat. That dedups by name, so the prepend is what decides which
+  // row wins when one title exists on two systems (rated on one, in progress on
+  // the other) — see the comment there. Sort order does NOT depend on this: the
+  // comparator ranks in-progress games first however they arrive.
   currentlyPlayingGames: Game[];
 };
 
@@ -73,9 +76,9 @@ function StatsSection({ title, children }: { title: string; children: React.Reac
 export function GameStats({ games, currentlyPlayingGames }: GameStatsProps) {
   const stats = useMemo(() => {
     const ratingMap = new Map<string, number>(RATINGS.map((r) => [r.name, 0]));
-    ratingMap.set("Unrated", 0);
+    ratingMap.set(UNRATED_LABEL, 0);
     for (const game of games) {
-      const key = game.rating || "Unrated";
+      const key = game.rating || UNRATED_LABEL;
       ratingMap.set(key, (ratingMap.get(key) ?? 0) + 1);
     }
 
@@ -86,7 +89,14 @@ export function GameStats({ games, currentlyPlayingGames }: GameStatsProps) {
         color: r.color,
         count: ratingMap.get(r.name) ?? 0,
       })),
-      { name: "Unrated", letter: "·", color: "#9ca3af", count: ratingMap.get("Unrated") ?? 0 },
+      // Appended rather than part of RATINGS: it is the absence of a rating, and
+      // the "·" and neutral token are what keep it from reading as a sixth grade.
+      {
+        name: UNRATED_LABEL,
+        letter: "·",
+        color: "var(--rating-unrated)",
+        count: ratingMap.get(UNRATED_LABEL) ?? 0,
+      },
     ];
 
     const systemMap = new Map<string, number>();

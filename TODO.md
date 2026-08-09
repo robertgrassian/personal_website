@@ -478,7 +478,8 @@ head` being run by hand from a laptop pointed at production.<br>
       off `play_sessions` rather than the game row.
 - [ ] **Overhaul the wishlist promote flow: it is "played", not "bought".** Today
       `EditWishlistModal.tsx` offers "I bought it, move to library" and the promote step
-      just asks for a system (`WishlistPromote`), landing the game on the Unrated shelf.
+      just asks for a system (`WishlistPromote`), so the game arrives unrated: on its normal
+      shelf, and under `groupBy: "rating"` in the "Unrated" group.
       Two premises are wrong: moving to the library means you _played_ it (which might be a
       current session or a past one), and a wishlist entry may be a game already in the
       library that you want to replay.<br>
@@ -531,14 +532,15 @@ head` being run by hand from a laptop pointed at production.<br>
       (`FilterBar.tsx`) to drive the mobile hide-on-scroll-down behavior, and that
       measurement assumes nothing sticky sits above it. Simplest shape is probably one sticky
       container holding both, so they hide and show as a unit on mobile.
-- [ ] **Owner edit affordances still pop in after hydration.** The pencils, "Add game" and the
-      Unrated shelf appear a beat after first paint on your own library, because the answer
+- [ ] **Owner edit affordances still pop in after hydration.** The pencils and "Add game" appear
+      a beat after first paint on your own library, because the answer
       resolves in a `useEffect` — `useViewerRelationship`
       (`src/components/video_games/useViewerRelationship.ts`), read through `useIsOwner()` in
       `FollowControls.tsx`. **Premise updated 2026-08-07:** this used to name
       `useIsLibraryOwner` and a `/me/profile` fetch; that hook is deleted and the two per-viewer
       requests are now one (see Recently Completed). That halved the work but did not fix this —
-      one round trip after hydration still lands after first paint.<br>
+      one round trip after hydration still lands after first paint. The symptom list also lost
+      the Unrated shelf on 2026-08-07: unrated games are no longer `canEdit`-gated at all.<br>
       The pre-paint `data-authed` flag that fixed the CTA banner and `AuthButton`
       (2026-07-29, see Recently Completed) **cannot** be extended to cover this: the cookie proves
       a session exists but not whose it is, and the JWT's `sub` claim is a user id, not a

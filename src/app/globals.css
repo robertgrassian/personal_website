@@ -19,6 +19,9 @@
   --rating-b: #6366f1; /* indigo-500 */
   --rating-c: #a16207; /* amber-700 */
   --rating-f: #be123c; /* rose-700 */
+  /* Not a rating — the "Unrated" histogram row. Deliberately the only neutral
+     in the set, so it reads as "no rating" rather than as a sixth grade. */
+  --rating-unrated: #9ca3af; /* gray-400 */
 
   /* Stats chart accent colors */
   --stats-genres: #7c3aed; /* violet-700 */
@@ -43,6 +46,9 @@
     --rating-b: #818cf8; /* indigo-400 */
     --rating-c: #fcd34d; /* amber-300 — lighter yellow to stay distinct from S */
     --rating-f: #fb7185; /* rose-400 */
+    /* Lighter than the light-mode value, like the ratings above: the swatch
+       carries gray-900 text and sits on the dark divider track. */
+    --rating-unrated: #d1d5db; /* gray-300 */
 
     /* Stats chart accent colors */
     --stats-genres: #a78bfa; /* violet-400 */

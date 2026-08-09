@@ -70,9 +70,9 @@ export async function LibraryPage({ username, showSignupCta = false }: LibraryPa
     getFollowers(username),
     getFollowing(username),
   ]);
-  // All in-progress games — the CRT cycles through them like TV channels, and
-  // the stats panel uses them so "Recently Played" can rank a currently-playing
-  // game first, an order it can't recover from the full list.
+  // All in-progress games — the CRT cycles through them like TV channels. Also
+  // forwarded to the stats panel, which needs them as their own list to break a
+  // "Recently Played" dedup tie, not to order anything (see GameStats).
   const currentlyPlayingGames = games.filter((g) => g.currentlyPlaying);
   // `games` goes to GameLibrary whole, rated and unrated alike. It used to be
   // split on `rating !== ""` here, which left the unrated half outside the
