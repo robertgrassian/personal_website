@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import type { Game } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
@@ -111,17 +111,45 @@ export function GameShelves({
   // excluded everything".
   const isNothingHere = view === "played" ? games.length === 0 : wishlist.length === 0;
 
+  // Typing must not wait on the shelves.
+  //
+  // The search box is a controlled input reading `activeFilters.search`, and
+  // everything below runs off that same value: filter, group and sort over the
+  // whole library, the two "available filters" passes, then reconciling ~155
+  // cases. React renders all of that in the same commit as the keystroke, so
+  // the character could not appear until the pass had finished. On a big
+  // library that reads as typing that catches, and it is why a fast typist
+  // could out-run the box.
+  //
+  // useDeferredValue splits the priorities: the input re-renders immediately
+  // with the new value, and React re-runs the expensive consumers afterward at
+  // lower priority with the value trailing by a render. When there is no load
+  // the two are the same object in the same commit and nothing changes. The
+  // filter bar keeps `activeFilters` so what you typed is always what you see.
+  const deferredFilters = useDeferredValue(activeFilters);
+  const deferredWishlistFilters = useDeferredValue(activeWishlistFilters);
+
   // Dropdown options plus the "would still yield results" subsets, for
   // whichever view is mounted. See useFilterOptions for why this is one call
   // rather than eight memos declared here.
+  //
+  // Deferred, not live: these drive which options render disabled, which is
+  // decoration on the same pass the shelves use and must not hold up the
+  // keystroke either.
   const { allSystems, allGenres, availableRatings, availableSystems, availableGenres } =
-    useFilterOptions({ games, wishlist, view, activeFilters, activeWishlistFilters });
+    useFilterOptions({
+      games,
+      wishlist,
+      view,
+      activeFilters: deferredFilters,
+      activeWishlistFilters: deferredWishlistFilters,
+    });
 
   // filter → group → sort, branched by view so each pipeline runs against
   // data of its own type (Game[] vs WishlistGame[]).
   const activeShelves = useMemo(() => {
     if (view === "played") {
-      const filtered = filterGames(games, activeFilters);
+      const filtered = filterGames(games, deferredFilters);
       const groups =
         groupBy === "none" ? [{ label: "", games: filtered }] : groupGames(filtered, groupBy);
       return groups
@@ -130,11 +158,11 @@ export function GameShelves({
     }
     // No "none" short-circuit here (unlike played): groupWishlist always has
     // to run so the Starred shelf is split off even when grouping is off.
-    const filtered = filterWishlist(wishlist, activeWishlistFilters);
+    const filtered = filterWishlist(wishlist, deferredWishlistFilters);
     return groupWishlist(filtered, groupBy)
       .filter((g) => g.games.length > 0)
       .map((group) => ({ ...group, games: sortWishlist(group.games, sortOrder) }));
-  }, [view, games, wishlist, activeFilters, activeWishlistFilters, groupBy, sortOrder]);
+  }, [view, games, wishlist, deferredFilters, deferredWishlistFilters, groupBy, sortOrder]);
 
   // The seven props both views pass identically. Spread rather than repeated,
   // so a new shared prop cannot land on one view and not the other.
