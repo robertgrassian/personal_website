@@ -19,17 +19,8 @@ asked for, which needs no reason and is marked `(Promoted by request YYYY-MM-DD.
 get demoted back out. Adding a sixth item means demoting one, on purpose. (Split out 2026-08-07:
 the old rule sent every bug straight here, so four of five slots were defects.)
 
-- [ ] **Implement account deletion (`DELETE /api/py/me/account`).** Promoted from Backlog
-      2026-07-30: the last unbuilt thing the spec actually committed to, and the one item here
-      that is a promise rather than a polish. Spec decision #22 planned it (cascade down from
-      `profiles` + `auth.users` removal via the Supabase Admin API, which
-      `core/supabase_admin.py` already wraps for the over-cap cleanup), but it was never built.
-      Noticed 2026-07-28 while editing `/privacy`: the policy described deleting your account
-      as though it were self-serve, so the copy now points at email instead, which is the only
-      mechanism that actually exists. Once the endpoint and a UI control ship, update that
-      paragraph (there is a comment in `src/app/privacy/page.tsx` marking it). Note
-      `rate_limits` has no FK to `profiles`, so those rows will not cascade and need deleting
-      explicitly.
+_Nothing queued. The next thing to work on is whichever bug below has started to matter, or
+whatever gets promoted here by request._
 
 ## Bugs
 
@@ -639,6 +630,31 @@ head` being run by hand from a laptop pointed at production.<br>
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Account deletion shipped** (2026-08-08, branch `worktree-account-deletion`).
+      `DELETE /api/py/me/account`, a control at `/video-games/account` reached from an
+      "Account" link in the library header, and `/privacy` rewritten to point at it instead of
+      email.<br>
+      _Two things worth keeping._ The cascade root is `auth.users`, not `profiles` — the FK
+      runs profiles → auth.users, so the service cannot `db.delete(profile)` and expect the
+      auth user to follow; it calls the Admin API and lets the cascade run down. And
+      `rate_limits` has no FK to `profiles` (deliberate, so it can cover pre-onboarding
+      callers), so `rate_limit` repo's `delete_for_user` clears it by hand, after the Admin
+      call so a 503 leaves the account whole.<br>
+      _The trap that review caught._ A 404 from the Admin API is NOT proof the user is gone.
+      That URL is concatenated from `SUPABASE_URL`, so a trailing slash or a stray `/auth/v1`
+      404s with every row still in place, and the first version reported that as a 204.
+      `delete_auth_user_or_raise` now returns a bool and the service confirms the deletion by
+      re-reading the profile row (`me_repo`'s `profile_exists`, a fresh scalar count rather
+      than `db.get`, whose identity map would answer from cache). Reproduced against local
+      Supabase before and after. Nothing had ever depended on `SUPABASE_URL` being right
+      before this, because its only other consumer logs failures and moves on.<br>
+      _Two more things worth remembering._ The founder's account is undeletable
+      (`FounderUndeletableError`, 403): the handle is in `RESERVED_USERNAMES` so signup could
+      never reclaim it, `/video-games` would `notFound()` forever, and `opengraph-image.tsx`
+      would fail the next production build. And once the Admin call succeeds nothing may report
+      failure, so the `rate_limits` cleanup after it swallows `SQLAlchemyError` — a 500 there
+      would tell someone their deletion failed while every row of theirs was already gone.
+
 - [x] **Unrated games are first-class members of the library** (2026-08-07, branch
       `worktree-fix+unrated-shelf-filtering`). Closes two items at once: "Filtering should apply
       to the Unrated shelf too" and "Show the Unrated shelf to everyone, not just the owner".
@@ -966,7 +982,3 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       creates them, but migration `f985740c0df9` adds a real FK to `auth.users` — without the
       stand-in, migrations cannot run on bare Postgres. Before this job, 107 of 161 tests
       silently skipped in CI for want of a `DATABASE_URL`.
-- [x] Prod CSV → Postgres cutover confirmed serving: `https://rgrassian.com/video-games`
-      returns 200 and `/api/py/health` reports `{"status":"ok","env":"prod","db":"ok"}`.
-      (The optimistic-UI click-through and the first-write cold-start timing were not
-      measured — do those next time you edit something in prod)

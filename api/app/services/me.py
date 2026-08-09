@@ -15,15 +15,20 @@ import re
 import uuid
 
 from fastapi import status
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.auth import AuthenticatedUser
 from app.core.config import FOUNDER_USERNAME, get_settings
 from app.core.errors import DomainError
-from app.core.supabase_admin import delete_auth_user
+from app.core.supabase_admin import (
+    AuthUserDeleteError,
+    delete_auth_user,
+    delete_auth_user_or_raise,
+)
 from app.models import Profile
 from app.repositories import me as me_repo
+from app.repositories import rate_limit as rate_limit_repo
 from app.repositories import users as users_repo
 from app.schemas.me import (
     GameCreate,
@@ -145,6 +150,19 @@ class SignupCapReachedError(DomainError):
     """MAX_USERS reached — signup is closed."""
 
     status_code = status.HTTP_403_FORBIDDEN
+
+
+class FounderUndeletableError(DomainError):
+    """The founder's account cannot be self-deleted. See delete_my_account for
+    the three separate ways it is unrecoverable."""
+
+    status_code = status.HTTP_403_FORBIDDEN
+
+    def __init__(self) -> None:
+        super().__init__(
+            "This account cannot be deleted from the site, because the rest of the site depends "
+            "on it. Remove it directly in the database if you really mean to."
+        )
 
 
 class LibraryFullError(DomainError):
@@ -360,6 +378,81 @@ def create_my_profile(
             raise ProfileExistsError("Profile already exists for this account.") from exc
         raise UsernameError("taken", f"The username '{username}' is already taken.") from exc
     return MyProfileRead(username=profile.username, display_name=profile.display_name)
+
+
+def delete_my_account(db: Session, user: AuthenticatedUser) -> None:
+    """Delete the caller's account and everything belonging to it.
+
+    The auth.users row is the root of the cascade, not the profile: profiles.id
+    references auth.users(id) ON DELETE CASCADE, and games / wishlist_items /
+    both directions of follows cascade from profiles (play_sessions from
+    games). So this cannot be a ``db.delete(profile)`` — the cascade runs the
+    other way, and deleting the profile locally would leave the auth user able
+    to sign back in to a half-deleted account.
+
+    Order is deliberate. The Admin API call goes first, so a failure there
+    (503) leaves the account entirely intact rather than partly dismantled.
+    Only once it has succeeded do the rate-limit counters get cleared, which is
+    also why that step cannot be a route dependency: rate_limit_writes in
+    WRITE_GUARDS inserts a row for this user on the way in, and a dependency
+    could not be ordered after it.
+
+    No OnboardingRequiredError: an authenticated user with no profile row is a
+    real, deletable account (OAuth mints the auth user before onboarding runs),
+    and it is the state that most deserves a working delete.
+    """
+    profile = me_repo.get_profile_by_id(db, user.id)
+
+    # The founder's account is not deletable, and this is the only place that
+    # can say so. Deleting it is unrecoverable in three separate ways: the
+    # handle is in RESERVED_USERNAMES so signup can never reclaim it, even by
+    # the founder; /video-games is linked from the homepage tile and calls
+    # notFound() when the profile is missing; and opengraph-image.tsx
+    # prerenders getGames(LIBRARY_OWNER_USERNAME), which throws on a 404 and
+    # fails the next production build. Recovering means a manual reseed.
+    #
+    # A 403 rather than a hidden control: the UI is shared with every other
+    # user, and a server-side refusal cannot be missed by a future surface that
+    # forgets to hide the button.
+    if profile is not None and profile.username == FOUNDER_USERNAME:
+        raise FounderUndeletableError()
+
+    deleted = delete_auth_user_or_raise(user.id)
+
+    # A 404 from the Admin API means "the API found no such user", which is not
+    # the same as "the user is gone". The URL is concatenated from an env var,
+    # so a SUPABASE_URL with a trailing slash or a stray /auth/v1 404s with
+    # every row still in place — and until this endpoint existed, nothing
+    # depended on that value being right, because the only other consumer is
+    # the best-effort signup cleanup that logs failures and moves on.
+    #
+    # The profile row settles it: a genuinely deleted auth user takes it via
+    # ON DELETE CASCADE, so one that is still here means the delete did not
+    # happen. Uses only tables this app owns, and needs no second Admin call.
+    #
+    # Remaining gap, accepted: a never-onboarded user has no profile to check,
+    # so a bogus 404 still reads as success for them. The blast radius is one
+    # auth row and nothing else, since there is nothing else to delete.
+    if not deleted and me_repo.profile_exists(db, user.id):
+        logger.error(
+            "Admin API 404'd for %s but the profile row survives; treating as a failed delete "
+            "(check SUPABASE_URL)",
+            user.id,
+        )
+        raise AuthUserDeleteError()
+
+    # Past this line the account is gone and nothing can put it back, so no
+    # later failure may be reported to the caller as one. A transient DB error
+    # here would otherwise 500 and tell someone their deletion failed while
+    # every row of theirs was already destroyed — and the frontend would then
+    # skip both the sign-out and the cache purge. What is left behind is a bare
+    # (uuid, bucket, count) tuple with no FK and no personal data in it.
+    try:
+        rate_limit_repo.delete_for_user(db, user.id)
+    except SQLAlchemyError:
+        logger.exception("Account %s deleted, but its rate_limits rows survive", user.id)
+
+    logger.info("Deleted account %s", user.id)
 
 
 def create_my_game(db: Session, user: AuthenticatedUser, payload: GameCreate) -> GameRead:

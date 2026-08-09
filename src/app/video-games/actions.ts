@@ -13,6 +13,7 @@ import {
   createMyGame,
   createMySession,
   createMyWishlistItem,
+  deleteMyAccount,
   deleteMyGame,
   deleteMyWishlistItem,
   fetchMyUsername,
@@ -27,8 +28,15 @@ import {
   type MutateResult,
   type SearchIgdbResult,
 } from "@/lib/meApi";
-import { followsTag, gamesTag, wishlistTag } from "@/lib/libraryApi";
-import { RATINGS, type NewGame, type Rating } from "@/lib/games";
+import {
+  followsTag,
+  gamesTag,
+  getFollowers,
+  getFollowing,
+  libraryCacheTag,
+  wishlistTag,
+} from "@/lib/libraryApi";
+import { LIBRARY_OWNER_USERNAME, RATINGS, type NewGame, type Rating } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
 
 /** A cache-tag builder from src/lib/libraryApi: gamesTag, wishlistTag or
@@ -330,4 +338,59 @@ export async function unfollowUserAction(username: string): Promise<MutateResult
     return { ok: false, message: "Invalid unfollow request." };
   }
   return write(() => unfollowUser(username), [followsTag], username);
+}
+
+/** Delete the caller's account and everything in it.
+ *
+ *  The one write here that cannot use write(): that helper resolves the
+ *  username AFTER the mutation, and by then the profile is gone, so
+ *  fetchMyUsername() would return null and nothing would be purged. The
+ *  username is read first instead. Doing so does not break fetchMyUsername's
+ *  "only after an accepted write" rule, which exists so a forged cookie cannot
+ *  choose whose tag gets purged: the value is only USED inside the
+ *  `if (result.ok)` below, and a forged cookie's DELETE fails 401 first.
+ *
+ *  The umbrella tag, not a narrow one: every cached read for this library is
+ *  now a 404, so there is no single resource to name.
+ *
+ *  Does not redirect. The client has to sign out first (the session cookie is
+ *  browser state and survives the server-side delete), so navigation is its
+ *  call, not ours. */
+export async function deleteAccountAction(): Promise<MutateResult> {
+  const username = await fetchMyUsername();
+
+  // Read the follow graph BEFORE the delete, for the same reason as the
+  // username: the edges are gone afterwards, and these are the people whose
+  // pages this delete changes. Both reads are cached under the same tags being
+  // purged, and this runs once in an account's lifetime.
+  //
+  // Failing to read them must not block the delete, so an unreachable API
+  // degrades to "purge fewer tags" rather than to "cannot delete your account".
+  const neighbors = username
+    ? await Promise.all([
+        getFollowers(username).catch(() => []),
+        getFollowing(username).catch(() => []),
+      ])
+    : [[], []];
+
+  const result = await deleteMyAccount();
+  if (!result.ok) return result;
+
+  if (username) revalidateTag(libraryCacheTag(username));
+
+  // Everyone on either side of a follow edge has a follower count, a following
+  // count and two lists that just changed. Purging each one's followsTag is
+  // what the API cannot do for us without giving up the 204 that every other
+  // DELETE here returns.
+  //
+  // The founder is in these lists already (signup wires every new account to
+  // them in both directions, api/app/services/me.py), but is purged explicitly
+  // too: the lists come from a cache that may itself be stale, and the founder's
+  // page is the one linked from the homepage. Same hardcoded constant and same
+  // reasoning as the mirror case in src/app/onboarding/actions.ts.
+  const affected = new Set([LIBRARY_OWNER_USERNAME]);
+  for (const user of [...neighbors[0], ...neighbors[1]]) affected.add(user.username);
+  for (const name of affected) revalidateTag(followsTag(name));
+
+  return result;
 }

@@ -62,6 +62,25 @@ export const dangerLinkClass =
   "text-xs text-red-600 dark:text-red-400 underline underline-offset-2 " +
   "hover:opacity-80 transition-opacity cursor-pointer disabled:opacity-50";
 
+// The quiet text links in the library header's viewer-controls cluster: Sign
+// in / Sign out (AuthButton) and Account. Shared so the cluster cannot drift
+// into two slightly different underlines.
+//
+// Shelf tokens, not the global ones: this sits on the library's own background
+// (.shelf-theme), where text-subtle would be low-contrast. Both tokens carry
+// light and dark values.
+//
+// Amber on hover, matching the view tabs, the Add game / Stats buttons and the
+// follow-count links, so every interactive element in the library header and
+// tab strip highlights the same way.
+//
+// cursor-pointer is not redundant: Tailwind v4's preflight sets buttons to
+// cursor: default, so "Sign out" would otherwise show an arrow while the
+// "Sign in" anchor beside it shows a hand.
+export const headerLinkClass =
+  "text-sm whitespace-nowrap text-shelf-text-muted hover:text-link cursor-pointer " +
+  "underline underline-offset-4 transition-colors duration-150";
+
 // The one filled, high-emphasis button: sign in, sign up, "Add game". `bg-link`
 // with `text-background` is the pairing that works in both schemes, because both
 // tokens flip together — a literal color on either side would invert wrongly in

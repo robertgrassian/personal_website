@@ -26,22 +26,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { setAuthFlag } from "@/lib/authFlag";
-
-// Shelf tokens, not the global ones: this sits on the library's own background
-// (.shelf-theme), where text-subtle would be low-contrast. Both tokens carry
-// light and dark values.
-//
-// Amber on hover, matching the view tabs, the Add game / Stats buttons and the
-// follow-count links, so every interactive element in the library header and
-// tab strip highlights the same way.
-//
-// cursor-pointer is not redundant: Tailwind v4's preflight sets buttons to
-// cursor: default, so "Sign out" would otherwise show an arrow while the
-// "Sign in" anchor beside it shows a hand. Every other button in the library
-// opts back in the same way.
-const linkClass =
-  "text-sm whitespace-nowrap text-shelf-text-muted hover:text-link cursor-pointer " +
-  "underline underline-offset-4 transition-colors duration-150";
+// Shared with the Account link beside it, so the header cluster stays one look.
+import { headerLinkClass } from "@/components/video_games/formStyles";
 
 export function AuthButton() {
   const router = useRouter();
@@ -75,10 +61,10 @@ export function AuthButton() {
   // wrapper box. Only one is ever displayed, so alignment is unaffected.
   return (
     <>
-      <Link href="/video-games/start" className={linkClass} data-hide-authed="">
+      <Link href="/video-games/start" className={headerLinkClass} data-hide-authed="">
         Sign in
       </Link>
-      <button type="button" onClick={signOut} className={linkClass} data-hide-anon="">
+      <button type="button" onClick={signOut} className={headerLinkClass} data-hide-anon="">
         Sign out
       </button>
     </>

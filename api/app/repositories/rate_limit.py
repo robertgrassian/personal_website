@@ -11,7 +11,7 @@ repositories).
 import uuid
 from datetime import timedelta
 
-from sqlalchemy import case, func
+from sqlalchemy import case, delete, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -53,3 +53,18 @@ def increment_rate_limit(db: Session, user_id: uuid.UUID, bucket: str, window: t
     count = db.execute(stmt).scalar_one()
     db.commit()
     return count
+
+
+def delete_for_user(db: Session, user_id: uuid.UUID) -> None:
+    """Drop every bucket's counter for one user. Account deletion only.
+
+    ``rate_limits`` is the one per-user table with no FK to profiles (keyed on
+    the auth id so it can also cover callers who have not onboarded yet, see
+    app/models/igdb.py), so it does not disappear with the ON DELETE CASCADE
+    that takes everything else. It has to be cleared by hand.
+
+    A bulk DELETE rather than loading rows: there are at most a handful, one
+    per bucket, and none of them is needed.
+    """
+    db.execute(delete(RateLimit).where(RateLimit.user_id == user_id))
+    db.commit()

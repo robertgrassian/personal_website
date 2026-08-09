@@ -61,6 +61,29 @@ def create_my_profile(user: CurrentUser, db: DbSession, payload: ProfileCreate) 
     return me_service.create_my_profile(db, user, payload)
 
 
+@router.delete(
+    "/me/account",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=WRITE_GUARDS,
+)
+def delete_my_account(user: CurrentUser, db: DbSession) -> None:
+    """Delete the caller's account: the auth user, the profile, and everything
+    that cascades from it (games, play sessions, wishlist, follow edges).
+
+    Succeeds for a caller who never finished onboarding — there is no profile
+    to delete, but the auth user is theirs and still deletable. Idempotent for
+    the same reason follow/unfollow are: a repeat on a still-valid token for an
+    already-deleted account is 204, not an error.
+
+    Status mapping:
+    - 204 deleted
+    - 403 the founder's account, which the rest of the site depends on
+    - 503 the accounts service is unreachable, unconfigured, or answered in a
+      way that could not be confirmed; nothing deleted
+    """
+    me_service.delete_my_account(db, user)
+
+
 @router.post(
     "/me/games",
     status_code=status.HTTP_201_CREATED,

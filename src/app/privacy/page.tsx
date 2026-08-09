@@ -1,4 +1,5 @@
 import { type Metadata } from "next";
+import Link from "next/link";
 
 // A Server Component (the App Router default — no "use client", so this renders
 // to static HTML with zero JS shipped). Purely static content, so it's a plain
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 // Last substantive change to this policy. Bump when the content changes.
-const LAST_UPDATED = "July 28, 2026";
+const LAST_UPDATED = "August 7, 2026";
 
 // Inline prose-link styling: muted by default, accent + underline on hover.
 // Consistent with the link treatment elsewhere on the site, and theme-aware
@@ -100,13 +101,16 @@ export default function PrivacyPolicy() {
 
         <section>
           <h2 className="text-xl font-semibold text-foreground">Retention and deletion</h2>
-          {/* Deliberately describes email as the route, because there is no
-              self-serve delete yet (no DELETE /me/account). Change this to
-              point at the in-app control when that ships, not before. */}
           <p className="mt-3">
-            Your data is kept while your account exists. To delete it, email me at the address
-            below. Deletion removes your profile, your sign-in record, and all library data: games,
-            sessions, and wishlist.
+            Your data is kept while your account exists. You can delete it yourself at any time from
+            your{" "}
+            <Link href="/video-games/account" className={proseLink}>
+              account page
+            </Link>
+            . Deletion is immediate: it removes your profile, your sign-in record, and all library
+            data, meaning games, play sessions, wishlist, and follows. It cannot be undone or
+            restored through the site. If you would rather not do it yourself, email me at the
+            address below.
           </p>
         </section>
 
