@@ -47,12 +47,18 @@ export function GameDraftForm({
   onBack,
   onSave,
 }: GameDraftFormProps) {
-  // Status of the Wikipedia/Wikidata genre lookup, purely so the field can say
-  // why it changed under the user a moment after picking.
-  const [genreLookup, setGenreLookup] = useState<"idle" | "loading" | "done" | "none">("idle");
-  // Bumped per lookup, and again when the field is hand-edited, so a slow
-  // response knows it has been superseded. Same counter pattern the IGDB
-  // search uses.
+  // Whether the genre lookup is still in flight. The field renders a
+  // placeholder rather than a value while this is true, so the genres the user
+  // sees are the ones that were actually settled on.
+  //
+  // Initialized from `lookupGenresFor` rather than to false: effects run after
+  // paint, so starting false would paint one frame of IGDB's genres before the
+  // effect below could flip it, which is the flash this state exists to
+  // prevent. Sound because the component is mounted fresh per draft, so the
+  // prop cannot change from null under a live instance.
+  const [genresLoading, setGenresLoading] = useState(lookupGenresFor !== null);
+  // Bumped per lookup so a slow response knows it has been superseded. Same
+  // counter pattern the IGDB search uses.
   const genreSeq = useRef(0);
 
   /** Replace the picked game's genres with the Wikipedia/Wikidata ones.
@@ -63,16 +69,15 @@ export function GameDraftForm({
    *  already on the shelves end up speaking one vocabulary.
    *
    *  Deliberately best-effort: a miss or an outage leaves IGDB's genres in
-   *  place rather than blocking the add, and the field stays editable either
-   *  way.
+   *  place rather than blocking the add, and the field becomes editable either
+   *  way once it settles. Which source won is not something the user is told --
+   *  both answers are just "the genres".
    *
-   *  Two things it must not do, both of which it once did. It must not clobber
-   *  what the user has typed: the lookup takes a second or two, which is long
-   *  enough to start editing the genre field, so a response is discarded unless
-   *  it is still the newest one AND the field has not been touched since. And
-   *  it must not strand the status label on "checking" when the call throws --
-   *  the Server Action can reject on the 15s timeout, which left it spinning
-   *  forever.
+   *  It must not strand the field on its loading placeholder when the call
+   *  throws: the Server Action can reject on the 15s timeout, which left it
+   *  spinning forever. Every path out of the request therefore clears
+   *  `genresLoading`, except the superseded one, where whoever superseded it
+   *  owns the flag.
    *
    *  The cleanup is load-bearing, and is the one thing this owes to having
    *  moved out of AddGameModal. `genreSeq` used to live for the whole modal's
@@ -81,33 +86,37 @@ export function GameDraftForm({
    *  still in flight from a previous mount holds a counter nobody will ever
    *  advance, so its staleness check passes unconditionally and it writes into
    *  a draft it knows nothing about. `setDraft` belongs to AddGameModal and
-   *  outlives us, so the write really does land: pick a game, go back, pick the
-   *  same game, start typing, and the abandoned response overwrites you. */
+   *  outlives us, so the write really does land. Picking the SAME game again is
+   *  the case that needs it: the `current.name !== name` guard below passes,
+   *  because the names do match, leaving the counter as the only thing that can
+   *  tell the abandoned response from the live one. */
   useEffect(() => {
     if (lookupGenresFor === null) {
-      // Manual entry has no picked game to look up, so no status to report.
-      setGenreLookup("idle");
+      // Manual entry has no picked game to look up, so nothing to wait for.
+      setGenresLoading(false);
       return;
     }
     const name = lookupGenresFor;
     const seq = ++genreSeq.current;
-    setGenreLookup("loading");
+    setGenresLoading(true);
     void (async () => {
       try {
         const res = await lookupGameGenres(name);
-        // A newer pick has superseded this response, or the user has edited the
-        // field by hand (which resets the status to "idle").
+        // A newer pick, or an unmount, has superseded this response.
         if (seq !== genreSeq.current) return;
-        let applied = false;
-        setDraft((current) => {
-          if (current === null || current.name !== name) return current;
-          if (!res.ok || res.genres.length === 0) return current;
-          applied = true;
-          return { ...current, genresText: res.genres.join(", ") };
-        });
-        setGenreLookup(applied ? "done" : "none");
+        if (res.ok && res.genres.length > 0) {
+          setDraft((current) =>
+            current === null || current.name !== name
+              ? current
+              : { ...current, genresText: res.genres.join(", ") }
+          );
+        }
+        // Cleared after the write is queued, not before: both land in the same
+        // React batch, so the field goes from placeholder straight to the final
+        // list without a frame of IGDB's in between.
+        setGenresLoading(false);
       } catch {
-        setGenreLookup("none");
+        setGenresLoading(false);
       }
     })();
     return () => {
@@ -170,26 +179,26 @@ export function GameDraftForm({
 
           <label className={labelClass}>
             Genres (comma-separated)
-            {genreLookup === "loading" && (
-              <span className="ml-2 font-normal text-shelf-text-muted">checking Wikipedia...</span>
-            )}
-            {genreLookup === "none" && (
-              <span className="ml-2 font-normal text-shelf-text-muted">
-                Wikipedia had no match, showing IGDB&apos;s genres
-              </span>
-            )}
             <input
               type="text"
-              value={draft.genresText}
-              onChange={(e) => {
-                setDraft({ ...draft, genresText: e.target.value });
-                // Hand-editing both stales the status note and cancels any
-                // in-flight lookup, so it cannot overwrite the typing.
-                genreSeq.current += 1;
-                setGenreLookup("idle");
-              }}
-              placeholder="e.g. RPG, Adventure"
-              className={inputClass}
+              // While the lookup is in flight the field shows its placeholder
+              // instead of the draft's genres. The draft still carries IGDB's
+              // list the whole time -- it is the fallback, and saving mid-lookup
+              // submits it -- but showing it first meant the user watched the
+              // genres rewrite themselves a second later, which reads as a bug
+              // even when both lists are right.
+              value={genresLoading ? "" : draft.genresText}
+              // Not merely cosmetic: an uneditable field during the lookup is
+              // what lets the response be applied unconditionally. The previous
+              // version had to track whether the user had typed since the
+              // request went out, because it could land on top of them.
+              disabled={genresLoading}
+              onChange={(e) => setDraft({ ...draft, genresText: e.target.value })}
+              placeholder={genresLoading ? "finding genres..." : "e.g. RPG, Adventure"}
+              // No dimming: the box is already empty while it loads, and fading
+              // an empty box reads as broken rather than as busy. The cursor is
+              // the whole disabled treatment.
+              className={`${inputClass} disabled:cursor-default`}
             />
           </label>
 

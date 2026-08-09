@@ -28,17 +28,6 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 Promote one into Up Next when it starts blocking the sharing goal above, and demote something else
 to keep that section at five._
 
-- [ ] This may or may not be a bug: but i think when adding a game, under genres,
-      "Wikipedia had no match, showing IGDB's genres" always appears. Steps to reproduce:
-      I was on the wishlist, clicked add game to wishlist, searched fire emblem fortune's weave",
-      once selected, it at first populated with some longer list of genres, and then re-rendered with
-      just one genre and the text above saying "Wikipedia had no match, showing IGDB's genres".
-      When i checked, wikipedia did have an article for this game, and the genre matched what
-      was shown in the second render, making me thing everything worked correctly but the text
-      about wikipedia showed anyways. Things we should fix: - we shouldnt show 2 renders of genres, we should wait to show genres until they have been
-      determined by our BE, the user should only see one render, with everything finalized populated - we should never show "Wikipedia had no match, showing IGDB's genres". its an implementation
-      detail that the user doesnt need to know about.
-
 - [ ] **Tapping a game case to flip it feels laggy on mobile: there is a visible gap between
       press and the animation starting, which desktop does not have.** Reported 2026-08-07.
       Nothing below is confirmed on a device: investigate before fixing, since the two likeliest
@@ -249,7 +238,10 @@ head` being run by hand from a laptop pointed at production.<br>
       `docs/game-library-simplification-backlog.md`.** Do the rest one PR at a time, not as a
       batch. Note the backend items need the throwaway-Postgres test setup that doc describes:
       a bare `uv run pytest` skips 173 tests, so a green run without `DATABASE_URL` proves
-      almost nothing.<br>
+      almost nothing. That Postgres also needs `api/scripts/ci_auth_schema.sql` loaded first,
+      a stand-in for the `auth.users`/`auth.identities` tables GoTrue owns everywhere else and
+      that migration `f985740c0df9` puts a real FK against; `.github/workflows/ci.yml` already
+      does this and is the thing to copy locally.<br>
       _The one carrying a real decision:_ `rate_limit_writes` commits its counter increment in
       its own transaction, which under `NullPool` costs a second physical connect per write.
       Folding it into the handler's transaction removes that — but the charge is committed
@@ -672,6 +664,24 @@ head` being run by hand from a laptop pointed at production.<br>
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **The add-game genre field stopped rewriting itself in front of you** (2026-08-09).
+      Picking an IGDB result used to paint IGDB's genres immediately, then swap them for the
+      Wikipedia/Wikidata answer a second later, sometimes captioned "Wikipedia had no match,
+      showing IGDB's genres" even when the match had plainly worked. `GameDraftForm` now holds
+      the field on a "finding genres..." placeholder until the lookup settles, and both status
+      captions are gone: which source won is an implementation detail.<br>
+      _Two things worth keeping._ The bogus caption came from reading a `let applied` that the
+      `setDraft` updater assigns — React only runs that updater eagerly when the target fiber
+      has no pending work, so the flag was read before it was written on some renders and not
+      others. Never derive a second piece of state from inside an updater; that whole class of
+      race went away with the caption. And the loading state is initialized from
+      `lookupGenresFor` rather than to `false`, because effects run after paint and a `false`
+      start paints one frame of exactly the flash it exists to prevent.<br>
+      _An accepted trade-off:_ the field is `disabled` while loading, which is what lets the
+      response be applied unconditionally instead of guarding on whether the user has typed
+      since. The draft still carries IGDB's genres the whole time, so saving mid-lookup submits
+      them rather than nothing.
+
 - [x] **Account deletion shipped** (2026-08-08, branch `worktree-account-deletion`).
       `DELETE /api/py/me/account`, a control at `/video-games/account` reached from an
       "Account" link in the library header, and `/privacy` rewritten to point at it instead of
@@ -1010,17 +1020,3 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       `rate_limits` and `igdb_tokens` exist in production. This was the merge blocker for
       PR #68: slice 6 charges every write against `rate_limits`, so an unmigrated prod would
       have 500'd every add/rating/session/wishlist edit rather than only failing game search
-- [x] **Instanced libraries Phase 4 — multi-user** (PR #68, branch `phase4/multi-user`,
-      2026-07-28). Seven slices: CI running ruff + the full pytest suite against a real
-      Postgres; `/u/[username]` public libraries with the username threaded through the
-      three places it was hardcoded; the `/library` resolver and post-login redirects;
-      auth surfaces moved under the game library; the sign-up CTA banner; profile header
-      and real empty states; per-user write limits and a `MAX_GAMES` cap. 173 tests.
-      Its manual steps (brand verification, Vercel env vars, prod migration) are all done and
-      recorded as their own entries below.<br>
-      _The CI slice's one durable gotcha_ (folded in here when its own entry aged out): the
-      `api` job needs `api/scripts/ci_auth_schema.sql`, a minimal stand-in for Supabase's
-      `auth.users`/`auth.identities`. GoTrue owns those tables everywhere else so Alembic never
-      creates them, but migration `f985740c0df9` adds a real FK to `auth.users` — without the
-      stand-in, migrations cannot run on bare Postgres. Before this job, 107 of 161 tests
-      silently skipped in CI for want of a `DATABASE_URL`.
