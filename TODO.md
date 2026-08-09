@@ -32,9 +32,27 @@ the old rule sent every bug straight here, so four of five slots were defects.)
       reason. Both rewrite every `games` row and both are lossy in the same places, so running
       them as one migration means one preview pass and one merge of duplicate-name rows instead
       of two. The link table is where the user's systems list wants to live anyway.<br>
+      _`play_sessions` keeps pointing at the USER's row, not the catalog row_ (decided
+      2026-08-09). Today `play_sessions.game_id` FKs `games.id`, and `games` IS the user's
+      library, so this is a property to preserve through the migration rather than a change: the
+      FK moves to the link table's id. The trap is that a naive migration repoints it at
+      `game_metadata`, because that is where "the game" now appears to live.<br>
+      Three reasons it has to be the link row. **(1)** A session is a fact about a user, so a FK
+      to the catalog would need `user_id` alongside it, which denormalizes ownership back in and
+      makes "a session for a game not in my library" representable. **(2)** The
+      `ON DELETE CASCADE` on that FK is what makes "remove from library" take the play history
+      with it (there is a comment saying so on the column, and the delete UI warns with the
+      session count first); against the catalog that cascade would be wrong in both directions.
+      **(3)** Merging two catalog rows that turn out to be the same game — the likely cleanup
+      once manual entries get matched to canonical ones — then only repoints link rows, and
+      touches no session at all.<br>
+      Follows from that: if `play_sessions` gains a `system` column (see the systems-as-a-list
+      item), the value should be constrained to the systems on its own link row. Application-level
+      is fine at this size; a lookup table for that alone would not earn itself.<br>
       _What it unblocks:_ **"You can add a game you already have in your library"** in Bugs is
       waiting on exactly this shape, and becomes a link-table lookup rather than a string
       comparison. **"Overhaul the wishlist promote flow"** asks the same question one column over.
+      **"An easy way to view a game's sessions"** reads whatever this FK ends up being.
 
 ## Bugs
 
