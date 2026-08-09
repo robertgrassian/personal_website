@@ -206,43 +206,51 @@ head` being run by hand from a laptop pointed at production.<br>
       alias, and `normalize_database_url` rewrites the `postgresql://` scheme itself, so the
       workflow can pass Supabase's connection string through unmodified.
 
-- [ ] **The nine structural refactors left over from the game-library simplification review.**
-      Tiers 1 and 2 of that review shipped (PR #87); Tier 3 is what was judged
-      "day-shaped change, not a cleanup" and deferred. Recorded here because the doc holding
-      them was deleted once the first two tiers landed: **full write-ups are in git history at
-      commit `f0a0cbb`, `docs/game-library-simplification-backlog.md`.** Do them one PR at a
-      time, not as a batch.<br>
-      _The two carrying a real decision, not just work:_ **(a)** `rate_limit_writes` commits its
-      counter increment in its own transaction, which under `NullPool` costs a second physical
-      connect per write. Folding it into the handler's transaction removes that — but the charge
-      is committed separately _on purpose_, so it survives a handler that raises. Fold it in and
-      a failed write stops counting against the budget, which is a rate-limit bypass. Decide
-      whether failed writes should be charged before touching it. **(b)** Splitting `GameLibrary`
-      into shelves vs. people tabs is the cleanup; the honest answer is that the follower lists
-      are a different _page_ (`/video-games/u/[username]/followers`), which would let
-      `PeopleList` stay a server component and keep the follow graph off the client entirely.
-      That is a routing change, so decide which one you are doing.<br>
-      _The rest, roughly by payoff:_ split `AddGameModal` (~574 lines) at the
-      `draft === null` seam it already branches on, so search state unmounts when the confirm
-      form opens; replace "may this viewer edit?" travelling as an optional `onEditGame` prop
-      with a context, since `GameCase` currently re-derives permission from prop presence;
-      hoist the `LIBRARY_OWNER_USERNAME` special case out of `LibraryPage` (the component whose
-      whole job is "any user's library") into the one route that knows it is pinned; add a
-      `CurrentProfile` FastAPI dependency so six `/me` routes stop re-fetching the profile by
-      hand, which also breaks the odd `services/follows.py` → `services/me.py` import;
-      split `services/genres.py` (~629 lines) into a pure vocabulary module and a Wikipedia
-      client, which is what `scripts/backfill_genres.py` actually reaches into; and a set of
-      per-keystroke render wins in `pipeline.ts` (hoist the lowercased search needle out of the
-      filter callback, collapse three `filterGames` scans into one, memoize `GameCase`).<br>
-      _One is deliberately ranked last:_ deriving play state in SQL. `derive_play_state` is a
-      pure, unit-tested function (`tests/test_play_state.py`), and moving it into SQL trades
-      Python you can test for SQL you cannot, for six session rows across 155 games. If you
-      touch it at all, take only the cheap half — select the four columns instead of whole ORM
-      objects.<br>
-      _Worth doing after, not before:_ making `Game.id`, `sessionCount` and `openSessionId`
+- [ ] **The four _backend_ structural refactors left over from the game-library simplification
+      review.** Was nine; the five frontend ones landed on `tier3/frontend-refactors` (2026-08-07):
+      `AddGameModal` split at its `draft === null` seam, `GameShelves` extracted from
+      `GameLibrary`, edit permission moved to `LibraryEditingContext`, the founder special case
+      hoisted out of `LibraryPage`, and the per-keystroke render wins. Tiers 1 and 2 shipped
+      earlier in PR #87. **Full write-ups for all nine are in git history at commit `f0a0cbb`,
+      `docs/game-library-simplification-backlog.md`.** Do the rest one PR at a time, not as a
+      batch. Note the backend items need the throwaway-Postgres test setup that doc describes:
+      a bare `uv run pytest` skips 173 tests, so a green run without `DATABASE_URL` proves
+      almost nothing.<br>
+      _The one carrying a real decision:_ `rate_limit_writes` commits its counter increment in
+      its own transaction, which under `NullPool` costs a second physical connect per write.
+      Folding it into the handler's transaction removes that — but the charge is committed
+      separately _on purpose_, so it survives a handler that raises. Fold it in and a failed
+      write stops counting against the budget, which is a rate-limit bypass. **Decided
+      2026-08-07: leave it alone**, because a caller who reliably triggers a 500 would otherwise
+      get unlimited attempts. Close this one by documenting why the extra connect is paid, not
+      by changing code. Reopen only with a measurement showing the connect actually hurts.<br>
+      _The other three:_ add a `CurrentProfile` FastAPI dependency so six `/me` routes stop
+      re-fetching the profile by hand, which also breaks the odd `services/follows.py` →
+      `services/me.py` import (its cost: the per-action wording, "adding games" vs "following
+      people", is lost unless you parameterize the dependency — that is user-facing copy, so
+      decide deliberately); split `services/genres.py` (~620 lines) into a pure vocabulary
+      module and a Wikipedia client, which is what `scripts/backfill_genres.py` actually reaches
+      into, with `services/igdb.py` having the identical shape and fix; and, ranked last on
+      purpose, deriving play state in SQL. `derive_play_state` is a pure, unit-tested function
+      (`tests/test_play_state.py`), and moving it into SQL trades Python you can test for SQL
+      you cannot, for six session rows across 155 games. If you touch it at all, take only the
+      cheap half — select the four columns instead of whole ORM objects.<br>
+      _Now unblocked, and cheap:_ making `Game.id`, `sessionCount` and `openSessionId`
       non-optional. It is correct (the API schemas mark them required, and the optionality
-      forces guards that can never fire) but it touches the same components as the splits above,
-      so it is much cheaper once those land.
+      forces guards that can never fire) and it was deferred only because it touched the same
+      components as the frontend splits. Those have landed, so this is the easy follow-up it
+      was waiting to become.
+
+- [ ] **Move the Following/Followers tabs to their own route.** The honest altitude answer that
+      the `GameShelves` extraction deliberately did not take: the follow lists are a different
+      _page_, not a different tab. `/video-games/u/[username]/followers` would match the "library
+      owns the prefix" convention, let `PeopleList` stay a server component, and stop the follow
+      graph crossing the client boundary on every library render (`LibraryPage` currently fetches
+      `getFollowers`/`getFollowing` on every load and threads both through `GameLibrary`).<br>
+      _Why it is not a cleanup:_ it is a routing change. Existing `?view=followers` and
+      `?view=following` URLs need redirects, `LibraryPage`'s five-way `Promise.all` fan-out
+      changes shape, and the tab strip in `GameLibrary` has to decide whether those two tabs
+      become links rather than `setView` buttons.
 
 - [ ] **Show a confirmation toast after logging a session, so you know it worked.** Possibly with
       a "view all sessions for {game}" link in it, per the item below.<br>

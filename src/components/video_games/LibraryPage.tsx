@@ -8,7 +8,6 @@ import { notFound } from "next/navigation";
 import "@/app/video-games/video-games.css";
 import "@/components/crt/crt.css";
 import { getFollowers, getFollowing, getGames, getProfile, getWishlist } from "@/lib/libraryApi";
-import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { CrtTv } from "@/components/crt/CrtTv";
 import { LibraryCount } from "@/components/video_games/LibraryCount";
@@ -37,25 +36,37 @@ type LibraryPageProps = {
   // is the public demo shelf and the URL Google's OAuth brand verification
   // points at. A user's own /video-games/u/{username} is not a marketing surface.
   showSignupCta?: boolean;
+  // "This username is guaranteed to exist, so a missing profile is a bug, not a
+  // 404." Only a route that hardcodes its username can know that, which is why
+  // it is a prop rather than a check in here: this component's whole job is
+  // "one library page, any user", and it has no business knowing which one
+  // username is special. See the setter in /video-games/page.tsx.
+  missingProfileIsBug?: boolean;
 };
 
-export async function LibraryPage({ username, showSignupCta = false }: LibraryPageProps) {
+export async function LibraryPage({
+  username,
+  showSignupCta = false,
+  missingProfileIsBug = false,
+}: LibraryPageProps) {
   // Awaited first and alone: a username nobody owns must become a 404 page,
   // not the loud "the API is unwell" error that getGames() would throw for the
   // same 404. Costs one extra round trip on a cache miss.
   const profile = await getProfile(username);
   if (!profile) {
-    // ...with one exception. The founder's profile is seeded, not user-created,
-    // so its absence is never "no such user" — it means the API is pointed at
-    // an unmigrated or unseeded database. A 404 page would quietly present that
-    // as an empty site; the rest of this read path deliberately fails loudly
-    // instead of rendering something wrong (see requireLibraryApiOrigin), and
-    // the flagship library page is the last place to break that rule.
-    if (username.toLowerCase() === LIBRARY_OWNER_USERNAME) {
+    // ...with one exception, and the caller decides whether it applies. When a
+    // route pins a username it knows is seeded, a missing profile means the API
+    // is pointed at an unmigrated or unseeded database. A 404 page would quietly
+    // present that as an empty site; the rest of this read path deliberately
+    // fails loudly instead of rendering something wrong (see
+    // requireLibraryApiOrigin), and the flagship library page is the last place
+    // to break that rule.
+    if (missingProfileIsBug) {
       throw new Error(
-        `The library API has no profile for '${LIBRARY_OWNER_USERNAME}', the seeded owner. ` +
-          `That is a backend misconfiguration, not a missing user. Check that the database ` +
-          `is migrated and seeded (\`cd api && uv run python scripts/seed.py\`).`
+        `The library API has no profile for '${username}', which the route rendering this ` +
+          `page declares is seeded. That is a backend misconfiguration, not a missing user. ` +
+          `Check that the database is migrated and seeded ` +
+          `(\`cd api && uv run python scripts/seed.py\`).`
       );
     }
     notFound();
