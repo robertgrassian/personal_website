@@ -28,35 +28,6 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 Promote one into Up Next when it starts blocking the sharing goal above, and demote something else
 to keep that section at five._
 
-- [ ] **Tapping a game case to flip it feels laggy on mobile: there is a visible gap between
-      press and the animation starting, which desktop does not have.** Reported 2026-08-07.
-      Nothing below is confirmed on a device: investigate before fixing, since the two likeliest
-      causes want opposite changes.<br>
-      _One premise to rule out first:_ this is probably **not** the classic 300ms tap delay.
-      There is no `export const viewport` in `src/app/layout.tsx`, so Next's default
-      `width=device-width, initial-scale=1` applies, and both mobile Safari and Chrome drop the
-      double-tap-zoom wait on a viewport declared that way. `touch-action: manipulation` on the
-      flip `<button>` in `GameCase.tsx` is still the cheap hedge and costs nothing.<br>
-      _Prime suspect: hover emulation._ The flip button's inner `.game-case-inner` div carries
-      `group-hover:-translate-y-2 group-hover:shadow-xl`, with `transition: translate 0.2s
-ease-out` on the matching rule in `video-games.css`. iOS Safari fakes `:hover` on first
-      touch for elements that have hover styles, so the tap can spend a beat playing the lift
-      before the click ever fires. Fix is to gate the lift behind `@media (hover: hover)` rather
-      than to remove it, so desktop keeps it. Note that same button's className already
-      special-cases touch for the cursor (`cursor-pointer sm:cursor-default`), which is a
-      **breakpoint** test, not a hover-capability one, and is worth correcting in the same pass.<br>
-      _Second suspect: first-flip compositing cost._ `.game-case-scene` sets `perspective` and
-      `.game-case-inner` sets `transform-style: preserve-3d` (`video-games.css`). The
-      first `rotateY` promotes the case to its own layer, and on a phone with ~155 cases on the
-      page each holding a `next/image` fill, that promotion can eat a frame or two. If profiling
-      points here, `will-change: transform` on the case helps — but only applied narrowly (on
-      hover/focus, or on the flipped case), since setting it on every case at once is how you
-      make the whole page slower instead.<br>
-      _How to tell them apart:_ Safari's Web Inspector timeline on a real device, or just
-      temporarily delete the `group-hover:` classes and see if the delay goes. Do not fix this by
-      swapping `onClick` for `onTouchStart` — that breaks flicking-to-scroll over a shelf, since a
-      touch that begins on a case is usually a scroll.
-
 - [ ] **On mobile, the add-game details/rating step scrolls in both directions and does not fit
       its box.** Reported 2026-08-06 from a phone: after picking a title in `AddGameModal`, the
       confirm form (name / system / genres / release date / rating) feels larger than the dialog
@@ -664,6 +635,31 @@ head` being run by hand from a laptop pointed at production.<br>
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **The mobile game-case flip no longer lags** (2026-08-09, branch
+      `claude/mobile-flip-lag`, PR #98). **Confirmed fixed on a device by the owner**, which is
+      what closes it: nothing here was reproducible in development.<br>
+      _The fix that mattered was almost certainly the compositing head start._
+      `will-change: transform` under `.game-case-scene:active .game-case-inner` promotes the case
+      to its own layer during the press, before the click handler adds `.is-flipped` and the
+      first `rotateY` would otherwise have to pay for the promotion mid-animation. Scoped to the
+      pressed case: setting it on all ~155 at once is how you make the whole page slower. It
+      covers the flip OUT only, since `:active` ends at release, so if the flip BACK ever feels
+      slow that is why, and it needs a different mechanism rather than a wider selector.
+      Promoting the flipped case instead was tried and dropped (holds a layer while nothing
+      animates; de-promoting faces carrying `backface-visibility: hidden` as a transition starts
+      is a known one-frame-flash source in WebKit).<br>
+      _Two dead ends worth not re-deriving._ Hover emulation was the original prime suspect: iOS
+      playing `.game-case-inner`'s `group-hover:` lift on first touch before the click fires,
+      fixed by gating the lift behind `@media (hover: hover)`. **Tailwind v4 already emits every
+      `hover:` and `group-hover:` utility inside that media query** (verified by compiling
+      `group-hover:-translate-y-2` against the pinned version), so on a touch-only device the
+      declarations do not exist and there is nothing to gate. Any future fix starting "wrap the
+      hover styles in a media query" is a no-op. The 300ms tap delay was the other: Next's
+      default viewport meta already drops it, and `touch-manipulation` shipped as a hedge.<br>
+      _Also corrected in the same pass:_ the flip button's cursor special-case was
+      `cursor-pointer sm:cursor-default`, a breakpoint test standing in for a capability one, so
+      a desktop window dragged under 640px got a hand cursor. Now `pointer-fine:`.
+
 - [x] **The add-game genre field stopped rewriting itself in front of you** (2026-08-09).
       Picking an IGDB result used to paint IGDB's genres immediately, then swap them for the
       Wikipedia/Wikidata answer a second later, sometimes captioned "Wikipedia had no match,
@@ -1016,7 +1012,3 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       `npm run dev:api`, so every later `npm run dev:full` had its API half die silently with
       `EADDRINUSE` while Next came up fine. Check with `lsof -nP -iTCP:8000 -sTCP:LISTEN` and
       `ps -o lstart= -p <pid>`
-- [x] Prod DB confirmed at migration `8f881f29b261` (2026-07-28, via `alembic current`), so
-      `rate_limits` and `igdb_tokens` exist in production. This was the merge blocker for
-      PR #68: slice 6 charges every write against `rate_limits`, so an unmigrated prod would
-      have 500'd every add/rating/session/wishlist edit rather than only failing game search
