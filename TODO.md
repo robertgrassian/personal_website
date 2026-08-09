@@ -30,32 +30,34 @@ to keep that section at five._
 
 - [ ] **Tapping a game case to flip it feels laggy on mobile: there is a visible gap between
       press and the animation starting, which desktop does not have.** Reported 2026-08-07.
-      Nothing below is confirmed on a device: investigate before fixing, since the two likeliest
-      causes want opposite changes.<br>
-      _One premise to rule out first:_ this is probably **not** the classic 300ms tap delay.
-      There is no `export const viewport` in `src/app/layout.tsx`, so Next's default
-      `width=device-width, initial-scale=1` applies, and both mobile Safari and Chrome drop the
-      double-tap-zoom wait on a viewport declared that way. `touch-action: manipulation` on the
-      flip `<button>` in `GameCase.tsx` is still the cheap hedge and costs nothing.<br>
-      _Prime suspect: hover emulation._ The flip button's inner `.game-case-inner` div carries
-      `group-hover:-translate-y-2 group-hover:shadow-xl`, with `transition: translate 0.2s
-ease-out` on the matching rule in `video-games.css`. iOS Safari fakes `:hover` on first
-      touch for elements that have hover styles, so the tap can spend a beat playing the lift
-      before the click ever fires. Fix is to gate the lift behind `@media (hover: hover)` rather
-      than to remove it, so desktop keeps it. Note that same button's className already
-      special-cases touch for the cursor (`cursor-pointer sm:cursor-default`), which is a
-      **breakpoint** test, not a hover-capability one, and is worth correcting in the same pass.<br>
-      _Second suspect: first-flip compositing cost._ `.game-case-scene` sets `perspective` and
-      `.game-case-inner` sets `transform-style: preserve-3d` (`video-games.css`). The
-      first `rotateY` promotes the case to its own layer, and on a phone with ~155 cases on the
-      page each holding a `next/image` fill, that promotion can eat a frame or two. If profiling
-      points here, `will-change: transform` on the case helps — but only applied narrowly (on
-      hover/focus, or on the flipped case), since setting it on every case at once is how you
-      make the whole page slower instead.<br>
-      _How to tell them apart:_ Safari's Web Inspector timeline on a real device, or just
-      temporarily delete the `group-hover:` classes and see if the delay goes. Do not fix this by
-      swapping `onClick` for `onTouchStart` — that breaks flicking-to-scroll over a shelf, since a
-      touch that begins on a case is usually a scroll.
+      Still not reproduced on a device. **A first pass shipped 2026-08-09 (branch
+      `claude/mobile-flip-lag`) and the leading theory did not survive it** — read the next
+      paragraph before spending time here.<br>
+      _The prime suspect is dead: hover emulation cannot be the cause._ The theory was that
+      `.game-case-inner`'s `group-hover:-translate-y-2 group-hover:shadow-xl` let iOS play the
+      lift on first touch before the click fired, and the fix was to gate the lift behind
+      `@media (hover: hover)`. **Tailwind v4 already emits every `hover:` and `group-hover:`
+      utility inside `@media (hover: hover)`** (verified 2026-08-09 by compiling
+      `group-hover:-translate-y-2` against the pinned version). On a touch-only device those
+      declarations do not exist, so there is no lift to play and nothing to gate. Do not
+      re-derive this: any fix that starts "wrap the hover styles in a media query" is a no-op.<br>
+      _What did ship, none of it confirmed against the symptom:_ `touch-manipulation` on the
+      flip `<button>` (the cheap hedge against double-tap-zoom wait, which was already unlikely
+      given Next's default viewport meta); the cursor special-case corrected from the
+      `sm:` breakpoint test to `pointer-fine:`, which is the capability actually meant; and a
+      narrow `will-change: transform` under `.game-case-scene:active .game-case-inner` plus the
+      flipped case, so the layer promotion starts on touch-down rather than after the click.<br>
+      _So the surviving suspect is compositing cost, and it is now the only one._
+      `.game-case-scene` sets `perspective` and `.game-case-inner` sets `transform-style:
+preserve-3d`. The first `rotateY` promotes the case to its own layer, and with ~155 cases each
+      holding a `next/image` fill, that promotion can eat a frame or two. The `:active` rule
+      above is a guess at exactly this, shipped unprofiled: **if the lag is unchanged, revert
+      it rather than widening it**, since permanently promoting every case is how you make the
+      whole page slower instead.<br>
+      _How to actually settle it:_ Safari's Web Inspector timeline against a real device, which
+      is the one thing nobody has done yet. Do not fix this by swapping `onClick` for
+      `onTouchStart` — that breaks flicking-to-scroll over a shelf, since a touch that begins on
+      a case is usually a scroll.
 
 - [ ] **On mobile, the add-game details/rating step scrolls in both directions and does not fit
       its box.** Reported 2026-08-06 from a phone: after picking a title in `AddGameModal`, the

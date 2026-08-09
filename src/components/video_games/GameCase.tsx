@@ -92,10 +92,17 @@ function GameCaseImpl({ game }: GameCaseProps) {
       {/* Flip surface — a real button, so Enter/Space and focus semantics come
           free; Escape additionally flips back to the front.
           game-case-scene provides the perspective for the 3D flip. */}
+      {/* touch-action: manipulation opts this button out of double-tap-to-zoom,
+          which is the only thing a browser waits on a tap to find out. Next's
+          default viewport meta already earns that on iOS and Chrome, so this is
+          belt-and-braces for the ones that don't.
+          pointer-fine, not sm: the cursor is a pointing-device question, so a
+          desktop window dragged narrower than 640px should keep the default
+          arrow rather than switching to a hand. */}
       <button
         type="button"
         aria-pressed={flipped}
-        className="game-case-scene relative block w-full cursor-pointer sm:cursor-default select-none appearance-none bg-transparent border-0 p-0 text-left
+        className="game-case-scene relative block w-full touch-manipulation cursor-pointer pointer-fine:cursor-default select-none appearance-none bg-transparent border-0 p-0 text-left
                    rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--shelf-input-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--shelf-bg)]"
         onClick={() => setFlipped((f) => !f)}
         onKeyDown={(e) => {

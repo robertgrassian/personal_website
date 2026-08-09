@@ -183,6 +183,20 @@
 .game-case-inner.is-flipped {
   transform: rotateY(180deg);
 }
+/* The first rotateY has to promote the case to its own compositing layer, and
+   on a phone showing ~155 cases that each hold a cover image, that promotion
+   can cost a frame or two. It is paid after the tap, so it is felt as a gap
+   between pressing a case and the flip starting.
+   :active is set on touch-down, before the click handler that adds .is-flipped
+   runs, so promoting here buys the work a head start within the press itself.
+   Scoped to the pressed case and the already-flipped ones on purpose: setting
+   will-change on all 155 at once is how you make the whole page slower instead.
+   The .is-flipped half covers the flip back, which is otherwise the same cost
+   again in reverse. */
+.game-case-scene:active .game-case-inner,
+.game-case-inner.is-flipped {
+  will-change: transform;
+}
 .game-case-front,
 .game-case-back {
   backface-visibility: hidden;
