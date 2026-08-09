@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import type { Game, Filters } from "@/lib/games";
 import type { WishlistGame, WishlistFilters } from "@/lib/wishlist";
 import { collectAvailableGameFilters, collectAvailableWishlistFilters } from "./pipeline";
-import { type View, isGameView } from "./libraryConfig";
+import type { GameView } from "./libraryConfig";
 
 // Everything the two FilterBars need to populate their dropdowns. Two kinds of
 // list per view:
@@ -14,9 +14,8 @@ import { type View, isGameView } from "./libraryConfig";
 //              active filters, so the rest can render disabled
 //
 // These lived as eight useMemos inside GameLibrary, which also renders a tab
-// listing usernames. Filter machinery declared on that component had to opt out
-// of itself; here it is one call that returns empties for a view with no
-// filters at all.
+// listing usernames — filter machinery declared on a component that had to opt
+// out of it. GameShelves, which does nothing else, is the only caller.
 export type FilterOptions = {
   allSystems: string[];
   allGenres: string[];
@@ -28,18 +27,19 @@ export type FilterOptions = {
 type UseFilterOptionsArgs = {
   games: Game[];
   wishlist: WishlistGame[];
-  // Which set actually gets computed. The others are skipped: only one
-  // FilterBar is mounted at a time, so computing both was pure waste — and it
-  // was real waste, because activeWishlistFilters carries the shared `search`
-  // value and so changed on every keystroke in the played view too.
-  view: View;
+  // GameView, not View: the people tabs have no filters, and GameShelves is
+  // only mounted on a shelf view, so there is no third case to answer for.
+  //
+  // This also decides which set actually gets computed. Doing both was pure
+  // waste — and real waste, because activeWishlistFilters carries the shared
+  // `search` value and so changed on every keystroke in the played view too.
+  view: GameView;
   activeFilters: Filters;
   activeWishlistFilters: WishlistFilters;
 };
 
-// Shared empty values rather than a fresh `[]` / `new Set()` per render, so the
-// inactive view's props keep a stable identity across renders.
-const NO_OPTIONS: string[] = [];
+// One shared empty set rather than a fresh `new Set()` per render, so the
+// wishlist view's unused ratings prop keeps a stable identity.
 const NO_VALUES: Set<string> = new Set();
 
 export function useFilterOptions({
@@ -49,9 +49,6 @@ export function useFilterOptions({
   activeFilters,
   activeWishlistFilters,
 }: UseFilterOptionsArgs): FilterOptions {
-  // null on the Following/Followers tabs, which have no filters at all.
-  const gameView = isGameView(view) ? view : null;
-
   // Depend only on the immutable data props, so typing in the search box never
   // rebuilds these — the full option list does not narrow as you filter, only
   // the "available" subset below does.
@@ -71,41 +68,31 @@ export function useFilterOptions({
 
   // One traversal each, and only for the view that is actually mounted.
   const availablePlayed = useMemo(
-    () => (gameView === "played" ? collectAvailableGameFilters(games, activeFilters) : null),
-    [gameView, games, activeFilters]
+    () => (view === "played" ? collectAvailableGameFilters(games, activeFilters) : null),
+    [view, games, activeFilters]
   );
   const availableWishlist = useMemo(
     () =>
-      gameView === "wishlist"
-        ? collectAvailableWishlistFilters(wishlist, activeWishlistFilters)
-        : null,
-    [gameView, wishlist, activeWishlistFilters]
+      view === "wishlist" ? collectAvailableWishlistFilters(wishlist, activeWishlistFilters) : null,
+    [view, wishlist, activeWishlistFilters]
   );
 
-  if (gameView === "played" && availablePlayed) {
+  if (view === "played") {
     return {
       allSystems: allSystemsPlayed,
       allGenres: allGenresPlayed,
-      availableRatings: availablePlayed.ratings,
-      availableSystems: availablePlayed.systems,
-      availableGenres: availablePlayed.genres,
-    };
-  }
-  if (gameView === "wishlist" && availableWishlist) {
-    return {
-      allSystems: allSystemsWishlist,
-      allGenres: allGenresWishlist,
-      // The wishlist FilterBar has no rating control, so this is never read.
-      availableRatings: NO_VALUES,
-      availableSystems: availableWishlist.systems,
-      availableGenres: availableWishlist.genres,
+      // Non-null whenever view is "played" — same condition as the memo.
+      availableRatings: availablePlayed?.ratings ?? NO_VALUES,
+      availableSystems: availablePlayed?.systems ?? NO_VALUES,
+      availableGenres: availablePlayed?.genres ?? NO_VALUES,
     };
   }
   return {
-    allSystems: NO_OPTIONS,
-    allGenres: NO_OPTIONS,
+    allSystems: allSystemsWishlist,
+    allGenres: allGenresWishlist,
+    // The wishlist FilterBar has no rating control, so this is never read.
     availableRatings: NO_VALUES,
-    availableSystems: NO_VALUES,
-    availableGenres: NO_VALUES,
+    availableSystems: availableWishlist?.systems ?? NO_VALUES,
+    availableGenres: availableWishlist?.genres ?? NO_VALUES,
   };
 }

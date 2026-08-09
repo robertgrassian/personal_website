@@ -37,9 +37,12 @@ type GameShelvesProps = {
   // Games with no rating — rendered as an owner-only shelf so they stay
   // reachable (and re-ratable) after a rating is cleared.
   unratedGames: Game[];
-  // Narrowed to GameView, not View: this component only mounts on a shelf tab,
-  // which is the whole point of the split. The filter/group/sort machinery no
-  // longer has to opt out of itself on a tab that lists usernames.
+  // The same value as `urlState.view`, narrowed to GameView: this component
+  // only mounts on a shelf tab, which is the whole point of the split, and the
+  // filter/group/sort machinery no longer has to opt out of itself on a tab
+  // that lists usernames. Passed separately rather than read off urlState
+  // because only the caller's `isGameView` check can do the narrowing. Read
+  // this one, never `urlState.view`, so the two cannot be seen to disagree.
   view: GameView;
   // Still needed here for the copy ("Your library" vs "This library") and for
   // the owner-only Unrated shelf. Whether a *card* shows a pencil is no longer

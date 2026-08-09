@@ -72,7 +72,17 @@ export function GameDraftForm({
    *  it is still the newest one AND the field has not been touched since. And
    *  it must not strand the status label on "checking" when the call throws --
    *  the Server Action can reject on the 15s timeout, which left it spinning
-   *  forever. */
+   *  forever.
+   *
+   *  The cleanup is load-bearing, and is the one thing this owes to having
+   *  moved out of AddGameModal. `genreSeq` used to live for the whole modal's
+   *  life, so every path bumped one shared counter; it now resets with this
+   *  component, which unmounts on "Back to search". Without the bump, a lookup
+   *  still in flight from a previous mount holds a counter nobody will ever
+   *  advance, so its staleness check passes unconditionally and it writes into
+   *  a draft it knows nothing about. `setDraft` belongs to AddGameModal and
+   *  outlives us, so the write really does land: pick a game, go back, pick the
+   *  same game, start typing, and the abandoned response overwrites you. */
   useEffect(() => {
     if (lookupGenresFor === null) {
       // Manual entry has no picked game to look up, so no status to report.
@@ -100,6 +110,9 @@ export function GameDraftForm({
         setGenreLookup("none");
       }
     })();
+    return () => {
+      genreSeq.current += 1;
+    };
   }, [lookupGenresFor, setDraft]);
 
   // Existing shelves first (the value you usually want), then the pick's own

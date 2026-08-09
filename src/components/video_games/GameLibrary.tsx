@@ -101,6 +101,7 @@ export function GameLibrary({
   // null for a visitor — GameCase gates the pencil on exactly this.
   const openEditor = canEdit ? handleEditGame : null;
   const handleAddGame = useCallback(() => setAddOpen(true), []);
+  const handleStatsOpen = useCallback(() => setStatsOpen(true), []);
   const handleStatsClose = useCallback(() => setStatsOpen(false), []);
 
   // Shelf-system suggestions for the add/promote forms. Deliberately distinct
@@ -154,7 +155,7 @@ export function GameLibrary({
             {view === "played" && (
               <button
                 type="button"
-                onClick={() => setStatsOpen(true)}
+                onClick={handleStatsOpen}
                 aria-label="Open library stats"
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
               >

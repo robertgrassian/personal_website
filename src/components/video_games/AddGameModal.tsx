@@ -37,10 +37,14 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
   // null = search step; set = confirm step.
   const [draft, setDraft] = useState<Draft | null>(null);
   // Remembered at hand-off, not on every keystroke, so "Back to search" can
-  // restore the box. The trade-off of unmounting the search step: returning to
-  // it re-runs the query once, which costs one charge against the server-side
-  // per-minute IGDB budget. Accepted because the alternative is keeping the
-  // whole result list mounted behind the form.
+  // restore the box.
+  //
+  // The box is all it restores, and that is the price of unmounting the search
+  // step: going back drops the result list, any "Show more" pages already
+  // loaded, and the error state, then re-runs the query after the 350ms
+  // debounce — one more charge against the server-side per-minute IGDB budget.
+  // Accepted because the alternative is keeping the whole result list mounted
+  // behind the confirm form, which is the cost this split exists to remove.
   const [lastQuery, setLastQuery] = useState("");
   // The name to look up genres for, or null on the manual path. Passed down
   // rather than fetched here so the lookup lives with the field it writes to.
