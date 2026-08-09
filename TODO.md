@@ -19,8 +19,22 @@ asked for, which needs no reason and is marked `(Promoted by request YYYY-MM-DD.
 get demoted back out. Adding a sixth item means demoting one, on purpose. (Split out 2026-08-07:
 the old rule sent every bug straight here, so four of five slots were defects.)
 
-_Nothing queued. The next thing to work on is whichever bug below has started to matter, or
-whatever gets promoted here by request._
+- [ ] **Give games their own table: normalize metadata into a shared catalog.** (Promoted by request 2026-08-09.) Was in Backlog since the spec deferred it. Normalize game metadata into a shared catalog (a `game_metadata` table + per-user `played_games`/`wishlist_games` link tables) — today `games` and `wishlist_items` each carry their own copy of name/system/genres/release*date/image_url. Spec §4.2 deliberately chose denormalized-with-`igdb_id` for v1 (canonical rows need an ownership/moderation story; user-entered games lack a canonical key). Revisit at Phase 4 when cross-user duplication actually exists — the `igdb_id` column on both tables is the planned backfill key (group by it, extract canonical rows, repoint).<br>
+      \_Systems split across the two levels* (decided 2026-08-09, alongside the systems-as-a-list
+      item above): `game_metadata` holds **every platform the game released on**, which is the
+      catalog's fact and is what IGDB already returns, while the per-user link row holds **the
+      systems that user has played it on**, which is the user's fact and is the subset. Keep the
+      two apart even before this table exists — the systems-list change should store the user's
+      subset, so this migration moves that column rather than reinterpreting it.<br>
+      _Fold the systems-as-a-list change into this rather than doing it first._ That item
+      (still in Backlog, with the rating and session costs written up) was written to be done
+      independently **because this one was deferred indefinitely**; promoting this removes that
+      reason. Both rewrite every `games` row and both are lossy in the same places, so running
+      them as one migration means one preview pass and one merge of duplicate-name rows instead
+      of two. The link table is where the user's systems list wants to live anyway.<br>
+      _What it unblocks:_ **"You can add a game you already have in your library"** in Bugs is
+      waiting on exactly this shape, and becomes a link-table lookup rather than a string
+      comparison. **"Overhaul the wishlist promote flow"** asks the same question one column over.
 
 ## Bugs
 
@@ -88,11 +102,13 @@ to keep that section at five._
       and would let the systems list be enriched from sessions — but it cannot be _derived_ from
       them, since most library entries have no sessions at all, so the stored list stays the
       source of truth either way.<br>
-      _Do this independently of the catalog normalization below, not after it._ The two are
-      unrelated: this is the shape of one user's row, that is deduplication across users. The
-      catalog item has been deferred since the spec on an unresolved ownership/moderation
-      question, so waiting on it means waiting indefinitely, and the systems list is the same
-      column wherever it eventually lives. Related: **"You can add a game you already have"** in
+      _Sequencing changed 2026-08-09: do this **as part of** the catalog normalization, now that
+      it sits in Up Next._ The original plan was to do this first and independently, on the
+      grounds that the catalog item was deferred with no trigger date and waiting on it meant
+      waiting indefinitely. Promoting it removed that reason. The two rewrite the same rows and
+      are lossy in the same places, so one migration means one preview pass and one merge of
+      duplicate-name rows; the per-user link table is where this list belongs anyway. Do it
+      separately only if the catalog work stalls again. Related: **"You can add a game you already have"** in
       Bugs is blocked on this and becomes nearly trivial after it, and **"Restrict the add-game
       'system' suggestions to the platforms the game actually released on"** below is the client
       half of the same idea (IGDB's platform list as the allowable set).
@@ -591,13 +607,6 @@ head` being run by hand from a laptop pointed at production.<br>
       promote form in `EditWishlistModal` only offers existing shelf systems — thread the
       IGDB platforms through there too, and consider doing the same for genres.
 - [ ] Library-level "create session" button (owner-only) — start or log a session for any game without opening that game's pencil/edit modal: a game picker (search the library) + the same start-now / past-dates form the modal has. Stretch goal: accept a game NOT in the library yet ("I just started something new") — the flow would add the game to the library (IGDB search, Phase 3 slice 4's proxy) and open its session in one go. Backend already supports everything except add+start-in-one; UI is the work. Keep simple, iterate later.
-- [ ] Normalize game metadata into a shared catalog (a `game_metadata` table + per-user `played_games`/`wishlist_games` link tables) — today `games` and `wishlist_items` each carry their own copy of name/system/genres/release*date/image_url. Spec §4.2 deliberately chose denormalized-with-`igdb_id` for v1 (canonical rows need an ownership/moderation story; user-entered games lack a canonical key). Revisit at Phase 4 when cross-user duplication actually exists — the `igdb_id` column on both tables is the planned backfill key (group by it, extract canonical rows, repoint).<br>
-      \_Systems split across the two levels* (decided 2026-08-09, alongside the systems-as-a-list
-      item above): `game_metadata` holds **every platform the game released on**, which is the
-      catalog's fact and is what IGDB already returns, while the per-user link row holds **the
-      systems that user has played it on**, which is the user's fact and is the subset. Keep the
-      two apart even before this table exists — the systems-list change should store the user's
-      subset, so this migration moves that column rather than reinterpreting it.
 - [ ] Profile pictures for user accounts (instanced game libraries follow-up, post-v1 — likely Supabase Storage + upload/crop flow, shown in the library profile header and follower lists)
 - [ ] Homepage customization per user (instanced game libraries follow-up, post-v1 — let users personalize their library page: hero/backdrop, shelf styling, featured games, etc. Scope TBD)
 - [ ] Staging environment (instanced game libraries follow-up — the project deliberately accepted a "no staging" caveat: previews are read-only against prod, so writes first run for real in prod; revisit with a second Supabase project or branching once the write path exists). **Promoted in priority 2026-07-28:** the preview `500 MIDDLEWARE_INVOCATION_FAILED` (since fixed — see Recently Completed) was this caveat biting for real. Pointing Preview at production's Supabase is the stopgap, but it means preview sign-ins are production accounts. A second Supabase project (own DB + own GoTrue + own Google OAuth client) would give previews a real identity system and finally let the write path be exercised somewhere that isn't prod
