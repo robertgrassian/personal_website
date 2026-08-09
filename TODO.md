@@ -28,40 +28,6 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 Promote one into Up Next when it starts blocking the sharing goal above, and demote something else
 to keep that section at five._
 
-- [ ] **On mobile, the add-game details/rating step scrolls in both directions and does not fit
-      its box.** Reported 2026-08-06 from a phone: after picking a title in `AddGameModal`, the
-      confirm form (name / system / genres / release date / rating) feels larger than the dialog
-      containing it, and dragging a finger pans it horizontally as well as vertically. It should
-      size to the screen and fit.<br>
-      _Half the premise needs correcting, and it points at the real cause._ The dialog is already
-      viewport-relative: the panel carries `max-h-[80dvh] w-full max-w-md` inside a
-      `fixed inset-0 … p-4` grid, so it cannot exceed the screen, and the confirm body's vertical
-      scrolling is deliberate (`min-h-0 flex-1 overflow-y-auto`, with the save buttons pinned
-      outside it). So "make the height dynamic" is not the fix — the height already is.<br>
-      _Most likely culprit, not yet reproduced on a device: iOS auto-zoom on focus._ Mobile Safari
-      zooms the whole page in when you focus an input whose font-size is under 16px, and
-      `inputClass` (`formStyles.ts`) is `text-sm` = 14px on every field here. Once zoomed, the
-      layout is genuinely wider than the window and pans in both axes, which matches the report
-      exactly. There is no `export const viewport` in `src/app/layout.tsx`, so Next's default meta
-      applies and scaling is allowed. Confirm this is it before fixing; if it holds, bump the
-      inputs to 16px on small screens rather than adding `maximum-scale=1`, which disables
-      pinch-zoom for everyone and is an accessibility regression.<br>
-      _A second, independent mechanism worth ruling out._ Per CSS, when one axis of `overflow`
-      is not `visible` the other computes from `visible` to `auto` — so the confirm body's
-      `overflow-y-auto` makes that div horizontally scrollable the moment any child is one pixel
-      too wide. The `input[type="date"]` is the usual offender, since it carries an intrinsic
-      control width that `w-full` does not always beat. `overflow-x-hidden` plus `min-w-0` on the
-      field wrappers settles it. Note the search step's results `<ul>` has the same
-      overflow-y and the same exposure, so fix both.<br>
-      _And check the scroll lock while in there:_ `useModalChrome` sets
-      `document.body.style.overflow = "hidden"`, which iOS Safari
-      ignores for touch, so some of the "it moves under my finger" may be the page behind the
-      dialog rather than the dialog. `overscroll-behavior: contain` on the scroll area is the
-      cheap half. Same three modals share this hook, so any fix lands on `EditGameModal` and
-      `EditWishlistModal` too.<br>
-      Related: the mobile field-suggestions item in Backlog covers the same two forms (the
-      `<datalist>` that phones ignore) — worth doing in one mobile pass over `AddGameModal`.
-
 - [ ] **You can add a game you already have in your library. Filter games you own out of the
       add-game search, and reject a duplicate add server-side.** Reported 2026-08-08.<br>
       _Half of this already exists, and the half that does defines the real gap._
@@ -618,6 +584,27 @@ head` being run by hand from a laptop pointed at production.<br>
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **The add-game form no longer pans sideways on a phone** (2026-08-09, branch
+      `claude/mobile-modal-zoom`). Three changes, addressing two independent mechanisms.<br>
+      _iOS auto-zoom on focus:_ mobile Safari zooms the page in when a form control under 16px
+      takes focus and does not zoom back out, at which point the layout really is wider than the
+      window and pans in both axes. `fieldClass` (`formStyles.ts`) is now `text-base sm:text-sm`,
+      so phones get 16px and nothing above the `sm` breakpoint changes. Deliberately not
+      `maximum-scale=1`, which would disable pinch-zoom for everyone. Note this lands on the
+      filter bar's search box and selects too, since they compose from the same token: same
+      defect, one fix.<br>
+      _Horizontal overflow:_ per CSS, when one axis of `overflow` is not `visible` the other
+      computes from `visible` to `auto`, so the confirm body's `overflow-y-auto` made it
+      horizontally scrollable the moment any child was a pixel too wide. Both scroll areas (the
+      confirm body and the search step's results `<ul>`) are now `overflow-x-hidden
+    overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'s intrinsic
+      control width cannot push its flex parent wide in the first place.<br>
+      _Not verified on a device, and one half deliberately left undone._ If the page still moves
+      under a finger, the remaining suspect is the scroll lock: `useModalChrome` sets
+      `document.body.style.overflow = "hidden"`, which iOS Safari ignores for touch. The real fix
+      there is `position: fixed` on the body with scroll-position save/restore, which is invasive
+      enough to want its own change and affects all three dialogs sharing the hook.
+
 - [x] **Library search folds accents** (2026-08-09, branch `claude/search-fold-accents`).
       Typing "pokemon" now finds "Pokémon", "okami" finds "Ōkami". `foldForSearch` in
       `pipeline.ts` runs `.normalize("NFD").replace(/\p{Diacritic}/gu, "")` over both the query
@@ -986,17 +973,3 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       ever calls Twitch, so an unauthenticated probe returns 401 whether the creds are good or
       absent. Real confirmation was searching in the add-game picker on prod, done as part of
       the browser pass above
-- [x] **Vercel → Supabase env vars scoped to Preview** (2026-07-28), fixing preview deploys
-      that returned `500 MIDDLEWARE_INVOCATION_FAILED`. `NEXT_PUBLIC_SUPABASE_URL` /
-      `NEXT_PUBLIC_SUPABASE_ANON_KEY` were Production-only, and the middleware matches every
-      non-asset path, so one missing var took down the whole deployment (the throw:
-      "Your project's URL and Key are required to create a Supabase client!"). Both vars are
-      public by design — the browser needs them for the OAuth dance. `NEXT_PUBLIC_*` is
-      inlined at build time, so this needed a fresh build, not just a redeploy.<br>
-      **Caveat now live:** previews authenticate against _production_ Supabase, so signing in
-      on a preview URL uses your real account. Writes are still refused
-      (`targetsForeignEnvironmentApi`), so it's reads plus a real session — the known
-      no-staging trade-off. The real fix is the staging-environment backlog item.<br>
-      _Also mitigated in code (PR #68):_ the middleware and the two session-reading pages
-      degrade instead of throwing when the vars are absent, so a missing var can no longer
-      take the site down

@@ -5,8 +5,18 @@
 // The shelf-input token set, sizing excluded. Everything that renders a field
 // composes from this, so a token change lands everywhere at once — including
 // the focus ring, which one hand-rolled copy had quietly dropped.
+//
+// `text-base sm:text-sm` is a mobile Safari workaround, not a design choice.
+// iOS zooms the whole page in when a form control smaller than 16px takes
+// focus, and it does not zoom back out — so the layout ends up genuinely wider
+// than the window and pans in both axes for the rest of the session. 16px on
+// phones is the documented way to opt out; the alternative, `maximum-scale=1`
+// in the viewport meta, disables pinch-zoom for everyone and is an
+// accessibility regression. Above the `sm` breakpoint (a pointer device, where
+// no zoom happens) it goes back to 14px so nothing about the desktop layout
+// changes.
 export const fieldClass =
-  "bg-shelf-input border border-shelf-input-border text-shelf-input-text text-sm rounded " +
+  "bg-shelf-input border border-shelf-input-border text-shelf-input-text text-base sm:text-sm rounded " +
   "focus:outline-none focus:ring-1 focus:ring-shelf-input-ring";
 
 // Modal fields: full width, snug padding.
@@ -19,8 +29,13 @@ export const filterFieldClass = `${fieldClass} px-3 py-1.5`;
 // Selects get cursor-pointer on top; text inputs don't need it.
 export const filterSelectClass = `${filterFieldClass} cursor-pointer`;
 
+// min-w-0: these are flex items, and a flex item's default `min-width: auto`
+// refuses to shrink below its content's intrinsic width. `input[type="date"]`
+// is the one that bites — it carries an intrinsic control width that `w-full`
+// does not always beat, so without this the field can push its container wider
+// than the dialog and make the whole form pan sideways.
 export const labelClass =
-  "flex flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label";
+  "flex min-w-0 flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label";
 
 // ---------------------------------------------------------------------------
 // Button recipes
