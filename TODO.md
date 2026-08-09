@@ -45,8 +45,12 @@ to keep that section at five._
       flip `<button>` (the cheap hedge against double-tap-zoom wait, which was already unlikely
       given Next's default viewport meta); the cursor special-case corrected from the
       `sm:` breakpoint test to `pointer-fine:`, which is the capability actually meant; and a
-      narrow `will-change: transform` under `.game-case-scene:active .game-case-inner` plus the
-      flipped case, so the layer promotion starts on touch-down rather than after the click.<br>
+      narrow `will-change: transform` under `.game-case-scene:active .game-case-inner`, so the
+      layer promotion starts on touch-down rather than after the click. Note it covers the flip
+      OUT only: `:active` ends at release, so the flip back animates unpromoted, and promoting
+      the flipped case instead was tried and dropped (it holds a layer while nothing animates,
+      and de-promoting faces carrying `backface-visibility: hidden` as a transition starts is a
+      known one-frame-flash source in WebKit).<br>
       _So the surviving suspect is compositing cost, and it is now the only one._
       `.game-case-scene` sets `perspective` and `.game-case-inner` sets `transform-style:
 preserve-3d`. The first `rotateY` promotes the case to its own layer, and with ~155 cases each
