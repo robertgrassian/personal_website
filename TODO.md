@@ -597,8 +597,11 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       computes from `visible` to `auto`, so the confirm body's `overflow-y-auto` made it
       horizontally scrollable the moment any child was a pixel too wide. Both scroll areas (the
       confirm body and the search step's results `<ul>`) are now `overflow-x-hidden
-    overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'s intrinsic
-      control width cannot push its flex parent wide in the first place.<br>
+  overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'s intrinsic
+      control width cannot push its flex parent wide in the first place. Review correction: the
+      automatic minimum size applies on the flex MAIN axis only, so `min-w-0` is inert in the add
+      form's `flex-col` and actually earns its place in `EditGameModal`'s `flex flex-wrap` row of
+      date labels.<br>
       _Not verified on a device, and one half deliberately left undone._ If the page still moves
       under a finger, the remaining suspect is the scroll lock: `useModalChrome` sets
       `document.body.style.overflow = "hidden"`, which iOS Safari ignores for touch. The real fix

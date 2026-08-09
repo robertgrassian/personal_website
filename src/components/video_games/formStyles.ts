@@ -29,11 +29,19 @@ export const filterFieldClass = `${fieldClass} px-3 py-1.5`;
 // Selects get cursor-pointer on top; text inputs don't need it.
 export const filterSelectClass = `${filterFieldClass} cursor-pointer`;
 
-// min-w-0: these are flex items, and a flex item's default `min-width: auto`
+// min-w-0: these are flex items, and a flex item's automatic minimum size
 // refuses to shrink below its content's intrinsic width. `input[type="date"]`
 // is the one that bites — it carries an intrinsic control width that `w-full`
-// does not always beat, so without this the field can push its container wider
-// than the dialog and make the whole form pan sideways.
+// does not always beat, so the label wrapping it can be pushed wider than the
+// dialog and take the whole form sideways with it.
+//
+// Note where this is and is not load-bearing, because it is easy to assume the
+// wrong one. The automatic minimum size applies on the flex container's MAIN
+// axis only; on the cross axis it computes to zero and items stretch to the
+// container's definite width regardless. So in the add form, whose fields sit
+// in a `flex flex-col`, this is inert. It earns its place in EditGameModal's
+// `flex flex-wrap items-end` row of date labels, which is a main-axis case and
+// is where an over-wide date control actually widens its parent.
 export const labelClass =
   "flex min-w-0 flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label";
 
