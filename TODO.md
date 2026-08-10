@@ -79,11 +79,145 @@ the old rule sent every bug straight here, so four of five slots were defects.)
       the wishlist promote flow"** asks the same question one column over, and **"An easy way to
       view a game's sessions"** reads whatever this FK ends up being.
 
+- [ ] **When adding a game, let me say I'm playing it now, or that I played it before: a play
+      history section in the add-game form.** (Promoted by request 2026-08-09.) Two asks, one
+      surface. **(1)** A one-tap control (a check mark was the suggestion) that marks the game
+      currently playing as it is added, instead of adding it and then opening its pencil. **(2)**
+      The fuller version: the same form can also record a past playthrough, so adding a game you
+      finished years ago captures when. **Do not call it a "session" in the UI** — that is the
+      database's word, and nothing user-facing uses it today. "Playing this now" plus something
+      like "I've played this before" reads as one natural part of the add form.<br>
+      _What exists to build on:_ `EditGameModal` already has both halves — a start/stop control
+      and a "From"/"To" past-dates form — and both go through `logSession` in
+      `video-games/actions.ts`, which takes `(gameId, startDate, endDate | null)` and treats a
+      **null end date as the open session** that makes a game currently-playing. So "playing now"
+      is a past-dates log with the end left blank, and the add form needs no new backend concept,
+      only a new caller. `AddGameModal` today is the IGDB search step plus `GameDraftForm`, which
+      has no session controls at all.<br>
+      _The one real blocker, and it is not in the UI:_ logging a session needs the new game's id,
+      and the add path throws it away. `POST /me/games` **does** return the created `GameRead`
+      (see `create_my_game` in `api/app/routers/me.py`), but `mutate` in `meApi.ts` collapses
+      every write to `MutateResult` (`{ ok: true }`), so `addGame` cannot tell the client what it
+      just created. Either widen that result for the create path, or add a server-side
+      add-and-start endpoint. The second is the thing to weigh: two sequential writes can leave a
+      game added with its play history silently missing, so decide whether a failed session log
+      rolls the add back, warns, or is simply accepted (probably accepted — a game in the library
+      with no dates is a normal state).<br>
+      _Library target only._ A wishlist entry is not in the library and has no game row to hang a
+      session off, so this section must disappear when the target is `wishlist`. That collides
+      directly with **"Fold '+ Add to wishlist' into a single '+ Add game'"** below, which adds a
+      destination switcher inside this same modal: the switcher would have to show and hide this
+      section, and decide what happens to dates already typed when you flip to wishlist. Sequence
+      the two deliberately.<br>
+      _Reuse, do not re-type, the date form._ **"Logging a past session should pick the whole
+      range in one calendar popup"** below already plans to pull that From/To control out of
+      `EditGameModal`; building a second copy here is what that item is trying to prevent. Same
+      for **"Library-level 'create session' button"**, whose stretch goal ("add a game I just
+      started and open its session in one go") is this exact gap approached from the other
+      direction — folding them together is reasonable.<br>
+      _This is the whole add-game screen's turn, per the ask._ Four other items touch this same
+      form and are cheaper done in one pass than four: **"Remove genre keyword search when adding
+      a game"**, **"Restrict the add-game 'system' suggestions to the platforms the game actually
+      released on"**, the mobile combobox item (`<datalist>` does not work on phones), and the
+      destination-switcher item above.
+
+- [ ] **Rewrite `CLAUDE.md` and `README.md`: purge the stale facts and give both an architecture
+      section.** (Promoted by request 2026-08-09.) Two documents, two audiences, one pass. The
+      `CLAUDE.md` version optimizes for **an agent finding things fast**; the `README.md` version
+      optimizes for **a human understanding what this is**, and wants the site's purpose up front,
+      a dedicated game-library section (it is most of the repo), and an architecture section.<br>
+      _Three wrong facts found already, which is the evidence the sweep is needed._ **(1)**
+      `CLAUDE.md` routes the read path through "`src/lib/gamesServer.ts` (server-only)" — **that
+      file does not exist.** `import "server-only"` is at the top of `libraryApi.ts` itself, which
+      is the actual server boundary. **(2)** `CLAUDE.md` names `CrtTv.tsx` as the currently-playing
+      component; the file is `CurrentlyPlaying.tsx`, and the CRT-TV bug entry in Backlog now says
+      so too. **(3)** `README.md`'s Claude Skills table lists the skill as `todo` / `/todo`; it is
+      `proj-todo`, and the whole point of that rename was that the skill gets invoked. Assume more
+      of the same and verify every path, filename and command rather than re-reading the prose.<br>
+      _What "help Claude find things" actually means, since it is the stated goal:_ a map from
+      **task** to **file**, not a directory listing (an agent can already run `ls`). The things
+      worth writing down are the ones that cost a search every time: the owner write path
+      (browser → Server Action in `video-games/actions.ts` → `meApi.ts` → FastAPI `/me/*` →
+      `revalidateTag`) is already there and earns its place; the read path is the same shape and is
+      currently wrong; the API's routers → services → repositories layering lives in
+      `api/README.md`; and the filter/group/sort pipeline (`pipeline.ts`) has no pointer anywhere.
+      Worth adding a "where does X live" table for the recurring destinations: shelf UI, modals,
+      auth, migrations, tests.<br>
+      _Watch the size budget._ `CLAUDE.md` is loaded into context on every single session, so
+      every line competes with the actual task, and a long file is what gets skimmed. It is 88
+      lines today. An architecture section that grows it past roughly double should push detail
+      into a linked doc instead: `docs/` already holds `dev-setup.md`,
+      `genre-backfill-runbook.md` and `supabase-primer.md`, and `api/README.md` already owns the
+      data model. The conventions section carries a warning about exactly this failure mode — the
+      `proj-todo` rules were duplicated into `CLAUDE.md`, and having them in context is what made
+      the skill look redundant and got it skipped for a session. Do not undo that lesson by
+      inlining `api/README.md` here.<br>
+      _Liked, 2026-08-09: put an architecture **diagram** in `docs/`_ and have both files link to
+      it, which is also how the size budget above gets respected — the diagram carries the shape,
+      `CLAUDE.md` keeps only the pointers an agent needs to open a file. Draw it in **Mermaid**
+      rather than exporting an image: GitHub renders ` ```mermaid ` blocks natively, so it stays
+      diffable text that can be corrected in a PR instead of a binary nobody updates. The request
+      flow is the diagram worth having (browser → Server Action → `meApi.ts` → FastAPI routers →
+      services → repositories → Postgres, with the read path and `revalidateTag` alongside),
+      since that is the thing this repo's structure actually encodes. `docs/dev-setup.md` is the
+      neighbor to match for tone.<br>
+      _Do not duplicate what the two files each own._ `README.md` today already has Features, Tech
+      Stack, Authentication, Design decisions, Getting Started, Scripts, Game Library Data and
+      Claude Skills, and `api/README.md` has the data model and its rationale. The risk in adding
+      "architecture" to both is three descriptions of one system drifting apart. Decide which file
+      is canonical for each fact and have the others link to it.<br>
+      _One thing to decide, not just execute:_ `README.md` is the repo's public face on GitHub, and
+      the purpose section is written for a stranger — likely someone looking at this as work,
+      given the site hosts a resume. That is a different voice from the rest of the file, which is
+      setup instructions. Worth writing it deliberately rather than as another bullet list.
+
 ## Bugs
 
 _Confirmed defects that are not urgent enough for Up Next. Roughly severity-ordered, worst first.
 Promote one into Up Next when it starts blocking the sharing goal above, and demote something else
 to keep that section at five._
+
+- [ ] **On mobile, filtering down to one shelf leaves the result hidden under the filter bar (or
+      under the keyboard), so you cannot see what you just found.** Reported 2026-08-09, on a
+      device. Repro: scroll down the library, scroll up slightly so the sticky bar comes back,
+      then type a search that matches a single row while the keyboard is still up. The matching
+      shelf renders where you can barely see it: a sliver of a case, sometimes just the plank. You
+      have to scroll or dismiss the keyboard to see the result. Listed first here because it hits
+      **any** visitor on a phone, not just the owner, and searching is the main thing a stranger
+      does with someone else's library.<br>
+      _Premise correction on the suspected cause:_ "we need to render under the filter bar" is
+      already what happens. `FilterBar` is `sticky top-[var(--nav-height)] z-20` and sits in
+      normal flow, so the shelves come after it in layout and cannot be painted behind it. The
+      overlap is not a stacking problem, which means a z-index or padding fix will not touch
+      it.<br>
+      _Most likely the real mechanism, and it is two things at once — confirm on a device before
+      fixing._ **(1) Nothing in the app ever scrolls after a filter.** There is no `scrollIntoView`,
+      `scrollTo`, `scroll-margin` or `visualViewport` usage anywhere in `src/` (checked
+      2026-08-09). Filtering 155 games to one shelf collapses the document height, the browser
+      clamps `scrollY` to the new maximum, and wherever that lands is where you stay: the one
+      surviving shelf can easily end up at the very top of a now-short page with the sticky
+      chrome over it. **(2) iOS keyboard and viewport units disagree.** `position: sticky` resolves
+      against the **layout** viewport, which does not shrink when the keyboard opens; only the
+      **visual** viewport does. So with the keyboard up, the space the user can actually see is a
+      band that the sticky bar was not positioned against, which is exactly why this reproduces on
+      a phone and not in desktop devtools — devtools mobile emulation has no keyboard.<br>
+      _What the fix has to get right, since "just scroll to the results" has traps._ Scroll only
+      when the result set actually changes and only **upward**, or it will yank the page while
+      someone is reading. Drive it off the deferred search value, not the raw input:
+      `GameShelves` already runs the pipeline through `useDeferredValue`, so a per-keystroke
+      scroll would fight the typist. The landing offset must clear nav height **plus** the bar's
+      own height, which is what `scroll-margin-top` on the shelf container expresses more cleanly
+      than arithmetic in a `scrollTo`. And whatever it does must not blur the search input:
+      dismissing the keyboard mid-search would trade this annoyance for a worse one.<br>
+      _The `visualViewport` API is how the keyboard half gets solved_ if step one is not enough:
+      it reports the real visible band and fires `resize`/`scroll` when the keyboard opens. Note
+      `FilterBar` already keeps a hand-rolled scroll model on mobile (a `stickyThresholdRef`
+      snapshotted once in `useLayoutEffect`, plus a hide-on-scroll-down toggle behind a 640px
+      media query listener), so this belongs alongside that logic rather than as a second
+      independent scroll listener.<br>
+      _Not reproducible without hardware._ Same class as the mobile flip-lag bug in Recently
+      Completed, which burned two plausible-but-wrong fixes before a device confirmed the real
+      one: get this verified on a phone before and after, rather than shipping on reasoning.
 
 - [ ] **You can add a game you already have in your library. Reject a duplicate add
       server-side, and decide what "duplicate" means.** Reported 2026-08-08. **The search half
@@ -118,6 +252,45 @@ to keep that section at five._
       matching misfires across systems: answer it once for both.
 
 ## Backlog / Ideas
+
+- [ ] **Detect where the title sits on a game cover, and crop the CRT picture so it is not cut
+      off.** The TV screen is landscape and cover art is portrait, so `object-cover` throws away
+      most of the height. Today every game gets the **same** hardcoded crop:
+      `object-cover [object-position:center_22%]` on the `<Image>` inside `.crt-picture`
+      (`CurrentlyPlaying.tsx` — note the component is not `CrtTv.tsx`, despite what CLAUDE.md
+      says). 22% is a guess that titles sit high; when they don't, the title is sliced.<br>
+      _The framing that matters, per the ask:_ the goal is **not** to center the title. It is the
+      smallest shift that brings the title fully inside the visible band, so the rest of the key
+      art keeps as much screen as possible. That makes the output a single number per cover — a
+      vertical `object-position` percentage — and the algorithm "clamp the crop window to contain
+      the title's bounding box, then stop moving". Falls back to the current 22% when nothing is
+      detected or the title is already contained. Storing a percentage rather than a cropped
+      derivative keeps `next/image` doing the resizing and avoids a second copy of every cover.<br>
+      _Do this offline, not in the browser._ Running detection per render would mean shipping a
+      vision model to the client and re-deciding the crop on every page load, for a value that
+      never changes once the art is known. The precedent is already here: cover art and genres are
+      both populated by backfill scripts (`scripts/fetch-covers.ts`, `scripts/backfill_genres.py`,
+      with `docs/genre-backfill-runbook.md` as the preview-then-apply habit). So this is a script
+      plus a stored column, run once over existing rows and once per new game on add.<br>
+      _Which table is an open question that Up Next answers._ The focal point is a fact about **the
+      artwork**, not about a user, so it belongs on the shared catalog row that **"Give games their
+      own table"** creates, not on every user's copy of the same game. Cheap to do now on `games`
+      and then migrate, but worth at least deciding on purpose. Same reasoning says the stored
+      value could serve `GameCaseBack`/`GameCase` later, not just the CRT.<br>
+      _On the library choice, and this is the part to validate before committing:_ what is wanted
+      is text **detection** (bounding boxes), not OCR (reading characters). Full OCR on stylized
+      game logos is unreliable, and we do not care what the title says. Detection-only models
+      (EAST, CRAFT and similar) are the closer fit; `tesseract.js` and the Python Tesseract
+      bindings are the obvious first hits but are solving the harder problem. A hosted vision API
+      would work too and adds a paid dependency and a key for a one-off batch over ~155 covers,
+      which seems like the wrong trade. **All of this is reasoning from the outside — nothing here
+      has been tried.** Spot-check whichever candidate on a dozen real covers (a logo in a script
+      font over busy art is the hard case) before wiring anything up.<br>
+      _Worth trying first, because it may be enough:_ IGDB cover art is heavily conventionalized,
+      and a crude signal like "the row band with the highest edge density in the top third" may
+      place titles about as well as a model, with no dependency at all. If a cheap heuristic gets
+      most covers right, the remaining handful can be a hand-set override column, which is also the
+      escape hatch any automated version needs anyway.
 
 - [ ] **Remove genre keyword search when adding a game.** This was added as a helpful way to
       find games, but its not really useful in practice and adds complexity and latency, we
