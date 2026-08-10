@@ -276,8 +276,10 @@ def load_library_rows(
 
     None of the fixture rows carry an igdb_id, so every catalog row created
     here is a PRIVATE one owned by this user. That is the honest
-    representation: these titles came out of a CSV, not out of IGDB. Running
-    scripts/backfill_igdb_ids.py is what turns them into shared rows.
+    representation: these titles came out of a CSV, not out of IGDB. A local
+    dev database therefore shares nothing between users, where production's
+    catalog is mostly shared rows -- a difference worth knowing before reading
+    too much into local behaviour.
 
     Returns the inserted games and the name→ids bridge sessions.csv needs.
     Flushes but does not commit, so the caller controls the transaction.
