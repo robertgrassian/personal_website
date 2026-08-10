@@ -39,11 +39,12 @@ name for the resolved id, so a production run is always a select before an
 update. Read that column: a stored name that disagrees with IGDB's is the only
 way a bad row shows itself.
 
---titles is the follow-up that acts on those disagreements. It supersedes
-backfill_titles.py's hand-read RENAMES map, which had to be hand-read because
-it scored IGDB *name search* results; keying on the cover id makes the
-identification exact and leaves only the spelling in question. See _run_titles
-for the two reasons it is still previewed rather than applied blind.
+--titles is the follow-up that acts on those disagreements. It improves on
+backfill_titles.py's hand-read RENAMES map, which scored IGDB *name search*
+results and so could land on an entirely different game. Keying on the cover id
+cannot do that -- but it can still propose a variant's title, because IGDB
+sometimes files a cover under an edition entry. See _run_titles for the three
+ways a proposal can be wrong, and KEEP_STORED for the ones already declined.
 
 --apply also writes scripts/.igdb_platforms.json: IGDB's real platform list per
 game, captured while the network call is already being made. Nothing reads it
@@ -226,21 +227,25 @@ def _escape(term: str) -> str:
 def _run_titles(session, user_id, plan: list[tuple], apply_changes: bool) -> None:
     """Rename stored titles to IGDB's, for rows whose cover resolved.
 
-    Safe in a way backfill_titles.py's map could not be: that one scored IGDB
-    *name search* results, which mis-resolved editions and sequels and so had
-    to be hand-read. Here the game came back from the cover the row is already
-    displaying, so the identification is exact and only the spelling is in
-    question.
+    Better than backfill_titles.py's map, which scored IGDB *name search*
+    results and so mis-resolved sequels outright. Here the game came back from
+    the cover the row is already displaying, so it is never a different game.
 
-    Still previewed rather than applied blind, for two reasons that have
-    nothing to do with matching:
+    But "never a different game" is NOT "never a different title", and the gap
+    is the reason this is previewed rather than applied blind. Three ways a
+    proposal can still be wrong, all seen on the real library:
 
-      1. IGDB's house style is not always the better display name -- roman
+      1. IGDB files the cover under an EDITION entry rather than the base game,
+         so "Dead Cells" proposes "Dead Cells+" and "Cyberpunk 2077" proposes
+         ": Ultimate Edition". The cover is right; the entry it hangs off is a
+         variant.
+      2. IGDB's house style is not always the better display name -- roman
          numerals ("Baldur's Gate III") where the box art uses digits.
-      2. Names drive the Wikipedia lookup in backfill_genres.py, so a rename
+      3. Names drive the Wikipedia lookup in backfill_genres.py, so a rename
          away from the article title makes a later genre re-run miss the game.
 
-    KEEP_STORED is the opt-out for both.
+    KEEP_STORED is the opt-out for all three, and is already populated from the
+    preview against the real library.
     """
     renames = [
         (row, igdb_name)
