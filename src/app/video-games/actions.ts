@@ -129,8 +129,18 @@ async function write(
 ): Promise<MutateResult> {
   const result = await run();
   if (result.ok) {
-    await revalidateMyLibrary(tags);
-    if (alsoRevalidate !== undefined) revalidateOtherLibrary(alsoRevalidate);
+    // Revalidation runs AFTER the API accepted the write, so nothing it does
+    // can undo one. fetchMyUsername → fetchMyProfile throws on an unreachable
+    // or unwell API, and letting that escape would reject the Server Action
+    // and report an accepted write as a failure — the exact silent-mismatch
+    // this file's callers are built to avoid. A stale page until the next
+    // revalidation is the correct worst case.
+    try {
+      await revalidateMyLibrary(tags);
+      if (alsoRevalidate !== undefined) revalidateOtherLibrary(alsoRevalidate);
+    } catch (err) {
+      console.error("Write succeeded but revalidation failed:", err);
+    }
   }
   return result;
 }

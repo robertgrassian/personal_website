@@ -46,6 +46,10 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   const rate = (next: Rating | "") => {
     const gameId = game.id;
     if (gameId === undefined) return;
+    // Any rating write answers the "how was it?" prompt, including one made
+    // with the picker at the top of the dialog — leaving it up would keep
+    // asking a question that has just been answered.
+    setRatePrompt(false);
     run(() => updateGameRating(gameId, next), {
       optimistic: () => setOptimisticRating(next),
     });
@@ -82,14 +86,6 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
     });
   };
 
-  // The second half of the old rate-on-stop, now a plain rating write on its
-  // own transaction. Nothing is riding on it, so dismissing the prompt is a
-  // complete, correct way to finish stopping a game.
-  const rateAfterStopping = (next: Rating | "") => {
-    setRatePrompt(false);
-    rate(next);
-  };
-
   const saveLoggedSession = () => {
     const gameId = game.id;
     if (gameId === undefined || logStart === "") return;
@@ -101,6 +97,10 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
         setLogOpen(false);
         setLogStart("");
         setLogEnd("");
+        // An end-less log opens a new session, so the branch above flips back
+        // to "Stop playing" — a leftover "Finished: how was it?" underneath
+        // would be asking about a game that is currently being played.
+        setRatePrompt(false);
       },
     });
   };
@@ -188,7 +188,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
             <div className="mt-1.5">
               <RatingPicker
                 value={optimisticRating}
-                onPick={rateAfterStopping}
+                onPick={rate}
                 disabled={isPending}
                 clearable={false}
                 describe={(name) => `Rate ${name}`}

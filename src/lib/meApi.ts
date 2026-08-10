@@ -119,9 +119,14 @@ async function callMeApi<T>(path: string, options: CallOptions): Promise<ApiCall
   // failure and the UI simply does nothing. A silent no-op is the worst
   // possible answer for a mutation, so every transport failure is converted
   // into an ordinary result here and reported like any other.
+  // Resolved before the try, not inside it: this throws a deliberately
+  // actionable error when the origin is unconfigured, and catching it below
+  // would reshape a deployment misconfiguration into "check your connection".
+  const origin = requireLibraryApiOrigin();
+
   let res: Response;
   try {
-    res = await fetch(`${requireLibraryApiOrigin()}${path}`, {
+    res = await fetch(`${origin}${path}`, {
       method,
       headers: {
         Authorization: `Bearer ${token}`,
