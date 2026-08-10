@@ -33,11 +33,12 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   // isPending covers the whole write round-trip: it stays true until the
   // revalidated data lands, so session buttons stay disabled through the
   // moment the game's play state visibly updates.
-  const { isPending, error, run } = useServerAction();
+  const { isPending, error, setError, run } = useServerAction();
 
-  // Session UI state. stopStep = the rate-on-stop picker is showing;
-  // logOpen = the past-session form is showing.
-  const [stopStep, setStopStep] = useState(false);
+  // Session UI state. ratePrompt = the session has just been closed and the
+  // "how was it?" picker is offering a rating; logOpen = the past-session form
+  // is showing.
+  const [ratePrompt, setRatePrompt] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [logStart, setLogStart] = useState("");
   const [logEnd, setLogEnd] = useState("");
@@ -45,6 +46,10 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   const rate = (next: Rating | "") => {
     const gameId = game.id;
     if (gameId === undefined) return;
+    // Any rating write answers the "how was it?" prompt, including one made
+    // with the picker at the top of the dialog — leaving it up would keep
+    // asking a question that has just been answered.
+    setRatePrompt(false);
     run(() => updateGameRating(gameId, next), {
       optimistic: () => setOptimisticRating(next),
     });
@@ -53,19 +58,31 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   const startPlaying = () => {
     const gameId = game.id;
     if (gameId === undefined) return;
-    // Clear any leftover rate-on-stop step from a previous playthrough (the
-    // session could have been closed elsewhere while the picker was open).
-    setStopStep(false);
+    // Clear any leftover rating prompt from the previous playthrough.
+    setRatePrompt(false);
     run(() => logSession(gameId, localToday(), null));
   };
 
-  // rating: a name sets it, "" clears it, undefined keeps whatever it is —
-  // all applied atomically with the close on the API side.
-  const stopPlaying = (rating?: Rating | "") => {
+  // "Stop playing" closes the session and nothing else. It used to only OPEN a
+  // rating picker, and the write went out when you picked one of the five (or
+  // found the small "Stop without rating" link) — so anyone who read "Stop
+  // playing" as the action, saw the rating prompt as an optional afterthought
+  // and closed the dialog had, in fact, not stopped anything. The button now
+  // does what it says, and the rating became a follow-up question below.
+  const stopPlaying = () => {
     const sessionId = game.openSessionId;
-    if (sessionId == null) return;
-    run(() => stopSession(sessionId, localToday(), rating), {
-      onSuccess: () => setStopStep(false),
+    if (sessionId == null) {
+      // Unreachable in practice: this control only renders when `playing`
+      // below has already established the id is there. But a bare `return`
+      // here would be one more way for this button to silently do nothing,
+      // which is the shape of problem this whole change is about.
+      setError("This game has no open session to stop. Refresh the page and try again.");
+      return;
+    }
+    run(() => stopSession(sessionId, localToday()), {
+      // Only after the close lands: a prompt to rate a game whose session is
+      // still open would be asking about the wrong thing.
+      onSuccess: () => setRatePrompt(true),
     });
   };
 
@@ -80,6 +97,10 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
         setLogOpen(false);
         setLogStart("");
         setLogEnd("");
+        // An end-less log opens a new session, so the branch above flips back
+        // to "Stop playing" — a leftover "Finished: how was it?" underneath
+        // would be asking about a game that is currently being played.
+        setRatePrompt(false);
       },
     });
   };
@@ -131,52 +152,14 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
             <p className="text-sm text-shelf-text">
               Playing since <span className="font-medium">{game.playingSince}</span>
             </p>
-            {!stopStep ? (
-              <button
-                type="button"
-                onClick={() => setStopStep(true)}
-                disabled={isPending}
-                className={`mt-2 ${buttonClass}`}
-              >
-                Stop playing
-              </button>
-            ) : (
-              <div className="mt-2">
-                <p className="text-xs text-shelf-text-muted">Finished: how was it?</p>
-                {/* No `value`, and clearable={false}: these five are actions
-                    that close the session AND set a rating, not a toggle over a
-                    current one. Leaving value unset keeps every button
-                    unselected, so the game's existing rating never renders as
-                    "already chosen" here — picking it again would still be a
-                    meaningful click. */}
-                <div className="mt-1.5">
-                  <RatingPicker
-                    onPick={(r) => stopPlaying(r as Rating)}
-                    disabled={isPending}
-                    clearable={false}
-                    describe={(name) => `Stop and rate ${name}`}
-                  />
-                </div>
-                <div className="mt-2 flex gap-4">
-                  <button
-                    type="button"
-                    onClick={() => stopPlaying(undefined)}
-                    disabled={isPending}
-                    className={ghostButtonClass}
-                  >
-                    {game.rating !== "" ? `Stop, keep "${game.rating}"` : "Stop without rating"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStopStep(false)}
-                    disabled={isPending}
-                    className={ghostButtonClass}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={stopPlaying}
+              disabled={isPending}
+              className={`mt-2 ${buttonClass}`}
+            >
+              Stop playing
+            </button>
           </div>
         ) : (
           <button
@@ -187,6 +170,38 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
           >
             Start playing
           </button>
+        )}
+
+        {/* Rendered outside the branch above, because by the time it shows the
+            session is already closed and that branch has flipped to "Start
+            playing" — which is itself the confirmation that the stop landed.
+            Dismissing this changes nothing about the game's play state. */}
+        {ratePrompt && (
+          <div className="mt-3">
+            <p className="text-xs text-shelf-text-muted">Finished: how was it?</p>
+            {/* clearable={false}: this is a prompt, so every click should set a
+                rating. Clicking the one that happens to be selected already
+                would otherwise clear it, which is not what answering a question
+                should do. `value` is passed so the prompt agrees with the
+                picker above it rather than showing an unrated game and a rated
+                one identically. */}
+            <div className="mt-1.5">
+              <RatingPicker
+                value={optimisticRating}
+                onPick={rate}
+                disabled={isPending}
+                clearable={false}
+                describe={(name) => `Rate ${name}`}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setRatePrompt(false)}
+              className={`mt-2 ${ghostButtonClass}`}
+            >
+              Not now
+            </button>
+          </div>
         )}
 
         <button

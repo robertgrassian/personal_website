@@ -70,7 +70,16 @@ type ApiCall<T> =
   // `detail` is FastAPI's own message when it sent a usable one, kept separate
   // from `message` so a caller with better per-status wording than the generic
   // fallback can tell the two apart.
-  | { ok: false; status: number; message: string; detail?: string };
+  //
+  // `unreachable` marks the one failure that is not an answer: the request was
+  // sent and no response came back (timeout, connection refused, DNS). It has
+  // to be distinguishable from the status-0 refusals we generate ourselves
+  // BEFORE sending anything (signed out, preview deploy), because those two
+  // mean "nothing happened" while this one means "the outcome is unknown" —
+  // the API may well have committed the write and only the answer went
+  // missing. fetchMyProfile in particular used to read status 0 as "not
+  // signed in", which would have turned a slow hop into a silent sign-out.
+  | { ok: false; status: number; message: string; detail?: string; unreachable?: true };
 
 type CallOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
@@ -102,16 +111,46 @@ async function callMeApi<T>(path: string, options: CallOptions): Promise<ApiCall
     return { ok: false, status: 0, message: "You are not signed in." };
   }
 
-  const res = await fetch(`${requireLibraryApiOrigin()}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(body !== null && { "Content-Type": "application/json" }),
-    },
-    ...(body !== null && { body: JSON.stringify(body) }),
-    cache: "no-store", // per-viewer, never cached
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+  // The fetch is wrapped because AbortSignal.timeout does not resolve to a
+  // response on expiry — it REJECTS with a TimeoutError, as does any transport
+  // failure. Unwrapped, that exception escapes the Server Action that called
+  // this, and Next surfaces a rejected action as a rejected promise on the
+  // client: useServerAction awaits it, so the write reports neither success nor
+  // failure and the UI simply does nothing. A silent no-op is the worst
+  // possible answer for a mutation, so every transport failure is converted
+  // into an ordinary result here and reported like any other.
+  // Resolved before the try, not inside it: this throws a deliberately
+  // actionable error when the origin is unconfigured, and catching it below
+  // would reshape a deployment misconfiguration into "check your connection".
+  const origin = requireLibraryApiOrigin();
+
+  let res: Response;
+  try {
+    res = await fetch(`${origin}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(body !== null && { "Content-Type": "application/json" }),
+      },
+      ...(body !== null && { body: JSON.stringify(body) }),
+      cache: "no-store", // per-viewer, never cached
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    // Deliberately does not claim the change was not saved: for a write, the
+    // request may have arrived and committed with only the answer lost. Telling
+    // someone "that didn't work" when it did is how you get a duplicate.
+    const timedOut = err instanceof Error && err.name === "TimeoutError";
+    return {
+      ok: false,
+      status: 0,
+      unreachable: true,
+      message: timedOut
+        ? `The server took too long to ${what}. It may still have gone through, ` +
+          `so refresh the page before trying again.`
+        : `Couldn't reach the server to ${what}. Check your connection and try again.`,
+    };
+  }
 
   if (res.ok) {
     // 204 (every DELETE) has no body to parse, and the mutations ignore `data`
@@ -144,6 +183,10 @@ export async function fetchMyProfile(): Promise<MyProfile | null> {
     refuseOnForeignApi: false,
   });
   if (res.ok) return res.data;
+  // Checked before the status map below, not after: a hop that timed out also
+  // carries status 0, and reading that as "signed out" would send a signed-in
+  // owner to onboarding because the API was slow. Unknown is not absent.
+  if (res.unreachable) throw new Error(`GET /me/profile did not answer: ${res.message}`);
   // 404 = no profile yet → onboarding. 0 = no token, i.e. signed out.
   if (res.status === 404 || res.status === 0) return null;
   // Anything else is the API being unwell, which the caller should not paper
@@ -384,18 +427,15 @@ export function createMySession(
   );
 }
 
-/** Close an open session ("stop playing"). When `rating` is passed it is
- *  applied to the game in the same transaction (rate-on-stop); undefined
- *  leaves the rating untouched. */
-export function closeMySession(
-  sessionId: number,
-  endDate: string,
-  rating?: string
-): Promise<MutateResult> {
-  // Omit the rating key entirely when not rating — the API's PATCH semantics
-  // treat an absent field as "leave unchanged" and null/"" as "clear".
-  const body: Record<string, unknown> = rating === undefined ? { endDate } : { endDate, rating };
-  return mutate(`/api/py/me/sessions/${sessionId}`, "PATCH", body, "stop the session");
+/** Close an open session ("stop playing"), leaving the game's rating alone.
+ *
+ *  The API can also rate the game in the same transaction (SessionClose carries
+ *  an optional `rating`), and this used to pass one through. The UI stopped
+ *  needing that when rating became a separate question asked after the session
+ *  closes, so the key is now always absent, which the API's PATCH semantics
+ *  read as "leave unchanged". The endpoint keeps the capability. */
+export function closeMySession(sessionId: number, endDate: string): Promise<MutateResult> {
+  return mutate(`/api/py/me/sessions/${sessionId}`, "PATCH", { endDate }, "stop the session");
 }
 
 /** Follow / unfollow a user. Both are idempotent server-side, so a

@@ -129,8 +129,18 @@ async function write(
 ): Promise<MutateResult> {
   const result = await run();
   if (result.ok) {
-    await revalidateMyLibrary(tags);
-    if (alsoRevalidate !== undefined) revalidateOtherLibrary(alsoRevalidate);
+    // Revalidation runs AFTER the API accepted the write, so nothing it does
+    // can undo one. fetchMyUsername → fetchMyProfile throws on an unreachable
+    // or unwell API, and letting that escape would reject the Server Action
+    // and report an accepted write as a failure — the exact silent-mismatch
+    // this file's callers are built to avoid. A stale page until the next
+    // revalidation is the correct worst case.
+    try {
+      await revalidateMyLibrary(tags);
+      if (alsoRevalidate !== undefined) revalidateOtherLibrary(alsoRevalidate);
+    } catch (err) {
+      console.error("Write succeeded but revalidation failed:", err);
+    }
   }
   return result;
 }
@@ -304,22 +314,17 @@ export async function logSession(
   return write(() => createMySession(gameId, startDate, endDate), [gamesTag]);
 }
 
-/** Stop playing: close the open session, optionally rating the game in the
- *  same call (undefined = leave the rating untouched, "" = clear it). */
-export async function stopSession(
-  sessionId: number,
-  endDate: string,
-  rating?: Rating | ""
-): Promise<MutateResult> {
-  if (
-    !Number.isInteger(sessionId) ||
-    !ISO_DATE_RE.test(endDate) ||
-    (rating !== undefined && !isValidRating(rating))
-  ) {
+/** Stop playing: close the open session. The rating is deliberately NOT part of
+ *  this call any more. The API still accepts one (PATCH /me/sessions/{id} can
+ *  close and rate in one transaction), but the UI now asks about the rating
+ *  only after the session is closed, as a separate write the owner may skip:
+ *  see stopPlaying in EditGameModal. */
+export async function stopSession(sessionId: number, endDate: string): Promise<MutateResult> {
+  if (!Number.isInteger(sessionId) || !ISO_DATE_RE.test(endDate)) {
     return { ok: false, message: "Invalid stop request." };
   }
 
-  return write(() => closeMySession(sessionId, endDate, rating), [gamesTag]);
+  return write(() => closeMySession(sessionId, endDate), [gamesTag]);
 }
 
 /** Follow a user. Revalidates BOTH libraries: the caller's following list grew
