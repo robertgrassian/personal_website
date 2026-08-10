@@ -189,17 +189,22 @@ class GameNotFoundError(DomainError):
 
 
 class GameExistsError(DomainError):
-    """The caller's library already has this (name, system) combination."""
+    """The caller's library already has this game.
+
+    Console-independent since normalization: one entry per game per user, so
+    adding a game you own on a different console is this error rather than a
+    second row. Changing which console an entry records is an edit, not an add.
+    """
 
     status_code = status.HTTP_409_CONFLICT
 
-    def __init__(self, name: str, system: str) -> None:
-        super().__init__(f"{name} ({system}) is already in your library.")
+    def __init__(self, name: str) -> None:
+        super().__init__(f"{name} is already in your library.")
 
 
 class OnboardingRequiredError(DomainError):
     """Authenticated but no profile row yet. Several tables reference profiles
-    (games.user_id, follows.follower_id), so writing any of them before
+    (played_games.user_id, follows.follower_id), so writing any of them before
     onboarding is an FK violation. The explicit check turns what would be a 500
     — misread as a duplicate by the IntegrityError backstop — into a clear 403.
 
@@ -213,7 +218,7 @@ class OnboardingRequiredError(DomainError):
 
 
 class WishlistItemExistsError(DomainError):
-    """The caller's wishlist already has this name (dedupe is by name alone)."""
+    """The caller's wishlist already has this game (one entry per game)."""
 
     status_code = status.HTTP_409_CONFLICT
 
@@ -231,7 +236,7 @@ class WishlistItemNotFoundError(DomainError):
 
 
 class SystemRequiredError(DomainError):
-    """Promoting needs a system (games.system is NOT NULL) and neither the
+    """Promoting needs a system (played_games.system is NOT NULL) and neither the
     wishlist row nor the request supplied one — invalid input, so 422."""
 
     status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
@@ -384,7 +389,7 @@ def delete_my_account(db: Session, user: AuthenticatedUser) -> None:
     """Delete the caller's account and everything belonging to it.
 
     The auth.users row is the root of the cascade, not the profile: profiles.id
-    references auth.users(id) ON DELETE CASCADE, and games / wishlist_items /
+    references auth.users(id) ON DELETE CASCADE, and played_games / wishlist_games /
     both directions of follows cascade from profiles (play_sessions from
     games). So this cannot be a ``db.delete(profile)`` — the cascade runs the
     other way, and deleting the profile locally would leave the auth user able
@@ -456,10 +461,17 @@ def delete_my_account(db: Session, user: AuthenticatedUser) -> None:
 
 
 def create_my_game(db: Session, user: AuthenticatedUser, payload: GameCreate) -> GameRead:
-    """Add a game to the caller's library. Duplicate (name, system) is a
-    conflict: the explicit check gives the friendly message in the common
-    case, the uq_games_user_id_name_system constraint is the real backstop
-    for a concurrent double-submit (same pattern as onboarding)."""
+    """Add a game to the caller's library.
+
+    Two inserts in one transaction: the catalog row for the game (reused if
+    anyone has already added it, or if this caller already entered it by hand),
+    then the caller's link row pointing at it.
+
+    Already having the game is a conflict, whatever console the payload names —
+    one entry per game per user. The explicit check gives the friendly message
+    in the common case; uq_played_games_user_id_metadata_id is the real backstop
+    for a concurrent double-submit (same pattern as onboarding).
+    """
     if me_repo.get_profile_by_id(db, user.id) is None:
         raise OnboardingRequiredError("adding games")
     # Checked before the duplicate lookup so a full library says so plainly
@@ -469,34 +481,50 @@ def create_my_game(db: Session, user: AuthenticatedUser, payload: GameCreate) ->
     limit = get_settings().max_games
     if me_repo.count_games(db, user.id) >= limit:
         raise LibraryFullError(limit)
-    if me_repo.find_game_by_name_and_system(db, user.id, payload.name, payload.system):
-        raise GameExistsError(payload.name, payload.system)
 
     try:
-        game = me_repo.create_game(
+        meta = me_repo.find_or_create_metadata(
             db,
             user_id=user.id,
+            igdb_id=payload.igdb_id,
             name=payload.name,
-            system=payload.system,
             genres=payload.genres,
             release_date=payload.release_date,
             image_url=payload.image_url or None,
-            igdb_id=payload.igdb_id,
+        )
+        # Two checks, not one. The first is the constraint-backed "same game";
+        # the second catches the same TITLE resolving to a different catalog
+        # row (shared vs. hand-entered), which no constraint can express.
+        if me_repo.find_game_by_metadata(db, user.id, meta.id) or me_repo.find_game_by_name(
+            db, user.id, meta.name
+        ):
+            raise GameExistsError(payload.name)
+        game = me_repo.create_game(
+            db,
+            user_id=user.id,
+            metadata_id=meta.id,
+            system=payload.system,
             rating=payload.rating or None,
         )
+    except GameExistsError:
+        # The catalog row may have been flushed but not committed; drop it
+        # rather than leaving an orphan behind a rejected add.
+        db.rollback()
+        raise
     except IntegrityError as exc:
         db.rollback()
-        raise GameExistsError(payload.name, payload.system) from exc
+        raise GameExistsError(payload.name) from exc
     # A brand-new game has no sessions; skip the session query.
-    return to_game_read(game, derive_play_state([]))
+    return to_game_read(game, meta, derive_play_state([]))
 
 
 def delete_my_game(db: Session, user: AuthenticatedUser, game_id: int) -> None:
     """Remove a game (and, via ON DELETE CASCADE, its play sessions) from the
     caller's library. Same 404-over-403 policy as every /me lookup."""
-    game = me_repo.get_game_for_owner(db, game_id, user.id)
-    if game is None:
+    found = me_repo.get_game_for_owner(db, game_id, user.id)
+    if found is None:
         raise GameNotFoundError(game_id)
+    game, _ = found
     me_repo.delete_game(db, game)
 
 
@@ -506,9 +534,10 @@ def update_my_game(
     """Apply a partial edit to one of the caller's games and return the full
     updated game (same wire shape as the public reads, play state included, so
     the client can reconcile without a second fetch)."""
-    game = me_repo.get_game_for_owner(db, game_id, user.id)
-    if game is None:
+    found = me_repo.get_game_for_owner(db, game_id, user.id)
+    if found is None:
         raise GameNotFoundError(game_id)
+    game, meta = found
 
     # model_fields_set = fields present in the request body — PATCH semantics.
     # An omitted rating leaves the row untouched; "" (or null) clears to
@@ -516,46 +545,57 @@ def update_my_game(
     if "rating" in payload.model_fields_set:
         game = me_repo.update_game_rating(db, game, payload.rating or None)
 
-    return _game_read_with_fresh_state(db, game)
+    return _game_read_with_fresh_state(db, game, meta)
 
 
-def _game_read_with_fresh_state(db: Session, game) -> GameRead:
+def _game_read_with_fresh_state(db: Session, game, meta) -> GameRead:
     """Re-derive play state from all of the game's sessions after a mutation —
     the wire shape every session write returns, so the client reconciles
     without a second fetch."""
     sessions = users_repo.list_play_sessions(db, [game.id])
-    return to_game_read(game, derive_play_state(sessions))
+    return to_game_read(game, meta, derive_play_state(sessions))
 
 
 def create_my_wishlist_item(
     db: Session, user: AuthenticatedUser, payload: WishlistCreate
 ) -> WishlistGameRead:
-    """Add a wishlist entry. Same shape of checks as create_my_game: profile
-    first (FK), then a friendly name-dedupe 409 with the unique constraint as
-    the concurrency backstop."""
+    """Add a wishlist entry. Same shape as create_my_game: profile first (FK),
+    resolve the catalog row, then a friendly dedupe 409 with the unique
+    constraint as the concurrency backstop."""
     if me_repo.get_profile_by_id(db, user.id) is None:
         raise OnboardingRequiredError("using your wishlist")
-    if me_repo.find_wishlist_item_by_name(db, user.id, payload.name):
-        raise WishlistItemExistsError(payload.name)
 
     try:
-        item = me_repo.create_wishlist_item(
+        meta = me_repo.find_or_create_metadata(
             db,
             user_id=user.id,
+            igdb_id=payload.igdb_id,
             name=payload.name,
-            system=payload.system or None,
             genres=payload.genres,
             release_date=payload.release_date,
             image_url=payload.image_url or None,
-            igdb_id=payload.igdb_id,
+        )
+        # Same two-check shape as create_my_game: metadata id, then title.
+        if me_repo.find_wishlist_item_by_metadata(
+            db, user.id, meta.id
+        ) or me_repo.find_wishlist_item_by_name(db, user.id, meta.name):
+            raise WishlistItemExistsError(payload.name)
+        item = me_repo.create_wishlist_item(
+            db,
+            user_id=user.id,
+            metadata_id=meta.id,
+            system=payload.system or None,
             starred=payload.starred,
             notes=payload.notes,
             date_added=payload.date_added,
         )
+    except WishlistItemExistsError:
+        db.rollback()
+        raise
     except IntegrityError as exc:
         db.rollback()
         raise WishlistItemExistsError(payload.name) from exc
-    return to_wishlist_read(item)
+    return to_wishlist_read(item, meta)
 
 
 def update_my_wishlist_item(
@@ -563,9 +603,10 @@ def update_my_wishlist_item(
 ) -> WishlistGameRead:
     """Partial edit (starred / notes / system) with the same model_fields_set
     PATCH semantics as GameUpdate. system "" clears to undecided (NULL)."""
-    item = me_repo.get_wishlist_item_for_owner(db, item_id, user.id)
-    if item is None:
+    found = me_repo.get_wishlist_item_for_owner(db, item_id, user.id)
+    if found is None:
         raise WishlistItemNotFoundError(item_id)
+    item, meta = found
 
     if "starred" in payload.model_fields_set and payload.starred is not None:
         item.starred = payload.starred
@@ -574,14 +615,14 @@ def update_my_wishlist_item(
     if "system" in payload.model_fields_set and payload.system is not None:
         item.system = payload.system.strip() or None
     item = me_repo.update_wishlist_item(db, item)
-    return to_wishlist_read(item)
+    return to_wishlist_read(item, meta)
 
 
 def delete_my_wishlist_item(db: Session, user: AuthenticatedUser, item_id: int) -> None:
-    item = me_repo.get_wishlist_item_for_owner(db, item_id, user.id)
-    if item is None:
+    found = me_repo.get_wishlist_item_for_owner(db, item_id, user.id)
+    if found is None:
         raise WishlistItemNotFoundError(item_id)
-    me_repo.delete_wishlist_item(db, item)
+    me_repo.delete_wishlist_item(db, found[0])
 
 
 def promote_my_wishlist_item(
@@ -589,12 +630,17 @@ def promote_my_wishlist_item(
 ) -> GameRead:
     """The "I bought it" flow: wishlist entry → library game, atomically (the
     repo commits the insert and the delete together). The request's system
-    wins over the stored one; games.system is NOT NULL so one of them must
-    exist. Library duplicate (name, system) is a 409, with the games unique
-    constraint backstopping the race as in create_my_game."""
-    item = me_repo.get_wishlist_item_for_owner(db, item_id, user.id)
-    if item is None:
+    wins over the stored one; played_games.system is NOT NULL so one of them
+    must exist. Already having the game is a 409, with the unique constraint
+    backstopping the race as in create_my_game.
+
+    The catalog row carries straight across, so nothing about the game is
+    re-derived here and a promote cannot quietly lose its cover art or genres.
+    """
+    found = me_repo.get_wishlist_item_for_owner(db, item_id, user.id)
+    if found is None:
         raise WishlistItemNotFoundError(item_id)
+    item, meta = found
 
     system = payload.system.strip() or (item.system or "").strip()
     if not system:
@@ -604,16 +650,18 @@ def promote_my_wishlist_item(
     limit = get_settings().max_games
     if me_repo.count_games(db, user.id) >= limit:
         raise LibraryFullError(limit)
-    if me_repo.find_game_by_name_and_system(db, user.id, item.name, system):
-        raise GameExistsError(item.name, system)
+    if me_repo.find_game_by_metadata(db, user.id, item.metadata_id) or me_repo.find_game_by_name(
+        db, user.id, meta.name
+    ):
+        raise GameExistsError(meta.name)
 
     try:
         game = me_repo.promote_wishlist_item(db, item, system=system)
     except IntegrityError as exc:
         db.rollback()
-        raise GameExistsError(item.name, system) from exc
+        raise GameExistsError(meta.name) from exc
     # Fresh from the wishlist, so no sessions exist yet.
-    return to_game_read(game, derive_play_state([]))
+    return to_game_read(game, meta, derive_play_state([]))
 
 
 def create_my_session(
@@ -623,14 +671,15 @@ def create_my_session(
     (both dates). Only one open session per game: opening a second is a
     conflict, matching the old session skill; logging closed past sessions is
     always allowed, even while the game is being played."""
-    game = me_repo.get_game_for_owner(db, game_id, user.id)
-    if game is None:
+    found = me_repo.get_game_for_owner(db, game_id, user.id)
+    if found is None:
         raise GameNotFoundError(game_id)
+    game, meta = found
 
     if payload.end_date is None:
         existing = me_repo.get_open_session_for_game(db, game.id)
         if existing is not None:
-            raise AlreadyPlayingError(game.name, existing.start_date.isoformat())
+            raise AlreadyPlayingError(meta.name, existing.start_date.isoformat())
 
     try:
         me_repo.create_session(db, game.id, payload.start_date, payload.end_date)
@@ -642,8 +691,8 @@ def create_my_session(
         db.rollback()
         winner = me_repo.get_open_session_for_game(db, game.id)
         since = winner.start_date.isoformat() if winner else payload.start_date.isoformat()
-        raise AlreadyPlayingError(game.name, since) from exc
-    return _game_read_with_fresh_state(db, game)
+        raise AlreadyPlayingError(meta.name, since) from exc
+    return _game_read_with_fresh_state(db, game, meta)
 
 
 def close_my_session(
@@ -655,7 +704,7 @@ def close_my_session(
     found = me_repo.get_session_for_owner(db, session_id, user.id)
     if found is None:
         raise SessionNotFoundError(session_id)
-    play_session, game = found
+    play_session, game, meta = found
     if play_session.end_date is not None:
         raise SessionAlreadyClosedError(session_id)
     if payload.end_date < play_session.start_date:
@@ -672,4 +721,4 @@ def close_my_session(
         rated_game=game if rate else None,
         rating=payload.rating or None,
     )
-    return _game_read_with_fresh_state(db, game)
+    return _game_read_with_fresh_state(db, game, meta)

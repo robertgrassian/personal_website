@@ -6,9 +6,10 @@ import uuid
 from datetime import date
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Follow, Game, PlaySession, Profile, WishlistItem
+from app.models import Follow, GameMetadata, PlayedGame, PlaySession, Profile, WishlistGame
 
 
 def get_profile_by_id(db: Session, user_id: uuid.UUID) -> Profile | None:
@@ -31,21 +32,145 @@ def profile_exists(db: Session, user_id: uuid.UUID) -> bool:
     return count > 0
 
 
-def get_game_for_owner(db: Session, game_id: int, user_id: uuid.UUID) -> Game | None:
-    # Ownership lives in the WHERE clause: someone else's game id comes back
-    # None, indistinguishable from a nonexistent one — both surface as 404.
+def find_or_create_metadata(
+    db: Session,
+    *,
+    user_id: uuid.UUID,
+    igdb_id: int | None,
+    name: str,
+    genres: list[str],
+    release_date: date | None,
+    image_url: str | None,
+    platforms: list[str] | None = None,
+) -> GameMetadata:
+    """The catalog row for a game, creating it if this is the first time anyone
+    has added it.
+
+    Two lookup keys, because there are two kinds of row (see models/game_metadata):
+    a game with an igdb_id resolves to the one SHARED row for that IGDB id, no
+    matter who is adding it; a hand-entered game resolves only among the caller's
+    own PRIVATE rows, since a typed name is not a canonical key.
+
+    Flushes rather than commits: the caller inserts the link row next, and the
+    two must land together or a failed add would leave an orphan catalog row.
+    """
+    existing = _select_metadata(db, user_id=user_id, igdb_id=igdb_id, name=name)
+    if existing is not None:
+        return existing
+
+    meta = GameMetadata(
+        igdb_id=igdb_id,
+        name=name,
+        genres=genres,
+        release_date=release_date,
+        image_url=image_url,
+        platforms=platforms or [],
+        # Only private rows have an owner. Stamping a creator on a shared row
+        # would make whoever happened to add it first look like its author.
+        created_by_user_id=None if igdb_id is not None else user_id,
+    )
+    try:
+        # SAVEPOINT rather than a bare flush: two users adding the same new
+        # IGDB game at once both miss the SELECT above, and the loser violates
+        # uq_game_metadata_igdb_id. That is a lost race on a SHARED row, not a
+        # problem with either request, so the loser should adopt the winner's
+        # row and carry on. Nesting is what makes that possible — a plain
+        # rollback here would also discard the caller's in-flight work.
+        with db.begin_nested():
+            db.add(meta)
+            db.flush()
+    except IntegrityError:
+        # Rolling back to the savepoint usually evicts the failed instance
+        # already; the check keeps this from raising "not present in session"
+        # on top of the error it is handling.
+        if meta in db:
+            db.expunge(meta)
+        winner = _select_metadata(db, user_id=user_id, igdb_id=igdb_id, name=name)
+        if winner is None:
+            # Not the race we expected — some other constraint fired, and
+            # swallowing it would hide a real bug.
+            raise
+        return winner
+    return meta
+
+
+def _select_metadata(
+    db: Session, *, user_id: uuid.UUID, igdb_id: int | None, name: str
+) -> GameMetadata | None:
+    """The catalog row this (igdb_id, name) resolves to for this user, if any.
+
+    Two lookup keys, because there are two kinds of row: a shared row is found
+    by igdb_id alone, a private one only among the caller's own.
+    """
+    if igdb_id is not None:
+        return db.execute(
+            select(GameMetadata).where(GameMetadata.igdb_id == igdb_id)
+        ).scalar_one_or_none()
     return db.execute(
-        select(Game).where(Game.id == game_id, Game.user_id == user_id)
+        select(GameMetadata).where(
+            GameMetadata.igdb_id.is_(None),
+            GameMetadata.created_by_user_id == user_id,
+            GameMetadata.name == name,
+        )
     ).scalar_one_or_none()
 
 
-def find_game_by_name_and_system(
-    db: Session, user_id: uuid.UUID, name: str, system: str
-) -> Game | None:
-    # Backs the friendly duplicate check before an insert. Exact match, same
-    # as the uq_games_user_id_name_system constraint that backstops it.
+def get_game_for_owner(
+    db: Session, game_id: int, user_id: uuid.UUID
+) -> tuple[PlayedGame, GameMetadata] | None:
+    # Ownership lives in the WHERE clause: someone else's game id comes back
+    # None, indistinguishable from a nonexistent one — both surface as 404.
+    #
+    # The catalog row rides along because every caller needs it: to build the
+    # response DTO, or to put the game's name in an error message.
+    row = db.execute(
+        select(PlayedGame, GameMetadata)
+        .join(GameMetadata, GameMetadata.id == PlayedGame.metadata_id)
+        .where(PlayedGame.id == game_id, PlayedGame.user_id == user_id)
+    ).one_or_none()
+    return None if row is None else (row[0], row[1])
+
+
+def find_game_by_metadata(db: Session, user_id: uuid.UUID, metadata_id: int) -> PlayedGame | None:
+    # Backs the friendly duplicate check before an insert, matching the
+    # uq_played_games_user_id_metadata_id constraint that backstops it. Note
+    # this is now "do I have this game?" rather than the old "do I have this
+    # game on this console?" — one entry per game per user.
     return db.execute(
-        select(Game).where(Game.user_id == user_id, Game.name == name, Game.system == system)
+        select(PlayedGame).where(
+            PlayedGame.user_id == user_id, PlayedGame.metadata_id == metadata_id
+        )
+    ).scalar_one_or_none()
+
+
+def find_game_by_name(db: Session, user_id: uuid.UUID, name: str) -> PlayedGame | None:
+    """Any library entry of the caller's whose catalog row carries this name.
+
+    Backstops find_game_by_metadata, which is not enough on its own: the same
+    title can resolve to two DIFFERENT catalog rows — the shared one for its
+    igdb_id, and a private one if the user later types the name in by hand — and
+    those have different metadata_ids, so the unique constraint permits both.
+    That would put two identical cases on the shelf, which the old
+    uq_games_user_id_name_system prevented.
+
+    Application-level, unlike the metadata check: no constraint can express it,
+    since the name lives on the row being joined to.
+    """
+    return db.execute(
+        select(PlayedGame)
+        .join(GameMetadata, GameMetadata.id == PlayedGame.metadata_id)
+        .where(PlayedGame.user_id == user_id, GameMetadata.name == name)
+        .limit(1)
+    ).scalar_one_or_none()
+
+
+def find_wishlist_item_by_name(db: Session, user_id: uuid.UUID, name: str) -> WishlistGame | None:
+    """The wishlist twin of find_game_by_name, for the same reason."""
+    return db.execute(
+        select(WishlistGame)
+        .join(GameMetadata, GameMetadata.id == WishlistGame.metadata_id)
+        .where(WishlistGame.user_id == user_id, GameMetadata.name == name)
+        .limit(1)
     ).scalar_one_or_none()
 
 
@@ -53,38 +178,32 @@ def create_game(
     db: Session,
     *,
     user_id: uuid.UUID,
-    name: str,
+    metadata_id: int,
     system: str,
-    genres: list[str],
-    release_date: date | None,
-    image_url: str | None,
-    igdb_id: int | None,
     rating: str | None,
-) -> Game:
-    game = Game(
+) -> PlayedGame:
+    game = PlayedGame(
         user_id=user_id,
-        name=name,
+        metadata_id=metadata_id,
         system=system,
-        genres=genres,
-        release_date=release_date,
-        image_url=image_url,
-        igdb_id=igdb_id,
         rating=rating,
     )
     db.add(game)
+    # Commits any catalog row flushed earlier in this transaction along with it.
     db.commit()
     db.refresh(game)
     return game
 
 
-def delete_game(db: Session, game: Game) -> None:
+def delete_game(db: Session, game: PlayedGame) -> None:
     # ON DELETE CASCADE takes the play sessions with it; the UI confirms with
-    # the session count first.
+    # the session count first. The catalog row is left alone — other users may
+    # hold the same game, and a private row costs nothing to keep.
     db.delete(game)
     db.commit()
 
 
-def update_game_rating(db: Session, game: Game, rating: str | None) -> Game:
+def update_game_rating(db: Session, game: PlayedGame, rating: str | None) -> PlayedGame:
     game.rating = rating
     db.commit()
     # No refresh: the sessionmaker sets expire_on_commit=False, so the row stays
@@ -122,23 +241,24 @@ def create_session(
 
 def get_session_for_owner(
     db: Session, session_id: int, user_id: uuid.UUID
-) -> tuple[PlaySession, Game] | None:
+) -> tuple[PlaySession, PlayedGame, GameMetadata] | None:
     # Ownership hops through the game row (sessions have no user_id column):
     # a foreign or nonexistent session comes back None → 404, same policy as
     # get_game_for_owner.
     #
-    # Returns the game as well as the session. The join is required for the
-    # ownership check either way, so the database is already reading that row —
-    # selecting it costs nothing and saves the caller a second lookup by id for
-    # the row it just proved ownership through.
+    # Returns the game and its catalog row as well as the session. The join is
+    # required for the ownership check either way, so the database is already
+    # reading those rows — selecting them costs nothing and saves the caller a
+    # second lookup by id for the row it just proved ownership through.
     row = db.execute(
-        select(PlaySession, Game)
-        .join(Game, Game.id == PlaySession.game_id)
-        .where(PlaySession.id == session_id, Game.user_id == user_id)
+        select(PlaySession, PlayedGame, GameMetadata)
+        .join(PlayedGame, PlayedGame.id == PlaySession.game_id)
+        .join(GameMetadata, GameMetadata.id == PlayedGame.metadata_id)
+        .where(PlaySession.id == session_id, PlayedGame.user_id == user_id)
     ).one_or_none()
     if row is None:
         return None
-    return row[0], row[1]
+    return row[0], row[1], row[2]
 
 
 def finish_session(
@@ -146,7 +266,7 @@ def finish_session(
     play_session: PlaySession,
     end_date: date,
     *,
-    rated_game: Game | None = None,
+    rated_game: PlayedGame | None = None,
     rating: str | None = None,
 ) -> None:
     # Single commit on purpose: when a rate-on-stop passes rated_game, the
@@ -157,44 +277,44 @@ def finish_session(
     db.commit()
 
 
-def find_wishlist_item_by_name(db: Session, user_id: uuid.UUID, name: str) -> WishlistItem | None:
-    # Wishlist dedupe is by name alone (no system in the unique key).
+def find_wishlist_item_by_metadata(
+    db: Session, user_id: uuid.UUID, metadata_id: int
+) -> WishlistGame | None:
+    # One wishlist entry per game per user, matching
+    # uq_wishlist_games_user_id_metadata_id.
     return db.execute(
-        select(WishlistItem).where(WishlistItem.user_id == user_id, WishlistItem.name == name)
+        select(WishlistGame).where(
+            WishlistGame.user_id == user_id, WishlistGame.metadata_id == metadata_id
+        )
     ).scalar_one_or_none()
 
 
 def get_wishlist_item_for_owner(
     db: Session, item_id: int, user_id: uuid.UUID
-) -> WishlistItem | None:
+) -> tuple[WishlistGame, GameMetadata] | None:
     # Ownership in the WHERE clause: foreign == nonexistent == None → 404.
-    return db.execute(
-        select(WishlistItem).where(WishlistItem.id == item_id, WishlistItem.user_id == user_id)
-    ).scalar_one_or_none()
+    row = db.execute(
+        select(WishlistGame, GameMetadata)
+        .join(GameMetadata, GameMetadata.id == WishlistGame.metadata_id)
+        .where(WishlistGame.id == item_id, WishlistGame.user_id == user_id)
+    ).one_or_none()
+    return None if row is None else (row[0], row[1])
 
 
 def create_wishlist_item(
     db: Session,
     *,
     user_id: uuid.UUID,
-    name: str,
+    metadata_id: int,
     system: str | None,
-    genres: list[str],
-    release_date: date | None,
-    image_url: str | None,
-    igdb_id: int | None,
     starred: bool,
     notes: str,
     date_added: date,
-) -> WishlistItem:
-    item = WishlistItem(
+) -> WishlistGame:
+    item = WishlistGame(
         user_id=user_id,
-        name=name,
+        metadata_id=metadata_id,
         system=system,
-        genres=genres,
-        release_date=release_date,
-        image_url=image_url,
-        igdb_id=igdb_id,
         starred=starred,
         notes=notes,
         date_added=date_added,
@@ -205,30 +325,30 @@ def create_wishlist_item(
     return item
 
 
-def update_wishlist_item(db: Session, item: WishlistItem) -> WishlistItem:
+def update_wishlist_item(db: Session, item: WishlistGame) -> WishlistGame:
     # The service mutates the ORM row's fields directly; this just commits.
     # No refresh, for the same reason as update_game_rating above.
     db.commit()
     return item
 
 
-def delete_wishlist_item(db: Session, item: WishlistItem) -> None:
+def delete_wishlist_item(db: Session, item: WishlistGame) -> None:
     db.delete(item)
     db.commit()
 
 
-def promote_wishlist_item(db: Session, item: WishlistItem, *, system: str) -> Game:
+def promote_wishlist_item(db: Session, item: WishlistGame, *, system: str) -> PlayedGame:
     # Single commit on purpose (like finish_session): the game insert and the
     # wishlist delete land together — a promote can never duplicate the entry
     # into both lists or drop it from both.
-    game = Game(
+    #
+    # The catalog row carries straight across, so a promote is now lossless:
+    # before normalization this rebuilt the game from the wishlist row's own
+    # copy of the metadata, and anything the copy lacked stayed lacking.
+    game = PlayedGame(
         user_id=item.user_id,
-        name=item.name,
+        metadata_id=item.metadata_id,
         system=system,
-        genres=list(item.genres),
-        release_date=item.release_date,
-        image_url=item.image_url,
-        igdb_id=item.igdb_id,
         rating=None,
     )
     db.add(game)
@@ -252,7 +372,7 @@ def count_profiles(db: Session) -> int:
 
 def count_games(db: Session, user_id: uuid.UUID) -> int:
     return db.execute(
-        select(func.count()).select_from(Game).where(Game.user_id == user_id)
+        select(func.count()).select_from(PlayedGame).where(PlayedGame.user_id == user_id)
     ).scalar_one()
 
 

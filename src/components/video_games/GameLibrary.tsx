@@ -118,7 +118,10 @@ export function GameLibrary({
   //
   // Name, not igdbId, because the read path does not expose one: `igdb_id` is
   // on both tables and on the create payloads, but not on the API's read
-  // schema and so not on `Game`/`WishlistGame`. See the TODO item.
+  // schema and so not on `Game`/`WishlistGame`. See the TODO item. That makes
+  // this annotation looser than the rule it previews — the server resolves a
+  // game to a catalog row, this compares folded names — so treat it as a hint,
+  // not as the check.
   //
   // Scoped to the collection being added to: adding to the wishlist checks the
   // wishlist, adding to the library checks the library. Both the map and the

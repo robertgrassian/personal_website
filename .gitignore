@@ -57,3 +57,7 @@ api/.venv/
 # committed env template — names + placeholders only (.env* above ignores the rest)
 !.env.example
 
+# scratch output from the one-off backfill scripts (plans, captured IGDB data)
+api/scripts/.genre_backfill_plan.json
+api/scripts/.igdb_platforms.json
+

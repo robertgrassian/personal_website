@@ -154,7 +154,7 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
           initialQuery={lastQuery}
           inputRef={searchInputRef}
           ownedNames={ownedNames}
-          ownedLabel={target === "library" ? "In your library" : "On your wishlist"}
+          ownedLabel={target === "library" ? "Already in your library" : "Already on your wishlist"}
           onPick={pickResult}
           onManual={startManual}
         />

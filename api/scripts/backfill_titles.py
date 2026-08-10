@@ -27,8 +27,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from sqlalchemy import select
+
 from app.core.db import get_sessionmaker
-from app.models import Game, Profile, WishlistItem
+from app.models import GameMetadata, PlayedGame, Profile, WishlistGame
 
 # current name -> canonical name.
 #
@@ -64,9 +66,7 @@ RENAMES: dict[str, str] = {
     "Pokemon Stadium": "Pokémon Stadium",
     "Pokemon Violet": "Pokémon Violet",
     "Pokemon XD Gale of Darkness": "Pokémon XD: Gale of Darkness",
-    "Spongebob SquarePants Lights Camera Pants": (
-        "SpongeBob SquarePants: Lights, Camera, Pants!"
-    ),
+    "Spongebob SquarePants Lights Camera Pants": ("SpongeBob SquarePants: Lights, Camera, Pants!"),
     "Star Wars the Clone Wars": "Star Wars: The Clone Wars",
     "Super Smash Bros Brawl": "Super Smash Bros. Brawl",
     "Super Smash Bros Melee": "Super Smash Bros. Melee",
@@ -87,9 +87,7 @@ RENAMES: dict[str, str] = {
     "Octopath Traveller": "Octopath Traveler",
     "Rock Band - The Beatles": "The Beatles: Rock Band",
     "Spider Man - Miles Morales": "Marvel's Spider-Man: Miles Morales",
-    "Star Wars Episode 3 Revenge of the Sith": (
-        "Star Wars: Episode III - Revenge of the Sith"
-    ),
+    "Star Wars Episode 3 Revenge of the Sith": ("Star Wars: Episode III - Revenge of the Sith"),
     "Starfox Adventures": "Star Fox Adventures",
     "Super Mario Wonder": "Super Mario Bros. Wonder",
     "The Legend of Zelda: Wind Waker": "The Legend of Zelda: The Wind Waker",
@@ -108,21 +106,22 @@ RENAMES: dict[str, str] = {
 }
 
 
-def _plan_renames(rows: list, key) -> tuple[list, list]:
+def _plan_renames(rows: list) -> tuple[list, list]:
     """Split rows into (renamable, blocked-by-an-existing-row).
 
-    ``key`` returns the row's uniqueness key, which differs between the two
-    tables: games is unique on (name, system), wishlist_items on name alone.
-    A rename onto an occupied key would abort the whole transaction, so it is
-    caught here instead.
+    A rename onto a name the user already has would violate
+    uq_game_metadata_creator_name and abort the whole transaction, so it is
+    caught here instead. Only private rows carry that constraint, but blocking
+    on any collision is the safer answer: two rows with the same name are
+    confusing whether or not the database forbids them.
     """
-    taken = {key(r, r.name) for r in rows}
+    taken = {r.name for r in rows}
     planned, blocked = [], []
     for row in rows:
         new_name = RENAMES.get(row.name)
         if not new_name or new_name == row.name:
             continue
-        (blocked if key(row, new_name) in taken else planned).append((row, new_name))
+        (blocked if new_name in taken else planned).append((row, new_name))
     return planned, blocked
 
 
@@ -133,37 +132,34 @@ def run(username: str, apply_changes: bool) -> None:
             print(f"No profile with username {username!r}.")
             sys.exit(1)
 
-        games = session.query(Game).filter(Game.user_id == profile.id).order_by(Game.name).all()
-        wishes = (
-            session.query(WishlistItem)
-            .filter(WishlistItem.user_id == profile.id)
-            .order_by(WishlistItem.name)
+        # One row per GAME. Names moved to the shared catalog, so the library
+        # and the wishlist can no longer disagree about the same game's title —
+        # which is what the old two-table walk existed to prevent by hand.
+        owned = (
+            select(PlayedGame.metadata_id)
+            .where(PlayedGame.user_id == profile.id)
+            .union(select(WishlistGame.metadata_id).where(WishlistGame.user_id == profile.id))
+        )
+        rows = (
+            session.query(GameMetadata)
+            .filter(GameMetadata.id.in_(owned))
+            .order_by(GameMetadata.name)
             .all()
         )
+        planned, blocked = _plan_renames(rows)
 
-        # The wishlist gets the same treatment as the library: it holds the same
-        # game titles, is shown on the same page, and leaving it behind would let
-        # a wishlist entry and a library row disagree about the same game's name.
-        game_plan, game_blocked = _plan_renames(games, lambda r, n: (n, r.system))
-        wish_plan, wish_blocked = _plan_renames(wishes, lambda r, n: n)
+        print(f"{len(rows)} games for {username}\n")
+        print(f"{len(planned)} renames:")
+        for row, new_name in planned:
+            print(f"  [{row.id}] {row.name}")
+            print(f"       -> {new_name}")
+        if blocked:
+            print(f"\n{len(blocked)} BLOCKED (target name already exists):")
+            for row, new_name in blocked:
+                print(f"  [{row.id}] {row.name} -> {new_name}")
+        print()
 
-        print(f"{len(games)} games, {len(wishes)} wishlist items for {username}\n")
-        for label, planned, blocked in (
-            ("games", game_plan, game_blocked),
-            ("wishlist", wish_plan, wish_blocked),
-        ):
-            print(f"{len(planned)} {label} renames:")
-            for row, new_name in planned:
-                where = f"  ({row.system})" if label == "games" else ""
-                print(f"  [{row.id}] {row.name}{where}")
-                print(f"       -> {new_name}")
-            if blocked:
-                print(f"\n{len(blocked)} BLOCKED {label} (target name already exists):")
-                for row, new_name in blocked:
-                    print(f"  [{row.id}] {row.name} -> {new_name}")
-            print()
-
-        matched = {r.name for r, _ in game_plan + game_blocked + wish_plan + wish_blocked}
+        matched = {r.name for r, _ in planned + blocked}
         unmatched = sorted(set(RENAMES) - matched)
         if unmatched:
             print(f"{len(unmatched)} mapping entries matched no row (already renamed?):")
@@ -173,14 +169,14 @@ def run(username: str, apply_changes: bool) -> None:
         if not apply_changes:
             print("\nPreview only. Re-run with --apply to write.")
             return
-        if not (game_plan or wish_plan):
+        if not planned:
             print("\nNothing to apply.")
             return
 
-        for row, new_name in game_plan + wish_plan:
+        for row, new_name in planned:
             row.name = new_name
         session.commit()
-        print(f"\nApplied. {len(game_plan)} games and {len(wish_plan)} wishlist items renamed.")
+        print(f"\nApplied. {len(planned)} games renamed.")
 
 
 def main() -> None:

@@ -34,12 +34,13 @@ from sqlalchemy.orm import Session
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.db import get_sessionmaker
-from app.models import Game, PlaySession, Profile, WishlistItem
+from app.models import PlaySession, Profile
 
 # Reuse the seed's pure, unit-tested parsers so the two paths can't drift.
 from scripts.seed import (
     ROBERT_DISPLAY_NAME,
     ROBERT_USERNAME,
+    load_library_rows,
     parse_game_rows,
     parse_wishlist_rows,
     read_csv,
@@ -88,16 +89,14 @@ def _ensure_profile(session: Session, auth_id: uuid.UUID) -> None:
             f"Username {ROBERT_USERNAME!r} is already owned by {clash[0]}, not "
             f"{auth_id}. Check that ROBERT_AUTH_ID is Robert's real auth id."
         )
-    session.add(
-        Profile(id=auth_id, username=ROBERT_USERNAME, display_name=ROBERT_DISPLAY_NAME)
-    )
+    session.add(Profile(id=auth_id, username=ROBERT_USERNAME, display_name=ROBERT_DISPLAY_NAME))
     session.flush()
     print(f"Created profile {ROBERT_USERNAME!r} for {auth_id}")
 
 
 def _load_library(session: Session, auth_id: uuid.UUID) -> None:
     already = session.execute(
-        text("SELECT count(*) FROM games WHERE user_id = :id"), {"id": auth_id}
+        text("SELECT count(*) FROM played_games WHERE user_id = :id"), {"id": auth_id}
     ).scalar_one()
     if already:
         print(f"Library already loaded ({already} games) — skipping.")
@@ -107,13 +106,7 @@ def _load_library(session: Session, auth_id: uuid.UUID) -> None:
     game_rows = parse_game_rows(read_csv("games.csv"), warnings)
     wishlist_rows = parse_wishlist_rows(read_csv("wishlist.csv"), warnings)
 
-    games = [Game(user_id=auth_id, **row) for row in game_rows]
-    session.add_all(games)
-    session.flush()  # assign ids for the name→id bridge
-
-    name_to_game_ids: dict[str, list[int]] = {}
-    for game in games:
-        name_to_game_ids.setdefault(game.name, []).append(game.id)
+    games, name_to_game_ids = load_library_rows(session, auth_id, game_rows, wishlist_rows)
 
     session_rows, errors = resolve_session_rows(read_csv("sessions.csv"), name_to_game_ids)
     if errors:
@@ -124,7 +117,6 @@ def _load_library(session: Session, auth_id: uuid.UUID) -> None:
         sys.exit(1)
 
     session.add_all(PlaySession(**row) for row in session_rows)
-    session.add_all(WishlistItem(user_id=auth_id, **row) for row in wishlist_rows)
 
     for warning in warnings:
         print(warning)
@@ -144,7 +136,13 @@ def main() -> None:
 
         counts = {
             table: session.execute(text(f"SELECT count(*) FROM {table}")).scalar_one()
-            for table in ("profiles", "games", "play_sessions", "wishlist_items")
+            for table in (
+                "profiles",
+                "game_metadata",
+                "played_games",
+                "play_sessions",
+                "wishlist_games",
+            )
         }
     print("Done. Table counts:")
     for table, count in counts.items():

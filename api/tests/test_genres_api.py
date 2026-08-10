@@ -120,9 +120,13 @@ def test_uses_its_own_rate_limit_bucket(test_user, stub_network):
     back, so sharing a bucket would halve each one's real budget."""
     client_as(test_user).get(LOOKUP_URL, params={"name": "Hades II"})
     with get_sessionmaker()() as session:
-        buckets = session.execute(
-            text("SELECT bucket FROM rate_limits WHERE user_id = :id"), {"id": test_user}
-        ).scalars().all()
+        buckets = (
+            session.execute(
+                text("SELECT bucket FROM rate_limits WHERE user_id = :id"), {"id": test_user}
+            )
+            .scalars()
+            .all()
+        )
     assert buckets == ["genre_lookup"]
 
 

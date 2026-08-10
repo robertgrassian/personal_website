@@ -83,9 +83,7 @@ def test_normalize_genres_drops_themes_and_dedupes_preserving_order():
 
 
 def test_normalize_genres_is_case_insensitive_when_deduping():
-    assert genre_service.normalize_genres(["roguelike", "Roguelike", "ROGUELIKE"]) == [
-        "Roguelike"
-    ]
+    assert genre_service.normalize_genres(["roguelike", "Roguelike", "ROGUELIKE"]) == ["Roguelike"]
 
 
 def test_empty_and_blank_values_are_dropped():
@@ -296,9 +294,7 @@ def test_candidate_wikitext_is_fetched_in_batches(monkeypatch):
                     "pages": [
                         {
                             "title": t,
-                            "revisions": [
-                                {"slots": {"main": {"content": GAME("Puzzle")}}}
-                            ],
+                            "revisions": [{"slots": {"main": {"content": GAME("Puzzle")}}}],
                         }
                         for t in params["titles"].split("|")
                     ]
@@ -328,9 +324,7 @@ def test_survives_a_malformed_search_response(monkeypatch):
                     "pages": [
                         {
                             "title": "Good",
-                            "revisions": [
-                                {"slots": {"main": {"content": GAME("Roguelike")}}}
-                            ],
+                            "revisions": [{"slots": {"main": {"content": GAME("Roguelike")}}}],
                         }
                     ]
                 }
@@ -449,11 +443,14 @@ def test_not_confident_on_wrong_matches(name, article):
 
 
 def test_platform_tokens_are_not_treated_as_series_markers():
-    """"3DS" contains a digit but names a platform, not an entry in a series;
+    """ "3DS" contains a digit but names a platform, not an entry in a series;
     treating it as one would reject the correct combined Smash Bros article."""
-    assert genre_service._title_similarity(
-        "Super Smash Bros. for Wii U", "Super Smash Bros. for Nintendo 3DS and Wii U"
-    ) == 1.0
+    assert (
+        genre_service._title_similarity(
+            "Super Smash Bros. for Wii U", "Super Smash Bros. for Nintendo 3DS and Wii U"
+        )
+        == 1.0
+    )
 
 
 def test_confidence_is_symmetric():
@@ -500,9 +497,7 @@ def test_the_synonym_table_is_not_a_preference_map():
 
 
 def test_conflicting_spellings_on_one_game_collapse_to_one():
-    assert genre_service.normalize_genres(["Monster tamer", "monster-taming"]) == [
-        "Monster Tamer"
-    ]
+    assert genre_service.normalize_genres(["Monster tamer", "monster-taming"]) == ["Monster Tamer"]
 
 
 def test_an_exact_article_beats_one_that_merely_contains_the_name(monkeypatch):
@@ -554,9 +549,9 @@ def test_editor_annotations_are_stripped():
     beside the un-annotated spelling of the same one."""
     assert genre_service.normalize_genre("Tower defense game (primary)") == "Tower Defense"
     assert genre_service.normalize_genre("Puzzle (secondary)") == "Puzzle"
-    assert genre_service.normalize_genres(
-        ["Tower defense game (primary)", "Tower defense"]
-    ) == ["Tower Defense"]
+    assert genre_service.normalize_genres(["Tower defense game (primary)", "Tower defense"]) == [
+        "Tower Defense"
+    ]
 
 
 def test_mood_descriptors_are_dropped():
@@ -581,7 +576,7 @@ def test_real_genres_that_read_like_themes_are_kept(genre):
 
 
 def test_card_game_keeps_its_noun():
-    """"Game" is part of the name here; stripping leaves "Digital Collectible
+    """ "Game" is part of the name here; stripping leaves "Digital Collectible
     Card", which is not a thing."""
     assert (
         genre_service.normalize_genre("Digital collectible card game")

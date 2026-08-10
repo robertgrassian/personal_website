@@ -52,7 +52,7 @@ def test_uncertain_matches_go_to_review(name, article):
 
 
 def test_a_subtitled_article_is_confident_not_reviewed():
-    """"Expedition 33" -> "Clair Obscur: Expedition 33" is correct: our title is
+    """ "Expedition 33" -> "Clair Obscur: Expedition 33" is correct: our title is
     wholly contained in the article's, with no series number in the remainder."""
     assert similarity("Expedition 33", "Clair Obscur: Expedition 33") >= AUTO_ACCEPT
 
@@ -71,9 +71,7 @@ def test_similarity_is_zero_for_unrelated_titles():
 def entry(**overrides):
     base = {
         "id": 1,
-        "user_id": "u1",
         "name": "A Game",
-        "system": "PC",
         "current": ["RPG"],
         "proposed": ["Roguelike"],
         "status": "auto",

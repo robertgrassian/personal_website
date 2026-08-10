@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import get_settings
 from app.core.db import get_sessionmaker
-from app.models import Game, PlaySession, Profile, WishlistItem
+from app.models import GameMetadata, PlayedGame, PlaySession, Profile, WishlistGame
 
 # Frozen CSV snapshot (the retired repo-root CSVs) — the local seed source.
 # Prod data lives in Postgres; these fixtures only exist to rebuild a local
@@ -55,7 +55,14 @@ ROBERT_EMAIL = "rgrassian@example.com"
 # Mirrors RATINGS in src/lib/games.ts; the DB CHECK backstops it.
 VALID_RATINGS = frozenset({"Perfect", "Great", "Good", "Okay", "Bad"})
 
-TABLES = ["profiles", "games", "play_sessions", "wishlist_items", "follows"]
+TABLES = [
+    "profiles",
+    "game_metadata",
+    "played_games",
+    "play_sessions",
+    "wishlist_games",
+    "follows",
+]
 
 
 # --- pure parsing/validation (unit-tested in tests/test_seed_parsing.py) ---
@@ -156,7 +163,8 @@ def resolve_session_rows(
 
 
 def parse_wishlist_rows(rows: Iterable[dict], warnings: list[str]) -> list[dict]:
-    """wishlist.csv rows -> wishlist_items column dicts (sans user_id)."""
+    """wishlist.csv rows -> flat column dicts, split across game_metadata and
+    wishlist_games by the caller."""
     out = []
     for i, row in enumerate(rows, start=2):
         name = (row.get("name") or "").strip()
@@ -253,11 +261,96 @@ def ensure_robert_auth_user(session: Session) -> None:
     )
 
 
+def load_library_rows(
+    session: Session,
+    user_id: uuid.UUID,
+    game_rows: list[dict],
+    wishlist_rows: list[dict],
+) -> tuple[list[PlayedGame], dict[str, list[int]]]:
+    """Insert one user's library and wishlist, splitting each flat CSV row
+    across game_metadata and its link table.
+
+    The CSVs are still denormalized -- one row per library entry, carrying its
+    own copy of the game's metadata -- so the split happens here rather than in
+    the parsers, which keeps the fixture format and its unit tests unchanged.
+
+    None of the fixture rows carry an igdb_id, so every catalog row created
+    here is a PRIVATE one owned by this user. That is the honest
+    representation: these titles came out of a CSV, not out of IGDB. Running
+    scripts/backfill_igdb_ids.py is what turns them into shared rows.
+
+    Returns the inserted games and the name→ids bridge sessions.csv needs.
+    Flushes but does not commit, so the caller controls the transaction.
+    """
+    metadata_by_name: dict[str, GameMetadata] = {}
+    for row in [*game_rows, *wishlist_rows]:
+        if row["name"] not in metadata_by_name:
+            metadata_by_name[row["name"]] = GameMetadata(
+                name=row["name"],
+                genres=row["genres"],
+                release_date=row["release_date"],
+                image_url=row["image_url"],
+                # Every console someone recorded counts as a platform the game
+                # released on. A weak stand-in for IGDB's real list, and the
+                # same approximation the catalog migration makes.
+                platforms=sorted(
+                    {r["system"] for r in game_rows if r["name"] == row["name"] and r["system"]}
+                ),
+                created_by_user_id=user_id,
+            )
+    session.add_all(metadata_by_name.values())
+    session.flush()  # assigns metadata ids for the link rows' FK
+
+    games = [
+        PlayedGame(
+            user_id=user_id,
+            metadata_id=metadata_by_name[row["name"]].id,
+            system=row["system"],
+            rating=row["rating"],
+        )
+        for row in game_rows
+    ]
+    session.add_all(games)
+    session.add_all(
+        WishlistGame(
+            user_id=user_id,
+            metadata_id=metadata_by_name[row["name"]].id,
+            system=row["system"],
+            starred=row["starred"],
+            date_added=row["date_added"],
+            notes=row["notes"],
+        )
+        for row in wishlist_rows
+    )
+    session.flush()  # assigns game ids for the name→id bridge
+
+    name_to_game_ids: dict[str, list[int]] = {}
+    for row, game in zip(game_rows, games, strict=True):
+        name_to_game_ids.setdefault(row["name"], []).append(game.id)
+    return games, name_to_game_ids
+
+
 def seed(session: Session) -> dict[str, int]:
     warnings: list[str] = []
 
     game_rows = parse_game_rows(read_csv("games.csv"), warnings)
     wishlist_rows = parse_wishlist_rows(read_csv("wishlist.csv"), warnings)
+
+    # One catalog row per name means two games.csv rows sharing a title would
+    # become two link rows pointing at it, violating
+    # uq_played_games_user_id_metadata_id. That surfaces as an opaque
+    # IntegrityError several statements later, so say it plainly here. The
+    # fixture format used to permit this (the old key included `system`); the
+    # current fixtures have no duplicates. Checked BEFORE the truncate below, so
+    # a bad fixture cannot leave the dev database empty.
+    seen: set[str] = set()
+    duplicates = sorted({r["name"] for r in game_rows if r["name"] in seen or seen.add(r["name"])})
+    if duplicates:
+        print("games.csv has duplicate names, which the catalog cannot represent:", file=sys.stderr)
+        for name in duplicates:
+            print(f"  {name}", file=sys.stderr)
+        print("One entry per game per user — merge them and rerun.", file=sys.stderr)
+        sys.exit(1)
 
     # Truncate-and-reload keeps the script idempotent; RESTART IDENTITY so
     # game ids don't grow across reruns, CASCADE for the FK chains.
@@ -274,13 +367,7 @@ def seed(session: Session) -> dict[str, int]:
     # inserts across tables on its own.
     session.flush()
 
-    games = [Game(user_id=ROBERT_PROFILE_ID, **row) for row in game_rows]
-    session.add_all(games)
-    session.flush()  # assigns game ids for the name→id bridge
-
-    name_to_game_ids: dict[str, list[int]] = {}
-    for game in games:
-        name_to_game_ids.setdefault(game.name, []).append(game.id)
+    _, name_to_game_ids = load_library_rows(session, ROBERT_PROFILE_ID, game_rows, wishlist_rows)
 
     session_rows, errors = resolve_session_rows(read_csv("sessions.csv"), name_to_game_ids)
     if errors:
@@ -291,7 +378,6 @@ def seed(session: Session) -> dict[str, int]:
         sys.exit(1)
 
     session.add_all(PlaySession(**row) for row in session_rows)
-    session.add_all(WishlistItem(user_id=ROBERT_PROFILE_ID, **row) for row in wishlist_rows)
     session.commit()
 
     for warning in warnings:

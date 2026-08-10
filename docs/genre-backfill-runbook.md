@@ -20,9 +20,17 @@ from Wikipedia game infoboxes (`app/services/genres.py`).
 match the wrong game. Measured locally, doing titles first moved the genre plan
 from 118 auto / 36 needing review to **183 auto / 0**.
 
-Both cover the library **and** the wishlist. The wishlist holds the same titles
-and the same genre vocabulary and renders on the same page, so leaving it behind
-would let a wishlist entry and a library row disagree about the same game.
+Both cover the library **and** the wishlist. Since the shared catalog landed
+(2026-08-10) that is automatic rather than careful: names and genres live once
+on `game_metadata`, so both scripts walk one row per game and a wishlist entry
+and a library row can no longer disagree about the same game. Before that, each
+script had to visit two tables and keep them in step by hand.
+
+**One thing to know before running either against a database with other people
+in it:** a catalog row with an `igdb_id` is SHARED, so rewriting its name or
+genres rewrites them for every user who owns that game. That is fine while the
+vocabulary is curated by one person for one library, and is the thing to
+re-think first if it stops being.
 
 Neither script needs credentials. The title map is hardcoded (no IGDB calls) and
 the genre lookup uses Wikipedia, which needs no key. Only `DATABASE_URL`.
@@ -49,10 +57,10 @@ DATABASE_URL="$PROD_DB" uv run python scripts/backfill_titles.py --user rgrassia
 
 Read the preview. Three things it reports and what they mean:
 
-- **renames** — what will change, per table.
-- **BLOCKED** — the target name already exists. `games` is unique on
-  `(user_id, name, system)` and `wishlist_items` on `(user_id, name)`, so these
-  are skipped rather than allowed to abort the transaction. Resolve by hand.
+- **renames** — what will change.
+- **BLOCKED** — the target name already exists. A private catalog row is unique
+  on `(created_by_user_id, name)`, so these are skipped rather than allowed to
+  abort the transaction. Resolve by hand.
 - **mapping entries matched no row** — expected. The map covers the local
   library; anything already renamed or absent shows up here harmlessly.
 
