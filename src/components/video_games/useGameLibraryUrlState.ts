@@ -58,13 +58,53 @@ export function useGameLibraryUrlState(): UrlState {
   // "Latest ref" pattern: the debounce effect reads current params without
   // re-subscribing on every URL change (which would reset the timer).
   const searchParamsRef = useRef(searchParams);
+  // Same pattern for the live input: the setters below rebuild the query string
+  // from `searchParams`, whose ?search lags by the debounce, so they need the
+  // typed value from somewhere that is not the URL.
+  const searchInputRef = useRef(searchInput);
   useEffect(() => {
     searchParamsRef.current = searchParams;
+    searchInputRef.current = searchInput;
   }); // no dep array — runs after every render
 
-  // Sync local input when the URL changes externally (e.g. clearFilters).
+  // Every ?search value this hook has written and not yet seen echoed back.
+  //
+  // A single slot was not enough, and the way it failed is worth keeping.
+  // `router.replace` runs inside a transition with a server round trip, so with
+  // one slot a second push could be registered before the first one's echo
+  // arrived; the older echo then failed the match, was read as an external
+  // navigation, and was applied to the input. While typing that silently put
+  // back a shorter string. While DELETING it put back a longer one, which is
+  // visible: a character you just erased reappearing on its own. Same bug, and
+  // deleting is simply the direction that shows it.
+  //
+  // Values rather than a count, because a count assumes every push produces
+  // exactly one echo, and a coalesced transition that never echoes would drain
+  // it wrong and start swallowing real navigations forever. Matching on value
+  // is self-correcting: at worst a stale entry means one genuine navigation to
+  // that exact string is ignored, which leaves the box holding what was typed.
+  const pushedSearchValues = useRef<Set<string>>(new Set());
+
+  // Sync local input when the URL changes externally: browser Back, or a link
+  // that arrives with its own ?search.
+  //
+  // The guard is what stops this from eating keystrokes, and it took a real
+  // report to find. This hook's own debounced write lands here as an ordinary
+  // searchParams change, carrying the value as it stood 300ms plus a transition
+  // ago. Applying it unconditionally overwrote everything typed in the
+  // meantime, so a fast typist would watch a character vanish a beat after
+  // pressing it -- and the faster the typing, the more often the window was
+  // open. So: recognize our own echo, consume it, and leave the input alone,
+  // because it has moved on and is the newer truth.
   useEffect(() => {
-    setSearchInput(searchParams.get("search") ?? "");
+    const fromUrl = searchParams.get("search") ?? "";
+    // delete() answers "was this one of ours?" and consumes it in one step.
+    if (pushedSearchValues.current.delete(fromUrl)) return;
+    // Nothing we wrote, so a real navigation: Back, Forward, or a link that
+    // arrived with its own ?search. It wins, and anything still outstanding is
+    // now moot.
+    pushedSearchValues.current.clear();
+    setSearchInput(fromUrl);
   }, [searchParams]);
 
   useEffect(() => {
@@ -75,6 +115,7 @@ export function useGameLibraryUrlState(): UrlState {
       } else {
         params.set("search", searchInput);
       }
+      pushedSearchValues.current.add(searchInput);
       const qs = params.toString();
       startTransition(() => {
         router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
@@ -134,10 +175,31 @@ export function useGameLibraryUrlState(): UrlState {
 
   // --- Setters ---
 
+  /** Query params for a replace: the current URL, but with ?search taken from
+   *  the live input rather than the URL's lagging copy.
+   *
+   *  Every setter here rebuilds the whole query string, so each one is a chance
+   *  to write a stale ?search back. Typing "chrono" and changing the rating
+   *  dropdown 100ms later would otherwise replace the URL with the ?search from
+   *  before the word was typed, and the sync effect above would then apply it to
+   *  the input. Carrying the live value makes each of these a no-op for search,
+   *  and registering the push means the echo is recognized rather than applied. */
+  const paramsWithLiveSearch = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    const live = searchInputRef.current;
+    if (live === "") {
+      params.delete("search");
+    } else {
+      params.set("search", live);
+    }
+    pushedSearchValues.current.add(live);
+    return params;
+  }, [searchParams]);
+
   // router.replace: no history entry. startTransition: keeps UI responsive.
   const updateParam = useCallback(
     (key: string, value: string) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = paramsWithLiveSearch();
       // Read view from the URL (not closure) so defaults resolve against the
       // live value, even mid-transition.
       const currentConfig = viewConfig(parseView(params.get("view")));
@@ -156,7 +218,7 @@ export function useGameLibraryUrlState(): UrlState {
         router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
       });
     },
-    [searchParams, pathname, router]
+    [paramsWithLiveSearch, pathname, router]
   );
 
   // setView also strips groupBy/sortOrder values the new view doesn't support,
@@ -168,7 +230,7 @@ export function useGameLibraryUrlState(): UrlState {
   // needing to clear them here.
   const setView = useCallback(
     (value: GameView) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = paramsWithLiveSearch();
       if (value === DEFAULT_VIEW) {
         params.delete("view");
       } else {
@@ -188,7 +250,7 @@ export function useGameLibraryUrlState(): UrlState {
         router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
       });
     },
-    [searchParams, pathname, router]
+    [paramsWithLiveSearch, pathname, router]
   );
   const setGroupBy = useCallback((value: GroupBy) => updateParam("groupBy", value), [updateParam]);
   const setSortOrder = useCallback(
@@ -216,6 +278,9 @@ export function useGameLibraryUrlState(): UrlState {
   const clearFilters = useCallback(() => {
     setSearchInput("");
     const params = new URLSearchParams(searchParams.toString());
+    // Not paramsWithLiveSearch: this is the one setter that means to discard
+    // the live value, so it registers the empty push itself.
+    pushedSearchValues.current.add("");
     params.delete("search");
     params.delete("rating");
     params.delete("system");

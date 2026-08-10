@@ -62,23 +62,6 @@ to keep that section at five._
       Related: the mobile field-suggestions item in Backlog covers the same two forms (the
       `<datalist>` that phones ignore) — worth doing in one mobile pass over `AddGameModal`.
 
-- [ ] **Library filter search should fuzzy match, but stay strict** — specifically, typing
-      "pokemon" should find the games spelled with the accented "é". Today
-      `passesBaseFilters` (`src/components/video_games/pipeline.ts`) is a plain
-      `name.toLowerCase().includes(search.toLowerCase())`, so it is case-insensitive and nothing
-      more: "Pokémon" is invisible to "pokemon", and every shelf goes empty while you are
-      halfway through typing the word.<br>
-      _The cheap fix covers the actual complaint:_ normalize both sides with
-      `.normalize("NFD").replace(/\p{Diacritic}/gu, "")` before comparing, which folds é→e, ō→o
-      and the rest without pulling in a fuzzy-match library. That alone solves Pokémon, Ōkami
-      and Pikmin-style titles.<br>
-      _"Strict" is the constraint worth keeping._ True fuzzy matching (Levenshtein / trigram /
-      fuse.js) starts returning things you did not ask for on a two-character query, which is
-      worse than a miss on a library you know by heart. If it goes past diacritic folding, keep
-      it to punctuation/whitespace insensitivity ("resident evil 4" matching "Resident Evil 4:
-      Remake", ignoring `:` and `-`) rather than edit distance. Same helper should apply to the
-      wishlist filter, which shares this function.
-
 - [ ] **You can add a game you already have in your library. Filter games you own out of the
       add-game search, and reject a duplicate add server-side.** Reported 2026-08-08.<br>
       _Half of this already exists, and the half that does defines the real gap._
@@ -635,6 +618,20 @@ head` being run by hand from a laptop pointed at production.<br>
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Library search folds accents** (2026-08-09, branch `claude/search-fold-accents`).
+      Typing "pokemon" now finds "Pokémon", "okami" finds "Ōkami". `foldForSearch` in
+      `pipeline.ts` runs `.normalize("NFD").replace(/\p{Diacritic}/gu, "")` over both the query
+      and the name; `prepareBaseFilters` folds the query once per pass, so the per-game cost is
+      one fold, not two.<br>
+      _The half that is easy to miss:_ `passesBaseFilters` is not the only matcher.
+      `collectAvailableGameFilters` and `collectAvailableWishlistFilters` each inline their own
+      copy of the name check, for the single-pass reason documented on them, and a fold applied
+      to only the first would have left the dropdowns disagreeing with the shelves about what an
+      accented title matches.<br>
+      _Deliberately not done:_ punctuation folding ("resident evil 4" matching "Resident Evil 4:
+      Remake") and any edit-distance matching. The entry's "stay strict" constraint still holds,
+      and the option is written up in the comment on `foldForSearch` if it is ever wanted.
+
 - [x] **The mobile game-case flip no longer lags** (2026-08-09, branch
       `claude/mobile-flip-lag`, PR #98). **Confirmed fixed on a device by the owner**, which is
       what closes it: nothing here was reproducible in development.<br>
@@ -1003,12 +1000,3 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       _Also mitigated in code (PR #68):_ the middleware and the two session-reading pages
       degrade instead of throwing when the vars are absent, so a missing var can no longer
       take the site down
-- [x] **Local dev**: `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` added to the gitignored `.env`,
-      verified returning real IGDB results (2026-07-28).<br>
-      **Gotcha if search ever 503s again: restart the API.** `Settings` reads `.env` once at
-      construction and is `lru_cache`d, so a uvicorn process started before a var was added
-      never sees it. The 503 that surfaced here came from a server up for three days,
-      predating the creds — and because it was started without `--reload`, it wasn't from
-      `npm run dev:api`, so every later `npm run dev:full` had its API half die silently with
-      `EADDRINUSE` while Next came up fine. Check with `lsof -nP -iTCP:8000 -sTCP:LISTEN` and
-      `ps -o lstart= -p <pid>`

@@ -35,27 +35,71 @@ export function compareIso(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+// Accent folding for the search box: "pokemon" has to find "Pokémon", "okami"
+// has to find "Ōkami". NFD splits an accented character into its base letter
+// plus a combining mark, and \p{Diacritic} then drops the marks, leaving the
+// ASCII letter behind. Both sides go through it, so typing the accent works too.
+//
+// Deliberately only accents. Punctuation folding (so "resident evil 4" matches
+// "Resident Evil 4: Remake") and real fuzzy matching are both possible here and
+// both deliberately skipped: on a library you know by heart, a two-character
+// query returning things you did not ask for is worse than a miss.
+//
+// Folding is not free. `normalize("NFD")` is an ICU call and `\p{Diacritic}`
+// is a Unicode-property regex, so measured over 155 names across the two
+// per-keystroke passes it costs ~0.12ms against ~0.03ms for the plain
+// `toLowerCase()` it replaced. Small in absolute terms, but it is pure waste:
+// the query changes on every keystroke, the names never change at all.
+const DIACRITICS = /\p{Diacritic}/gu;
+
+export function foldForSearch(value: string): string {
+  return value.normalize("NFD").replace(DIACRITICS, "").toLowerCase();
+}
+
+// Folded game names, cached so a name is folded once rather than once per
+// keystroke (~0.12ms down to ~0.02ms over the same two passes).
+//
+// Keyed on the game OBJECT, not on its name string, which is what makes a
+// WeakMap the right container and removes the two problems a string-keyed
+// cache would have: entries become collectable with the games themselves, so
+// nothing grows without bound as libraries are browsed, and a fresh server
+// payload mints fresh objects, so there is no invalidation rule to get wrong.
+//
+// The one thing it assumes is that a game's `name` is not mutated in place.
+// Nothing does that -- rows arrive from the API and are treated as immutable,
+// and an owner edit revalidates into a new payload rather than patching the
+// object.
+const foldedNames = new WeakMap<BaseGame, string>();
+
+function foldedName(game: BaseGame): string {
+  const cached = foldedNames.get(game);
+  if (cached !== undefined) return cached;
+  const folded = foldForSearch(game.name);
+  foldedNames.set(game, folded);
+  return folded;
+}
+
 // --- Shared helpers ---
 
 // Filter fields present on both Filters and WishlistFilters.
 type BaseFilters = { search: string; system: string; genre: string };
 
-// The same fields with the search term already lowercased. Built once per
-// filter pass instead of once per game: `search` is a single query string, so
-// lowercasing it inside the per-game predicate did the identical work ~155
-// times for nothing on every keystroke.
+// The same fields with the search term already folded. Built once per filter
+// pass instead of once per game: `search` is a single query string, so folding
+// it inside the per-game predicate did the identical work ~155 times for
+// nothing on every keystroke.
 type PreparedBaseFilters = { needle: string; system: string; genre: string };
 
 function prepareBaseFilters(filters: BaseFilters): PreparedBaseFilters {
   return {
-    needle: filters.search.toLowerCase(),
+    needle: foldForSearch(filters.search),
     system: filters.system,
     genre: filters.genre,
   };
 }
 
 function passesBaseFilters(game: BaseGame, filters: PreparedBaseFilters): boolean {
-  if (filters.needle && !game.name.toLowerCase().includes(filters.needle)) {
+  if (filters.needle && !foldedName(game).includes(filters.needle)) {
     return false;
   }
   if (filters.system && game.system !== filters.system) return false;
@@ -152,7 +196,7 @@ export function collectAvailableGameFilters(games: Game[], filters: Filters): Av
   const genres = new Set<string>();
 
   for (const game of games) {
-    if (needle && !game.name.toLowerCase().includes(needle)) continue;
+    if (needle && !foldedName(game).includes(needle)) continue;
     // Named before it is compared or collected, the same normalization
     // filterGames and getGroupKeys use. A rating-less game stores "", which is
     // the "no filter" value and so equals nothing the dropdown offers.
@@ -247,7 +291,7 @@ export function collectAvailableWishlistFilters(
   const genres = new Set<string>();
 
   for (const w of list) {
-    if (needle && !w.name.toLowerCase().includes(needle)) continue;
+    if (needle && !foldedName(w).includes(needle)) continue;
     if (!genre || w.genres.includes(genre)) systems.add(w.system);
     if (!system || w.system === system) {
       for (const g of w.genres) genres.add(g);
