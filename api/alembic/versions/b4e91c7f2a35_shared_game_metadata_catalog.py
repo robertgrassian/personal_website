@@ -92,6 +92,39 @@ def _guard_collisions(conn: sa.Connection) -> None:
         )
 
 
+def _guard_reverse_collisions(conn: sa.Connection) -> None:
+    """The mirror of _guard_collisions, for going back down.
+
+    The post-migration schema is stricter about SOME things and looser about
+    others: nothing stops one user holding two entries whose catalog rows share
+    a name (a shared row for a game's igdb_id plus a private row they typed in
+    by hand). Restoring uq_games_user_id_name_system / uq_wishlist_items_user_id_name
+    over that state fails -- but only AFTER the tables have been renamed and the
+    columns re-added, leaving a half-migrated database. Check first.
+
+    The app blocks this state (find_game_by_name in repositories/me.py), so it
+    only arises from writes that bypassed it.
+    """
+    problems = []
+    for table, keys in (("played_games", "m.name, g.system"), ("wishlist_games", "m.name")):
+        rows = conn.execute(
+            sa.text(f"""
+            SELECT g.user_id::text, {keys.split(",")[0]}, count(*)
+              FROM {table} g JOIN game_metadata m ON m.id = g.metadata_id
+             GROUP BY g.user_id, {keys}
+            HAVING count(*) > 1
+        """)
+        )
+        problems += [f"  {table}: user {u} has {n} entries named {name!r}" for u, name, n in rows]
+    if problems:
+        raise RuntimeError(
+            "Cannot restore the pre-catalog unique constraints: these rows would "
+            "collide once the name moves back onto them.\n"
+            + "\n".join(problems)
+            + "\nRemove the duplicates by hand, then re-run."
+        )
+
+
 def upgrade() -> None:
     conn = op.get_bind()
     _guard_collisions(conn)
@@ -275,6 +308,7 @@ def _link_table(
 
 def downgrade() -> None:
     conn = op.get_bind()
+    _guard_reverse_collisions(conn)
 
     _unlink_table(
         conn,

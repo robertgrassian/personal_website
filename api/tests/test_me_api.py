@@ -1035,6 +1035,84 @@ def test_two_users_adding_the_same_igdb_game_share_one_catalog_row(fresh_auth_us
 
 
 @requires_db
+def test_same_title_via_search_then_by_hand_is_a_conflict(fresh_user_with_game) -> None:
+    """The gap the (user_id, metadata_id) key cannot close on its own.
+
+    A title added through IGDB search resolves to the SHARED catalog row; the
+    same title typed in by hand resolves to a new PRIVATE one. Different
+    metadata_ids, so the unique constraint permits both, and the shelf would
+    show two identical cases — which the old (user_id, name, system) key
+    prevented. find_game_by_name is what closes it.
+    """
+    user_id, _ = fresh_user_with_game
+    client = client_as(user_id)
+    first = client.post(
+        "/api/py/me/games",
+        json={"name": "Hollow Knight", "system": "Switch", "igdbId": TEST_IGDB_BASE + 6},
+    )
+    assert first.status_code == 201
+    again = client.post("/api/py/me/games", json={"name": "Hollow Knight", "system": "Switch"})
+    assert again.status_code == 409
+    assert "already in your library" in again.json()["detail"]
+
+
+@requires_db
+def test_losing_the_race_to_create_a_shared_row_still_succeeds(
+    fresh_auth_user, monkeypatch
+) -> None:
+    """Two users adding the same new IGDB game at once.
+
+    Both miss the catalog lookup, so the loser's INSERT violates
+    uq_game_metadata_igdb_id. That is a lost race on a row neither of them
+    owns, not a problem with either request: the loser must adopt the winner's
+    row, not be told the game is already in a library it is not in.
+
+    Simulated by making the first lookup miss, which is exactly what the racing
+    request sees.
+    """
+    from app.repositories import me as me_repo
+
+    owner_id, _ = fresh_auth_user
+    client_as(owner_id).post("/api/py/me/profile", json={"username": f"race-{str(owner_id)[:8]}"})
+    payload = {"name": "Race Quest", "igdbId": TEST_IGDB_BASE + 7}
+    assert (
+        client_as(owner_id).post("/api/py/me/games", json={**payload, "system": "PC"})
+    ).status_code == 201
+
+    loser_id = _make_auth_user()
+    try:
+        client_as(loser_id).post(
+            "/api/py/me/profile", json={"username": f"race-{str(loser_id)[:8]}"}
+        )
+        real = me_repo._select_metadata
+        calls = {"n": 0}
+
+        def missing_first_time(db, **kwargs):
+            calls["n"] += 1
+            return None if calls["n"] == 1 else real(db, **kwargs)
+
+        monkeypatch.setattr(me_repo, "_select_metadata", missing_first_time)
+        response = client_as(loser_id).post(
+            "/api/py/me/games", json={**payload, "system": "Switch"}
+        )
+        monkeypatch.undo()
+
+        assert response.status_code == 201, response.json()
+        assert response.json()["system"] == "Switch"
+        sm = get_sessionmaker()
+        with sm() as session:
+            assert (
+                session.execute(
+                    text("SELECT count(*) FROM game_metadata WHERE igdb_id = :g"),
+                    {"g": payload["igdbId"]},
+                ).scalar_one()
+                == 1
+            )
+    finally:
+        _delete_auth_user(loser_id)
+
+
+@requires_db
 def test_two_users_hand_entering_the_same_name_get_private_rows(fresh_auth_user) -> None:
     # The other half of catalog identity: with no igdb_id there is no honest
     # way to say two people mean the same game, so neither one's metadata can

@@ -58,9 +58,18 @@ reasoning behind the shape, which the models themselves don't record.
   of NULLs under it). A row without one is PRIVATE to whoever typed it in
   (`created_by_user_id`, unique per creator + name). A hand-entered name is not a
   canonical key, so treating two users' "Tetris" as one game would let one person's typo
-  rewrite the other's shelf. That split is what removes the need for a moderation story:
-  nothing in the UI edits a shared row. `created_by_user_id` is `ON DELETE SET NULL`, not
-  CASCADE, so a deleted account cannot take a catalog row out from under someone else.
+  rewrite the other's shelf. `created_by_user_id` is `ON DELETE SET NULL`, not CASCADE, so
+  a deleted account cannot take a catalog row out from under someone else.
+- **Known gap: creating a shared row is first-write-wins and unvalidated.** Nothing checks
+  the client's `igdb_id` against IGDB, so whoever adds a given IGDB game first defines the
+  name, genres and release date every later adder inherits — and no UI path edits a shared
+  row afterwards. `POST /me/games {"name": "anything", "igdbId": 1051}` is enough. Bounded
+  in three ways today: `MAX_USERS` is 100 and signup is capped, writes are rate-limited,
+  and `validate_igdb_image_url` restricts `image_url` to the IGDB CDN so the cover can only
+  be swapped for another real IGDB cover. Accepted for now; the fix is verifying `igdb_id`
+  against IGDB on create, which puts a network call in the write path. Tracked in `TODO.md`.
+  The private/shared split removes the need for a moderation story about _editing_, not
+  about _first creation_ — do not read it as covering both.
 - **One entry per game per user**, via `UNIQUE (user_id, metadata_id)` on both link
   tables. The console is a field on the entry, not part of its identity, so adding a game
   you already own on a different console is a 409 rather than a second row. Allowing two

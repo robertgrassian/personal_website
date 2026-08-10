@@ -336,6 +336,22 @@ def seed(session: Session) -> dict[str, int]:
     game_rows = parse_game_rows(read_csv("games.csv"), warnings)
     wishlist_rows = parse_wishlist_rows(read_csv("wishlist.csv"), warnings)
 
+    # One catalog row per name means two games.csv rows sharing a title would
+    # become two link rows pointing at it, violating
+    # uq_played_games_user_id_metadata_id. That surfaces as an opaque
+    # IntegrityError several statements later, so say it plainly here. The
+    # fixture format used to permit this (the old key included `system`); the
+    # current fixtures have no duplicates. Checked BEFORE the truncate below, so
+    # a bad fixture cannot leave the dev database empty.
+    seen: set[str] = set()
+    duplicates = sorted({r["name"] for r in game_rows if r["name"] in seen or seen.add(r["name"])})
+    if duplicates:
+        print("games.csv has duplicate names, which the catalog cannot represent:", file=sys.stderr)
+        for name in duplicates:
+            print(f"  {name}", file=sys.stderr)
+        print("One entry per game per user — merge them and rerun.", file=sys.stderr)
+        sys.exit(1)
+
     # Truncate-and-reload keeps the script idempotent; RESTART IDENTITY so
     # game ids don't grow across reruns, CASCADE for the FK chains.
     session.execute(text(f"TRUNCATE {', '.join(TABLES)} RESTART IDENTITY CASCADE"))

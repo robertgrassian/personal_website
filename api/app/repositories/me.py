@@ -6,6 +6,7 @@ import uuid
 from datetime import date
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Follow, GameMetadata, PlayedGame, PlaySession, Profile, WishlistGame
@@ -53,18 +54,7 @@ def find_or_create_metadata(
     Flushes rather than commits: the caller inserts the link row next, and the
     two must land together or a failed add would leave an orphan catalog row.
     """
-    if igdb_id is not None:
-        existing = db.execute(
-            select(GameMetadata).where(GameMetadata.igdb_id == igdb_id)
-        ).scalar_one_or_none()
-    else:
-        existing = db.execute(
-            select(GameMetadata).where(
-                GameMetadata.igdb_id.is_(None),
-                GameMetadata.created_by_user_id == user_id,
-                GameMetadata.name == name,
-            )
-        ).scalar_one_or_none()
+    existing = _select_metadata(db, user_id=user_id, igdb_id=igdb_id, name=name)
     if existing is not None:
         return existing
 
@@ -79,10 +69,50 @@ def find_or_create_metadata(
         # would make whoever happened to add it first look like its author.
         created_by_user_id=None if igdb_id is not None else user_id,
     )
-    db.add(meta)
-    # Assigns the id the link row's FK needs, without ending the transaction.
-    db.flush()
+    try:
+        # SAVEPOINT rather than a bare flush: two users adding the same new
+        # IGDB game at once both miss the SELECT above, and the loser violates
+        # uq_game_metadata_igdb_id. That is a lost race on a SHARED row, not a
+        # problem with either request, so the loser should adopt the winner's
+        # row and carry on. Nesting is what makes that possible — a plain
+        # rollback here would also discard the caller's in-flight work.
+        with db.begin_nested():
+            db.add(meta)
+            db.flush()
+    except IntegrityError:
+        # Rolling back to the savepoint usually evicts the failed instance
+        # already; the check keeps this from raising "not present in session"
+        # on top of the error it is handling.
+        if meta in db:
+            db.expunge(meta)
+        winner = _select_metadata(db, user_id=user_id, igdb_id=igdb_id, name=name)
+        if winner is None:
+            # Not the race we expected — some other constraint fired, and
+            # swallowing it would hide a real bug.
+            raise
+        return winner
     return meta
+
+
+def _select_metadata(
+    db: Session, *, user_id: uuid.UUID, igdb_id: int | None, name: str
+) -> GameMetadata | None:
+    """The catalog row this (igdb_id, name) resolves to for this user, if any.
+
+    Two lookup keys, because there are two kinds of row: a shared row is found
+    by igdb_id alone, a private one only among the caller's own.
+    """
+    if igdb_id is not None:
+        return db.execute(
+            select(GameMetadata).where(GameMetadata.igdb_id == igdb_id)
+        ).scalar_one_or_none()
+    return db.execute(
+        select(GameMetadata).where(
+            GameMetadata.igdb_id.is_(None),
+            GameMetadata.created_by_user_id == user_id,
+            GameMetadata.name == name,
+        )
+    ).scalar_one_or_none()
 
 
 def get_game_for_owner(
@@ -110,6 +140,37 @@ def find_game_by_metadata(db: Session, user_id: uuid.UUID, metadata_id: int) -> 
         select(PlayedGame).where(
             PlayedGame.user_id == user_id, PlayedGame.metadata_id == metadata_id
         )
+    ).scalar_one_or_none()
+
+
+def find_game_by_name(db: Session, user_id: uuid.UUID, name: str) -> PlayedGame | None:
+    """Any library entry of the caller's whose catalog row carries this name.
+
+    Backstops find_game_by_metadata, which is not enough on its own: the same
+    title can resolve to two DIFFERENT catalog rows — the shared one for its
+    igdb_id, and a private one if the user later types the name in by hand — and
+    those have different metadata_ids, so the unique constraint permits both.
+    That would put two identical cases on the shelf, which the old
+    uq_games_user_id_name_system prevented.
+
+    Application-level, unlike the metadata check: no constraint can express it,
+    since the name lives on the row being joined to.
+    """
+    return db.execute(
+        select(PlayedGame)
+        .join(GameMetadata, GameMetadata.id == PlayedGame.metadata_id)
+        .where(PlayedGame.user_id == user_id, GameMetadata.name == name)
+        .limit(1)
+    ).scalar_one_or_none()
+
+
+def find_wishlist_item_by_name(db: Session, user_id: uuid.UUID, name: str) -> WishlistGame | None:
+    """The wishlist twin of find_game_by_name, for the same reason."""
+    return db.execute(
+        select(WishlistGame)
+        .join(GameMetadata, GameMetadata.id == WishlistGame.metadata_id)
+        .where(WishlistGame.user_id == user_id, GameMetadata.name == name)
+        .limit(1)
     ).scalar_one_or_none()
 
 

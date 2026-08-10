@@ -330,7 +330,7 @@ def review(plan: dict) -> None:
     try:
         for index, entry in enumerate(pending, 1):
             union = entry["current"] + [g for g in entry["proposed"] if g not in entry["current"]]
-            print(f"--- {index}/{len(pending)}  {entry['name']}  ({entry['system']})")
+            print(f"--- {index}/{len(pending)}  {entry['name']}")
             print(f"    wikipedia : {entry['article']}   (title match {entry['score']})")
             print(f"    current   : {' | '.join(entry['current']) or '-'}")
             print(f"    proposed  : {' | '.join(entry['proposed']) or '-'}")

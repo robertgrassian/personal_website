@@ -14,8 +14,12 @@ type GameSearchStepProps = {
   initialQuery: string;
   inputRef: React.RefObject<HTMLInputElement | null>;
   // Folded name → systems already owned under that name, for the collection
-  // being added to. A hit annotates the row; it never hides or blocks it,
-  // because the same game on a second system is a legitimate add.
+  // being added to. A hit annotates the row rather than disabling it, but it is
+  // now a warning rather than a note: since the shared catalog landed, one
+  // entry per game per user is enforced, so picking a matched row and
+  // submitting gets a 409 whatever system you choose. Matching on folded names
+  // is looser than the server's rule, so this can over- and under-report;
+  // disabling the row on a guess would be worse than warning on one.
   ownedNames: Map<string, string[]>;
   // What a hit is called: "In your library" or "On your wishlist".
   ownedLabel: string;
