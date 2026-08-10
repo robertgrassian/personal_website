@@ -45,7 +45,30 @@ export function useServerAction(): ServerActionState {
     startTransition(async () => {
       setError(null);
       options?.optimistic?.();
-      const result = await action();
+      // try/catch, because `action()` is a network call disguised as a function
+      // call: a Server Action that throws on the server (or never answers)
+      // arrives here as a rejected promise, not as `{ ok: false }`. Without
+      // this, that rejection escaped the transition and NOTHING happened: no
+      // error line, no onSuccess, no visible trace. Every mutating dialog in
+      // this directory runs through this hook, so that was one shared way for
+      // any owner write to look like a dead button.
+      //
+      // The message is deliberately non-committal about whether the change
+      // landed: a rejection here covers both "never reached the server" and
+      // "server did the work, then the response was lost".
+      let result: MutateResult;
+      try {
+        result = await action();
+      } catch {
+        // The thrown value is not shown: in production Next replaces Server
+        // Action errors with an opaque digest, so surfacing it would put a
+        // random id in front of the viewer instead of an instruction.
+        const message = "Something went wrong, and the change may not have been saved. Refresh.";
+        setError(message);
+        options?.onError?.(message);
+        return;
+      }
+
       if (result.ok) {
         options?.onSuccess?.();
       } else {

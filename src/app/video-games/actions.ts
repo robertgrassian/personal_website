@@ -304,22 +304,17 @@ export async function logSession(
   return write(() => createMySession(gameId, startDate, endDate), [gamesTag]);
 }
 
-/** Stop playing: close the open session, optionally rating the game in the
- *  same call (undefined = leave the rating untouched, "" = clear it). */
-export async function stopSession(
-  sessionId: number,
-  endDate: string,
-  rating?: Rating | ""
-): Promise<MutateResult> {
-  if (
-    !Number.isInteger(sessionId) ||
-    !ISO_DATE_RE.test(endDate) ||
-    (rating !== undefined && !isValidRating(rating))
-  ) {
+/** Stop playing: close the open session. The rating is deliberately NOT part of
+ *  this call any more. The API still accepts one (PATCH /me/sessions/{id} can
+ *  close and rate in one transaction), but the UI now asks about the rating
+ *  only after the session is closed, as a separate write the owner may skip:
+ *  see stopPlaying in EditGameModal. */
+export async function stopSession(sessionId: number, endDate: string): Promise<MutateResult> {
+  if (!Number.isInteger(sessionId) || !ISO_DATE_RE.test(endDate)) {
     return { ok: false, message: "Invalid stop request." };
   }
 
-  return write(() => closeMySession(sessionId, endDate, rating), [gamesTag]);
+  return write(() => closeMySession(sessionId, endDate), [gamesTag]);
 }
 
 /** Follow a user. Revalidates BOTH libraries: the caller's following list grew
