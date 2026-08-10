@@ -102,26 +102,31 @@ HAND_MATCHED: dict[str, int] = {
 # the better display name, and a rename away from the Wikipedia article title
 # will make a later backfill_genres.py run miss the game.
 KEEP_STORED: set[str] = {
-    # IGDB's name is "Cadence of Hyrule: Crypt of the NecroDancer Featuring the
-    # Legend of Zelda". backfill_titles.py records why the short name must stay:
-    # the long title's words are a superset of "The Legend of Zelda", so the
-    # Wikipedia genre lookup matched THAT article and took the wrong game's
-    # genres. Renaming here would re-break it.
-    "Cadence of Hyrule",
-    #
     # --- IGDB filed the cover under an EDITION, not the base game ------------
     # The cover id identifies the cover exactly, but IGDB sometimes hangs that
     # cover off a variant entry. backfill_titles.py already rejected the first
     # three of these by hand; keep them rejected.
-    "Cyberpunk 2077",  # -> "Cyberpunk 2077: Ultimate Edition"
+    "Cyberpunk 2077",  # -> ": Ultimate Edition", a Bundle (base + Phantom Liberty)
     "Dead Cells",  # -> "Dead Cells+"
     "Nintendogs",  # -> "Nintendogs: Labrador & Friends", one of several versions
     "Bomberman DS",  # -> "Bomberman", which loses the platform that names it
-    "Final Fantasy Tactics",  # -> ": The Ivalice Chronicles", the 2025 remaster
     #
     # --- house style, where IGDB's spelling is not the better display name ---
     "Baldur's Gate 3",  # -> "Baldur's Gate III"; the box art uses the digit
     "Pokémon FireRed",  # -> "... Version"; the other Pokémon rows omit it too
+    #
+    # Deliberately NOT here, though both were at first:
+    #
+    #   "Final Fantasy Tactics" -> ": The Ivalice Chronicles". Not an edition:
+    #   IGDB has it as a Remaster with parent_game 428 (the 1997 original), and
+    #   the stored cover is the remaster's. The longer name is the accurate one
+    #   and it also stops the genre lookup matching the 1997 article.
+    #
+    #   "Cadence of Hyrule" -> its full canonical title. backfill_titles.py
+    #   refused this because the long title's words are a superset of "The
+    #   Legend of Zelda", so the Wikipedia genre lookup matched THAT article and
+    #   took the wrong game's genres. Now safe: backfill_genres.py's OVERRIDES
+    #   pins the long name to ["Roguelike", "Rhythm"]. Do not remove that entry.
 }
 
 # Matches the image_id in a stored cover URL. IGDB image ids are lowercase

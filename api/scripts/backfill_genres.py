@@ -103,6 +103,16 @@ OVERRIDES: dict[str, list[str]] = {
     # Wikipedia has no standalone article; search lands on "Bomberman Story DS",
     # an RPG spin-off, and takes its genres.
     "Bomberman DS": ["Action", "Puzzle"],
+    # Renamed to its full canonical title 2026-08-10. That title's words are a
+    # SUPERSET of "The Legend of Zelda", so the article search matches that game
+    # and proposes its genres -- which is exactly why backfill_titles.py had
+    # refused the rename. This entry is what makes the long name safe: without
+    # it, the next genre run silently replaces Roguelike/Rhythm with the wrong
+    # game's genres. Keyed on the long name, since that is what is stored now.
+    "Cadence of Hyrule: Crypt of the NecroDancer Featuring the Legend of Zelda": [
+        "Roguelike",
+        "Rhythm",
+    ],
     # The infobox lists Role-Playing, which it plainly is not.
     "Untitled Goose Game": ["Puzzle", "Stealth"],
     # "Plants vs. Zombies" is the FRANCHISE article, so its infobox spans the
