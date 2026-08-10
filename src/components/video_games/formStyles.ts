@@ -6,17 +6,14 @@
 // composes from this, so a token change lands everywhere at once — including
 // the focus ring, which one hand-rolled copy had quietly dropped.
 //
-// `text-base sm:text-sm` is a mobile Safari workaround, not a design choice.
-// iOS zooms the whole page in when a form control smaller than 16px takes
-// focus, and it does not zoom back out — so the layout ends up genuinely wider
-// than the window and pans in both axes for the rest of the session. 16px on
-// phones is the documented way to opt out; the alternative, `maximum-scale=1`
-// in the viewport meta, disables pinch-zoom for everyone and is an
-// accessibility regression. Above the `sm` breakpoint (a pointer device, where
-// no zoom happens) it goes back to 14px so nothing about the desktop layout
-// changes.
+// 16px on touch, 14px with a mouse. Mobile Safari zooms the page in when a
+// control under 16px takes focus and does not zoom back out, which is what
+// leaves the layout wider than the window and panning in both axes.
+// `pointer-fine`, not a breakpoint: it is a device capability, and an iPad is
+// wider than `sm` while still zooming. The alternative fix, `maximum-scale=1`
+// in the viewport meta, disables pinch-zoom for everyone.
 export const fieldClass =
-  "bg-shelf-input border border-shelf-input-border text-shelf-input-text text-base sm:text-sm rounded " +
+  "bg-shelf-input border border-shelf-input-border text-shelf-input-text text-base pointer-fine:text-sm rounded " +
   "focus:outline-none focus:ring-1 focus:ring-shelf-input-ring";
 
 // Modal fields: full width, snug padding.
@@ -29,19 +26,11 @@ export const filterFieldClass = `${fieldClass} px-3 py-1.5`;
 // Selects get cursor-pointer on top; text inputs don't need it.
 export const filterSelectClass = `${filterFieldClass} cursor-pointer`;
 
-// min-w-0: these are flex items, and a flex item's automatic minimum size
-// refuses to shrink below its content's intrinsic width. `input[type="date"]`
-// is the one that bites — it carries an intrinsic control width that `w-full`
-// does not always beat, so the label wrapping it can be pushed wider than the
-// dialog and take the whole form sideways with it.
-//
-// Note where this is and is not load-bearing, because it is easy to assume the
-// wrong one. The automatic minimum size applies on the flex container's MAIN
-// axis only; on the cross axis it computes to zero and items stretch to the
-// container's definite width regardless. So in the add form, whose fields sit
-// in a `flex flex-col`, this is inert. It earns its place in EditGameModal's
-// `flex flex-wrap items-end` row of date labels, which is a main-axis case and
-// is where an over-wide date control actually widens its parent.
+// min-w-0: a flex item's automatic minimum size refuses to shrink below its
+// content, and `input[type="date"]` carries an intrinsic control width that
+// `w-full` does not always beat. It applies on the MAIN axis only, so this is
+// inert in the add form's column and load-bearing in EditGameModal's
+// `flex flex-wrap` row of date labels.
 export const labelClass =
   "flex min-w-0 flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label";
 

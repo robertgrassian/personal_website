@@ -588,8 +588,9 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       `claude/mobile-modal-zoom`). Three changes, addressing two independent mechanisms.<br>
       _iOS auto-zoom on focus:_ mobile Safari zooms the page in when a form control under 16px
       takes focus and does not zoom back out, at which point the layout really is wider than the
-      window and pans in both axes. `fieldClass` (`formStyles.ts`) is now `text-base sm:text-sm`,
-      so phones get 16px and nothing above the `sm` breakpoint changes. Deliberately not
+      window and pans in both axes. `fieldClass` (`formStyles.ts`) is now
+      `text-base pointer-fine:text-sm`, so touch devices get 16px and anything with a mouse keeps
+      14px. Capability, not breakpoint: an iPad is wider than `sm` and still zooms. Deliberately not
       `maximum-scale=1`, which would disable pinch-zoom for everyone. Note this lands on the
       filter bar's search box and selects too, since they compose from the same token: same
       defect, one fix.<br>
@@ -597,7 +598,7 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       computes from `visible` to `auto`, so the confirm body's `overflow-y-auto` made it
       horizontally scrollable the moment any child was a pixel too wide. Both scroll areas (the
       confirm body and the search step's results `<ul>`) are now `overflow-x-hidden
-  overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'s intrinsic
+overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'s intrinsic
       control width cannot push its flex parent wide in the first place. Review correction: the
       automatic minimum size applies on the flex MAIN axis only, so `min-w-0` is inert in the add
       form's `flex-col` and actually earns its place in `EditGameModal`'s `flex flex-wrap` row of

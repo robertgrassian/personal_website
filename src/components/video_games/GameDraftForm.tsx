@@ -176,14 +176,10 @@ export function GameDraftForm({
     // Fragment, not one element: the scrolling body and the pinned buttons have
     // to be flex siblings of the dialog for only the body to scroll.
     <>
-      {/* overflow-x-hidden is not belt-and-braces: per CSS, when one axis of
-          `overflow` is not `visible` the other computes from `visible` to
-          `auto`, so `overflow-y-auto` alone makes this div horizontally
-          scrollable the moment any child is one pixel too wide. Pinning it
-          shut turns "the form pans sideways under my finger" into a layout bug
-          that is visible instead of one that is scrollable.
-          overscroll-contain stops a flick that reaches the end of this list
-          from continuing into the page behind the dialog. */}
+      {/* overflow-x-hidden is not redundant: per CSS, one axis set to anything
+          but `visible` computes the other to `auto`, so `overflow-y-auto` alone
+          made this scrollable sideways whenever a child was a pixel too wide.
+          overscroll-contain keeps a flick from chaining to the page behind. */}
       <div className="mt-4 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
         {draft.imageUrl && (
           <Image
