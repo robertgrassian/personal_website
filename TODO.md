@@ -253,6 +253,8 @@ to keep that section at five._
 
 ## Backlog / Ideas
 
+- [ ] **Add a sort by rating option to the library**. Obviously doesnt make sense if grouped by rating, so in that case dont show it (and validate, dont allow it) but for other groups or no-group allow it. Example, its cool to be able to group by decade or system and sort by rating to see my favorites for that group.
+
 - [ ] **Detect where the title sits on a game cover, and crop the CRT picture so it is not cut
       off.** The TV screen is landscape and cover art is portrait, so `object-cover` throws away
       most of the height. Today every game gets the **same** hardcoded crop:
