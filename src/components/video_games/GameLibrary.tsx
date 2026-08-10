@@ -13,6 +13,7 @@ import { useIsOwner } from "./FollowControls";
 import { EditGameModal } from "./EditGameModal";
 import { EditWishlistModal } from "./EditWishlistModal";
 import { AddGameModal } from "./AddGameModal";
+import { foldForSearch } from "./pipeline";
 import type { GameCaseInput } from "./GameCase";
 import { LibraryEditingProvider } from "./LibraryEditingContext";
 
@@ -108,6 +109,41 @@ export function GameLibrary({
   // one pass over a prop that only changes when the server data does.
   const existingSystems = useMemo(() => [...new Set(games.map((g) => g.system))].sort(), [games]);
 
+  // What the add-game search already has, so a result can say so instead of
+  // silently letting you add a second copy. Keyed on the folded name and
+  // valued with the systems it is on, which is what makes this an annotation
+  // rather than a policy: the same name on two systems is two rows on purpose
+  // (Chrono Trigger on SNES and on DS), so the row reports what you own and
+  // leaves the decision alone.
+  //
+  // Name, not igdbId, because the read path does not expose one: `igdb_id` is
+  // on both tables and on the create payloads, but not on the API's read
+  // schema and so not on `Game`/`WishlistGame`. See the TODO item.
+  //
+  // Scoped to the collection being added to: adding to the wishlist checks the
+  // wishlist, adding to the library checks the library. Both the map and the
+  // dialog derive from this one value rather than each testing `view`
+  // themselves — written as two separate predicates they disagreed on the
+  // people views (`?view=followers` reached the dialog with the wishlist as its
+  // target but the library as its map), which is reachable because `addOpen`
+  // survives a view change.
+  const addTarget = view === "played" ? "library" : "wishlist";
+  const ownedNames = useMemo(() => {
+    const source: Array<{ name: string; system: string }> =
+      addTarget === "wishlist" ? wishlist : games;
+    const byName = new Map<string, string[]>();
+    for (const entry of source) {
+      const key = foldForSearch(entry.name);
+      const systems = byName.get(key);
+      if (systems === undefined) {
+        byName.set(key, entry.system ? [entry.system] : []);
+      } else if (entry.system && !systems.includes(entry.system)) {
+        systems.push(entry.system);
+      }
+    }
+    return byName;
+  }, [addTarget, games, wishlist]);
+
   return (
     // Wraps the whole body, not just the shelves, so every card surface reads
     // one answer however the views are rearranged later.
@@ -192,8 +228,9 @@ export function GameLibrary({
         )}
         {addOpen && (
           <AddGameModal
-            target={view === "played" ? "library" : "wishlist"}
+            target={addTarget}
             existingSystems={existingSystems}
+            ownedNames={ownedNames}
             onClose={() => setAddOpen(false)}
           />
         )}

@@ -19,6 +19,9 @@ type AddGameModalProps = {
   // land on existing shelves ("SNES") instead of IGDB's names ("Super
   // Nintendo Entertainment System").
   existingSystems: string[];
+  // Folded name → the systems that name is already on, for whichever collection
+  // this dialog is adding to. Built in GameLibrary, which holds both lists.
+  ownedNames: Map<string, string[]>;
   onClose: () => void;
 };
 
@@ -33,7 +36,7 @@ type AddGameModalProps = {
 // and re-rendered on every keystroke typed into the confirm form, and the
 // genre-lookup state was dead weight during search. Each now unmounts when the
 // other is showing.
-export function AddGameModal({ target, existingSystems, onClose }: AddGameModalProps) {
+export function AddGameModal({ target, existingSystems, ownedNames, onClose }: AddGameModalProps) {
   // null = search step; set = confirm step.
   const [draft, setDraft] = useState<Draft | null>(null);
   // Remembered at hand-off, not on every keystroke, so "Back to search" can
@@ -150,6 +153,8 @@ export function AddGameModal({ target, existingSystems, onClose }: AddGameModalP
         <GameSearchStep
           initialQuery={lastQuery}
           inputRef={searchInputRef}
+          ownedNames={ownedNames}
+          ownedLabel={target === "library" ? "In your library" : "On your wishlist"}
           onPick={pickResult}
           onManual={startManual}
         />
