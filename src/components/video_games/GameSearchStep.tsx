@@ -151,7 +151,7 @@ export function GameSearchStep({ initialQuery, inputRef, onPick, onManual }: Gam
       {results !== null && (
         <ul
           aria-busy={searching}
-          className={`mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto transition-opacity ${
+          className={`mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden overscroll-contain transition-opacity ${
             searching ? "opacity-50" : ""
           }`}
         >
