@@ -39,10 +39,7 @@ FK_NAME = "fk_profiles_id_users"
 
 
 def upgrade() -> None:
-    op.execute(
-        "DELETE FROM profiles"
-        " WHERE id NOT IN (SELECT id FROM auth.users)"
-    )
+    op.execute("DELETE FROM profiles WHERE id NOT IN (SELECT id FROM auth.users)")
     op.create_foreign_key(
         FK_NAME,
         source_table="profiles",

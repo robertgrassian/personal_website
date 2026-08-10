@@ -41,6 +41,24 @@ export type BadgeRank = Exclude<RatingLetter, "S">;
 // `groupBy: "rating"` shelf, and the stats histogram row all use this one string.
 export const UNRATED_LABEL = "Unrated";
 
+// Systems are stored under IGDB's platform names (migration
+// d1a83f6c25e7), so that `system` and `game_metadata.platforms` speak one
+// vocabulary and "did this game release on that console?" is a set membership
+// test rather than a fuzzy match. A few of IGDB's names are poor shelf
+// headings, so those — and only those — get a display label here.
+//
+// Display only. Never write one of these back, never compare against one, and
+// never key CSS on one: `video-games.css` matches `[data-system="..."]` against
+// the STORED name, and a rule written against the label silently never fires.
+const SYSTEM_DISPLAY_LABELS: Record<string, string> = {
+  "PC (Microsoft Windows)": "PC",
+};
+
+/** The shelf-facing name for a stored system. Unmapped systems pass through. */
+export function systemLabel(system: string): string {
+  return SYSTEM_DISPLAY_LABELS[system] ?? system;
+}
+
 // Deliberately NOT the same type as `Game["rating"]`, which stays `Rating | ""`.
 // A game's rating is a value it has; a rating *filter* is a question you ask of
 // it, and "show me the unrated ones" is a question you can't store on a row.
