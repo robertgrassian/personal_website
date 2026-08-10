@@ -27,6 +27,12 @@ from scripts.seed import ROBERT_PROFILE_ID
 
 requires_db = pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
 
+# Test igdb ids start well above anything IGDB actually issues (their ids are
+# six digits at most). Since igdb_id became the catalog's identity key, a test
+# id that collided with a seeded one would silently resolve to the seeded game
+# instead of creating a row -- a failure that looks like a bug in the code.
+TEST_IGDB_BASE = 90_000_000
+
 
 def client_as(user_id: uuid.UUID, email: str = "test@example.com") -> TestClient:
     """A TestClient whose requests authenticate as the given user id."""
@@ -932,7 +938,7 @@ def test_add_game_full_igdb_payload(fresh_user_with_game) -> None:
             "genres": ["RPG", "Adventure"],
             "releaseDate": "1995-03-11",
             "imageUrl": "https://images.igdb.com/igdb/image/upload/t_cover_big/co2mkh.jpg",
-            "igdbId": 1051,
+            "igdbId": TEST_IGDB_BASE + 1,
             "rating": "Perfect",
         },
     )
@@ -996,7 +1002,7 @@ def test_two_users_adding_the_same_igdb_game_share_one_catalog_row(fresh_auth_us
         .status_code
         == 201
     )
-    payload = {"name": "Shared Quest", "igdbId": 424242}
+    payload = {"name": "Shared Quest", "igdbId": TEST_IGDB_BASE + 2}
     first = client_as(first_id).post(
         "/api/py/me/games", json={**payload, "system": "SNES", "rating": "Good"}
     )
@@ -1210,7 +1216,7 @@ def test_add_wishlist_full(fresh_user_with_game) -> None:
             "system": "PS5",
             "genres": ["RPG"],
             "releaseDate": "2024-06-01",
-            "igdbId": 777,
+            "igdbId": TEST_IGDB_BASE + 3,
             "starred": True,
             "notes": "Wait for a sale",
             "dateAdded": "2026-07-01",
@@ -1313,7 +1319,13 @@ def test_promote_wishlist_item(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     username = f"gamer-{str(user_id)[:8]}"
     item = _add_wishlist(
-        user_id, {"name": "Promoted Quest", "system": "PS5", "genres": ["RPG"], "igdbId": 55}
+        user_id,
+        {
+            "name": "Promoted Quest",
+            "system": "PS5",
+            "genres": ["RPG"],
+            "igdbId": TEST_IGDB_BASE + 4,
+        },
     )
     response = client_as(user_id).post(f"/api/py/me/wishlist/{item['id']}/promote", json={})
     assert response.status_code == 201
@@ -1344,7 +1356,7 @@ def test_promote_keeps_the_games_metadata(fresh_user_with_game) -> None:
             "genres": ["RPG", "Roguelike"],
             "releaseDate": "2021-06-01",
             "imageUrl": "https://images.igdb.com/igdb/image/upload/t_cover_big/co9zzz.jpg",
-            "igdbId": 77,
+            "igdbId": TEST_IGDB_BASE + 5,
         },
     )
     game = client_as(user_id).post(f"/api/py/me/wishlist/{item['id']}/promote", json={}).json()
