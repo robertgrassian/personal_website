@@ -79,15 +79,49 @@ PLATFORMS_PATH = Path(__file__).parent / ".igdb_platforms.json"
 # ever pointed at a bigger database.
 CHUNK = 400
 
-# Stored name -> IGDB game id, for rows with no cover art to key on. Read by
-# hand against IGDB; empty until the preview run says which rows need it.
-HAND_MATCHED: dict[str, int] = {}
+# Stored name -> IGDB game id, for rows the cover join could not place. Read by
+# hand from the --plan run's suggestions (see _suggest_hand_matches).
+#
+# All six of these are games whose cover art IGDB has since REPLACED: the stored
+# CDN URL still renders, but that image_id is gone from /covers, so the exact
+# join finds nothing. Two of the six needed correcting away from what the name
+# search proposed first, which is the fuzziness this script exists to avoid --
+# left as comments so nobody "fixes" them back.
+HAND_MATCHED: dict[str, int] = {
+    "Cadence of Hyrule": 116419,  # long canonical name, right game
+    "Fortnite": 1905,  # Main Game; search proposed 303239, a Crew Pack DLC
+    "Marvel's Spider-Man: Miles Morales": 134581,  # not the Launch Edition
+    "Pac-Man World 2": 305269,  # 2002 original; search proposed the 2025 Re-Pac
+    "TowerFall Ascension": 9567,  # not Dark World
+    "Wii Sports Resort": 2182,  # not the Wii Sports + Resort bundle
+}
 
 # Stored names that --titles must NOT rename to IGDB's spelling. Populate this
 # from the --titles preview before applying: IGDB's house style is not always
 # the better display name, and a rename away from the Wikipedia article title
 # will make a later backfill_genres.py run miss the game.
-KEEP_STORED: set[str] = set()
+KEEP_STORED: set[str] = {
+    # IGDB's name is "Cadence of Hyrule: Crypt of the NecroDancer Featuring the
+    # Legend of Zelda". backfill_titles.py records why the short name must stay:
+    # the long title's words are a superset of "The Legend of Zelda", so the
+    # Wikipedia genre lookup matched THAT article and took the wrong game's
+    # genres. Renaming here would re-break it.
+    "Cadence of Hyrule",
+    #
+    # --- IGDB filed the cover under an EDITION, not the base game ------------
+    # The cover id identifies the cover exactly, but IGDB sometimes hangs that
+    # cover off a variant entry. backfill_titles.py already rejected the first
+    # three of these by hand; keep them rejected.
+    "Cyberpunk 2077",  # -> "Cyberpunk 2077: Ultimate Edition"
+    "Dead Cells",  # -> "Dead Cells+"
+    "Nintendogs",  # -> "Nintendogs: Labrador & Friends", one of several versions
+    "Bomberman DS",  # -> "Bomberman", which loses the platform that names it
+    "Final Fantasy Tactics",  # -> ": The Ivalice Chronicles", the 2025 remaster
+    #
+    # --- house style, where IGDB's spelling is not the better display name ---
+    "Baldur's Gate 3",  # -> "Baldur's Gate III"; the box art uses the digit
+    "Pokémon FireRed",  # -> "... Version"; the other Pokémon rows omit it too
+}
 
 # Matches the image_id in a stored cover URL. IGDB image ids are lowercase
 # alphanumeric; the size segment (t_cover_big) is deliberately not captured, so
@@ -145,6 +179,48 @@ def fetch_games(db, game_ids: list[int]) -> dict[int, dict]:
                 "platforms": [p["name"] for p in row.get("platforms", []) if p.get("name")],
             }
     return out
+
+
+def _suggest_hand_matches(session, unresolved: list[tuple]) -> None:
+    """Name-search the rows the cover join could not place, and print candidates
+    as a paste-ready HAND_MATCHED block.
+
+    Name search is fuzzy -- that is the whole reason this script keys on cover
+    ids instead -- so these are PROPOSALS, never applied. But the set is small
+    (a handful of games whose art IGDB has replaced), and reading three
+    candidates each is a couple of minutes' work against no other way in.
+
+    The cover image_id is printed beside each candidate: if it differs from the
+    one your row stores, that confirms "IGDB replaced the art" rather than
+    "wrong game", and doubles as the value to refresh image_url to.
+    """
+    settings = get_settings()
+    print("\nCandidates by name search. Read them, then paste the right ids into")
+    print("HAND_MATCHED at the top of this script and re-run:\n")
+    print("HAND_MATCHED = {")
+    for row in unresolved:
+        name = row[2]
+        body = (
+            f'search "{_escape(name)}"; fields name, cover.image_id, first_release_date; limit 3;'
+        )
+        try:
+            candidates = _run_query(session, settings, body, _IGDB_GAMES_URL)
+        except Exception as exc:
+            print(f"    # {name!r}: search failed ({exc})")
+            continue
+        stored_slug = cover_image_id(row[3])
+        print(f"    # {name!r}  (your cover: {stored_slug})")
+        for c in candidates:
+            slug = (c.get("cover") or {}).get("image_id", "-")
+            same = " <- same cover" if slug == stored_slug else ""
+            print(f"    #     {c['id']:>7}  {c.get('name', '')!r}  cover={slug}{same}")
+        if candidates:
+            print(f"    {name!r}: {candidates[0]['id']},")
+    print("}")
+
+
+def _escape(term: str) -> str:
+    return term.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def _run_titles(session, user_id, plan: list[tuple], apply_changes: bool) -> None:
@@ -261,16 +337,24 @@ def run(username: str, apply_changes: bool, titles: bool) -> None:
         details = fetch_games(session, sorted(set(resolved.values())))
 
         plan: list[tuple[tuple, int, str]] = []  # (row, igdb_id, igdb name)
-        unresolved: list[tuple] = []
+        stranded: list[tuple] = []  # cover present but IGDB no longer knows it
         for image_id, matching_rows in by_image_id.items():
             game_id = resolved.get(image_id)
             if game_id is None:
-                unresolved.extend(matching_rows)
+                stranded.extend(matching_rows)
                 continue
             igdb_name = details.get(game_id, {}).get("name", "")
             plan.extend((row, game_id, igdb_name) for row in matching_rows)
 
-        for row in coverless:
+        # HAND_MATCHED covers BOTH failure modes: a row with no cover at all,
+        # and one whose cover IGDB has since replaced (the stored CDN URL keeps
+        # working, but that image_id is no longer in /covers, so the exact join
+        # finds nothing). The second is the common one on an older library.
+        unresolved: list[tuple] = []
+        hand_ids = {gid for gid in (HAND_MATCHED.get(r[2]) for r in coverless + stranded) if gid}
+        if hand_ids:
+            details |= fetch_games(session, sorted(hand_ids - set(details)))
+        for row in coverless + stranded:
             game_id = HAND_MATCHED.get(row[2])
             if game_id is None:
                 unresolved.append(row)
@@ -294,8 +378,9 @@ def run(username: str, apply_changes: bool, titles: bool) -> None:
             coverless_rows = set(coverless)
             print(f"\n{len(unresolved)} rows unresolved (staying NULL -> private catalog rows):")
             for row in unresolved:
-                reason = "no cover art" if row in coverless_rows else "cover unknown to IGDB"
+                reason = "no cover art" if row in coverless_rows else "cover replaced upstream"
                 print(f"  {row[2]} ({reason})")
+            _suggest_hand_matches(session, unresolved)
 
         if not apply_changes:
             print("\nPreview only. Re-run with --apply to write.")
