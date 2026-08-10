@@ -14,9 +14,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.config import get_settings
 
-requires_db = pytest.mark.skipif(
-    not get_settings().database_url, reason="DATABASE_URL not set"
-)
+requires_db = pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
 
 PROFILE_ID = uuid.uuid4()
 

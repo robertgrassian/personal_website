@@ -1025,7 +1025,8 @@ def test_two_users_adding_the_same_igdb_game_share_one_catalog_row(fresh_auth_us
         with sm() as session:
             assert (
                 session.execute(
-                    text("SELECT count(*) FROM game_metadata WHERE igdb_id = 424242")
+                    text("SELECT count(*) FROM game_metadata WHERE igdb_id = :g"),
+                    {"g": payload["igdbId"]},
                 ).scalar_one()
                 == 1
             )

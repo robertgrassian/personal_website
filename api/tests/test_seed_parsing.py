@@ -84,9 +84,7 @@ class TestResolveSessionRows:
         rows = [{"game": "Palworld", "start_date": "2026-07-17", "end_date": ""}]
         resolved, errors = resolve_session_rows(rows, {"Palworld": [42]})
         assert errors == []
-        assert resolved == [
-            {"game_id": 42, "start_date": date(2026, 7, 17), "end_date": None}
-        ]
+        assert resolved == [{"game_id": 42, "start_date": date(2026, 7, 17), "end_date": None}]
 
     def test_closed_session_parses_end_date(self):
         rows = [{"game": "Mixtape", "start_date": "2026-06-20", "end_date": "2026-06-30"}]

@@ -52,7 +52,7 @@ def test_uncertain_matches_go_to_review(name, article):
 
 
 def test_a_subtitled_article_is_confident_not_reviewed():
-    """"Expedition 33" -> "Clair Obscur: Expedition 33" is correct: our title is
+    """ "Expedition 33" -> "Clair Obscur: Expedition 33" is correct: our title is
     wholly contained in the article's, with no series number in the remainder."""
     assert similarity("Expedition 33", "Clair Obscur: Expedition 33") >= AUTO_ACCEPT
 

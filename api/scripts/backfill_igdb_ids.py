@@ -30,10 +30,20 @@ Usage (from api/, with DATABASE_URL and the Twitch credentials set):
     uv run python scripts/backfill_igdb_ids.py --user rgrassian            # preview
     uv run python scripts/backfill_igdb_ids.py --user rgrassian --apply
 
+    # And, separately, rename stored titles to IGDB's spelling:
+    uv run python scripts/backfill_igdb_ids.py --user rgrassian --titles
+    uv run python scripts/backfill_igdb_ids.py --user rgrassian --titles --apply
+
 Preview is the default and prints every row it would touch alongside IGDB's own
 name for the resolved id, so a production run is always a select before an
 update. Read that column: a stored name that disagrees with IGDB's is the only
 way a bad row shows itself.
+
+--titles is the follow-up that acts on those disagreements. It supersedes
+backfill_titles.py's hand-read RENAMES map, which had to be hand-read because
+it scored IGDB *name search* results; keying on the cover id makes the
+identification exact and leaves only the spelling in question. See _run_titles
+for the two reasons it is still previewed rather than applied blind.
 
 --apply also writes scripts/.igdb_platforms.json: IGDB's real platform list per
 game, captured while the network call is already being made. Nothing reads it
@@ -72,6 +82,12 @@ CHUNK = 400
 # Stored name -> IGDB game id, for rows with no cover art to key on. Read by
 # hand against IGDB; empty until the preview run says which rows need it.
 HAND_MATCHED: dict[str, int] = {}
+
+# Stored names that --titles must NOT rename to IGDB's spelling. Populate this
+# from the --titles preview before applying: IGDB's house style is not always
+# the better display name, and a rename away from the Wikipedia article title
+# will make a later backfill_genres.py run miss the game.
+KEEP_STORED: set[str] = set()
 
 # Matches the image_id in a stored cover URL. IGDB image ids are lowercase
 # alphanumeric; the size segment (t_cover_big) is deliberately not captured, so
@@ -131,7 +147,77 @@ def fetch_games(db, game_ids: list[int]) -> dict[int, dict]:
     return out
 
 
-def run(username: str, apply_changes: bool) -> None:
+def _run_titles(session, user_id, plan: list[tuple], apply_changes: bool) -> None:
+    """Rename stored titles to IGDB's, for rows whose cover resolved.
+
+    Safe in a way backfill_titles.py's map could not be: that one scored IGDB
+    *name search* results, which mis-resolved editions and sequels and so had
+    to be hand-read. Here the game came back from the cover the row is already
+    displaying, so the identification is exact and only the spelling is in
+    question.
+
+    Still previewed rather than applied blind, for two reasons that have
+    nothing to do with matching:
+
+      1. IGDB's house style is not always the better display name -- roman
+         numerals ("Baldur's Gate III") where the box art uses digits.
+      2. Names drive the Wikipedia lookup in backfill_genres.py, so a rename
+         away from the article title makes a later genre re-run miss the game.
+
+    KEEP_STORED is the opt-out for both.
+    """
+    renames = [
+        (row, igdb_name)
+        for row, _, igdb_name in plan
+        if igdb_name and row[2] != igdb_name and row[2] not in KEEP_STORED
+    ]
+    kept = [row for row, _, n in plan if n and row[2] != n and row[2] in KEEP_STORED]
+
+    # A rename onto a name the user already holds in that table would violate
+    # its unique constraint and abort the transaction, so it is caught here.
+    # Conservative on purpose: blocked on any same-name row, not just one that
+    # would actually collide on (name, system).
+    existing = {
+        (table, name)
+        for table in ("games", "wishlist_items")
+        for (name,) in session.execute(
+            sa.text(f"SELECT name FROM {table} WHERE user_id = :u"),
+            {"u": user_id},
+        )
+    }
+    blocked = [(r, n) for r, n in renames if (r[0], n) in existing]
+    renames = [(r, n) for r, n in renames if (r[0], n) not in existing]
+
+    print(f"{len(renames)} titles differ from IGDB:\n")
+    for row, igdb_name in sorted(renames, key=lambda e: e[0][2]):
+        print(f"  {row[0]:<15} {row[2]}")
+        print(f"  {'':<15}   -> {igdb_name}")
+    if blocked:
+        print(f"\n{len(blocked)} BLOCKED (you already have a row by the target name):")
+        for row, igdb_name in blocked:
+            print(f"  {row[2]} -> {igdb_name}")
+    if kept:
+        print(f"\n{len(kept)} left alone by KEEP_STORED:")
+        for row in kept:
+            print(f"  {row[2]}")
+
+    if not apply_changes:
+        print("\nPreview only. Add any you want to keep to KEEP_STORED, then --apply.")
+        return
+    if not renames:
+        print("\nNothing to apply.")
+        return
+
+    for row, igdb_name in renames:
+        session.execute(
+            sa.text(f"UPDATE {row[0]} SET name = :n WHERE id = :i"),
+            {"n": igdb_name, "i": row[1]},
+        )
+    session.commit()
+    print(f"\nApplied. {len(renames)} titles renamed.")
+
+
+def run(username: str, apply_changes: bool, titles: bool) -> None:
     session_factory = get_sessionmaker()
     with session_factory() as session:
         user_id = session.execute(
@@ -141,14 +227,17 @@ def run(username: str, apply_changes: bool) -> None:
             print(f"No profile named {username!r}.")
             sys.exit(1)
 
-        # (table, id, name, image_url) for every row still missing an igdb_id.
+        # (table, id, name, image_url). Title mode looks at every row, since a
+        # row that already has an igdb_id can still have a stale name; id mode
+        # only cares about the ones missing an id.
+        where = "" if titles else " AND igdb_id IS NULL"
         rows = [
             (table, row_id, name, image_url)
             for table in ("games", "wishlist_items")
             for row_id, name, image_url in session.execute(
                 sa.text(
                     f"SELECT id, name, image_url FROM {table} "
-                    "WHERE user_id = :u AND igdb_id IS NULL ORDER BY name"
+                    f"WHERE user_id = :u{where} ORDER BY name"
                 ),
                 {"u": user_id},
             )
@@ -187,6 +276,10 @@ def run(username: str, apply_changes: bool) -> None:
                 unresolved.append(row)
             else:
                 plan.append((row, game_id, details.get(game_id, {}).get("name", "(hand-matched)")))
+
+        if titles:
+            _run_titles(session, user_id, plan, apply_changes)
+            return
 
         # Sorted so disagreeing names cluster at the top rather than hiding in
         # a 180-line list. That column is the entire point of the preview.
@@ -229,8 +322,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--user", required=True, help="username whose rows to backfill")
     parser.add_argument("--apply", action="store_true", help="write (default is preview)")
+    parser.add_argument(
+        "--titles",
+        action="store_true",
+        help="rename stored titles to IGDB's, instead of filling in igdb_id",
+    )
     args = parser.parse_args()
-    run(args.user, args.apply)
+    run(args.user, args.apply, args.titles)
 
 
 if __name__ == "__main__":
