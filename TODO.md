@@ -19,66 +19,6 @@ asked for, which needs no reason and is marked `(Promoted by request YYYY-MM-DD.
 get demoted back out. Adding a sixth item means demoting one, on purpose. (Split out 2026-08-07:
 the old rule sent every bug straight here, so four of five slots were defects.)
 
-- [ ] **Give games their own table: normalize metadata into a shared catalog, and give a
-      library entry a LIST of systems.** (Promoted by request 2026-08-09.) Two things that were
-      briefly tracked separately and are one migration: they rewrite every `games` row, they are
-      lossy in the same places, and doing them together means one preview pass and one merge of
-      duplicate-name rows instead of two.<br>
-      _The catalog half._ A `game_metadata` table plus per-user `played_games` / `wishlist_games`
-      link tables. Today `games` and `wishlist_items` each carry their own copy of name, system,
-      genres, `release_date` and `image_url`. Spec §4.2 deliberately chose denormalized-with-
-      `igdb_id` for v1, because canonical rows need an ownership/moderation story and
-      user-entered games have no canonical key; that question is still open and is the thing to
-      answer first. The `igdb_id` column on both tables is the planned backfill key: group by it,
-      extract canonical rows, repoint.<br>
-      _The systems half._ Decided 2026-08-09: "I don't think there should be different entries
-      for different systems. Systems should be a list, so a user can say they've played the game
-      on X, Y and Z." `games.system` is a single `Text` column (`api/app/models/game.py`) and
-      `uq_games_user_id_name_system` is the dedupe rule, so Chrono Trigger on SNES and on DS are
-      two rows today. They become one entry with `systems: ["SNES", "DS"]`, unique on
-      `(user_id, name)`.<br>
-      _Systems split across the two levels._ `game_metadata` holds **every platform the game
-      released on**, which is the catalog's fact and what IGDB already returns; the per-user link
-      row holds **the systems that user has played it on**, which is the user's fact and a
-      subset. Keeping them apart is what makes "all allowable systems" answerable without asking
-      every user.<br>
-      _The frontend is mostly ready for the list, which is the pleasant surprise._ Multi-valued
-      grouping and filtering already exist for genres: `groupGames` pushes a game onto one shelf
-      per key from `getGroupKeys`, and `passesBaseFilters` already does an `includes` on
-      `game.genres`. So "a game appears on both its SNES and DS shelf" is the genre code path
-      with a different field, not new machinery. What needs deciding is which system supplies the
-      per-console fallback color and `data-system` on a case that now has several
-      (`GameCase.tsx`, `--system-fallback`); first-in-list is the cheap answer.<br>
-      _Two lossy spots, both about data that already exists._ **(1) Rating.** One entry means one
-      rating, so an owner who rated two ports differently loses one in the merge. Defensible (you
-      rate the game, not the port) but it wants a preview pass, the habit
-      `docs/genre-backfill-runbook.md` exists for. **(2) Sessions.** `play_sessions` carries no
-      system of its own, so today a session's platform is implied by its game row and that
-      implication disappears here. Adding `play_sessions.system` is the more expressive answer
-      ("SNES in 2019, Switch in 2024") and would let the list be enriched from sessions — but it
-      cannot be _derived_ from them, since most entries have no sessions at all, so the stored
-      list stays the source of truth. If that column is added, constrain it to the systems on its
-      own link row; application-level is fine at this size.<br>
-      _`play_sessions` keeps pointing at the USER's row, not the catalog row_ (decided
-      2026-08-09). Today `play_sessions.game_id` FKs `games.id`, and `games` IS the user's
-      library, so this is a property to preserve rather than a change: the FK moves to the link
-      table's id. The trap is a naive migration repointing it at `game_metadata`, because that is
-      where "the game" now appears to live. Three reasons it has to be the link row. **(1)** A
-      session is a fact about a user, so a catalog FK would need `user_id` alongside it, which
-      denormalizes ownership back in and makes "a session for a game not in my library"
-      representable. **(2)** The `ON DELETE CASCADE` on that FK is what makes "remove from
-      library" take the play history with it (there is a comment saying so on the column, and the
-      delete UI warns with the session count first); against a shared catalog that cascade is
-      wrong in both directions. **(3)** Merging two catalog rows that turn out to be the same
-      game — the likely cleanup once manual entries get matched to canonical ones — then only
-      repoints link rows and touches no session.<br>
-      _What it unblocks:_ **"You can add a game you already have in your library"** in Bugs is
-      waiting on exactly this shape and becomes a link-table lookup rather than a string
-      comparison. **"Restrict the add-game 'system' suggestions to the platforms the game actually
-      released on"** in Backlog is the client-side half of "all allowable systems". **"Overhaul
-      the wishlist promote flow"** asks the same question one column over, and **"An easy way to
-      view a game's sessions"** reads whatever this FK ends up being.
-
 - [ ] **When adding a game, let me say I'm playing it now, or that I played it before: a play
       history section in the add-game form.** (Promoted by request 2026-08-09.) Two asks, one
       surface. **(1)** A one-tap control (a check mark was the suggestion) that marks the game
@@ -220,36 +160,36 @@ to keep that section at five._
       one: get this verified on a phone before and after, rather than shipping on reasoning.
 
 - [ ] **You can add a game you already have in your library. Reject a duplicate add
-      server-side, and decide what "duplicate" means.** Reported 2026-08-08. **The search half
+      server-side, and decide what "duplicate" means.** Reported 2026-08-08. **Mostly closed
+      2026-08-10 by the catalog migration** — kept open only for the follow-up in the last
+      paragraph. `create_my_game` now resolves the game to a `game_metadata` row and checks
+      `find_game_by_metadata`, with `UNIQUE (user_id, metadata_id)` as the concurrency
+      backstop, so a duplicate add is a 409 whatever console it names. "What duplicate means"
+      was answered by the identity rule: same `igdb_id`, or same name among that user's own
+      hand-entered games.<br>
+      _What is left, and it is a real gap._ The 409 currently has **no escape hatch**: with
+      `GameUpdate` still rating-only there is no way to change which console an entry
+      records, so "I own this on SNES and just got the DS version" is a dead end. That fix
+      lives in **"Make library and wishlist entries fully editable"** in Backlog, which now
+      leads with it. Close this item once that ships.<br>
+      _Historical, kept because it explains the current UI._ **The search half
       shipped 2026-08-09** (branch `claude/duplicate-add-warning`): `GameLibrary` now builds a
       folded-name → systems map and threads it through `AddGameModal` to `GameSearchStep`, so a
       result you already have renders a third line reading "In your library: SNES, DS" (or "On
       your wishlist"). It annotates and never blocks, because the remaining question is exactly
       what it must not answer on its own.<br>
-      _The product decision is now made, and it blocks the rest._ **Decided 2026-08-09: one
-      entry per game, with systems as a list** (folded into the "Give games their own table"
-      item in Up Next). That answers what had been the open question. `create_my_game`
-      (`api/app/services/me.py`) already raises `GameExistsError` (409) on a same name + same
-      system add, with `uq_games_user_id_name_system` as the concurrency backstop; what gets
-      through is the same name on a **different** system, which is two rows only because the
-      current model has no way to say "same game, second console".<br>
-      _So do not write the check against today's model._ Once entries carry a systems list the
-      unique key becomes `(user_id, name)` and the 409 covers this case for free, while the right
-      behavior for "already have it, different console" stops being a rejection at all: it is
-      adding a system to the existing entry. A check written now would encode the opposite rule
-      and have to be unwritten. **Hold this until the systems-list change lands.**<br>
-      _Premise correction, found while shipping the search half:_ "key on `igdb_id`" is not
-      available to the client today. The column is on both tables and on the create payloads,
-      but **not on the API's read schema** (`api/app/schemas/users.py`) and so not on `Game` or
-      `WishlistGame` — the shipped annotation matches on folded names for that reason, with the
-      cross-system looseness made visible by listing the systems rather than hidden. Keying on
-      `igdb_id` means widening the read schema, the repository projection and `libraryApi.ts`
-      first, which also enlarges the cached `/video-games` payload by one int per row.<br>
-      Related, and worth sequencing together: **"Normalize game metadata into a shared catalog"**
-      in Backlog makes "do I already have this?" a link-table lookup rather than a string
-      comparison, and names `igdb_id` as its backfill key. **"Overhaul the wishlist promote
-      flow"** hits the identical question one column over and already flags that name-alone
-      matching misfires across systems: answer it once for both.
+      _Still true about that annotation, and worth revisiting._ It matches on **folded names**,
+      not on `igdb_id`, because `igdb_id` is on the create payloads but **not on the API's read
+      schema** (`api/app/schemas/users.py`) and so not on `Game` or `WishlistGame`. The server
+      now keys the real check on the catalog row, so the client annotation is looser than the
+      rule it is previewing: it can say "in your library" for a same-named game the server
+      would happily accept, and miss one it would reject. Tightening it means exposing
+      `metadataId` (or `igdbId`) on the read schema, the repository projection and
+      `libraryApi.ts`, which adds one int per row to the cached `/video-games` payload.<br>
+      _Note the 2026-08-09 "systems as a list" decision was reversed_ (2026-08-10) in favor of
+      one entry per game with a single `system`; see the catalog entry in Recently Completed.
+      **"Overhaul the wishlist promote flow"** hits the identical identity question one column
+      over and can now reuse the same `metadata_id` lookup.
 
 ## Backlog / Ideas
 
@@ -274,11 +214,12 @@ to keep that section at five._
       both populated by backfill scripts (`scripts/fetch-covers.ts`, `scripts/backfill_genres.py`,
       with `docs/genre-backfill-runbook.md` as the preview-then-apply habit). So this is a script
       plus a stored column, run once over existing rows and once per new game on add.<br>
-      _Which table is an open question that Up Next answers._ The focal point is a fact about **the
-      artwork**, not about a user, so it belongs on the shared catalog row that **"Give games their
-      own table"** creates, not on every user's copy of the same game. Cheap to do now on `games`
-      and then migrate, but worth at least deciding on purpose. Same reasoning says the stored
-      value could serve `GameCaseBack`/`GameCase` later, not just the CRT.<br>
+      _Which table is now settled._ The focal point is a fact about **the artwork**, not about
+      a user, so it belongs on `game_metadata` — the shared catalog row, which shipped
+      2026-08-10 — as one more nullable column beside `image_url`. Computed once per cover
+      rather than once per user who owns the game, which is the whole reason to wait for the
+      catalog rather than adding it to `games`. Same reasoning says the stored value could
+      serve `GameCaseBack`/`GameCase` later, not just the CRT.<br>
       _On the library choice, and this is the part to validate before committing:_ what is wanted
       is text **detection** (bounding boxes), not OCR (reading characters). Full OCR on stylized
       game logos is unreliable, and we do not care what the title says. Detection-only models
@@ -668,10 +609,23 @@ head` being run by hand from a laptop pointed at production.<br>
       alone will misfire across systems, so decide whether `igdb_id` is the key. Starting a
       session from here means reaching the same `logSession` path `EditGameModal` uses.
 - [ ] **Make library and wishlist entries fully editable, and keep the two edit modals 1:1.**
+      **Changing which console an entry records is now the urgent half of this**
+      (2026-08-10). Since the catalog migration a library entry is unique on
+      `(user_id, metadata_id)`, so adding a game you already own on a second console is a
+      409 — and with `GameUpdate` still rating-only there is **no way out of that 409 at
+      all**. Editing `system` is the escape hatch, and it is a small change on its own:
+      `GameUpdate` gains `system`, a repo `update_game_system` mirroring
+      `update_game_rating`, and a field in `EditGameModal`. Worth doing first even if the
+      rest of this item waits.<br>
       Both sides are stuck today: `GameUpdate` (`api/app/schemas/me.py`) is
       **rating-only** by design ("future metadata edits extend this model"), so
-      `EditGameModal` cannot touch name, system, genres, release date or cover art either —
-      the earlier framing that only the wishlist was limited was wrong. `EditWishlistModal`
+      `EditGameModal` cannot touch system, or rating aside, anything else — the earlier
+      framing that only the wishlist was limited was wrong. Note name, genres, release date
+      and cover art now live on the **shared** `game_metadata` row, so editing those is a
+      different and harder question than editing `system`: a shared row is visible to
+      everyone who owns that game, and nothing in the UI edits one today by design. Editing
+      metadata means deciding whether the edit forks a private row, is restricted to private
+      rows, or genuinely changes the game for everyone. `EditWishlistModal`
       supports starred/notes/system plus promote and delete
       (`PATCH /api/py/me/wishlist/{id}`), and the promote step is still the only place a
       wishlist item's system gets set.<br>
@@ -685,8 +639,9 @@ head` being run by hand from a laptop pointed at production.<br>
       `revalidateTag(libraryCacheTag(...))`. Cover art edits must keep
       `validate_igdb_image_url` (`GameCreate` restricts `imageUrl` to IGDB CDN URLs so nobody
       uses their library as free image hosting) — an "edit image" field that accepts arbitrary
-      URLs would reopen exactly that. Genre editing here also unblocks the genre-vocabulary
-      backlog item below, which currently needs a one-off script for want of a write path.
+      URLs would reopen exactly that, and the argument is stronger now that the field writes a
+      shared row. Genre editing here also unblocks the genre-vocabulary backlog item below,
+      which currently needs a one-off script for want of a write path.
 - [ ] **Fold "+ Add to wishlist" into a single "+ Add game" that picks its destination.**
       `GameLibrary.tsx` swaps the button label by view, and `AddGameModal` already takes a
       `target: "library" | "wishlist"` prop (`AddGameModal.tsx`) that swaps the rating
@@ -775,6 +730,15 @@ head` being run by hand from a laptop pointed at production.<br>
       ("nes", "snes", "switch 2"), cached per process. What is still missing is the other
       direction — alias → _your_ shelf label — so this becomes "match the shelf system whose
       normalized form hits the same alias" rather than a hand-written mapping table.<br>
+      _New since 2026-08-10:_ **`game_metadata.platforms` is now where "the platforms this
+      game released on" belongs**, and it is a fact about the game rather than something the
+      client has to carry through from the IGDB search result. Two consequences. **(1)** The
+      answer survives a page reload and works for a game already in the library, not only for
+      one just picked from search. **(2)** The column is currently seeded from the consoles
+      people actually recorded, not from IGDB — `api/scripts/backfill_igdb_ids.py` dumps the
+      real lists to `.igdb_platforms.json` but nothing loads them yet, so **filling that
+      column properly is the first step of this item**. It is also not on the read schema, so
+      exposing it is the same widening the duplicate-add bug wants.<br>
       Same change applies to the promote form in `EditWishlistModal.tsx`, which today offers
       only existing shelf systems and no IGDB platforms at all (see the mobile field-suggestions
       item below, which covers the same form).
@@ -812,6 +776,38 @@ head` being run by hand from a laptop pointed at production.<br>
 ## Recently Completed
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
+
+- [x] **Games have their own table: metadata normalized into a shared catalog** (2026-08-10,
+      branch `games_migration`). `game_metadata` holds the game (name, cover, genres, release
+      date, `platforms`); `games` → `played_games` and `wishlist_items` → `wishlist_games`
+      became link tables carrying only per-user facts. The wire shape is unchanged, so
+      **`src/` needed zero edits** — verified by diffing `/users/rgrassian/games` before and
+      after the migration.<br>
+      _The systems-list half was reversed, on purpose (2026-08-10)._ The item asked for
+      `systems: text[]` on an entry. Decided instead: **one system per entry**, with
+      `UNIQUE (user_id, metadata_id)` making it one entry per game per user. Allowing two
+      consoles later is a one-statement relaxation of that key to include `system` — no
+      column add, no backfill. But the _migration_ is the cheap part and the _feature_ is
+      not: two rows means two cases on the shelf until `pipeline.ts` groups them by
+      `metadata_id`. The upside is that per-port ratings and sessions stay honest rather
+      than being merged lossily.<br>
+      _Catalog identity, which is what let this ship with no moderation story:_ a row with an
+      `igdb_id` is shared; a row without one is private to whoever typed it in
+      (`created_by_user_id`). Nothing in the UI edits a shared row. Written up in
+      `api/README.md`.<br>
+      _Premise correction worth keeping:_ the old entry called `igdb_id` "the planned backfill
+      key". It was NULL on essentially every row — nothing had ever written it but the IGDB
+      search flow. The answer was a throwaway script keying on the **cover image id already
+      sitting in `image_url`**: `.../t_cover_big/{image_id}.jpg` carries IGDB's own
+      `image_id`, and `/covers` maps it to a game id exactly. Every row in the frozen fixture
+      (155 games, 29 wishlist) carries a cover, so this resolves the whole library with no
+      fuzzy matching at all. Delete `api/scripts/backfill_igdb_ids.py` once it has run
+      against prod.<br>
+      _Two gotchas for whoever touches this next._ **(1)** `backfill_titles.py` and
+      `backfill_genres.py` now walk `game_metadata` (one row per game, not one per entry),
+      and a shared row's genres are shared — fine for one curator, re-think before strangers.
+      **(2)** `play_sessions.game_id` still points at the user's row and must keep doing so;
+      the reasons are on the column and in `api/README.md`.
 
 - [x] **The add-game form no longer pans sideways on a phone** (2026-08-09, branch
       `claude/mobile-modal-zoom`). Three changes, addressing two independent mechanisms.<br>
@@ -1201,8 +1197,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       _Cosmetic thing this does not fix:_ the URL bar during the redirect still shows the
       supabase.co host. Only a Supabase custom auth domain changes that, which would mean
       redoing the redirect URIs and this domain list.
-- [x] **Vercel → `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` set for Production**
-      (2026-07-28). **Not confirmed end to end:** `/api/py/igdb/search` checks auth before it
-      ever calls Twitch, so an unauthenticated probe returns 401 whether the creds are good or
-      absent. Real confirmation was searching in the add-game picker on prod, done as part of
-      the browser pass above

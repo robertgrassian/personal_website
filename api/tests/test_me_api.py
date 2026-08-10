@@ -22,7 +22,7 @@ from app.core.auth import AuthenticatedUser, get_current_user
 from app.core.config import get_settings
 from app.core.db import get_sessionmaker
 from app.main import create_app
-from app.models import Game, PlaySession
+from app.models import GameMetadata, PlayedGame, PlaySession
 from scripts.seed import ROBERT_PROFILE_ID
 
 requires_db = pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
@@ -70,6 +70,39 @@ def _delete_auth_user(user_id: uuid.UUID) -> None:
         session.commit()
 
 
+def add_game_directly(
+    session,
+    user_id,
+    *,
+    name,
+    system,
+    rating=None,
+    genres=None,
+    release_date=None,
+    igdb_id=None,
+) -> PlayedGame:
+    """Insert a library entry straight into the DB, bypassing the API.
+
+    Two rows now rather than one -- the catalog row for the game, the link row
+    for this user's copy of it -- so the tests that set up state without going
+    through POST /me/games say so in one place. Defaults to a PRIVATE catalog
+    row, which is what a hand-entered game is; pass igdb_id for a shared one.
+    """
+    meta = GameMetadata(
+        name=name,
+        igdb_id=igdb_id,
+        genres=genres or [],
+        release_date=release_date,
+        created_by_user_id=None if igdb_id is not None else user_id,
+    )
+    session.add(meta)
+    session.flush()
+    game = PlayedGame(user_id=user_id, metadata_id=meta.id, system=system, rating=rating)
+    session.add(game)
+    session.flush()
+    return game
+
+
 @pytest.fixture
 def fresh_auth_user():
     """A throwaway auth user with no profile; cascades away on teardown."""
@@ -92,16 +125,15 @@ def fresh_user_with_game(fresh_auth_user):
 
     sm = get_sessionmaker()
     with sm() as session:
-        game = Game(
-            user_id=user_id,
+        game = add_game_directly(
+            session,
+            user_id,
             name="Test Quest",
             system="SNES",
             rating="Good",
             genres=["RPG"],
             release_date=date(1995, 3, 9),
         )
-        session.add(game)
-        session.flush()
         session.add(
             PlaySession(game_id=game.id, start_date=date(2026, 1, 1), end_date=date(2026, 1, 15))
         )
@@ -539,8 +571,7 @@ def test_open_sessions_on_different_games_coexist(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     sm = get_sessionmaker()
     with sm() as session:
-        other = Game(user_id=user_id, name="Second Quest", system="NES")
-        session.add(other)
+        other = add_game_directly(session, user_id, name="Second Quest", system="NES")
         session.commit()
         other_id = other.id
     client = client_as(user_id)
@@ -719,8 +750,8 @@ def test_delete_account_removes_everything_owned(
 
     assert _count("SELECT count(*) FROM auth.users WHERE id = :id", user_id) == 0
     assert _count("SELECT count(*) FROM profiles WHERE id = :id", user_id) == 0
-    assert _count("SELECT count(*) FROM games WHERE user_id = :id", user_id) == 0
-    assert _count("SELECT count(*) FROM wishlist_items WHERE user_id = :id", user_id) == 0
+    assert _count("SELECT count(*) FROM played_games WHERE user_id = :id", user_id) == 0
+    assert _count("SELECT count(*) FROM wishlist_games WHERE user_id = :id", user_id) == 0
     assert _count("SELECT count(*) FROM rate_limits WHERE user_id = :id", user_id) == 0
     assert (
         _count(
@@ -777,7 +808,7 @@ def test_delete_account_unconfigured_admin_is_503(
         assert response.status_code == 503
         assert "nothing was deleted" in response.json()["detail"]
         assert _count("SELECT count(*) FROM profiles WHERE id = :id", user_id) == 1
-        assert _count("SELECT count(*) FROM games WHERE user_id = :id", user_id) == 1
+        assert _count("SELECT count(*) FROM played_games WHERE user_id = :id", user_id) == 1
         # The one that pins the ordering the docstring argues for. Without it,
         # swapping the two statements in delete_my_account keeps every other
         # test green while a failed delete quietly clears the counters.
@@ -800,7 +831,7 @@ def test_delete_account_bogus_404_does_not_report_success(
 
     assert response.status_code == 503
     assert _count("SELECT count(*) FROM profiles WHERE id = :id", user_id) == 1
-    assert _count("SELECT count(*) FROM games WHERE user_id = :id", user_id) == 1
+    assert _count("SELECT count(*) FROM played_games WHERE user_id = :id", user_id) == 1
     assert _count("SELECT count(*) FROM rate_limits WHERE user_id = :id", user_id) == 1
 
 
@@ -941,13 +972,94 @@ def test_add_duplicate_game_is_409(fresh_user_with_game) -> None:
 
 
 @requires_db
-def test_add_same_name_other_system_is_allowed(fresh_user_with_game) -> None:
-    # Uniqueness is per (name, system): owning a game on two platforms is legal.
+def test_add_same_name_other_system_is_a_conflict(fresh_user_with_game) -> None:
+    # Uniqueness used to be per (name, system), so the same game on a second
+    # console was a second row. Since normalization it is one entry per game
+    # per user, and the console is a field on that entry rather than part of
+    # its identity — so this is the same 409 as re-adding it on SNES.
     user_id, _ = fresh_user_with_game
     response = client_as(user_id).post(
         "/api/py/me/games", json={"name": "Test Quest", "system": "Switch"}
     )
-    assert response.status_code == 201
+    assert response.status_code == 409
+    assert "already in your library" in response.json()["detail"]
+
+
+@requires_db
+def test_two_users_adding_the_same_igdb_game_share_one_catalog_row(fresh_auth_user) -> None:
+    # The point of the catalog: one row for the game, N link rows for the
+    # people who have it — while ratings and consoles stay independent.
+    first_id, _ = fresh_auth_user
+    assert (
+        client_as(first_id)
+        .post("/api/py/me/profile", json={"username": f"cat-{str(first_id)[:8]}"})
+        .status_code
+        == 201
+    )
+    payload = {"name": "Shared Quest", "igdbId": 424242}
+    first = client_as(first_id).post(
+        "/api/py/me/games", json={**payload, "system": "SNES", "rating": "Good"}
+    )
+    assert first.status_code == 201
+
+    second_id = _make_auth_user()
+    try:
+        client_as(second_id).post(
+            "/api/py/me/profile", json={"username": f"cat-{str(second_id)[:8]}"}
+        )
+        second = client_as(second_id).post(
+            "/api/py/me/games", json={**payload, "system": "Switch", "rating": "Bad"}
+        )
+        assert second.status_code == 201
+        # Same game, different entries.
+        assert second.json()["id"] != first.json()["id"]
+        assert (second.json()["system"], second.json()["rating"]) == ("Switch", "Bad")
+
+        sm = get_sessionmaker()
+        with sm() as session:
+            assert (
+                session.execute(
+                    text("SELECT count(*) FROM game_metadata WHERE igdb_id = 424242")
+                ).scalar_one()
+                == 1
+            )
+    finally:
+        _delete_auth_user(second_id)
+
+
+@requires_db
+def test_two_users_hand_entering_the_same_name_get_private_rows(fresh_auth_user) -> None:
+    # The other half of catalog identity: with no igdb_id there is no honest
+    # way to say two people mean the same game, so neither one's metadata can
+    # overwrite the other's.
+    first_id, _ = fresh_auth_user
+    client_as(first_id).post("/api/py/me/profile", json={"username": f"priv-{str(first_id)[:8]}"})
+    name = f"Handmade {str(first_id)[:8]}"
+    assert (
+        client_as(first_id).post("/api/py/me/games", json={"name": name, "system": "PC"})
+    ).status_code == 201
+
+    second_id = _make_auth_user()
+    try:
+        client_as(second_id).post(
+            "/api/py/me/profile", json={"username": f"priv-{str(second_id)[:8]}"}
+        )
+        assert (
+            client_as(second_id).post("/api/py/me/games", json={"name": name, "system": "PC"})
+        ).status_code == 201
+
+        sm = get_sessionmaker()
+        with sm() as session:
+            rows = session.execute(
+                text(
+                    "SELECT created_by_user_id FROM game_metadata "
+                    "WHERE name = :n AND igdb_id IS NULL"
+                ),
+                {"n": name},
+            ).scalars()
+            assert sorted(str(r) for r in rows) == sorted([str(first_id), str(second_id)])
+    finally:
+        _delete_auth_user(second_id)
 
 
 @requires_db
@@ -1216,6 +1328,28 @@ def test_promote_wishlist_item(fresh_user_with_game) -> None:
     assert "Promoted Quest" in {g["name"] for g in games}
     wishlist = client_as(user_id).get(f"/api/py/users/{username}/wishlist").json()
     assert wishlist == []
+
+
+@requires_db
+def test_promote_keeps_the_games_metadata(fresh_user_with_game) -> None:
+    # Promote used to rebuild the library row from the wishlist row's own copy
+    # of the metadata. Now the catalog row carries straight across, so nothing
+    # can be dropped on the way.
+    user_id, _ = fresh_user_with_game
+    item = _add_wishlist(
+        user_id,
+        {
+            "name": "Detailed Quest",
+            "system": "PS5",
+            "genres": ["RPG", "Roguelike"],
+            "releaseDate": "2021-06-01",
+            "imageUrl": "https://images.igdb.com/igdb/image/upload/t_cover_big/co9zzz.jpg",
+            "igdbId": 77,
+        },
+    )
+    game = client_as(user_id).post(f"/api/py/me/wishlist/{item['id']}/promote", json={}).json()
+    for field in ("name", "genres", "releaseDate", "imageUrl"):
+        assert game[field] == item[field], field
 
 
 @requires_db

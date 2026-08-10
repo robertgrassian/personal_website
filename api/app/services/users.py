@@ -21,7 +21,7 @@ from fastapi import status
 from sqlalchemy.orm import Session
 
 from app.core.errors import DomainError
-from app.models import Game, PlaySession, WishlistItem
+from app.models import GameMetadata, PlayedGame, PlaySession, WishlistGame
 from app.repositories import users as users_repo
 from app.schemas.users import GameRead, ProfileRead, WishlistGameRead
 
@@ -76,20 +76,26 @@ def _require_profile(db: Session, username: str):
     return profile
 
 
-def to_game_read(game: Game, play_state: PlayState) -> GameRead:
-    """ORM row + derived play state → wire DTO. Public because the /me write
-    path (services/me.py) returns the same shape after a mutation.
+def to_game_read(game: PlayedGame, meta: GameMetadata, play_state: PlayState) -> GameRead:
+    """Library entry + catalog row + derived play state → wire DTO. Public
+    because the /me write path (services/me.py) returns the same shape after a
+    mutation.
+
+    The entry contributes only what is the user's own (system, rating, play
+    state); everything describing the game itself comes off the catalog row.
+    Flattening the two back into one object here is what keeps normalization
+    invisible to the frontend.
 
     NULL→"" translation: the FE types use "" (never null) for absent
     scalars — see the schemas.users module docstring."""
     return GameRead(
         id=game.id,
-        name=game.name,
+        name=meta.name,
         system=game.system,
         rating=game.rating or "",
-        genres=list(game.genres),
-        release_date=_iso_or_empty(game.release_date),
-        image_url=game.image_url or "",
+        genres=list(meta.genres),
+        release_date=_iso_or_empty(meta.release_date),
+        image_url=meta.image_url or "",
         last_played=play_state.last_played,
         currently_playing=play_state.currently_playing,
         playing_since=play_state.playing_since,
@@ -98,16 +104,16 @@ def to_game_read(game: Game, play_state: PlayState) -> GameRead:
     )
 
 
-def to_wishlist_read(item: WishlistItem) -> WishlistGameRead:
-    """ORM row → wire DTO. Public because the /me wishlist writes
-    (services/me.py) return the same shape after a mutation."""
+def to_wishlist_read(item: WishlistGame, meta: GameMetadata) -> WishlistGameRead:
+    """Wishlist entry + catalog row → wire DTO. Public because the /me wishlist
+    writes (services/me.py) return the same shape after a mutation."""
     return WishlistGameRead(
         id=item.id,
-        name=item.name,
+        name=meta.name,
         system=item.system or "",
-        genres=list(item.genres),
-        release_date=_iso_or_empty(item.release_date),
-        image_url=item.image_url or "",
+        genres=list(meta.genres),
+        release_date=_iso_or_empty(meta.release_date),
+        image_url=meta.image_url or "",
         starred=item.starred,
         date_added=_iso_or_empty(item.date_added),
         notes=item.notes,
@@ -117,20 +123,27 @@ def to_wishlist_read(item: WishlistItem) -> WishlistGameRead:
 def get_user_games(db: Session, username: str) -> list[GameRead]:
     """The user's library with play state pre-derived (spec §4.3, §6).
 
-    Three queries total regardless of library size: profile, games, and all
-    sessions for those games — grouped per game in Python.
+    Three queries total regardless of library size: profile, games (joined to
+    their catalog rows), and all sessions for those games — grouped per game in
+    Python.
     """
     profile = _require_profile(db, username)
-    games = users_repo.list_games(db, profile.id)
+    entries = users_repo.list_games(db, profile.id)
     sessions_by_game: dict[int, list[PlaySession]] = defaultdict(list)
-    for session in users_repo.list_play_sessions(db, [g.id for g in games]):
+    for session in users_repo.list_play_sessions(db, [g.id for g, _ in entries]):
         sessions_by_game[session.game_id].append(session)
-    return [to_game_read(g, derive_play_state(sessions_by_game.get(g.id, []))) for g in games]
+    return [
+        to_game_read(game, meta, derive_play_state(sessions_by_game.get(game.id, [])))
+        for game, meta in entries
+    ]
 
 
 def get_user_wishlist(db: Session, username: str) -> list[WishlistGameRead]:
     profile = _require_profile(db, username)
-    return [to_wishlist_read(item) for item in users_repo.list_wishlist_items(db, profile.id)]
+    return [
+        to_wishlist_read(item, meta)
+        for item, meta in users_repo.list_wishlist_items(db, profile.id)
+    ]
 
 
 def get_user_profile(db: Session, username: str) -> ProfileRead:

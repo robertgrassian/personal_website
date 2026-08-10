@@ -71,9 +71,7 @@ def test_similarity_is_zero_for_unrelated_titles():
 def entry(**overrides):
     base = {
         "id": 1,
-        "user_id": "u1",
         "name": "A Game",
-        "system": "PC",
         "current": ["RPG"],
         "proposed": ["Roguelike"],
         "status": "auto",

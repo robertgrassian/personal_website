@@ -52,29 +52,30 @@ def conn():
         transaction.rollback()
 
 
+# A library entry is two rows now: the catalog row for the game, then the
+# link row whose rating the CHECK constrains. Written as one statement so the
+# rating tests below stay about the constraint rather than about the setup.
+_INSERT_PLAYED_GAME = """
+    WITH m AS (
+        INSERT INTO game_metadata (name, created_by_user_id)
+        VALUES ('Test Game', :uid) RETURNING id
+    )
+    INSERT INTO played_games (user_id, metadata_id, system, rating)
+    SELECT :uid, m.id, 'Test System', :rating FROM m
+"""
+
+
 @requires_db
 def test_bad_rating_rejected(conn):
-    with pytest.raises(IntegrityError, match="ck_games_rating"), conn.begin_nested():
-        conn.execute(
-            text(
-                "INSERT INTO games (user_id, name, system, rating) "
-                "VALUES (:uid, 'Test Game', 'Test System', 'Amazing')"
-            ),
-            {"uid": PROFILE_ID},
-        )
+    with pytest.raises(IntegrityError, match="ck_played_games_rating"), conn.begin_nested():
+        conn.execute(text(_INSERT_PLAYED_GAME), {"uid": PROFILE_ID, "rating": "Amazing"})
 
 
 @requires_db
 def test_null_rating_accepted(conn):
     # NULL means unrated and must pass the CHECK.
     with conn.begin_nested():
-        conn.execute(
-            text(
-                "INSERT INTO games (user_id, name, system, rating) "
-                "VALUES (:uid, 'Test Game', 'Test System', NULL)"
-            ),
-            {"uid": PROFILE_ID},
-        )
+        conn.execute(text(_INSERT_PLAYED_GAME), {"uid": PROFILE_ID, "rating": None})
 
 
 @requires_db

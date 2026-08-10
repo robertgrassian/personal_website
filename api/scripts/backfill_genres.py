@@ -47,8 +47,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from sqlalchemy import select
+
 from app.core.db import get_sessionmaker
-from app.models import Game, Profile, WishlistItem
+from app.models import GameMetadata, PlayedGame, Profile, WishlistGame
 from app.schemas.me import clean_genres
 from app.services import genres as genre_service
 
@@ -160,46 +162,41 @@ def load_games(username: str) -> tuple[list[dict], str]:
     afterwards which rows had been theirs.
     """
     with get_sessionmaker()() as session:
-        profile = (
-            session.query(Profile).filter(Profile.username == username).one_or_none()
-        )
+        profile = session.query(Profile).filter(Profile.username == username).one_or_none()
         if profile is None:
             print(f"No profile with username {username!r}.")
             sys.exit(1)
-        out = []
-        # Both tables, because the wishlist carries the same game titles and the
-        # same genre vocabulary, and is shown on the same page. "kind" is what
-        # --apply uses to route each row back to the right table.
-        for g in (
-            session.query(Game).filter(Game.user_id == profile.id).order_by(Game.name).all()
-        ):
-            out.append(
-                {
-                    "kind": "game",
-                    "id": g.id,
-                    "user_id": str(g.user_id),
-                    "name": g.name,
-                    "system": g.system,
-                    "current": list(g.genres or []),
-                }
-            )
-        for w in (
-            session.query(WishlistItem)
-            .filter(WishlistItem.user_id == profile.id)
-            .order_by(WishlistItem.name)
+        # One row per GAME, not per library entry. Since genres moved to the
+        # shared catalog they are a fact about the game, so a title that is both
+        # on the shelf and on the wishlist is looked up once and can no longer
+        # end up with two different answers -- which is what the old two-table
+        # walk risked, and why it carried a "kind" field to route writes back.
+        #
+        # Reached through the user's own rows in both tables, so this still
+        # covers exactly the games they hold. Note a SHARED catalog row (one
+        # with an igdb_id) is visible to everyone who owns that game, so writing
+        # genres here writes them for those users too. Fine while the vocabulary
+        # is curated by hand and there is one library; revisit before this
+        # script is ever pointed at a database with strangers in it.
+        owned = (
+            select(PlayedGame.metadata_id)
+            .where(PlayedGame.user_id == profile.id)
+            .union(select(WishlistGame.metadata_id).where(WishlistGame.user_id == profile.id))
+        )
+        rows = (
+            session.query(GameMetadata)
+            .filter(GameMetadata.id.in_(owned))
+            .order_by(GameMetadata.name)
             .all()
-        ):
-            out.append(
-                {
-                    "kind": "wishlist",
-                    "id": w.id,
-                    "user_id": str(w.user_id),
-                    "name": w.name,
-                    "system": w.system or "",
-                    "current": list(w.genres or []),
-                }
-            )
-        return out, str(profile.id)
+        )
+        return [
+            {
+                "id": m.id,
+                "name": m.name,
+                "current": list(m.genres or []),
+            }
+            for m in rows
+        ], str(profile.id)
 
 
 def build_plan(username: str, force: bool) -> dict:
@@ -245,9 +242,7 @@ def build_plan(username: str, force: bool) -> dict:
                 **game,
                 "article": result.article,
                 "qid": result.qid,
-                "proposed": OVERRIDES.get(
-                    game["name"], snap(result.genres, vocabulary)
-                ),
+                "proposed": OVERRIDES.get(game["name"], snap(result.genres, vocabulary)),
                 "raw": result.raw_genres,
                 "score": round(score, 3),
                 "status": status,
@@ -283,11 +278,7 @@ def summarize(plan: dict) -> None:
         by_status[entry["status"]] = by_status.get(entry["status"], 0) + 1
     changed = pending_writes(plan)
 
-    games = sum(1 for e in entries if e.get("kind") != "wishlist")
-    print(
-        f"\n{len(entries)} rows for {plan.get('username', '?')} "
-        f"({games} games, {len(entries) - games} wishlist)"
-    )
+    print(f"\n{len(entries)} games for {plan.get('username', '?')}")
     for status in ("auto", "approved", "needs_review", "missing", "skipped"):
         if by_status.get(status):
             print(f"  {status:14} {by_status[status]}")
@@ -328,9 +319,7 @@ def review(plan: dict) -> None:
     )
     try:
         for index, entry in enumerate(pending, 1):
-            union = entry["current"] + [
-                g for g in entry["proposed"] if g not in entry["current"]
-            ]
+            union = entry["current"] + [g for g in entry["proposed"] if g not in entry["current"]]
             print(f"--- {index}/{len(pending)}  {entry['name']}  ({entry['system']})")
             print(f"    wikipedia : {entry['article']}   (title match {entry['score']})")
             print(f"    current   : {' | '.join(entry['current']) or '-'}")
@@ -373,24 +362,23 @@ def apply(plan: dict) -> None:
     skipped = []
     with get_sessionmaker()() as session:
         for entry in todo:
-            model = WishlistItem if entry.get("kind") == "wishlist" else Game
-            game = session.get(model, entry["id"])
-            if game is None:
+            meta = session.get(GameMetadata, entry["id"])
+            if meta is None:
                 skipped.append(f"{entry['name']} (row no longer exists)")
                 continue
-            # The plan was built against this row; if it moved to another
-            # account since, leave it alone rather than writing across owners.
-            if str(game.user_id) != entry["user_id"]:
-                skipped.append(f"{entry['name']} (owner changed)")
+            # The plan was built against this row; if the catalog row was
+            # merged or replaced since, leave it alone rather than writing
+            # genres onto whatever now holds that id.
+            if meta.name != entry["name"]:
+                skipped.append(f"{entry['name']} (row is now {meta.name!r})")
                 continue
             # Through the same validator the API's write path uses, so a
             # backfilled row can't hold genres POST /me/games would reject.
-            game.genres = clean_genres(entry["proposed"])
+            meta.genres = clean_genres(entry["proposed"])
             updated += 1
         session.commit()
 
-    games = sum(1 for e in todo if e.get("kind") != "wishlist")
-    print(f"Done. {updated} rows updated ({games} games, {updated - games} wishlist).")
+    print(f"Done. {updated} games updated.")
     for note in skipped:
         print(f"  skipped: {note}")
 

@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Follow, Game, PlaySession, Profile, WishlistItem
+from app.models import Follow, GameMetadata, PlayedGame, PlaySession, Profile, WishlistGame
 
 
 def get_profile_by_username(db: Session, username: str) -> Profile | None:
@@ -18,9 +18,23 @@ def get_profile_by_username(db: Session, username: str) -> Profile | None:
     return db.execute(select(Profile).where(Profile.username == username)).scalar_one_or_none()
 
 
-def list_games(db: Session, user_id: uuid.UUID) -> list[Game]:
-    # Ordered by id for a deterministic response (insertion order).
-    return list(db.execute(select(Game).where(Game.user_id == user_id).order_by(Game.id)).scalars())
+def list_games(db: Session, user_id: uuid.UUID) -> list[tuple[PlayedGame, GameMetadata]]:
+    """Every library entry paired with its catalog row.
+
+    One join rather than a second query per entry: the catalog holds the name,
+    cover and genres the response needs, so fetching entries alone would be an
+    N+1 waiting to happen. Still one statement, as before normalization.
+
+    Ordered by id for a deterministic response (insertion order).
+    """
+    return list(
+        db.execute(
+            select(PlayedGame, GameMetadata)
+            .join(GameMetadata, GameMetadata.id == PlayedGame.metadata_id)
+            .where(PlayedGame.user_id == user_id)
+            .order_by(PlayedGame.id)
+        ).all()
+    )
 
 
 def list_play_sessions(db: Session, game_ids: Sequence[int]) -> list[PlaySession]:
@@ -31,11 +45,14 @@ def list_play_sessions(db: Session, game_ids: Sequence[int]) -> list[PlaySession
     return list(db.execute(select(PlaySession).where(PlaySession.game_id.in_(game_ids))).scalars())
 
 
-def list_wishlist_items(db: Session, user_id: uuid.UUID) -> list[WishlistItem]:
+def list_wishlist_items(db: Session, user_id: uuid.UUID) -> list[tuple[WishlistGame, GameMetadata]]:
     return list(
         db.execute(
-            select(WishlistItem).where(WishlistItem.user_id == user_id).order_by(WishlistItem.id)
-        ).scalars()
+            select(WishlistGame, GameMetadata)
+            .join(GameMetadata, GameMetadata.id == WishlistGame.metadata_id)
+            .where(WishlistGame.user_id == user_id)
+            .order_by(WishlistGame.id)
+        ).all()
     )
 
 

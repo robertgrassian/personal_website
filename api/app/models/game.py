@@ -1,4 +1,9 @@
-"""Library games and their play sessions."""
+"""A user's library entries and their play sessions.
+
+The game itself -- name, cover, genres, release date -- lives once in
+game_metadata. What is here is only what differs between users: which console
+this user played it on, and how they rated it.
+"""
 
 import uuid
 from datetime import date, datetime
@@ -11,14 +16,12 @@ from sqlalchemy import (
     ForeignKey,
     Identity,
     Index,
-    Integer,
     Text,
     UniqueConstraint,
     Uuid,
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -44,30 +47,31 @@ RATING_CHECK_SQL = "rating IN ({})".format(",".join(f"'{name}'" for name in RATI
 MAX_GENRES = 12
 
 
-class Game(Base):
-    """One row = one game in one user's library (denormalized by design)."""
+class PlayedGame(Base):
+    """One row = one game in one user's library."""
 
-    __tablename__ = "games"
+    __tablename__ = "played_games"
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("profiles.id", ondelete="CASCADE"))
-    name: Mapped[str] = mapped_column(Text)
+    # No cascade, deliberately: deleting a catalog row must never silently
+    # empty somebody's shelf. A catalog row with link rows cannot be deleted.
+    metadata_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("game_metadata.id"))
+    # The one console this user played it on. Singular on purpose: a second
+    # console for the same game would be a second row, which is why the unique
+    # key below is what stops it today. Relaxing that key to include `system`
+    # is all it would take to allow it.
     system: Mapped[str] = mapped_column(Text)
     # NULL = unrated; the CHECK only constrains non-NULL values.
     rating: Mapped[str | None] = mapped_column(Text)
-    genres: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
-    release_date: Mapped[date | None] = mapped_column(Date)
-    image_url: Mapped[str | None] = mapped_column(Text)
-    # Set when the game is added via IGDB search; the hook for normalizing
-    # into a shared catalog later, if ever.
-    igdb_id: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
-        # Final name via the metadata naming convention: ck_games_rating.
+        # Final name via the metadata naming convention: ck_played_games_rating.
         CheckConstraint(RATING_CHECK_SQL, name="rating"),
-        # Same dedupe rule the CSV implies: one entry per (owner, name, system).
-        UniqueConstraint("user_id", "name", "system", name="uq_games_user_id_name_system"),
+        # One entry per game per user. Replaces the old (user_id, name, system)
+        # key, which let the same game appear twice under two consoles.
+        UniqueConstraint("user_id", "metadata_id", name="uq_played_games_user_id_metadata_id"),
     )
 
 
@@ -77,9 +81,17 @@ class PlaySession(Base):
     __tablename__ = "play_sessions"
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    # Points at the USER's library row, never at the catalog: a session is a
+    # fact about a person, so a catalog FK would need user_id alongside it and
+    # would make "a session for a game not in my library" representable. It is
+    # also what lets two catalog rows be merged later without touching a single
+    # session.
+    #
     # ON DELETE CASCADE: deleting a game takes its play history with it; the
     # delete UI warns with the session count first.
-    game_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("games.id", ondelete="CASCADE"))
+    game_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("played_games.id", ondelete="CASCADE")
+    )
     start_date: Mapped[date] = mapped_column(Date)
     # NULL = open session = "currently playing".
     end_date: Mapped[date | None] = mapped_column(Date)

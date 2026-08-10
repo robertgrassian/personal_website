@@ -42,7 +42,7 @@ Browser ──supabase-js──▶ PostgREST ──▶ Postgres (RLS enforces ev
 ```
 
 - All CRUD via auto-generated API; authorization = RLS policies like
-  `CREATE POLICY owner_writes ON games FOR UPDATE USING (user_id = auth.uid());`
+  `CREATE POLICY owner_writes ON played_games FOR UPDATE USING (user_id = auth.uid());`
 - Business logic lives in three places: RLS policies (SQL), Postgres functions/triggers
   (PL/pgSQL), and the client (TypeScript).
 - **Still needs _some_ server-side compute even here**: the IGDB proxy holds Twitch API
