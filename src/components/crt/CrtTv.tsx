@@ -15,6 +15,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import type { Game } from "@/lib/games";
+import { systemLabel } from "@/lib/games";
 
 // How long each channel stays on screen before auto-advancing (ms).
 const CHANNEL_INTERVAL_MS = 7000;
@@ -376,7 +377,7 @@ export function CrtTv({ games, compact = false }: CrtTvProps) {
             {/* One line, clamped — genre lists are open-ended, and this is
                 secondary metadata, so an ellipsis costs little. */}
             <p className="mt-0.5 line-clamp-1 text-sm text-muted">
-              {active!.system}
+              {systemLabel(active!.system)}
               {active!.genres.length > 0 && ` · ${active!.genres.join(", ")}`}
             </p>
             {/* Always rendered, empty when there's no date, so the line's

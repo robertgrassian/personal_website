@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import type { Filters, RatingFilter } from "@/lib/games";
-import { RATINGS, UNRATED_LABEL } from "@/lib/games";
+import { RATINGS, UNRATED_LABEL, systemLabel } from "@/lib/games";
 import type { WishlistFilters } from "@/lib/wishlist";
 import type { GroupBy, SortOrder } from "./libraryConfig";
 // Filter keys shared by both views — one setter handles all three. `rating` is
@@ -77,6 +77,7 @@ type FilterSelectProps = {
   // Options not in this set are disabled and sorted to the bottom.
   available: Set<string>;
   className?: string;
+  formatLabel?: (option: string) => string;
 };
 
 // Renders a <select> with available options at the top and unavailable (disabled) ones below,
@@ -88,6 +89,11 @@ function FilterSelect({
   options,
   available,
   className,
+  // Renames an option for display without changing the value submitted. Only
+  // the system filter needs it, because systems are stored under IGDB's names
+  // and a couple of those read badly ("PC (Microsoft Windows)"). The option's
+  // value stays the stored string, so filtering and `?system=` are unaffected.
+  formatLabel = (option: string) => option,
 }: FilterSelectProps) {
   const enabled = options.filter((o) => available.has(o));
   const disabled = options.filter((o) => !available.has(o));
@@ -97,13 +103,13 @@ function FilterSelect({
       <option value="">{allLabel}</option>
       {enabled.map((o) => (
         <option key={o} value={o}>
-          {o}
+          {formatLabel(o)}
         </option>
       ))}
       {enabled.length > 0 && disabled.length > 0 && <option disabled>──────────</option>}
       {disabled.map((o) => (
         <option key={o} value={o} disabled>
-          {o}
+          {formatLabel(o)}
         </option>
       ))}
     </select>
@@ -294,6 +300,7 @@ export function FilterBar(props: FilterBarProps) {
             allLabel="All Systems"
             options={allSystems}
             available={availableSystems}
+            formatLabel={systemLabel}
             className={`${selectClass} w-full sm:w-auto`}
           />
 

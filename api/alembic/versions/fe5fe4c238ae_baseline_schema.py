@@ -39,7 +39,9 @@ def upgrade() -> None:
         sa.Column("username", postgresql.CITEXT(), nullable=False),
         sa.Column("display_name", sa.Text(), nullable=False),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"),
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
             nullable=False,
         ),
         # ::text cast: citext's ~ matches case-insensitively, which would
@@ -75,14 +77,18 @@ def upgrade() -> None:
         sa.Column("system", sa.Text(), nullable=False),
         sa.Column("rating", sa.Text(), nullable=True),  # NULL = unrated
         sa.Column(
-            "genres", postgresql.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]"),
+            "genres",
+            postgresql.ARRAY(sa.Text()),
+            server_default=sa.text("'{}'::text[]"),
             nullable=False,
         ),
         sa.Column("release_date", sa.Date(), nullable=True),
         sa.Column("image_url", sa.Text(), nullable=True),
         sa.Column("igdb_id", sa.Integer(), nullable=True),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"),
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
             nullable=False,
         ),
         sa.CheckConstraint(
@@ -116,7 +122,9 @@ def upgrade() -> None:
         sa.Column("name", sa.Text(), nullable=False),
         sa.Column("system", sa.Text(), nullable=True),
         sa.Column(
-            "genres", postgresql.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]"),
+            "genres",
+            postgresql.ARRAY(sa.Text()),
+            server_default=sa.text("'{}'::text[]"),
             nullable=False,
         ),
         sa.Column("release_date", sa.Date(), nullable=True),
@@ -126,7 +134,9 @@ def upgrade() -> None:
         sa.Column("date_added", sa.Date(), server_default=sa.text("CURRENT_DATE"), nullable=False),
         sa.Column("notes", sa.Text(), server_default=sa.text("''"), nullable=False),
         sa.ForeignKeyConstraint(
-            ["user_id"], ["profiles.id"], name="fk_wishlist_items_user_id_profiles",
+            ["user_id"],
+            ["profiles.id"],
+            name="fk_wishlist_items_user_id_profiles",
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name="pk_wishlist_items"),
@@ -139,16 +149,22 @@ def upgrade() -> None:
         sa.Column("follower_id", sa.Uuid(), nullable=False),
         sa.Column("followee_id", sa.Uuid(), nullable=False),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"),
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
             nullable=False,
         ),
         sa.CheckConstraint("follower_id <> followee_id", name=op.f("ck_follows_no_self_follow")),
         sa.ForeignKeyConstraint(
-            ["follower_id"], ["profiles.id"], name="fk_follows_follower_id_profiles",
+            ["follower_id"],
+            ["profiles.id"],
+            name="fk_follows_follower_id_profiles",
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ["followee_id"], ["profiles.id"], name="fk_follows_followee_id_profiles",
+            ["followee_id"],
+            ["profiles.id"],
+            name="fk_follows_followee_id_profiles",
             ondelete="CASCADE",
         ),
         # Composite PK: one edge per pair; duplicate follows impossible.

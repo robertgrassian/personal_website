@@ -18,6 +18,7 @@ import {
 import { useFilterOptions } from "./useFilterOptions";
 import type { UrlState } from "./useGameLibraryUrlState";
 import { accentButtonClass } from "./formStyles";
+import { systemLabel } from "@/lib/games";
 
 // Loaded on demand rather than in the page bundle. The panel pulls in GameStats
 // (five aggregation passes) and SqlQueryPanel, neither of which most visitors
@@ -274,7 +275,11 @@ export function GameShelves({
           // the group from the filter bar above it.
           <div className="mt-6">
             {activeShelves.map((shelf) => (
-              <ShelfSection key={shelf.label} label={shelf.label} games={shelf.games} />
+              <ShelfSection
+                key={shelf.label}
+                label={groupBy === "system" ? systemLabel(shelf.label) : shelf.label}
+                games={shelf.games}
+              />
             ))}
           </div>
         )}

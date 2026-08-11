@@ -87,8 +87,21 @@ reasoning behind the shape, which the models themselves don't record.
 - **`game_metadata.platforms` vs `played_games.system`.** The first is every platform the
   game released on — the catalog's fact, and what makes "which consoles are valid for
   this game?" answerable without asking every user. The second is the one console a
-  particular user played it on. Currently `platforms` is seeded from the consoles people
-  actually recorded, which is a weak stand-in for IGDB's real list.
+  particular user played it on. Populate `platforms` with `scripts/backfill_platforms.py`,
+  which is re-runnable and reads the ids straight out of `game_metadata.igdb_id`.
+- **Both columns speak IGDB's platform vocabulary**, since migration `d1a83f6c25e7`. Before
+  it, systems were typed by hand and the same console appeared under several names — 18 rows
+  said `PS5` and 7 said `PlayStation 5`, so PlayStation 5 rendered as two separate shelves
+  and the second one lost its colour (the CSS had no rule for it). Sharing one vocabulary
+  also turns "did this game release on that console?" into a set membership test instead of
+  a fuzzy match.
+  <br>
+  A few IGDB names read badly on a shelf, so the frontend maps those for **display only**
+  (`systemLabel` in `src/lib/games.ts`, currently just `PC (Microsoft Windows)` → `PC`).
+  Never store, compare against, or key CSS on a display label: `video-games.css` matches
+  `[data-system="..."]` against the stored name, and a rule written against the label
+  silently never fires. The fixture CSVs in `scripts/fixtures/` carry IGDB's names too, so a
+  fresh `seed.py` cannot reintroduce the old vocabulary.
 - **`genres` is `text[]`, not a join table.** The only query is "contains genre", which
   arrays plus a GIN index handle, and it matches the `genres: string[]` type on the
   frontend.

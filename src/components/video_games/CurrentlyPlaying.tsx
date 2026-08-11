@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import type { Game } from "@/lib/games";
+import { systemLabel } from "@/lib/games";
 
 // How long each channel stays on screen before auto-advancing (ms).
 const CHANNEL_INTERVAL_MS = 7000;
@@ -244,7 +245,7 @@ export function CurrentlyPlaying({ games }: CurrentlyPlayingProps) {
         </div>
         <h2 className="text-shelf-text mt-1 text-2xl font-bold">{active.name}</h2>
         <p className="text-shelf-text-muted mt-0.5 text-sm">
-          {active.system}
+          {systemLabel(active.system)}
           {active.genres.length > 0 && ` · ${active.genres.join(", ")}`}
         </p>
         {active.playingSince && (

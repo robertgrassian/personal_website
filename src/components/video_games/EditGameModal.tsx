@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState } from "react";
-import { localToday, type Game, type Rating } from "@/lib/games";
+import { localToday, systemLabel, type Game, type Rating } from "@/lib/games";
 import { deleteGame, logSession, stopSession, updateGameRating } from "@/app/video-games/actions";
 import { ModalShell } from "./ModalShell";
 import { ConfirmStep } from "./ConfirmStep";
@@ -120,7 +120,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
     <ModalShell
       label={`Edit ${game.name}`}
       title={game.name}
-      subtitle={game.system}
+      subtitle={systemLabel(game.system)}
       onClose={onClose}
       error={error}
     >

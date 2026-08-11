@@ -11,6 +11,7 @@ import { ModalShell } from "./ModalShell";
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { buttonClass, ghostButtonClass, inputClass, labelClass } from "./formStyles";
+import { systemLabel } from "@/lib/games";
 
 type EditWishlistModalProps = {
   item: WishlistGame;
@@ -79,7 +80,7 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
       title={item.name}
       subtitle={
         <>
-          {item.system || "System undecided"}
+          {item.system ? systemLabel(item.system) : "System undecided"}
           {item.dateAdded && ` · wishlisted ${item.dateAdded}`}
         </>
       }

@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import type { Game } from "@/lib/games";
-import { RATINGS, UNRATED_LABEL } from "@/lib/games";
+import { RATINGS, UNRATED_LABEL, systemLabel } from "@/lib/games";
 import { compareIso } from "./pipeline";
 
 type GameStatsProps = {
@@ -194,7 +194,7 @@ export function GameStats({ games, currentlyPlayingGames }: GameStatsProps) {
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm text-emphasis truncate">{game.name}</p>
-                  <p className="text-xs text-muted">{game.system}</p>
+                  <p className="text-xs text-muted">{systemLabel(game.system)}</p>
                 </div>
               </li>
             ))}
@@ -236,7 +236,7 @@ export function GameStats({ games, currentlyPlayingGames }: GameStatsProps) {
           {stats.systems.map((s) => (
             <BarRow
               key={s.name}
-              label={s.name}
+              label={systemLabel(s.name)}
               count={s.count}
               pct={(s.count / maxSystemCount) * 100}
             />

@@ -4,7 +4,7 @@
 // around to the back) while the overlay keeps text readable.
 
 import Image from "next/image";
-import { RATINGS } from "@/lib/games";
+import { RATINGS, systemLabel } from "@/lib/games";
 import type { GameCaseInput } from "./GameCase";
 
 // "2023-05-12" → "May 2023"
@@ -65,7 +65,7 @@ export function GameCaseBack({ game }: GameCaseBackProps) {
         {/* Metadata — no labels, distinguished by styling and order */}
         <div className="flex flex-col gap-1 text-[10px] leading-snug min-h-0">
           {ratingEntry && <p className="font-semibold text-gray-200">★ {ratingEntry.name}</p>}
-          <p className="font-medium">{game.system}</p>
+          <p className="font-medium">{systemLabel(game.system)}</p>
           <p className="font-medium">{formatDate(game.releaseDate)}</p>
           {game.genres.length > 0 && (
             <p className="font-medium truncate">
