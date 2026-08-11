@@ -19,6 +19,40 @@ asked for, which needs no reason and is marked `(Promoted by request YYYY-MM-DD.
 get demoted back out. Adding a sixth item means demoting one, on purpose. (Split out 2026-08-07:
 the old rule sent every bug straight here, so four of five slots were defects.)
 
+- [ ] **Backfill `game_metadata.platforms`: a lot of rows are missing it.** (Promoted by
+      request 2026-08-10.) The catalog migration seeded that column from `played_games.system`
+      alone, so a library game carries exactly the one console it happens to be recorded on
+      and a wishlist-only game carries an empty array. Measured on the local DB: **123 rows
+      with no platforms at all, 157 with exactly one** — essentially nothing holds a real
+      multi-platform list, which is the whole point of the column. Prod will differ in count,
+      not in shape.<br>
+      _The input already exists, and it is the only copy._ `api/scripts/.igdb_platforms.json`
+      maps IGDB game id → its real platform list for 173 games. It was dumped by
+      `backfill_igdb_ids.py` while that script was already making the network call, and
+      **that script has since been deleted** — so this cannot be regenerated the same way.
+      The file is gitignored and untracked, meaning one `git clean` loses it. **Copy it
+      somewhere safe before doing anything else.** Loading it is an `UPDATE` joined on
+      `game_metadata.igdb_id`; the work is in the decision below, not the SQL.<br>
+      _The decision worth making on purpose: whose vocabulary the column speaks._ IGDB says
+      "Nintendo Entertainment System" where the shelf says "NES". Storing IGDB's raw names
+      keeps the row an honest catalog fact and matches where the data came from. Normalizing
+      to shelf labels makes the column directly usable by the add form — but it bakes one
+      user's naming into a row every user shares, and there is no per-user vocabulary to fall
+      back on. Leaning toward storing IGDB's names and normalizing at read time, since
+      `_build_platform_aliases` (`api/app/services/igdb.py`) already does that direction of
+      the mapping. Decide before writing, because rewriting a shared column later is the
+      expensive kind of change.<br>
+      _What it will not cover:_ private catalog rows have no `igdb_id`, so the JSON says
+      nothing about them. They keep whatever the migration seeded. That is correct rather
+      than a gap — a hand-entered game has no canonical platform list — but it means
+      "platforms is populated" will never be true for every row.<br>
+      _Two follow-ups this does not include._ `platforms` is not on the API read schema
+      (`api/app/schemas/users.py`), so nothing client-side can see it yet; exposing it is the
+      same widening the duplicate-add bug wants. And **"Restrict the add-game 'system'
+      suggestions to the platforms the game actually released on"** in Backlog is what this
+      unblocks — that item used to claim this backfill as its own first step and now points
+      here instead.
+
 - [ ] **When adding a game, let me say I'm playing it now, or that I played it before: a play
       history section in the add-game form.** (Promoted by request 2026-08-09.) Two asks, one
       surface. **(1)** A one-tap control (a check mark was the suggestion) that marks the game
@@ -766,10 +800,12 @@ head` being run by hand from a laptop pointed at production.<br>
       client has to carry through from the IGDB search result. Two consequences. **(1)** The
       answer survives a page reload and works for a game already in the library, not only for
       one just picked from search. **(2)** The column is currently seeded from the consoles
-      people actually recorded, not from IGDB — `api/scripts/backfill_igdb_ids.py` dumps the
-      real lists to `.igdb_platforms.json` but nothing loads them yet, so **filling that
-      column properly is the first step of this item**. It is also not on the read schema, so
-      exposing it is the same widening the duplicate-add bug wants.<br>
+      people actually recorded, not from IGDB, so it is not yet usable for this. Filling it
+      is its own item — **"Backfill `game_metadata.platforms`"** in Up Next — which also owns
+      the decision about whether the column stores IGDB's platform names or shelf labels;
+      that decision is most of this item's normalization problem, so read it first. The
+      column is also not on the read schema, so exposing it is the same widening the
+      duplicate-add bug wants.<br>
       Same change applies to the promote form in `EditWishlistModal.tsx`, which today offers
       only existing shelf systems and no IGDB platforms at all (see the mobile field-suggestions
       item below, which covers the same form).
@@ -832,8 +868,9 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       sitting in `image_url`**: `.../t_cover_big/{image_id}.jpg` carries IGDB's own
       `image_id`, and `/covers` maps it to a game id exactly. Every row in the frozen fixture
       (155 games, 29 wishlist) carries a cover, so this resolves the whole library with no
-      fuzzy matching at all. Delete `api/scripts/backfill_igdb_ids.py` once it has run
-      against prod.<br>
+      fuzzy matching at all. The script ran against prod and was deleted afterwards; it is
+      in git history if the technique is ever wanted again, and its captured platform lists
+      survive as `api/scripts/.igdb_platforms.json` (see the platforms backfill in Up Next).<br>
       _Two gotchas for whoever touches this next._ **(1)** `backfill_titles.py` and
       `backfill_genres.py` now walk `game_metadata` (one row per game, not one per entry),
       and a shared row's genres are shared — fine for one curator, re-think before strangers.

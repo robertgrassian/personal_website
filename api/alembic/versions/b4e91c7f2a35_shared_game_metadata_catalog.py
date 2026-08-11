@@ -27,10 +27,13 @@ of NULLs under a plain UNIQUE); rows without one are private to whoever entered
 them by hand, since a typed-in name is not a canonical key and guessing that
 two users' "Tetris" are the same game would let one rewrite the other's shelf.
 
-Run `scripts/backfill_igdb_ids.py` BEFORE this migration. igdb_id is NULL on
-nearly every pre-existing row -- it is only ever written by the UI's IGDB
-search flow -- so without that backfill this extracts one private row per
-game per user and the catalog shares nothing.
+Production was backfilled before this ran, by a throwaway script since deleted
+(`scripts/backfill_igdb_ids.py`, in git history at the commit that added this
+file). It mattered because igdb_id was NULL on nearly every pre-existing row --
+only the UI's IGDB search flow ever wrote it -- so without it this would have
+extracted one private row per game per user and the catalog would share
+nothing. Any database migrating from scratch after that point gets private
+rows, which is correct but not what production looks like.
 
 Revision ID: b4e91c7f2a35
 Revises: c7d2e4a91b06
