@@ -81,20 +81,22 @@ export type Filters = {
 // the API from play_sessions rows. An open session (no end date) is the source
 // of truth for "currently playing"; the newest end date is "last played".
 export interface Game extends BaseGame {
-  // DB row id from the library API. Optional at the type level because the
-  // shared card types (GameCaseInput) predate a guaranteed id; in practice
-  // every API row carries one. Owner edits (PATCH /me/games/{id}) require it.
-  id?: number;
+  // DB row id from the library API. Owner edits (PATCH /me/games/{id}) target
+  // it. Required, matching GameRead (api/app/schemas/users.py) where it is a
+  // plain `int`: games only ever arrive from that endpoint, so a row without
+  // an id is not a state this app can reach.
+  id: number;
   rating: Rating | ""; // "" = no rating assigned yet
   lastPlayed: string; // derived: newest session end date, or "" if none/only open
   currentlyPlaying: boolean; // derived: true when the game has an open session
   playingSince: string; // derived: start date of the open session, or "" if not playing
   // Id of the open session, null when not playing. Closing a session
-  // (PATCH /me/sessions/{id}) targets this id.
-  openSessionId?: number | null;
+  // (PATCH /me/sessions/{id}) targets this id. `null` is the real "not
+  // playing" value and is load-bearing; the field itself is always present.
+  openSessionId: number | null;
   // Total play sessions (open + closed). The delete confirm uses it to say
   // how much history goes with the game.
-  sessionCount?: number;
+  sessionCount: number;
 }
 
 // One candidate from GET /api/py/igdb/search — the add-game picker's row.

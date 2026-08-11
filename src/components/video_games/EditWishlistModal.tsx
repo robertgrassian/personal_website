@@ -42,34 +42,26 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
   const [promoteSystem, setPromoteSystem] = useState(item.system);
 
   const patch = (fields: { starred?: boolean; notes?: string }) => {
-    const itemId = item.id;
-    if (itemId === undefined) return;
-    run(() => updateWishlistItem(itemId, fields));
+    run(() => updateWishlistItem(item.id, fields));
   };
 
   const toggleStarred = (next: boolean) => {
-    const itemId = item.id;
-    if (itemId === undefined) return;
     // The optimistic set goes in `optimistic`, which run() calls inside the
     // transition — that's what ties the optimistic value's lifetime to the
     // write, so a failure reverts it automatically.
-    run(() => updateWishlistItem(itemId, { starred: next }), {
+    run(() => updateWishlistItem(item.id, { starred: next }), {
       optimistic: () => setOptimisticStarred(next),
     });
   };
 
   const promote = () => {
-    const itemId = item.id;
-    if (itemId === undefined) return;
     // The item moved to the library — the wishlist row (and this dialog's
     // subject) is gone, so close.
-    run(() => promoteWishlistItem(itemId, promoteSystem), { onSuccess: onClose });
+    run(() => promoteWishlistItem(item.id, promoteSystem), { onSuccess: onClose });
   };
 
   const remove = () => {
-    const itemId = item.id;
-    if (itemId === undefined) return;
-    run(() => deleteWishlistItem(itemId), { onSuccess: onClose });
+    run(() => deleteWishlistItem(item.id), { onSuccess: onClose });
   };
 
   const notesDirty = notesDraft !== item.notes;
@@ -125,7 +117,7 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
             <button
               type="button"
               onClick={() => setPromoteStep(true)}
-              disabled={isPending || item.id === undefined}
+              disabled={isPending}
               className={buttonClass}
             >
               I bought it, move to library
