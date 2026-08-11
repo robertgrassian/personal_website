@@ -20,6 +20,16 @@ const RATING_ORDER: Record<RatingGroup, number> = Object.fromEntries([
   [UNRATED_LABEL, RATINGS.length],
 ]);
 
+// Rank of a rating-less game. Same value RATING_ORDER gives UNRATED_LABEL, read
+// through a name because the rating sorts below have to test for it rather than
+// just order by it.
+const UNRATED_RANK = RATINGS.length;
+
+// RATINGS is ordered best-to-worst, so its index IS the rank: Perfect = 0.
+function ratingRank(game: Game): number {
+  return game.rating ? RATING_ORDER[game.rating] : UNRATED_RANK;
+}
+
 // One collator for the whole module, rather than a fresh one per comparison.
 // `"a".localeCompare("b")` has to resolve the locale and build a collator on
 // every call; Intl.Collator does that work once and hands back a reusable
@@ -262,6 +272,23 @@ export function sortGames(games: Game[], sortOrder: SortOrder): Game[] {
         return compareIso(b.lastPlayed || "0000", a.lastPlayed || "0000");
       case "played-oldest":
         return compareIso(a.lastPlayed || "9999", b.lastPlayed || "9999");
+      // Both rating sorts push unrated games to the bottom, rather than one
+      // flipping them to the top. "No rating yet" is the absence of a rank, not
+      // the worst one — a game you have not judged should not lead a shelf
+      // titled "worst first". Ties are broken by name because there are only
+      // five ratings, so almost every comparison here is a tie and the
+      // remaining order would otherwise be whatever the API happened to send.
+      case "rating-best":
+      case "rating-worst": {
+        const rankA = ratingRank(a);
+        const rankB = ratingRank(b);
+        if (rankA === UNRATED_RANK || rankB === UNRATED_RANK) {
+          if (rankA !== rankB) return rankA === UNRATED_RANK ? 1 : -1;
+          return collator.compare(a.name, b.name);
+        }
+        const byRating = sortOrder === "rating-best" ? rankA - rankB : rankB - rankA;
+        return byRating || collator.compare(a.name, b.name);
+      }
       default:
         return fallbackCompare(a, b, sortOrder, "played");
     }

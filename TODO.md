@@ -204,8 +204,6 @@ to keep that section at five._
 
 ## Backlog / Ideas
 
-- [ ] **Add a sort by rating option to the library**. Obviously doesnt make sense if grouped by rating, so in that case dont show it (and validate, dont allow it) but for other groups or no-group allow it. Example, its cool to be able to group by decade or system and sort by rating to see my favorites for that group.
-
 - [ ] **Detect where the title sits on a game cover, and crop the CRT picture so it is not cut
       off.** The TV screen is landscape and cover art is portrait, so `object-cover` throws away
       most of the height. Today every game gets the **same** hardcoded crop:
@@ -797,6 +795,22 @@ head` being run by hand from a laptop pointed at production.<br>
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Sort by rating** (2026-08-11). `rating-best` / `rating-worst` on the played view only,
+      rendered as "Rating: Best" / "Rating: Worst". Grouping by rating withdraws both options,
+      which is what the entry asked for, and it is worth knowing that **`groupBy: "rating"` is the
+      played view's default** — so the new sorts are invisible until you group by something
+      else.<br>
+      _The validation is in two places, and both are needed._ `validSortOrderFor(view, groupBy)`
+      in `libraryConfig.ts` narrows the menu, and the hook validates `?sortOrder` against that
+      narrowed list rather than `config.validSortOrder`, so an inbound URL falls back instead of
+      selecting a `<option>` that is not rendered (which shows a blank `<select>`). `setGroupBy`
+      also had to stop being a plain `updateParam` call: it now strips a rating sort on the way
+      into `groupBy=rating`, the same leak `setView` already cleaned up one param over.<br>
+      _One product decision taken:_ unrated games sort **last in both directions**, rather than
+      leading the "worst first" shelf. No rating is the absence of a rank, not the worst one.
+      Ties break by name, because five ratings over 155 games means nearly every comparison is a
+      tie and the residual order would otherwise be whatever the API happened to send.
+
 - [x] **`CLAUDE.md` and `README.md` rewritten, with a Mermaid architecture diagram**
       (2026-08-11). New `docs/architecture.md` carries the request-flow diagram and is now
       **canonical for the request flow**; `README.md` owns what the project is and how to run
@@ -1230,13 +1244,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       inlined at build time from `NEXT_PUBLIC_SUPABASE_URL`, so a local build bakes in
       `sb-127-auth-token` and Vercel bakes in the project ref.<br>
       _Bonus:_ `SignupCta` dropped `"use client"` entirely and now ships zero JavaScript.
-- [x] **Browser pass on the Phase 4 UI completed** (2026-07-29) — the client-rendered surfaces
-      that `curl` cannot see and that shipped unverified in PR #68: the sign-up CTA banner, the
-      `AuthButton` relocated into the library header, the `?error=oauth_failed` /
-      `?error=link_invalid` copy on `/video-games/start`, owner edit affordances appearing only
-      on your own library, IGDB search in the add-game picker on prod, and the landing page in
-      dark mode. Of these, the IGDB search check was the load-bearing one: it is the only thing
-      that distinguishes working Twitch creds from absent ones, since
-      `/api/py/igdb/search` returns 401 to an unauthenticated probe either way.<br>
-      Only the known CTA banner flash was still outstanding afterwards, and it was fixed the same
-      day — see the pre-paint `data-authed` entry above.
