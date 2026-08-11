@@ -28,11 +28,14 @@ Usage (from api/, with DATABASE_URL and the Twitch credentials set):
     uv run python scripts/backfill_platforms.py --apply
 
 Preview is the default and prints every row it would change, so a production
-run is always a select before an update. It also reports RECORDED-BUT-UNLISTED
-systems: a console someone has a game on that IGDB does not list for it. Those
-are worth reading — either IGDB's data is incomplete or the shelf's system is
-wrong — but they are reported, never merged, because mixing the two vocabularies
-in one column is the thing this script exists to avoid.
+run is always a select before an update.
+
+It also SKIPS any game recorded on a console IGDB does not list for it, and says
+which. IGDB's list contradicting something known to be true means the row's
+igdb_id landed on a variant rather than the base game -- "Dead Cells" resolving
+to IGDB's "Dead Cells+" (Apple Arcade, iOS only) is the clearest case. Writing
+that list would remove the console its owner actually plays it on, which is
+worse than the incomplete value already there. Fix the igdb_id and re-run.
 """
 
 import argparse
@@ -118,7 +121,20 @@ def run(apply_changes: bool) -> None:
                 continue
             missing = recorded.get(row.id, set()) - set(igdb_platforms)
             if missing:
+                # Somebody owns this game on a console IGDB does not list for
+                # it, so IGDB's list contradicts something known to be true and
+                # writing it would REMOVE the console they actually play it on.
+                # Almost always the row's igdb_id landed on a variant rather
+                # than the base game -- "Dead Cells" resolving to IGDB's "Dead
+                # Cells+" (Apple Arcade, iOS only) is the clearest case.
+                #
+                # Skipping leaves the seeded value, which is incomplete but not
+                # wrong. Writing would leave a list that excludes the truth, and
+                # this column exists to answer "which consoles are valid for
+                # this game?" -- an answer that omits the owner's console is
+                # worse than a short one. Fix the igdb_id, then re-run.
                 unlisted.append((row, sorted(missing)))
+                continue
             if igdb_platforms != list(row.platforms):
                 changes.append((row, igdb_platforms))
 
@@ -130,8 +146,9 @@ def run(apply_changes: bool) -> None:
             print(f"   -> {', '.join(platforms)}")
 
         if unlisted:
-            print(f"\n{len(unlisted)} games recorded on a system IGDB does not list for them.")
-            print("Reported, not merged — read them, they mean IGDB or the shelf is wrong:")
+            print(f"\n{len(unlisted)} games SKIPPED: recorded on a system IGDB does not list.")
+            print("Their igdb_id most likely points at a variant rather than the base game.")
+            print("Left as-is rather than overwritten with a list missing the owner's console:")
             for row, missing in sorted(unlisted, key=lambda u: u[0].name.lower()):
                 print(f"  {row.name}: {', '.join(missing)}")
 
