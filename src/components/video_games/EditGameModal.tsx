@@ -44,23 +44,19 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   const [logEnd, setLogEnd] = useState("");
 
   const rate = (next: Rating | "") => {
-    const gameId = game.id;
-    if (gameId === undefined) return;
     // Any rating write answers the "how was it?" prompt, including one made
     // with the picker at the top of the dialog — leaving it up would keep
     // asking a question that has just been answered.
     setRatePrompt(false);
-    run(() => updateGameRating(gameId, next), {
+    run(() => updateGameRating(game.id, next), {
       optimistic: () => setOptimisticRating(next),
     });
   };
 
   const startPlaying = () => {
-    const gameId = game.id;
-    if (gameId === undefined) return;
     // Clear any leftover rating prompt from the previous playthrough.
     setRatePrompt(false);
-    run(() => logSession(gameId, localToday(), null));
+    run(() => logSession(game.id, localToday(), null));
   };
 
   // "Stop playing" closes the session and nothing else. It used to only OPEN a
@@ -71,7 +67,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   // does what it says, and the rating became a follow-up question below.
   const stopPlaying = () => {
     const sessionId = game.openSessionId;
-    if (sessionId == null) {
+    if (sessionId === null) {
       // Unreachable in practice: this control only renders when `playing`
       // below has already established the id is there. But a bare `return`
       // here would be one more way for this button to silently do nothing,
@@ -87,12 +83,11 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   };
 
   const saveLoggedSession = () => {
-    const gameId = game.id;
-    if (gameId === undefined || logStart === "") return;
+    if (logStart === "") return;
     // An empty end date logs a backdated session that's still going — the
     // game becomes currently playing (or a 409 if it already is).
     const end = logEnd === "" ? null : logEnd;
-    run(() => logSession(gameId, logStart, end), {
+    run(() => logSession(game.id, logStart, end), {
       onSuccess: () => {
         setLogOpen(false);
         setLogStart("");
@@ -106,15 +101,15 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   };
 
   const removeGame = () => {
-    const gameId = game.id;
-    if (gameId === undefined) return;
     // The game is gone — close the dialog; revalidation removes the card.
-    run(() => deleteGame(gameId), { onSuccess: onClose });
+    run(() => deleteGame(game.id), { onSuccess: onClose });
   };
 
-  const playing = game.currentlyPlaying && game.openSessionId != null;
+  // `openSessionId` is always present but is null whenever nothing is open, so
+  // this check is real — unlike the id guards this component used to carry.
+  const playing = game.currentlyPlaying && game.openSessionId !== null;
   const logDatesInvalid = logEnd !== "" && logStart !== "" && logEnd < logStart;
-  const sessionCount = game.sessionCount ?? 0;
+  const sessionCount = game.sessionCount;
 
   return (
     <ModalShell

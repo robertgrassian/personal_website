@@ -365,11 +365,8 @@ head` being run by hand from a laptop pointed at production.<br>
       (`tests/test_play_state.py`), and moving it into SQL trades Python you can test for SQL
       you cannot, for six session rows across 155 games. If you touch it at all, take only the
       cheap half — select the four columns instead of whole ORM objects.<br>
-      _Now unblocked, and cheap:_ making `Game.id`, `sessionCount` and `openSessionId`
-      non-optional. It is correct (the API schemas mark them required, and the optionality
-      forces guards that can never fire) and it was deferred only because it touched the same
-      components as the frontend splits. Those have landed, so this is the easy follow-up it
-      was waiting to become.
+      _The non-optional `Game.id` / `sessionCount` / `openSessionId` follow-up shipped
+      2026-08-11_ and is in Recently Completed; only the four backend items above are left here.
 
 - [ ] **Move the Following/Followers tabs to their own route.** The honest altitude answer that
       the `GameShelves` extraction deliberately did not take: the follow lists are a different
@@ -685,7 +682,8 @@ head` being run by hand from a laptop pointed at production.<br>
       one round trip after hydration still lands after first paint. The symptom list also lost
       the Unrated shelf on 2026-08-07: unrated games are no longer `canEdit`-gated at all.<br>
       The pre-paint `data-authed` flag that fixed the CTA banner and `AuthButton`
-      (2026-07-29, see Recently Completed) **cannot** be extended to cover this: the cookie proves
+      (2026-07-29; an inline script in `src/app/layout.tsx` stamps it from the session cookie,
+      logic in `src/lib/authFlag.ts`) **cannot** be extended to cover this: the cookie proves
       a session exists but not whose it is, and the JWT's `sub` claim is a user id, not a
       username, so answering "is this viewer the owner of THIS library?" needs the
       `/me/relationship` round trip either way.<br>
@@ -794,6 +792,19 @@ head` being run by hand from a laptop pointed at production.<br>
 ## Recently Completed
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
+
+- [x] **The library's row ids and session counts are non-optional** (2026-08-11). `Game.id`,
+      `Game.sessionCount`, `Game.openSessionId`, `WishlistGame.id` and `GameCaseInput.id` all
+      dropped their `?`. The API has always declared them required (`GameRead` /
+      `WishlistGameRead`, `api/app/schemas/users.py`) and games only ever arrive from those
+      endpoints, so the optionality bought nothing and cost eight `if (id === undefined) return`
+      guards that could not fire. Those are gone, along with `GameCase`'s
+      `game.id !== undefined` half of its `editable` test and `GameLibrary`'s `game.id ?? null`.
+      Split out of the tier-3 refactor item in Backlog, which had it as the "now unblocked, and
+      cheap" follow-up.<br>
+      _One guard is NOT dead and was kept:_ `openSessionId` is `number | null`, where `null` is
+      the real "not playing" value. `EditGameModal`'s `stopPlaying` still checks it, and the
+      test tightened from `== null` to `=== null` now that `undefined` is off the table.
 
 - [x] **Sort by rating** (2026-08-11). `rating-best` / `rating-worst` on the played view only,
       rendered as "Rating: Best" / "Rating: Worst". Grouping by rating withdraws both options,
@@ -1213,34 +1224,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       than load-bearing on the web side, since a username can only appear under
       `/video-games/u/` and cannot shadow a site route at any depth. It still matters for the
       API's own `/users` namespace, so it stays.
-- [x] **Auth UI now decides before first paint, not after hydration** (2026-07-29) — fixes both
-      the sign-up CTA banner flashing at signed-in viewers and the `AuthButton` popping in a beat
-      late. An inline `<script>` first in `<body>` (`src/app/layout.tsx`) reads the session cookie
-      and stamps `data-authed` on `<html>`; two rules in `globals.css` drop whichever half of the
-      auth UI does not apply. Both halves stay in the cached HTML for every viewer, so
-      `/video-games` is still prerendered static: the served markup is identical and only the
-      script's output differs. Logic in `src/lib/authFlag.ts`.<br>
-      **The banner was the least valuable of the three things the original entry named.** The
-      flash is nearly unreachable in practice: `/library` sends signed-in users to
-      `/u/{username}`, so hitting `/video-games` with a session takes a typed URL, an old
-      bookmark, or a shared link to Robert's library. The `AuthButton` pop-in is what justified
-      the work: it hit every viewer on every load of both library routes.<br>
-      _What it cannot fix, contrary to the original entry:_ the owner edit affordances. A cookie
-      says a session exists, not whose it is (the JWT's `sub` is a user id, not a username), so
-      the owner check still needs a round trip after hydration. Own backlog item now. (That check
-      was `useIsLibraryOwner` + `/me/profile` when this was written; since 2026-08-07 it is
-      `useViewerRelationship` + `/me/relationship`, one request instead of two — the reasoning
-      here is unchanged.)<br>
-      _Two costs accepted:_ `sessionCookieKey` duplicates supabase-js's own storage-key
-      derivation (`sb-${hostname.split(".")[0]}-auth-token`), so if that ever changes the flag
-      silently stops setting and the flash quietly returns — it degrades rather than breaks, but
-      nothing reports it. And a cookie present with an invalid session shows "Sign out" for a
-      frame before the subscription corrects it, where before it showed nothing. That second one
-      is narrower than it first looked: `src/middleware.ts` matches `/video-games` and
-      `updateSession` calls `getUser()`, so a revoked or long-expired session has its cookie
-      deleted by `Set-Cookie` on the same document response, before the script runs. The window
-      only survives when the refresh fails for a network reason, since auth-js keeps the session
-      then. Also note the cookie key is
-      inlined at build time from `NEXT_PUBLIC_SUPABASE_URL`, so a local build bakes in
-      `sb-127-auth-token` and Vercel bakes in the project ref.<br>
-      _Bonus:_ `SignupCta` dropped `"use client"` entirely and now ships zero JavaScript.

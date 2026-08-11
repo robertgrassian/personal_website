@@ -87,8 +87,8 @@ export function GameLibrary({
   // what lets the React.memo on GameCase actually bite.
   const handleEditGame = useCallback(
     (game: GameCaseInput) => {
-      if (view === "wishlist") setEditingWishlistId(game.id ?? null);
-      else setEditingGameId(game.id ?? null);
+      if (view === "wishlist") setEditingWishlistId(game.id);
+      else setEditingGameId(game.id);
     },
     [view]
   );
