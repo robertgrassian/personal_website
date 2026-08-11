@@ -50,22 +50,25 @@ is infrastructure only). All commands below run from `api/`.
 ```sh
 supabase start                       # once: local Postgres on :54322 (+ auth, Studio)
 uv run alembic upgrade head          # apply migrations
-uv run python scripts/seed.py        # load games.csv / sessions.csv / wishlist.csv
+uv run python scripts/seed.py        # load scripts/fixtures/{games,sessions,wishlist}.csv
 ```
 
 `DATABASE_URL` in the repo-root `.env` points at the local stack
 (`postgresql://postgres:postgres@127.0.0.1:54322/postgres`).
 
-**Data source toggle:** with `LIBRARY_API_ORIGIN=http://127.0.0.1:8000` in
-`.env`, the site's `getGames()`/`getWishlist()` read from the local DB through
-the FastAPI read endpoints (so `npm run dev:full` + a seeded DB is the normal
-setup). Unset it (or comment it out) to fall back to the repo-root CSV files —
-no API or DB needed. If it's set but uvicorn isn't running, pages fail loudly
-on purpose rather than silently serving CSV data.
+**`LIBRARY_API_ORIGIN` is required.** Set it to `http://127.0.0.1:8000` in
+`.env` and the site's `getGames()`/`getWishlist()` read from the local DB
+through the FastAPI read endpoints, so `npm run dev:full` + a seeded DB is the
+only working setup. There is **no CSV fallback** (retired in Phase 3): if the
+var is unset the page throws `requireLibraryApiOrigin`'s error, and if it is set
+but uvicorn isn't running, pages fail loudly on purpose rather than rendering an
+empty library.
 
 The seed script is idempotent (truncate-and-reload) — rerun it whenever the
-CSVs change. It fails loudly if a `sessions.csv` game name doesn't resolve to
-exactly one library game; fix the CSV and rerun.
+fixtures change. It reads the frozen CSVs in `api/scripts/fixtures/`, which are
+a seed source only and are never read by the running site. It fails loudly if a
+`sessions.csv` game name doesn't resolve to exactly one library game; fix the
+CSV and rerun.
 
 **Resetting:** the simplest reset is through Alembic:
 

@@ -2,7 +2,7 @@
 
 ## Project Purpose
 
-This is a personal website built with **Next.js 15, React 19, TypeScript, and Tailwind CSS v4**. The primary goal of this project is **learning frontend development**. A polished website is a welcome side effect, but teaching comes first.
+Personal website built with **Next.js 15, React 19, TypeScript, and Tailwind CSS v4**, with a **FastAPI (Python) backend** in `api/` and Postgres (Supabase) behind it. The primary goal of this project is **learning frontend development**. A polished website is a welcome side effect, but teaching comes first.
 
 ## How to Work With Me
 
@@ -19,40 +19,52 @@ This is a personal website built with **Next.js 15, React 19, TypeScript, and Ta
 - If there are multiple valid approaches, briefly explain the tradeoffs so I learn to evaluate options.
 - **Do not include analogies in code comments.** Keep comments descriptive and technical. Analogies belong in chat explanations, not in source files.
 
-## Project Vision
+## Architecture
 
-### 1. Homepage (`/`) — Built
+**The diagram is [`docs/architecture.md`](../docs/architecture.md)** — read it before changing how data moves. The two paths in one line each:
 
-A full-bleed hero photo (San Pedro cliffs) with a frosted-glass tile grid at the bottom linking to About, Game Library, and Resume. No nav bar — the tiles serve as the navigation.
+- **Read** (public, cached): Server Component `LibraryPage.tsx` → `src/lib/libraryApi.ts` (this file imports `server-only` and is the server boundary; there is no `gamesServer.ts`) → `GET /api/py/users/{username}/*` → routers → services → repositories → Postgres.
+- **Write** (owner-only, BFF): browser → Server Action `src/app/video-games/actions.ts` → `src/lib/meApi.ts` (session cookie → Bearer JWT) → `/api/py/me/*` → same layers → on success `revalidateTag(libraryCacheTag(...))`.
 
-### 2. About Me (`/about`) — Built
+Filter, group and sort are **client-side**, in `pipeline.ts` — pure functions over the fetched array, no React. The API returns a whole library; the browser narrows it.
 
-Bio, social links (GitHub, LinkedIn), and a masonry photo grid. Content and design may evolve.
+Docs ownership, so the same fact does not drift across four files: **`api/README.md`** owns the backend layer map and the data model, **`docs/architecture.md`** owns the request flow, **`README.md`** owns what the project is and how to run it, and this file owns conventions and the map below. Link, don't restate.
 
-### 3. Resume (`/resume`) — Built
+### Where things live
 
-Work history, skills, and a PDF download link.
+| Task                                   | File                                                                               |
+| -------------------------------------- | ---------------------------------------------------------------------------------- |
+| Library read fetches, cache tags       | `src/lib/libraryApi.ts`                                                            |
+| Owner writes (client-callable)         | `src/app/video-games/actions.ts` → `src/lib/meApi.ts`                              |
+| Filter / group / sort logic            | `src/components/video_games/pipeline.ts`                                           |
+| Filter/group/sort option lists         | `src/components/video_games/libraryConfig.ts`, `useFilterOptions.ts`               |
+| Shared types, `RATINGS`, `systemLabel` | `src/lib/games.ts` (library), `wishlist.ts`, `profile.ts`, `follows.ts`            |
+| Shelf UI                               | `GameShelves.tsx` → `ShelfSection.tsx` → `GameCase.tsx` / `GameCaseBack.tsx`       |
+| Library page shell (both routes)       | `src/components/video_games/LibraryPage.tsx`                                       |
+| Owner modals                           | `AddGameModal.tsx`, `EditGameModal.tsx`, `EditWishlistModal.tsx`, `ModalShell.tsx` |
+| "Currently playing" CRT                | `src/components/crt/CrtTv.tsx` + `crt.css`                                         |
+| Can this viewer edit?                  | `LibraryEditingContext.tsx`, `useViewerRelationship.ts`                            |
+| Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                       |
+| Library styles                         | `src/app/video-games/video-games.css`; site tokens in `src/app/globals.css`        |
+| API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)           |
+| Migrations                             | `api/alembic/versions/`                                                            |
+| Tests                                  | `api/tests/` (pytest). No frontend test suite exists yet                           |
 
-### 4. Video Game Library (`/video-games`) — Built
+Dead code worth knowing about: `src/components/video_games/CurrentlyPlaying.tsx` is the **old** stylized CRT and is imported by nothing. The live one is `crt/CrtTv.tsx`, used by `LibraryPage` and `/currently-playing`.
 
-A showcase of every video game I've ever played, backed by Postgres (Supabase) and served by the FastAPI backend. The UI is **"video game shelves"** — game cover art displayed on shelf planks, styled to evoke a home collection or Blockbuster. This section is largely complete:
+## Routes
 
-- Data read server-side via `src/lib/gamesServer.ts` (server-only) → `libraryApi.ts` → `GET /api/py/users/{username}/games`; types and constants in `src/lib/games.ts`. `LIBRARY_API_ORIGIN` must be set (local: `http://127.0.0.1:8000`); there is no CSV fallback (retired in Phase 3)
-- Shelf UI with cover art (IGDB URLs stored on each row) and system-colored fallbacks
-- Filter bar: search, rating, system, genre
-- Group by: system, rating, genre, decade
-- Sort within shelves: name, release date, last played
-- Owner editing happens in the site UI (add/remove games, rate, log/close sessions, wishlist CRUD + promote) — see the write path below. Cover art for new games comes from the `/api/py/igdb/search` proxy
-- Play state is derived by the API from `play_sessions` rows. An **open session** (NULL `end_date`) is the source of truth for "currently playing"; the newest `end_date` is "last played". Each `Game` arrives with `currentlyPlaying`, `lastPlayed`, `playingSince`, `openSessionId`, and `sessionCount` already derived
-- "Currently playing" CRT TV above the view tabs (`CrtTv.tsx`) cycles through every game with an open session like TV channels, each labeled "playing since {start}". Unrated games are ordinary library members: they sit on the shelves with everything else, are matched by every filter, and are counted in the headline. `groupBy: "rating"` collects them under "Unrated" (pinned last), and the rating filter has an "Unrated" option. A game that is both unrated and in progress therefore appears on the CRT _and_ on a shelf, which is the same double-billing a rated in-progress game has always had
-
-Owner writes follow the BFF pattern: browser → Server Action (`src/app/video-games/actions.ts`) → `src/lib/meApi.ts` (cookie → Bearer) → FastAPI `/api/py/me/*` → on success `revalidateTag(libraryCacheTag(...))`. The full backend lives in `api/` (routers → services → repositories); migrations via Alembic. A frozen CSV snapshot in `api/scripts/fixtures/` seeds a local dev DB (`cd api && uv run python scripts/seed.py`) and is not read by the running site.
-
-Remaining ideas are tracked in `TODO.md` (backlog).
-
-### 5. Site-wide Navigation — Built
-
-`src/components/Nav.tsx` — a sticky nav bar rendered in the root layout. Uses Caveat (Google Font, weight 700) for the site name. Hidden on `/` since the homepage has its own tile navigation. The nav height is defined as `--nav-height` in `globals.css` (`:root`) and consumed via `h-[var(--nav-height)]` in `Nav.tsx` and `top-[var(--nav-height)]` in `FilterBar.tsx` — change it in one place and both update.
+| Route                           | What it is                                                                                                 |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `/`                             | Hero photo + frosted-glass tile grid. No nav bar; the tiles are the nav                                    |
+| `/about`, `/resume`, `/privacy` | Bio and photo grid; work history + PDF; privacy policy                                                     |
+| `/video-games`                  | Robert's library at its stable URL, and the logged-out demo                                                |
+| `/video-games/u/[username]`     | Anyone's library. Same `LibraryPage` shell, different username                                             |
+| `/video-games/start`            | Sign-in pitch                                                                                              |
+| `/video-games/account`          | Account settings (today: delete account)                                                                   |
+| `/currently-playing`            | Standalone CRT, no shelves                                                                                 |
+| `/library`                      | Redirect-only resolver: logged out → `/video-games`, onboarded → their library, no profile → `/onboarding` |
+| `/onboarding`, `/auth/*`        | Username picker; OAuth callback + magic-link confirm route handlers                                        |
 
 ## Conventions
 
@@ -63,6 +75,8 @@ Remaining ideas are tracked in `TODO.md` (backlog).
 - **Routes use kebab-case, never snake_case** (`/video-games`, `/currently-playing`, `/video-games/start`). Renamed from underscores 2026-07-28; the old URLs are kept alive by permanent redirects in `next.config.ts`, which must stay. Note this is a _URL_ convention — `src/components/video_games/` and snake_case SQL column names (`currently_playing`) are deliberately untouched.
 - **The game library owns the `/video-games` prefix.** Everything belonging to it nests there, including per-user libraries at `/video-games/u/[username]` (moved off a top-level `/u/` 2026-07-29, redirect in `next.config.ts`). New library surfaces go under that prefix rather than at the top level. Auth is the deliberate exception: `/onboarding` and `/auth/*` stay top-level because identity is site-wide, not the library's.
 - **Always support both light and dark mode.** The site uses `@media (prefers-color-scheme: dark)` CSS variables in `globals.css` and Tailwind `dark:` variants in components — both must be addressed for any new UI. Never add color classes that only work in one mode.
+- **Nav height is one variable.** `--nav-height` in `globals.css` (`:root`), consumed as `h-[var(--nav-height)]` in `Nav.tsx` and `top-[var(--nav-height)]` in `FilterBar.tsx` and `StatsPanel.tsx`. Change it in one place and all three follow.
+- **Adding a read means adding its cache tag.** Tags are defined in `libraryApi.ts` and must be paired with every write that can change them, in `video-games/actions.ts`. Too narrow a tag serves a stale page.
 
 ## Repository
 
@@ -70,10 +84,11 @@ Remaining ideas are tracked in `TODO.md` (backlog).
 
 ## Tech Stack
 
-- **Framework:** Next.js 15 (App Router)
-- **Language:** TypeScript
+- **Framework:** Next.js 15 (App Router), React 19
+- **Language:** TypeScript (strict), Python 3.12 for the API
 - **Styling:** Tailwind CSS v4
-- **Deployment:** Vercel
+- **Backend:** FastAPI + SQLAlchemy 2.0 + Alembic, Postgres via Supabase
+- **Deployment:** Vercel (Next.js app and the Python function together)
 
 ## Commands
 
@@ -84,5 +99,8 @@ Remaining ideas are tracked in `TODO.md` (backlog).
   `/video-games` and its OG image prerender from it, and an unreachable origin fails the build by
   design rather than shipping an empty library
 - `npm run lint` — Run ESLint
-- `cd api && uv run pytest` — Python test suite (integration tests need `DATABASE_URL`)
+- `cd api && uv run pytest` — Python test suite (DB tests skip without `DATABASE_URL`)
 - `cd api && uv run ruff check .` — Python lint
+- `cd api && uv run alembic upgrade head` — Apply migrations
+
+Local setup start to finish is [`docs/dev-setup.md`](../docs/dev-setup.md).
