@@ -22,6 +22,7 @@ import {
   promoteMyWishlistItem,
   searchIgdb,
   updateMyGameRating,
+  updateMyGameSystem,
   unfollowUser,
   updateMyWishlistItem,
   type LookupGenresResult,
@@ -108,6 +109,11 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 function isValidRating(rating: string): rating is Rating | "" {
   return rating === "" || RATINGS.some((r) => r.name === rating);
 }
+
+// Mirrors the `max_length=100` on GameUpdate.system and GameCreate.system
+// (api/app/schemas/me.py). Duplicated on purpose: the API stays the real
+// bound, this only turns a foreseeable 422 into a readable message.
+const MAX_SYSTEM_LENGTH = 100;
 
 /** Run a mutation and, only if the API accepted it, purge the caller's cached
  *  reads for the resources named in `tags`. `alsoRevalidate` names a second
@@ -294,6 +300,26 @@ export async function updateGameRating(gameId: number, rating: Rating | ""): Pro
   // pages built from it on their next request. Not the wishlist or the follow
   // lists: a rating cannot change either.
   return write(() => updateMyGameRating(gameId, rating), [gamesTag]);
+}
+
+/** Change which console a library entry records.
+ *
+ *  The escape hatch for the add path's duplicate 409: with one entry per game
+ *  per user, "I own this on SNES and just got the DS version" has to be an
+ *  edit, because a second add is rejected by the unique key.
+ *
+ *  Trimmed and length-checked here as well as server-side, so an over-long or
+ *  blank value fails as a readable message instead of a 422 the UI would have
+ *  to translate. MAX_SYSTEM_LENGTH mirrors GameUpdate.system's max_length.
+ */
+export async function updateGameSystem(gameId: number, system: string): Promise<MutateResult> {
+  const trimmed = system.trim();
+  if (!Number.isInteger(gameId) || trimmed === "" || trimmed.length > MAX_SYSTEM_LENGTH) {
+    return { ok: false, message: "Invalid system." };
+  }
+
+  // Games only: the system is per-entry, so no other cached read can change.
+  return write(() => updateMyGameSystem(gameId, trimmed), [gamesTag]);
 }
 
 /** Start playing a game (endDate null → open session) or log a past

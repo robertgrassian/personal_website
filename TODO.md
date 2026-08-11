@@ -178,11 +178,10 @@ to keep that section at five._
       backstop, so a duplicate add is a 409 whatever console it names. "What duplicate means"
       was answered by the identity rule: same `igdb_id`, or same name among that user's own
       hand-entered games.<br>
-      _What is left, and it is a real gap._ The 409 currently has **no escape hatch**: with
-      `GameUpdate` still rating-only there is no way to change which console an entry
-      records, so "I own this on SNES and just got the DS version" is a dead end. That fix
-      lives in **"Make library and wishlist entries fully editable"** in Backlog, which now
-      leads with it. Close this item once that ships.<br>
+      _The escape hatch shipped 2026-08-11_ (see Recently Completed): `PATCH /me/games/{id}`
+      takes `system`, so "I own this on SNES and just got the DS version" is an edit rather
+      than a dead end. This item stays open only for the annotation mismatch in the last
+      paragraph, which is a cosmetic looseness rather than a dead end.<br>
       _Historical, kept because it explains the current UI._ **The search half
       shipped 2026-08-09** (branch `claude/duplicate-add-warning`): `GameLibrary` now builds a
       folded-name → systems map and threads it through `AddGameModal` to `GameSearchStep`, so a
@@ -554,9 +553,11 @@ head` being run by hand from a laptop pointed at production.<br>
 - [ ] **Add public libraries to `sitemap.ts`.** Carried over from the spec's Phase 6
       (2026-07-30). Today the sitemap lists static routes only; `/video-games/u/[username]`
       pages are public and indexable but unlisted, so search engines reach them only by
-      crawling follower lists. Deliberately skipped once already (2026-07-29, recorded in
-      Recently Completed) on the grounds that one hardcoded username in a sitemap is worse
-      than none. With real signups that reasoning inverts: the entry becomes a generated list.
+      crawling follower lists. Deliberately skipped once already, when the route moved under
+      `/video-games/u/` (2026-07-29): the sitemap already lists `/video-games`, which **is**
+      Robert's library, so adding `/video-games/u/rgrassian` would have submitted two URLs for
+      identical content, and a canonical link is the fix for that rather than a sitemap entry.
+      With real signups that reasoning inverts: the entry becomes a generated list.
       Wants a decision on whether users can opt out of indexing, since spec decision #6 made
       every library public with no privacy setting, and "public" and "indexed by Google" are
       not the same promise.
@@ -623,14 +624,11 @@ head` being run by hand from a laptop pointed at production.<br>
       (2026-08-10). Since the catalog migration a library entry is unique on
       `(user_id, metadata_id)`, so adding a game you already own on a second console is a
       409 — and with `GameUpdate` still rating-only there is **no way out of that 409 at
-      all**. Editing `system` is the escape hatch, and it is a small change on its own:
-      `GameUpdate` gains `system`, a repo `update_game_system` mirroring
-      `update_game_rating`, and a field in `EditGameModal`. Worth doing first even if the
-      rest of this item waits.<br>
-      Both sides are stuck today: `GameUpdate` (`api/app/schemas/me.py`) is
-      **rating-only** by design ("future metadata edits extend this model"), so
-      `EditGameModal` cannot touch system, or rating aside, anything else — the earlier
-      framing that only the wishlist was limited was wrong. Note name, genres, release date
+      all**. **That half shipped 2026-08-11** — see Recently Completed — so the 409 now has
+      an escape hatch and this item is back to being the broader "edit everything" want.<br>
+      `GameUpdate` (`api/app/schemas/me.py`) now carries rating and system, and nothing
+      else; `EditGameModal` has a system field with an explicit Save. Note name, genres,
+      release date
       and cover art now live on the **shared** `game_metadata` row, so editing those is a
       different and harder question than editing `system`: a shared row is visible to
       everyone who owns that game, and nothing in the UI edits one today by design. Editing
@@ -642,8 +640,9 @@ head` being run by hand from a laptop pointed at production.<br>
       _Want:_ edit essentially every field from either modal, with the same form in both.
       Keep only the genuinely mode-specific bits apart: rating on the library side, starred on
       the wishlist side.<br>
-      _Work:_ extend `GameUpdate` past rating and add the matching service/repository handling
-      (routers → services → repositories), extend `WishlistUpdate` past starred/notes/system,
+      _Work:_ extend `GameUpdate` past rating and system, following the same
+      router → service → repository path `update_game_system` took, extend `WishlistUpdate`
+      past starred/notes/system,
       then lift the shared field set out of `EditGameModal` into one component both modals
       render, with Server Actions in `video-games/actions.ts` doing the usual
       `revalidateTag(libraryCacheTag(...))`. Cover art edits must keep
@@ -792,6 +791,26 @@ head` being run by hand from a laptop pointed at production.<br>
 ## Recently Completed
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
+
+- [x] **You can change which console a library entry records** (2026-08-11). `GameUpdate` gains
+      `system`, `update_game_system` in `api/app/repositories/me.py` mirrors
+      `update_game_rating`, and `EditGameModal` has a System field. This is the escape hatch the
+      duplicate-add 409 had been missing since the catalog migration: the library is keyed on
+      `(user_id, metadata_id)`, so a second console cannot be a second add and has to be an
+      edit.<br>
+      _The asymmetry with rating, which is the thing to know before extending this._ Rating has
+      a cleared state and `""`/`null` both mean "unrate". System does **not**:
+      `played_games.system` is NOT NULL, so blank and null are both 422s and omitting the key is
+      the only way to say "leave unchanged". Tests cover all three spellings.<br>
+      _The UI deliberately does not follow the rating picker's instant write._ A rating is one
+      click of five known values; a system is free text mid-typing, and writing per keystroke
+      would file a game under "S", then "SN", then "SNE". So it is a draft plus a "Save system"
+      button that appears only when dirty, the shape the wishlist notes field already uses. It
+      is also a third `<datalist>`, joining the add and promote forms, so the mobile-combobox
+      item in Backlog now has three call sites to fix rather than two.<br>
+      _Still deliberately out:_ name, genres, cover and release date. Those live on the shared
+      `game_metadata` row, so editing one changes the game for everyone who owns it. `system` is
+      per-user and carries none of that question.
 
 - [x] **The library's row ids and session counts are non-optional** (2026-08-11). `Game.id`,
       `Game.sessionCount`, `Game.openSessionId`, `WishlistGame.id` and `GameCaseInput.id` all
@@ -1195,32 +1214,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       comes from the client, which `revalidateMyLibrary` explicitly warns against, so
       `revalidateOtherLibrary` documents why it is sound there and nowhere else (the worst a
       forged call achieves is re-fetching an already-public page).
-- [x] **Game library nested under `/video-games`** (2026-07-29) — per-user libraries moved from
-      `/u/{username}` to `/video-games/u/{username}`, so the app owns one prefix instead of
-      leaking a top-level `/u` namespace. Settles the routing/namespace backlog item in favour of
-      per-app route prefixes on one domain. Redirect added in `next.config.ts` next to the
-      kebab-case ones, but **temporary (307), not permanent** — a 308 is cached by browsers
-      more or less forever, and the spec plans for `/u/[username]` to become a cross-library
-      profile hub if movie/book libraries materialize, which a permanent redirect would fight
-      with no way to reach browsers holding the cached answer. There is no ranking to preserve
-      on a URL that was live for two days. It is worth having at all only because
-      `/u/{username}` was linked from `/video-games/start`, which is in `sitemap.ts` and is
-      Google's App homepage, so crawlers have plausibly seen it.<br>
-      Verified against `next start` that `/u/rgrassian`, `/u/RGrassian` and `/u/nosuchuser` all
-      forward, that the unknown user still 404s after forwarding, and that the older snake-case
-      redirects still chain to 200.<br>
-      **Closed a real hole while in there:** `USERNAME_RE` accepts underscores and hyphens
-      alike, but the reserved-username set only listed the underscore spelling of
-      `video_games`, so **`video-games` was a claimable username** and would have sat
-      confusingly beside the route. Rather than listing both spellings by hand, a
-      `_both_spellings()` helper in `api/app/services/me.py` derives them, so a route name
-      added later in either spelling is reserved in both. A test asserts that invariant over
-      the whole set instead of over a few literals.<br>
-      _Deliberately not done, contra the original entry:_ no `sitemap.ts` change. The sitemap
-      already lists `/video-games`, which **is** Robert's library, so adding
-      `/video-games/u/rgrassian` would submit two URLs for identical content. If that duplication
-      bothers anyone the fix is a canonical link, which is its own concern.<br>
-      _Worth knowing:_ the route-collision half of `RESERVED_USERNAMES` is now defensive rather
-      than load-bearing on the web side, since a username can only appear under
-      `/video-games/u/` and cannot shadow a site route at any depth. It still matters for the
-      API's own `/users` namespace, so it stays.

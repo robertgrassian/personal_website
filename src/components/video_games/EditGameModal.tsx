@@ -2,12 +2,18 @@
 
 import { useOptimistic, useState } from "react";
 import { localToday, systemLabel, type Game, type Rating } from "@/lib/games";
-import { deleteGame, logSession, stopSession, updateGameRating } from "@/app/video-games/actions";
+import {
+  deleteGame,
+  logSession,
+  stopSession,
+  updateGameRating,
+  updateGameSystem,
+} from "@/app/video-games/actions";
 import { ModalShell } from "./ModalShell";
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
-import { buttonClass, fieldClass, ghostButtonClass, labelClass } from "./formStyles";
+import { buttonClass, fieldClass, ghostButtonClass, inputClass, labelClass } from "./formStyles";
 
 // Date inputs size to their content rather than filling the row, so they take
 // the shared tokens plus their own padding instead of `inputClass`.
@@ -15,6 +21,9 @@ const dateInputClass = `${fieldClass} px-2 py-1`;
 
 type EditGameModalProps = {
   game: Game;
+  // Every system already on a shelf, for the datalist below. Same prop
+  // AddGameModal and EditWishlistModal take, from the same place.
+  existingSystems: string[];
   onClose: () => void;
 };
 
@@ -25,7 +34,7 @@ type EditGameModalProps = {
 //
 // This component is mounted only while open, so the scroll-lock/Escape effect
 // runs on mount and cleans up on unmount — no isOpen plumbing needed.
-export function EditGameModal({ game, onClose }: EditGameModalProps) {
+export function EditGameModal({ game, existingSystems, onClose }: EditGameModalProps) {
   // Optimistic rating: shows the clicked value immediately, then converges on
   // the prop once the action's revalidation delivers fresh data — including
   // reverting automatically if the server call fails.
@@ -42,6 +51,14 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   const [logOpen, setLogOpen] = useState(false);
   const [logStart, setLogStart] = useState("");
   const [logEnd, setLogEnd] = useState("");
+
+  // Draft state, deliberately unlike the rating picker above: a rating is one
+  // click of five known values, so it writes immediately and reconciles
+  // optimistically. A system is free text you are halfway through typing, and
+  // writing on every keystroke would file the game under "S", then "SN", then
+  // "SNE". Hence a draft plus an explicit Save, the same shape the wishlist
+  // notes field uses.
+  const [systemDraft, setSystemDraft] = useState(game.system);
 
   const rate = (next: Rating | "") => {
     // Any rating write answers the "how was it?" prompt, including one made
@@ -100,6 +117,10 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
     });
   };
 
+  const saveSystem = () => {
+    run(() => updateGameSystem(game.id, systemDraft));
+  };
+
   const removeGame = () => {
     // The game is gone — close the dialog; revalidation removes the card.
     run(() => deleteGame(game.id), { onSuccess: onClose });
@@ -110,6 +131,9 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   const playing = game.currentlyPlaying && game.openSessionId !== null;
   const logDatesInvalid = logEnd !== "" && logStart !== "" && logEnd < logStart;
   const sessionCount = game.sessionCount;
+  // Compared trimmed, so trailing whitespace alone does not offer a Save that
+  // would write the value the row already holds.
+  const systemDirty = systemDraft.trim() !== game.system && systemDraft.trim() !== "";
 
   return (
     <ModalShell
@@ -137,6 +161,43 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
             Unrated games move to the Unrated shelf (visible only to you) until rated again.
           </p>
         )}
+
+        <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
+          System
+        </p>
+        {/* A <datalist> is what the add and promote forms already use, so all
+            three share one control to replace when the mobile-combobox item
+            lands: on a phone this degrades to a plain text field. */}
+        <label className={`mt-2 ${labelClass}`}>
+          <span className="sr-only">Console this game is filed under</span>
+          <input
+            type="text"
+            value={systemDraft}
+            onChange={(e) => setSystemDraft(e.target.value)}
+            list="edit-game-systems"
+            maxLength={100}
+            placeholder="e.g. SNES, PS5"
+            className={inputClass}
+          />
+        </label>
+        <datalist id="edit-game-systems">
+          {existingSystems.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+        {systemDirty && (
+          <button
+            type="button"
+            onClick={saveSystem}
+            disabled={isPending}
+            className={`mt-2 ${buttonClass}`}
+          >
+            Save system
+          </button>
+        )}
+        <p className="mt-1.5 text-[11px] text-shelf-text-muted">
+          Moving a game to another console keeps its rating and play history.
+        </p>
 
         <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
           Play

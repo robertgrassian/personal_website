@@ -360,6 +360,69 @@ def test_patch_game_unknown_rating_is_422(fresh_user_with_game) -> None:
 
 
 @requires_db
+def test_patch_game_updates_system(fresh_user_with_game) -> None:
+    # The escape hatch for the duplicate-add 409: one entry per game per user
+    # means a second console has to be an edit, not a second add.
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"system": "Switch"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["system"] == "Switch"
+    # The rating and the fixture's session survive the move: system lives on
+    # the user's own row, so nothing else is touched.
+    assert body["rating"] == "Good"
+    assert body["lastPlayed"] == "2026-01-15"
+
+
+@requires_db
+def test_patch_game_system_persists_to_public_read(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    client = client_as(user_id)
+    assert client.patch(f"/api/py/me/games/{game_id}", json={"system": "PS5"}).status_code == 200
+    username = client.get("/api/py/me/profile").json()["username"]
+    [game] = TestClient(create_app()).get(f"/api/py/users/{username}/games").json()
+    assert game["system"] == "PS5"
+
+
+@requires_db
+def test_patch_game_system_is_trimmed(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"system": "  PS5  "})
+    assert response.status_code == 200
+    assert response.json()["system"] == "PS5"
+
+
+@requires_db
+@pytest.mark.parametrize("system", ["", "   ", None])
+def test_patch_game_blank_system_is_422(fresh_user_with_game, system) -> None:
+    # Unlike rating there is no cleared state: played_games.system is NOT NULL,
+    # so neither a blank string nor null may be read as "unset it". Omitting
+    # the key is the only way to leave it alone.
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"system": system})
+    assert response.status_code == 422
+    assert client_as(user_id).get("/api/py/me/profile").status_code == 200
+
+
+@requires_db
+def test_patch_game_over_long_system_is_422(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"system": "x" * 101})
+    assert response.status_code == 422
+
+
+@requires_db
+def test_patch_game_rating_and_system_together(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).patch(
+        f"/api/py/me/games/{game_id}", json={"rating": "Perfect", "system": "PC"}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["rating"], body["system"]) == ("Perfect", "PC")
+
+
+@requires_db
 def test_patch_someone_elses_game_is_404(fresh_user_with_game) -> None:
     # The fixture user's game PATCHed by a different (seeded) account: the
     # ownership check must make it look nonexistent, and the row must be

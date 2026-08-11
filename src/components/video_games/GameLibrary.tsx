@@ -221,7 +221,13 @@ export function GameLibrary({
           />
         )}
 
-        {editingGame && <EditGameModal game={editingGame} onClose={() => setEditingGameId(null)} />}
+        {editingGame && (
+          <EditGameModal
+            game={editingGame}
+            existingSystems={existingSystems}
+            onClose={() => setEditingGameId(null)}
+          />
+        )}
         {editingWishlistItem && (
           <EditWishlistModal
             item={editingWishlistItem}
