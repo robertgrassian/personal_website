@@ -24,6 +24,8 @@ const GROUP_BY_LABELS: Record<GroupBy, string> = {
 const SORT_LABELS: Record<SortOrder, string> = {
   "name-asc": "Name A→Z",
   "name-desc": "Name Z→A",
+  "rating-best": "Rating: Best",
+  "rating-worst": "Rating: Worst",
   "release-newest": "Release: Newest",
   "release-oldest": "Release: Oldest",
   "played-newest": "Last Played: Recent",

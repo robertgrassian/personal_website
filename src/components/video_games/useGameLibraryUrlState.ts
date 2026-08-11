@@ -13,6 +13,7 @@ import {
   type GroupBy,
   type SortOrder,
   viewConfig,
+  validSortOrderFor,
   parseView,
   VIEW_CONFIG,
   DEFAULT_VIEW,
@@ -134,8 +135,13 @@ export function useGameLibraryUrlState(): UrlState {
     ? (rawGroupBy as GroupBy)
     : config.defaultGroupBy;
 
+  // Validated against the GROUPING-aware list, not `config.validSortOrder`:
+  // the rating sorts drop out under groupBy="rating", and a URL still carrying
+  // one has to fall back rather than select an option the menu no longer
+  // renders (a <select> whose value matches no <option> shows blank).
+  const validSortOrder = validSortOrderFor(view, groupBy);
   const rawSortOrder = searchParams.get("sortOrder");
-  const sortOrder: SortOrder = config.validSortOrder.includes(rawSortOrder as SortOrder)
+  const sortOrder: SortOrder = validSortOrder.includes(rawSortOrder as SortOrder)
     ? (rawSortOrder as SortOrder)
     : config.defaultSortOrder;
 
@@ -252,7 +258,32 @@ export function useGameLibraryUrlState(): UrlState {
     },
     [paramsWithLiveSearch, pathname, router]
   );
-  const setGroupBy = useCallback((value: GroupBy) => updateParam("groupBy", value), [updateParam]);
+  // Not updateParam, because changing the grouping can invalidate the sort:
+  // grouping by rating withdraws the rating sorts. Left in the URL, the stale
+  // ?sortOrder would sit there inert and then spring back into effect the
+  // moment the grouping changed again — the same leak setView cleans up when
+  // switching views, one param over.
+  const setGroupBy = useCallback(
+    (value: GroupBy) => {
+      const params = paramsWithLiveSearch();
+      const currentView = parseView(params.get("view"));
+      if (value === viewConfig(currentView).defaultGroupBy) {
+        params.delete("groupBy");
+      } else {
+        params.set("groupBy", value);
+      }
+      const currentSortOrder = params.get("sortOrder");
+      const stillValid = validSortOrderFor(currentView, value);
+      if (currentSortOrder && !stillValid.includes(currentSortOrder as SortOrder)) {
+        params.delete("sortOrder");
+      }
+      const qs = params.toString();
+      startTransition(() => {
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      });
+    },
+    [paramsWithLiveSearch, pathname, router]
+  );
   const setSortOrder = useCallback(
     (value: SortOrder) => updateParam("sortOrder", value),
     [updateParam]
@@ -298,7 +329,7 @@ export function useGameLibraryUrlState(): UrlState {
     activeFilters,
     activeWishlistFilters,
     validGroupBy: config.validGroupBy,
-    validSortOrder: config.validSortOrder,
+    validSortOrder,
     setView,
     setGroupBy,
     setSortOrder,

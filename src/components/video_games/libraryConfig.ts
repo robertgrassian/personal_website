@@ -29,7 +29,14 @@ export type SortOrder =
   | "played-newest"
   | "played-oldest"
   | "added-newest"
-  | "added-oldest";
+  | "added-oldest"
+  | "rating-best"
+  | "rating-worst";
+
+// Sorts that read a game's rating, and so are meaningless once the shelves are
+// already one-rating-each. Kept as a set here rather than a `startsWith`
+// check so a future sort named "rating-something-else" has to opt in.
+const RATING_SORT_ORDERS: readonly SortOrder[] = ["rating-best", "rating-worst"];
 
 // Tab labels for every view, people tabs included — the strip renders from
 // this, so it is the one place all four appear together.
@@ -57,6 +64,8 @@ export const VIEW_CONFIG: Record<GameView, ViewConfig> = {
     validSortOrder: [
       "name-asc",
       "name-desc",
+      "rating-best",
+      "rating-worst",
       "release-oldest",
       "release-newest",
       "played-newest",
@@ -93,6 +102,22 @@ export const DEFAULT_VIEW: GameView = "played";
 // so this only ever decides what a stale param validates against.
 export function viewConfig(view: View): ViewConfig {
   return VIEW_CONFIG[isGameView(view) ? view : DEFAULT_VIEW];
+}
+
+/** The sort orders actually offerable for a view, given how it is grouped.
+ *
+ *  This is the one place `validSortOrder` is narrowed by something other than
+ *  the view, and the reason is grouping by rating: every shelf then holds a
+ *  single rating, so sorting by rating inside them can only ever be a no-op.
+ *  Withheld rather than offered and ignored — an option that visibly does
+ *  nothing reads as a bug.
+ *
+ *  Returns the config array itself in the common case, so the identity is
+ *  stable across renders and only the narrowed path allocates. */
+export function validSortOrderFor(view: View, groupBy: GroupBy): readonly SortOrder[] {
+  const { validSortOrder } = viewConfig(view);
+  if (groupBy !== "rating") return validSortOrder;
+  return validSortOrder.filter((sort) => !RATING_SORT_ORDERS.includes(sort));
 }
 
 // Validate a raw ?view value. Lives here with VALID_VIEW and DEFAULT_VIEW
