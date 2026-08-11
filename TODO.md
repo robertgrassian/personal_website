@@ -91,56 +91,6 @@ the old rule sent every bug straight here, so four of five slots were defects.)
       released on"**, the mobile combobox item (`<datalist>` does not work on phones), and the
       destination-switcher item above.
 
-- [ ] **Rewrite `CLAUDE.md` and `README.md`: purge the stale facts and give both an architecture
-      section.** (Promoted by request 2026-08-09.) Two documents, two audiences, one pass. The
-      `CLAUDE.md` version optimizes for **an agent finding things fast**; the `README.md` version
-      optimizes for **a human understanding what this is**, and wants the site's purpose up front,
-      a dedicated game-library section (it is most of the repo), and an architecture section.<br>
-      _Three wrong facts found already, which is the evidence the sweep is needed._ **(1)**
-      `CLAUDE.md` routes the read path through "`src/lib/gamesServer.ts` (server-only)" — **that
-      file does not exist.** `import "server-only"` is at the top of `libraryApi.ts` itself, which
-      is the actual server boundary. **(2)** `CLAUDE.md` names `CrtTv.tsx` as the currently-playing
-      component; the file is `CurrentlyPlaying.tsx`, and the CRT-TV bug entry in Backlog now says
-      so too. **(3)** `README.md`'s Claude Skills table lists the skill as `todo` / `/todo`; it is
-      `proj-todo`, and the whole point of that rename was that the skill gets invoked. Assume more
-      of the same and verify every path, filename and command rather than re-reading the prose.<br>
-      _What "help Claude find things" actually means, since it is the stated goal:_ a map from
-      **task** to **file**, not a directory listing (an agent can already run `ls`). The things
-      worth writing down are the ones that cost a search every time: the owner write path
-      (browser → Server Action in `video-games/actions.ts` → `meApi.ts` → FastAPI `/me/*` →
-      `revalidateTag`) is already there and earns its place; the read path is the same shape and is
-      currently wrong; the API's routers → services → repositories layering lives in
-      `api/README.md`; and the filter/group/sort pipeline (`pipeline.ts`) has no pointer anywhere.
-      Worth adding a "where does X live" table for the recurring destinations: shelf UI, modals,
-      auth, migrations, tests.<br>
-      _Watch the size budget._ `CLAUDE.md` is loaded into context on every single session, so
-      every line competes with the actual task, and a long file is what gets skimmed. It is 88
-      lines today. An architecture section that grows it past roughly double should push detail
-      into a linked doc instead: `docs/` already holds `dev-setup.md`,
-      `genre-backfill-runbook.md` and `supabase-primer.md`, and `api/README.md` already owns the
-      data model. The conventions section carries a warning about exactly this failure mode — the
-      `proj-todo` rules were duplicated into `CLAUDE.md`, and having them in context is what made
-      the skill look redundant and got it skipped for a session. Do not undo that lesson by
-      inlining `api/README.md` here.<br>
-      _Liked, 2026-08-09: put an architecture **diagram** in `docs/`_ and have both files link to
-      it, which is also how the size budget above gets respected — the diagram carries the shape,
-      `CLAUDE.md` keeps only the pointers an agent needs to open a file. Draw it in **Mermaid**
-      rather than exporting an image: GitHub renders ` ```mermaid ` blocks natively, so it stays
-      diffable text that can be corrected in a PR instead of a binary nobody updates. The request
-      flow is the diagram worth having (browser → Server Action → `meApi.ts` → FastAPI routers →
-      services → repositories → Postgres, with the read path and `revalidateTag` alongside),
-      since that is the thing this repo's structure actually encodes. `docs/dev-setup.md` is the
-      neighbor to match for tone.<br>
-      _Do not duplicate what the two files each own._ `README.md` today already has Features, Tech
-      Stack, Authentication, Design decisions, Getting Started, Scripts, Game Library Data and
-      Claude Skills, and `api/README.md` has the data model and its rationale. The risk in adding
-      "architecture" to both is three descriptions of one system drifting apart. Decide which file
-      is canonical for each fact and have the others link to it.<br>
-      _One thing to decide, not just execute:_ `README.md` is the repo's public face on GitHub, and
-      the purpose section is written for a stranger — likely someone looking at this as work,
-      given the site hosts a resume. That is a different voice from the rest of the file, which is
-      setup instructions. Worth writing it deliberately rather than as another bullet list.
-
 ## Bugs
 
 _Confirmed defects that are not urgent enough for Up Next. Roughly severity-ordered, worst first.
@@ -260,8 +210,10 @@ to keep that section at five._
       off.** The TV screen is landscape and cover art is portrait, so `object-cover` throws away
       most of the height. Today every game gets the **same** hardcoded crop:
       `object-cover [object-position:center_22%]` on the `<Image>` inside `.crt-picture`
-      (`CurrentlyPlaying.tsx` — note the component is not `CrtTv.tsx`, despite what CLAUDE.md
-      says). 22% is a guess that titles sit high; when they don't, the title is sliced.<br>
+      (`src/components/crt/CrtTv.tsx` — corrected 2026-08-11: this entry used to name
+      `video_games/CurrentlyPlaying.tsx`, which is dead code nothing imports. The same crop
+      literal appears in both files, so edit the `crt/` one). 22% is a guess that titles sit
+      high; when they don't, the title is sliced.<br>
       _The framing that matters, per the ask:_ the goal is **not** to center the title. It is the
       smallest shift that brings the title fully inside the visible band, so the rest of the key
       art keeps as much screen as possible. That makes the output a single number per cover — a
@@ -346,7 +298,9 @@ to keep that section at five._
       `rate_limit_writes` commits **separately** on purpose, for the opposite reason (see the
       Tier 3 refactor item above); do not copy that shape here.<br>
       _Two smaller things to settle:_ retention, since this is the one table with no natural cap
-      (`max_games` bounds rows, nothing bounds edits); and whether undo is an affordance with a
+      (`max_games` on `Settings` in `api/app/core/config.py` — default 2000, env-overridable,
+      enforced in `api/app/services/me.py` on both create paths with a dedicated 403 — bounds
+      rows, but nothing bounds edits); and whether undo is an affordance with a
       time window (an "Undo" link in a toast, which wants the toast item below first) or a
       history view the owner browses. Either way decide what happens when state moved on:
       undoing a rating edit after a later edit should probably refuse rather than silently
@@ -843,6 +797,31 @@ head` being run by hand from a laptop pointed at production.<br>
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **`CLAUDE.md` and `README.md` rewritten, with a Mermaid architecture diagram**
+      (2026-08-11). New `docs/architecture.md` carries the request-flow diagram and is now
+      **canonical for the request flow**; `README.md` owns what the project is and how to run
+      it; `api/README.md` keeps the backend layer map and data model; `CLAUDE.md` keeps
+      conventions plus a task → file map. Both files state that split so the same fact stops
+      being written in four places. `CLAUDE.md` went 88 → 106 lines, inside the "roughly
+      double" budget.<br>
+      _Premise correction, and it inverts what this item claimed._ The entry said `CrtTv.tsx`
+      was the wrong name and `CurrentlyPlaying.tsx` the right one. It is the other way round:
+      `src/components/crt/CrtTv.tsx` has been the live component since 2026-07-21 (PR #59) and
+      is what `LibraryPage` and `/currently-playing` import. `video_games/CurrentlyPlaying.tsx`
+      is **dead code** that nothing imports, and is still being mechanically updated by
+      refactors (PR #107 touched it). Deleting it is not tracked anywhere; the CRT-crop item in
+      Backlog was repointed at the live file. The other two wrong facts were real: no
+      `gamesServer.ts` exists (`libraryApi.ts` holds the `server-only` import), and the skill is
+      `proj-todo`, not `todo`.<br>
+      _Also fixed in passing:_ `docs/dev-setup.md` still advertised the retired CSV fallback
+      ("unset `LIBRARY_API_ORIGIN` to fall back to the repo-root CSV files") and pointed at
+      repo-root CSVs that now live in `api/scripts/fixtures/`.<br>
+      _Worth reusing:_ the Mermaid block was validated by actually rendering it headlessly
+      (`mermaid.parse` + `render` in Playwright Chromium at
+      `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`) rather than eyeballed, which is
+      also how a subgraph title colliding with the incoming arrows got caught. A long
+      `subgraph` title is what causes that collision; keep them short.
+
 - [x] **`game_metadata.platforms` backfilled from IGDB** (2026-08-10, PRs #107 and #109).
       The catalog migration had seeded it from `played_games.system`, so it held "the one
       console someone recorded" rather than "every platform this released on": 20 rows empty,
@@ -1261,7 +1240,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       `/api/py/igdb/search` returns 401 to an unauthenticated probe either way.<br>
       Only the known CTA banner flash was still outstanding afterwards, and it was fixed the same
       day — see the pre-paint `data-authed` entry above.
-- [x] **Per-user library size cap shipped** (Phase 4 slice 6, PR #68) — `max_games` on
-      `Settings` (`api/app/core/config.py:65`, default 2000, overridable by env var), enforced
-      in `api/app/services/me.py` on both the game and wishlist create paths with a dedicated 403. The per-user write rate limits landed in the same slice, not in Phase 3 as an
-      earlier note here claimed. Spec §9 decision #3 is therefore closed
