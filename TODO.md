@@ -738,10 +738,18 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
 
 - [x] **Filtering no longer strands the results under the sticky chrome** (2026-08-12).
       `useKeepResultsInView` (`src/components/video_games/`) scrolls the results back below the
-      nav and filter bar when the result set changes. Fires only on a real change to the shelf
-      contents (a re-sort is not one), only upward, and through `window.scrollTo` so focus and
-      the keyboard are untouched. Driven off the deferred pipeline output, so it does not fight
-      a typist.<br>
+      nav and filter bar when the visitor narrows the library differently. Fires only on a
+      filter change, only upward, and through `window.scrollTo` so focus and the keyboard are
+      untouched. Built from the DEFERRED filter values, so it does not fight a typist.
+      **Confirmed on a device by the owner** (2026-08-12), which is what closes it: the
+      keyboard half was never reproducible in development.<br>
+      _Key it on the filters, never on the shelves that came back._ The first version used shelf
+      labels and counts, which looks equivalent and is not: an owner edit changes the counts too,
+      so rating a game while scrolled deep would scroll the page out from under you, and under
+      `groupBy=rating` the game moves shelves as well. That is the yank the hook exists to
+      prevent, arriving from the one direction the output cannot tell apart from a filter change.
+      Caught in review, not in testing. `sortOrder` and `groupBy` stay out for the same reason a
+      re-sort always did: neither narrows anything, so neither can strand the results.<br>
       _The premise correction held up:_ the shelves are in normal flow after the sticky bar and
       were never painted behind it. This was a scroll-position bug, and a z-index or padding
       change would not have touched it. What actually happens is that filtering collapses the
@@ -765,8 +773,12 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       phone-shaped configurations of viewport, scroll depth and search breadth: **63 broken
       before, 0 after**. It reproduced worst at short viewport heights, which is the keyboard
       case, but also at full phone height with no keyboard, so it was never purely a keyboard
-      problem. Playwright has no software keyboard, so that half was emulated as a 390x400
-      viewport rather than confirmed on iOS.
+      problem.<br>
+      _Emulating the keyboard as a short viewport turned out to be a good enough proxy_, which is
+      the reusable lesson: Playwright has no software keyboard, so 390x400 stood in for one, and
+      the device check afterwards agreed with it. Worth reaching for again on the next mobile
+      layout bug, since it made a bug that "only happens on a phone" reproducible in CI-shaped
+      tooling. Still not a substitute for the device check, which is what actually closed this.
 
 - [x] **`--subtle` now clears WCAG AA in both color schemes** (2026-08-12). Light was 2.5:1 and
       dark 4.1:1, against a 4.5:1 minimum for normal text. Dark was also literally darker than
