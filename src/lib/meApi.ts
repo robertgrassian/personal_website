@@ -57,10 +57,10 @@ const FOREIGN_API_WRITE_MESSAGE =
   "library, so a write here would change the real thing.";
 
 // How long to wait on the Node→Python self-call before giving up, so a hung hop
-// fails fast instead of stalling the render until the function timeout. The two
-// wider budgets exist because those endpoints proxy somebody else's network:
-// IGDB is one upstream hop, genres is two (Wikipedia, then Wikidata).
-const TIMEOUT_MS = { default: 5_000, igdb: 10_000, genres: 15_000 };
+// fails fast instead of stalling the render until the function timeout. The
+// wider igdb budget exists because that endpoint proxies somebody else's
+// network, so it carries an upstream round trip inside our own.
+const TIMEOUT_MS = { default: 5_000, igdb: 10_000 };
 
 // Outcome of one /me/* call. `status` rides along on both arms so callers that
 // care (createMyProfile's 409/422/403/429 map, fetchMyProfile's 404) can branch
@@ -382,29 +382,6 @@ export async function searchIgdb(query: string, page = 1): Promise<SearchIgdbRes
   );
   if (!res.ok) return { ok: false, message: res.message };
   return { ok: true, results: res.data.results, hasMore: res.data.hasMore };
-}
-
-// Genre lookup rides the same ok/message shape as the IGDB search above.
-export type LookupGenresResult =
-  | { ok: true; genres: string[]; article: string }
-  | { ok: false; message: string };
-
-/** Genres for one title from Wikipedia/Wikidata, via the authenticated proxy.
- *
- *  Called after a game is picked in the add-game modal rather than for every
- *  search result: IGDB identifies the game, this says what it actually is.
- *  IGDB's own genres are too coarse to describe a library (no roguelike on
- *  Hades II, no metroidvania on Animal Well), which is why the add flow asks
- *  here instead of using the genres the search already returned. */
-export async function lookupGenres(name: string): Promise<LookupGenresResult> {
-  // Nominally a read, but it writes rate-limit counters through the read path,
-  // so it keeps the mutations' preview refusal (the callMeApi default).
-  const res = await callMeApi<{ genres: string[]; article: string }>(
-    `/api/py/genres/lookup?name=${encodeURIComponent(name)}`,
-    { what: "look up genres", timeoutMs: TIMEOUT_MS.genres }
-  );
-  if (!res.ok) return { ok: false, message: res.message };
-  return { ok: true, genres: res.data.genres, article: res.data.article };
 }
 
 /** Set or clear ("" = unrated) the rating on one of the caller's games. */

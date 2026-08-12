@@ -139,6 +139,21 @@ to keep that section at five._
       Completed, which burned two plausible-but-wrong fixes before a device confirmed the real
       one: get this verified on a phone before and after, rather than shipping on reasoning.
 
+- [ ] **`--subtle` fails WCAG AA for body text in both color schemes.** Measured 2026-07-28
+      while fixing the landing page: dark mode is `#6b7280` on `#0a0a0a` = **4.1:1**, light mode
+      is `#9ca3af` on `#ffffff` = **2.5:1**. The AA minimum for normal-size text is 4.5:1, so
+      the light value is the worse of the two by a wide margin. Fine for genuinely decorative
+      text; not fine for the prose it currently carries in several places.<br>
+      The landing page was fixed by moving its copy to `text-foreground`, which is a workaround
+      rather than a fix: the token is still wrong everywhere else it holds real sentences.
+      Proper fix is darkening the light value and lightening the dark one, then walking the
+      pages that use it (`about`, `resume`, the shelf UI, `StatsPanel`, `SqlQueryPanel`) to
+      confirm nothing that was meant to recede now shouts. Worth doing as its own pass with
+      before/after screenshots, since it touches the look of the whole site.<br>
+      _Note the dark value is currently darker than the light one_ (gray-500 vs gray-400),
+      which is backwards: muted text on a dark background needs to be lighter, not darker.
+      That inversion is probably the original mistake.
+
 - [ ] **Anyone can define a shared catalog row for everyone, because `igdb_id` is never
       checked against IGDB.** Found in the code review of the catalog migration (PR #105,
       2026-08-10) and documented as a known gap in `api/README.md`. `create_my_game` takes
@@ -170,6 +185,16 @@ to keep that section at five._
       the edit to private rows, or genuinely changes the game for everyone. Answer both
       together; they are the same question about who owns a catalog row.
 
+- [ ] **Field suggestions (system, genre, …) should work on mobile, not just desktop.** The
+      add/promote forms use a native `<datalist>` (`AddGameModal.tsx`, `EditWishlistModal.tsx`),
+      which mobile Safari/Chrome either render poorly or ignore, so on a phone the system
+      field is a bare free-text input. Replace the datalist with a real combobox (controlled
+      input + filtered dropdown list, keyboard + touch friendly) so suggestions appear on
+      every device. Also make the suggestions game-specific: `AddGameModal` already merges
+      IGDB's `draft.platforms` for the selected game into the shelf-system list, but the
+      promote form in `EditWishlistModal` only offers existing shelf systems — thread the
+      IGDB platforms through there too, and consider doing the same for genres.
+
 - [ ] **You can add a game you already have in your library. Reject a duplicate add
       server-side, and decide what "duplicate" means.** Reported 2026-08-08. **Mostly closed
       2026-08-10 by the catalog migration** — kept open only for the follow-up in the last
@@ -200,6 +225,27 @@ to keep that section at five._
       one entry per game with a single `system`; see the catalog entry in Recently Completed.
       **"Overhaul the wishlist promote flow"** hits the identical identity question one column
       over and can now reuse the same `metadata_id` lookup.
+
+- [ ] **Owner edit affordances still pop in after hydration.** The pencils and "Add game" appear
+      a beat after first paint on your own library, because the answer
+      resolves in a `useEffect` — `useViewerRelationship`
+      (`src/components/video_games/useViewerRelationship.ts`), read through `useIsOwner()` in
+      `FollowControls.tsx`. **Premise updated 2026-08-07:** this used to name
+      `useIsLibraryOwner` and a `/me/profile` fetch; that hook is deleted and the two per-viewer
+      requests are now one (see Recently Completed). That halved the work but did not fix this —
+      one round trip after hydration still lands after first paint. The symptom list also lost
+      the Unrated shelf on 2026-08-07: unrated games are no longer `canEdit`-gated at all.<br>
+      The pre-paint `data-authed` flag that fixed the CTA banner and `AuthButton`
+      (2026-07-29; an inline script in `src/app/layout.tsx` stamps it from the session cookie,
+      logic in `src/lib/authFlag.ts`) **cannot** be extended to cover this: the cookie proves
+      a session exists but not whose it is, and the JWT's `sub` claim is a user id, not a
+      username, so answering "is this viewer the owner of THIS library?" needs the
+      `/me/relationship` round trip either way.<br>
+      _Options, none free:_ have the API return the username in a separate readable cookie at
+      sign-in (cheap, but adds a second source of truth for identity that can go stale after a
+      rename); or accept the pop-in and make it less jarring by reserving space so nothing
+      shifts. Lower priority than the two already fixed: this one only affects a viewer looking
+      at their own library, who is about to interact with the page anyway.
 
 ## Backlog / Ideas
 
@@ -244,10 +290,6 @@ to keep that section at five._
       place titles about as well as a model, with no dependency at all. If a cheap heuristic gets
       most covers right, the remaining handful can be a hand-set override column, which is also the
       escape hatch any automated version needs anyway.
-
-- [ ] **Remove genre keyword search when adding a game.** This was added as a helpful way to
-      find games, but its not really useful in practice and adds complexity and latency, we
-      should remove it.
 
 - [ ] **Editing a game should need a "Confirm" press before the change takes effect.** Today a
       rating write fires on the click itself: `RatingPicker`'s `onPick` calls `rate()` in
@@ -671,40 +713,6 @@ head` being run by hand from a laptop pointed at production.<br>
       (`FilterBar.tsx`) to drive the mobile hide-on-scroll-down behavior, and that
       measurement assumes nothing sticky sits above it. Simplest shape is probably one sticky
       container holding both, so they hide and show as a unit on mobile.
-- [ ] **Owner edit affordances still pop in after hydration.** The pencils and "Add game" appear
-      a beat after first paint on your own library, because the answer
-      resolves in a `useEffect` — `useViewerRelationship`
-      (`src/components/video_games/useViewerRelationship.ts`), read through `useIsOwner()` in
-      `FollowControls.tsx`. **Premise updated 2026-08-07:** this used to name
-      `useIsLibraryOwner` and a `/me/profile` fetch; that hook is deleted and the two per-viewer
-      requests are now one (see Recently Completed). That halved the work but did not fix this —
-      one round trip after hydration still lands after first paint. The symptom list also lost
-      the Unrated shelf on 2026-08-07: unrated games are no longer `canEdit`-gated at all.<br>
-      The pre-paint `data-authed` flag that fixed the CTA banner and `AuthButton`
-      (2026-07-29; an inline script in `src/app/layout.tsx` stamps it from the session cookie,
-      logic in `src/lib/authFlag.ts`) **cannot** be extended to cover this: the cookie proves
-      a session exists but not whose it is, and the JWT's `sub` claim is a user id, not a
-      username, so answering "is this viewer the owner of THIS library?" needs the
-      `/me/relationship` round trip either way.<br>
-      _Options, none free:_ have the API return the username in a separate readable cookie at
-      sign-in (cheap, but adds a second source of truth for identity that can go stale after a
-      rename); or accept the pop-in and make it less jarring by reserving space so nothing
-      shifts. Lower priority than the two already fixed: this one only affects a viewer looking
-      at their own library, who is about to interact with the page anyway.
-- [ ] **`--subtle` fails WCAG AA for body text in both color schemes.** Measured 2026-07-28
-      while fixing the landing page: dark mode is `#6b7280` on `#0a0a0a` = **4.1:1**, light mode
-      is `#9ca3af` on `#ffffff` = **2.5:1**. The AA minimum for normal-size text is 4.5:1, so
-      the light value is the worse of the two by a wide margin. Fine for genuinely decorative
-      text; not fine for the prose it currently carries in several places.<br>
-      The landing page was fixed by moving its copy to `text-foreground`, which is a workaround
-      rather than a fix: the token is still wrong everywhere else it holds real sentences.
-      Proper fix is darkening the light value and lightening the dark one, then walking the
-      pages that use it (`about`, `resume`, the shelf UI, `StatsPanel`, `SqlQueryPanel`) to
-      confirm nothing that was meant to recede now shouts. Worth doing as its own pass with
-      before/after screenshots, since it touches the look of the whole site.<br>
-      _Note the dark value is currently darker than the light one_ (gray-500 vs gray-400),
-      which is backwards: muted text on a dark background needs to be lighter, not darker.
-      That inversion is probably the original mistake.
 - [ ] **A username rename feature must delete `usernameByUserId` (`src/lib/meApi.ts`).** That
       module-scope map memoizes user id → username so the ten write paths don't each pay an
       API round trip to learn whose cache tag to purge. It is correct only because usernames
@@ -756,16 +764,7 @@ head` being run by hand from a laptop pointed at production.<br>
       the work here.<br>
       Same change applies to the promote form in `EditWishlistModal.tsx`, which today offers
       only existing shelf systems and no IGDB platforms at all (see the mobile field-suggestions
-      item below, which covers the same form).
-- [ ] Field suggestions (system, genre, …) should work on mobile, not just desktop — the
-      add/promote forms use a native `<datalist>` (`AddGameModal.tsx`, `EditWishlistModal.tsx`),
-      which mobile Safari/Chrome either render poorly or ignore, so on a phone the system
-      field is a bare free-text input. Replace the datalist with a real combobox (controlled
-      input + filtered dropdown list, keyboard + touch friendly) so suggestions appear on
-      every device. Also make the suggestions game-specific: `AddGameModal` already merges
-      IGDB's `draft.platforms` for the selected game into the shelf-system list, but the
-      promote form in `EditWishlistModal` only offers existing shelf systems — thread the
-      IGDB platforms through there too, and consider doing the same for genres.
+      item in Bugs, which covers the same form).
 - [ ] Library-level "create session" button (owner-only) — start or log a session for any game without opening that game's pencil/edit modal: a game picker (search the library) + the same start-now / past-dates form the modal has. Stretch goal: accept a game NOT in the library yet ("I just started something new") — the flow would add the game to the library (IGDB search, Phase 3 slice 4's proxy) and open its session in one go. Backend already supports everything except add+start-in-one; UI is the work. Keep simple, iterate later.
 - [ ] Profile pictures for user accounts (instanced game libraries follow-up, post-v1 — likely Supabase Storage + upload/crop flow, shown in the library profile header and follower lists)
 - [ ] Homepage customization per user (instanced game libraries follow-up, post-v1 — let users personalize their library page: hero/backdrop, shelf styling, featured games, etc. Scope TBD)
@@ -792,6 +791,22 @@ head` being run by hand from a laptop pointed at production.<br>
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **Removed the Wikipedia/Wikidata genre lookup from the add-game flow** (2026-08-12).
+      The confirm step now shows IGDB's own genres, editable, and posts them; nothing is fetched
+      between picking a game and saving it. Gone with it: `GET /api/py/genres/lookup`, its router
+      and schema, the `genre_lookup` rate-limit bucket and `lookup_for_user`, `lookupGenres` in
+      `meApi.ts` (and its 15s `TIMEOUT_MS.genres`), the `lookupGameGenres` Server Action, and the
+      sequence-counter effect plus 12s client deadline in `GameDraftForm`.<br>
+      _What survives, and why the vocabulary does not regress:_ `api/app/services/genres.py` keeps
+      its Wikipedia client and `normalize_genres`, because `scripts/backfill_genres.py` is the real
+      consumer and is the better place for this work anyway. A genre pass is a batch job over the
+      whole library, not something worth paying for one game at a time while the owner waits.<br>
+      _The latency this removed was the point._ Save was disabled for the whole lookup, so every
+      add waited on two third-party services (Wikipedia, then Wikidata) before it could be
+      submitted, and the genres field sat read-only showing a placeholder. IGDB's genres are
+      coarser (no roguelike on Hades II), which is the accepted trade: the field is now editable
+      from the first frame, so typing the right genre is faster than the lookup ever was.
+
 - [x] **You can change which console a library entry records** (2026-08-11). `GameUpdate` gains
       `system`, `update_game_system` in `api/app/repositories/me.py` mirrors
       `update_game_rating`, and `EditGameModal` has a System field. This is the escape hatch the
@@ -807,7 +822,7 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       would file a game under "S", then "SN", then "SNE". So it is a draft plus a "Save system"
       button that appears only when dirty, the shape the wishlist notes field already uses. It
       is also a third `<datalist>`, joining the add and promote forms, so the mobile-combobox
-      item in Backlog now has three call sites to fix rather than two.<br>
+      item in Bugs now has three call sites to fix rather than two.<br>
       _Still deliberately out:_ name, genres, cover and release date. Those live on the shared
       `game_metadata` row, so editing one changes the game for everyone who owns it. `system` is
       per-user and carries none of that question.
@@ -1057,7 +1072,7 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       _The visible win beyond the round trip:_ the two answers used to resolve independently, so
       edit pencils could appear while the Follow button was still deciding. Now they cannot
       disagree.<br>
-      _Still open:_ the pop-in item below. Edit controls resolve one request sooner but still in
+      _Still open:_ the pop-in item in Bugs. Edit controls resolve one request sooner but still in
       a `useEffect`, so they continue to appear a beat after first paint.
 - [x] **Add-game IGDB search: more results, platform in the query, fuzzy fallback, better
       ranking** (2026-08-05). `SEARCH_LIMIT` 10 → 25 plus `offset` paging behind a "Show more
@@ -1165,52 +1180,10 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       and both users' counts agreeing after a follow (the two-tag revalidation). Clean, no
       defects found.<br>
       Worth knowing the two real bugs were caught by a code review **before** this pass, not by
-      it: following while signed in but not onboarded 500'd, and signup's auto-follow never
-      purged the founder's cache tag. Both were invisible to a green suite and to casual
-      clicking — the first needed an abandoned onboarding, the second a stale page nobody would
-      think to reload. See the Phase 5 entry below.
-- [x] **Instanced libraries Phase 5 — social graph** (2026-07-30, branch `phase5/social-graph`).
-      Three slices: follow endpoints + auto-follow; Following/Followers tabs; the follow button
-      and "Back to my library". 206 pytest, up from 175. User search was held back on purpose and
-      has its own backlog item. Nothing to configure to ship it — the founder is a code constant
-      (`FOUNDER_USERNAME`, mirroring `LIBRARY_OWNER_USERNAME`), and the planned backfill was
-      written then deleted once it was clear prod has one account and so would gain zero edges.<br>
-      **Far less new code than expected.** The `follows` table already existed from the baseline
-      migration (composite PK, `no_self_follow` check, cascade from `profiles`), and `ProfileRead`
-      already returned live `COUNT(*)` follower/following numbers — they read 0 only because the
-      table was empty. The real gap was endpoints and UI. One index was genuinely missing:
-      `ix_follows_followee_id`, since the composite PK indexes `(follower_id, followee_id)` and so
-      cannot answer "who follows X?".<br>
-      **The bug worth remembering:** SQLAlchemy emitted the `follows` INSERT _before_ the
-      `profiles` INSERT when creating a profile plus its two founder edges, violating the
-      `follower_id` FK. Cause: `Follow` declares no ORM `relationship()` to `Profile`, so the unit
-      of work had no mapper dependency to order them. Fixed with an explicit `db.flush()` before
-      adding the edges (still one transaction, so the commit stays all-or-nothing). It was
-      disguised because `create_my_profile`'s `IntegrityError` handler re-derives the cause and
-      reported it as **"username taken"** — so the symptom named the wrong column entirely. A
-      founder handle naming no profile hits the same path, which is why it is resolved and
-      verified before use: auto-follow is a nicety and must never be able to close signup.<br>
-      **A review pass caught two more before merge**, both invisible to the tests that were
-      passing: following while signed in but not onboarded was a 500 (`follows.follower_id` is an
-      FK to `profiles`, and the relationship read deliberately answered "not following" for those
-      users — which is exactly what rendered the button that 500'd); and signup's auto-follow
-      never purged the founder's cache tag, so `/video-games` kept serving a stale follower count.
-      Both now fixed and tested. Lesson, now recorded in `api/README.md`: any write that creates a follow edge
-      changes both endpoints of it.<br>
-      _Three deliberate departures from the spec's sketch:_ follow/unfollow are **idempotent**
-      (204, not 409) because the button is a plain toggle with no conflict state to render;
-      `/me/relationship/{username}` also returns `is_me`, letting the button decide
-      "hide" vs "show Follow" in one request instead of racing a second `/me/profile` call; and
-      `UserSummary` carries no per-row follow counts, which would turn one join into a correlated
-      aggregate for numbers no row displays.<br>
-      _Design note for anyone touching the tabs:_ `View` is now `GameView | PeopleView` with
-      `VIEW_CONFIG` keyed to `GameView` only. That is load-bearing rather than tidy —
-      `GameLibrary.tsx` branches on `view === "played"` in about a dozen places where the
-      else-branch silently means "wishlist", so a flat four-member union would have rendered the
-      wishlist filter bar and pipeline on a people tab. Keying group/sort config to `GameView`
-      turned every one of those into a compile error until it was guarded.<br>
-      _And the one that cost real time in Phase 3 too:_ a follow changes **two** libraries, so it
-      revalidates two cache tags. The caller's still comes from their own token; the target's
-      comes from the client, which `revalidateMyLibrary` explicitly warns against, so
-      `revalidateOtherLibrary` documents why it is sound there and nowhere else (the worst a
-      forged call achieves is re-fetching an already-public page).
+      it: following while signed in but not onboarded 500'd (`follows.follower_id` is an FK to
+      `profiles`, and the relationship read answered "not following" for those users, which is
+      what rendered the button that 500'd), and signup's auto-follow never purged the founder's
+      cache tag. Both were invisible to a green suite and to casual clicking — the first needed
+      an abandoned onboarding, the second a stale page nobody would think to reload. The rule
+      that came out of it is in `api/README.md`: any write that creates a follow edge changes
+      both endpoints of it.

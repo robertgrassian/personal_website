@@ -1,9 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
 import { localToday, type NewGame } from "@/lib/games";
-import { lookupGameGenres } from "@/app/video-games/actions";
 import { buttonClass, ghostButtonClass, inputClass, labelClass } from "./formStyles";
 import { RatingPicker } from "./RatingPicker";
 
@@ -24,30 +22,10 @@ type GameDraftFormProps = {
   // The library's current shelf systems, offered as suggestions so new games
   // land on existing shelves ("SNES") instead of IGDB's names.
   existingSystems: string[];
-  // The picked game's name, or null when the user came here via "add it
-  // manually" and there is nothing to look up. Read once, on mount: this
-  // component is mounted fresh per draft, so the lookup fires exactly once
-  // per picked game.
-  lookupGenresFor: string | null;
   isPending: boolean;
   onBack: () => void;
   onSave: () => void;
 };
-
-// How long the genre field waits before giving up and revealing IGDB's genres.
-//
-// This is the client's own deadline and it is not redundant with the 15s in
-// meApi's TIMEOUT_MS: that one is an AbortSignal on the SERVER's hop to
-// FastAPI, so it bounds the Server Action's work, not the browser's POST to
-// the Server Action. On a stalled connection that promise never settles at
-// all, and without a deadline here the field would stay read-only and empty
-// with no way out but "Back to search".
-//
-// Under the server's own budget on purpose: a lookup still running at 12s has
-// already lost to the fallback in practice, and leaving the owner unable to
-// save for longer than that is worse than occasionally missing a slow but
-// successful Wikipedia answer.
-const GENRE_LOOKUP_DEADLINE_MS = 12_000;
 
 // The confirm step of the add flow: edit the picked game's details and submit.
 // Split out of AddGameModal, which now owns only the shell and the draft.
@@ -57,120 +35,17 @@ export function GameDraftForm({
   draft,
   setDraft,
   existingSystems,
-  lookupGenresFor,
   isPending,
   onBack,
   onSave,
 }: GameDraftFormProps) {
-  // Whether the genre lookup is still in flight. The field renders a
-  // placeholder rather than a value while this is true, so the genres the user
-  // sees are the ones that were actually settled on.
-  //
-  // Initialized from `lookupGenresFor` rather than to false: effects run after
-  // paint, so starting false would paint one frame of IGDB's genres before the
-  // effect below could flip it, which is the flash this state exists to
-  // prevent. Sound because the component is mounted fresh per draft, so the
-  // prop cannot change from null under a live instance.
-  const [genresLoading, setGenresLoading] = useState(lookupGenresFor !== null);
-  // Bumped per lookup so a slow response knows it has been superseded. Same
-  // counter pattern the IGDB search uses.
-  const genreSeq = useRef(0);
-
-  /** Replace the picked game's genres with the Wikipedia/Wikidata ones.
-   *
-   *  IGDB identifies the game well but describes it poorly: its genre field has
-   *  no roguelike on Hades II and no metroidvania on Animal Well. This is the
-   *  same lookup the genre backfill script uses, so games added here and games
-   *  already on the shelves end up speaking one vocabulary.
-   *
-   *  Deliberately best-effort: a miss or an outage leaves IGDB's genres in
-   *  place rather than blocking the add, and the field becomes editable either
-   *  way once it settles. Which source won is not something the user is told --
-   *  both answers are just "the genres".
-   *
-   *  It must not strand the field on its loading placeholder, because the field
-   *  is not editable and Save is blocked while it shows. Every path out of the
-   *  request clears `genresLoading` except the superseded one, where whoever
-   *  superseded it owns the flag -- and GENRE_LOOKUP_DEADLINE_MS covers the
-   *  path that is not a path out at all, a request that never settles.
-   *
-   *  The cleanup is load-bearing, and is the one thing this owes to having
-   *  moved out of AddGameModal. `genreSeq` used to live for the whole modal's
-   *  life, so every path bumped one shared counter; it now resets with this
-   *  component, which unmounts on "Back to search". Without the bump, a lookup
-   *  still in flight from a previous mount holds a counter nobody will ever
-   *  advance, so its staleness check passes unconditionally and it writes into
-   *  a draft it knows nothing about. `setDraft` belongs to AddGameModal and
-   *  outlives us, so the write really does land. Picking the SAME game again is
-   *  the case that needs it: the `current.name !== name` guard below passes,
-   *  because the names do match, leaving the counter as the only thing that can
-   *  tell the abandoned response from the live one. */
-  useEffect(() => {
-    if (lookupGenresFor === null) {
-      // Manual entry has no picked game to look up, so nothing to wait for.
-      setGenresLoading(false);
-      return;
-    }
-    const name = lookupGenresFor;
-    const seq = ++genreSeq.current;
-    setGenresLoading(true);
-
-    // Giving up bumps the counter as well as clearing the flag, so a response
-    // that lands after the deadline cannot overwrite the fallback genres the
-    // owner is by then looking at, or editing.
-    const deadline = setTimeout(() => {
-      if (seq !== genreSeq.current) return;
-      genreSeq.current += 1;
-      setGenresLoading(false);
-    }, GENRE_LOOKUP_DEADLINE_MS);
-
-    void (async () => {
-      try {
-        const res = await lookupGameGenres(name);
-        // A newer pick, an unmount, or the deadline has superseded this.
-        if (seq !== genreSeq.current) return;
-        if (res.ok && res.genres.length > 0) {
-          setDraft((current) =>
-            current === null || current.name !== name
-              ? current
-              : { ...current, genresText: res.genres.join(", ") }
-          );
-        }
-        // Cleared after the write is queued, not before: both land in the same
-        // React batch, so the field goes from placeholder straight to the final
-        // list without a frame of IGDB's in between.
-        setGenresLoading(false);
-      } catch {
-        if (seq !== genreSeq.current) return;
-        setGenresLoading(false);
-      } finally {
-        clearTimeout(deadline);
-      }
-    })();
-    return () => {
-      clearTimeout(deadline);
-      genreSeq.current += 1;
-    };
-  }, [lookupGenresFor, setDraft]);
-
   // Existing shelves first (the value you usually want), then the pick's own
   // IGDB platform names, deduped.
   const systemSuggestions = [...new Set([...existingSystems, ...draft.platforms])];
 
   // Wishlist entries may leave the system undecided; library games can't.
-  //
-  // `genresLoading` belongs here for a reason that is not about validity: the
-  // draft still holds IGDB's genres while the field reads empty, so a save
-  // during the lookup would post three genres the owner never saw and land
-  // them on the shelf. That is the same surprise this loading state exists to
-  // remove, moved from the form to the library. Blocked rather than solved by
-  // posting the empty field, which would silently discard genres we have.
-  // Bounded by GENRE_LOOKUP_DEADLINE_MS, so the button cannot stay dead.
   const saveDisabled =
-    isPending ||
-    genresLoading ||
-    !draft.name.trim() ||
-    (target === "library" && !draft.system.trim());
+    isPending || !draft.name.trim() || (target === "library" && !draft.system.trim());
 
   return (
     // Fragment, not one element: the scrolling body and the pinned buttons have
@@ -223,34 +98,15 @@ export function GameDraftForm({
 
           <label className={labelClass}>
             Genres (comma-separated)
+            {/* Prefilled with IGDB's genres for a picked game, empty on the
+                manual path, and editable in both cases: the owner is the one
+                who decides the shelf vocabulary now. */}
             <input
               type="text"
-              // While the lookup is in flight the field shows its placeholder
-              // instead of the draft's genres. The draft still carries IGDB's
-              // list the whole time -- it is the fallback, and saving mid-lookup
-              // submits it -- but showing it first meant the user watched the
-              // genres rewrite themselves a second later, which reads as a bug
-              // even when both lists are right.
-              value={genresLoading ? "" : draft.genresText}
-              // Not merely cosmetic: an uneditable field during the lookup is
-              // what lets the response be applied unconditionally. The previous
-              // version had to track whether the user had typed since the
-              // request went out, because it could land on top of them.
-              //
-              // readOnly rather than disabled: disabled drops the field out of
-              // the tab order, and screen readers do not reliably announce a
-              // placeholder on it, so a keyboard user would have met a field
-              // that silently vanished and came back. readOnly blocks typing
-              // just as well while keeping it focusable, and aria-busy is what
-              // actually says why it is not accepting input.
-              readOnly={genresLoading}
-              aria-busy={genresLoading}
+              value={draft.genresText}
               onChange={(e) => setDraft({ ...draft, genresText: e.target.value })}
-              placeholder={genresLoading ? "finding genres…" : "e.g. RPG, Adventure"}
-              // No dimming: the box is already empty while it loads, and fading
-              // an empty box reads as broken rather than as busy. The cursor is
-              // the whole read-only treatment.
-              className={`${inputClass} read-only:cursor-default`}
+              placeholder="e.g. RPG, Adventure"
+              className={inputClass}
             />
           </label>
 
