@@ -545,6 +545,13 @@ def update_my_game(
     if "rating" in payload.model_fields_set:
         game = me_repo.update_game_rating(db, game, payload.rating or None)
 
+    # System has no cleared state (played_games.system is NOT NULL), so the
+    # schema rejects blank and null outright rather than reading either as
+    # "unset it". The `is not None` below is therefore unreachable — it is
+    # there to narrow the Optional, not to handle a case that can occur.
+    if "system" in payload.model_fields_set and payload.system is not None:
+        game = me_repo.update_game_system(db, game, payload.system)
+
     return _game_read_with_fresh_state(db, game, meta)
 
 

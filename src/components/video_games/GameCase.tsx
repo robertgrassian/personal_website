@@ -12,9 +12,10 @@ import { useLibraryEditing } from "./LibraryEditingContext";
 
 // View-agnostic input: Game supplies `rating` (badge); WishlistGame supplies
 // `starred` (star overlay). Never both — render logic picks one. `id` is the
-// DB row id from the library API; owner edits require it.
+// DB row id from the library API; owner edits target it, and both source types
+// declare it required, so it is required here too.
 export type GameCaseInput = BaseGame & {
-  id?: number;
+  id: number;
   rating?: Rating | "";
   starred?: boolean;
 };
@@ -69,14 +70,15 @@ function GameCaseImpl({ game }: GameCaseProps) {
       .catch(() => {});
   }, []);
 
-  // Editable = the owner is viewing (openEditor is non-null) AND the row is
-  // API-backed (has an id, so a mutation has something to target).
+  // Editable = the owner is viewing, i.e. openEditor is non-null. It used to
+  // also test `game.id !== undefined`, back when the id was optional on the
+  // type; every row carries one, so that half never fired and is gone.
   //
   // Deliberately NOT gated on `rating`: that's a Game-only field, and requiring
   // it hid the pencil on every wishlist card — which made EditWishlistModal
   // unreachable. GameLibrary's handleEditGame picks the right dialog per view,
   // so both kinds are editable.
-  const editable = openEditor !== null && game.id !== undefined;
+  const editable = openEditor !== null;
 
   const hasImage = game.imageUrl !== "" && !imageError;
   const ratingLetter = game.rating

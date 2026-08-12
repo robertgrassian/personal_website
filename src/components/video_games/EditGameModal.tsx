@@ -2,12 +2,18 @@
 
 import { useOptimistic, useState } from "react";
 import { localToday, systemLabel, type Game, type Rating } from "@/lib/games";
-import { deleteGame, logSession, stopSession, updateGameRating } from "@/app/video-games/actions";
+import {
+  deleteGame,
+  logSession,
+  stopSession,
+  updateGameRating,
+  updateGameSystem,
+} from "@/app/video-games/actions";
 import { ModalShell } from "./ModalShell";
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
-import { buttonClass, fieldClass, ghostButtonClass, labelClass } from "./formStyles";
+import { buttonClass, fieldClass, ghostButtonClass, inputClass, labelClass } from "./formStyles";
 
 // Date inputs size to their content rather than filling the row, so they take
 // the shared tokens plus their own padding instead of `inputClass`.
@@ -15,6 +21,9 @@ const dateInputClass = `${fieldClass} px-2 py-1`;
 
 type EditGameModalProps = {
   game: Game;
+  // Every system already on a shelf, for the datalist below. Same prop
+  // AddGameModal and EditWishlistModal take, from the same place.
+  existingSystems: string[];
   onClose: () => void;
 };
 
@@ -25,7 +34,7 @@ type EditGameModalProps = {
 //
 // This component is mounted only while open, so the scroll-lock/Escape effect
 // runs on mount and cleans up on unmount — no isOpen plumbing needed.
-export function EditGameModal({ game, onClose }: EditGameModalProps) {
+export function EditGameModal({ game, existingSystems, onClose }: EditGameModalProps) {
   // Optimistic rating: shows the clicked value immediately, then converges on
   // the prop once the action's revalidation delivers fresh data — including
   // reverting automatically if the server call fails.
@@ -43,24 +52,28 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   const [logStart, setLogStart] = useState("");
   const [logEnd, setLogEnd] = useState("");
 
+  // Draft state, deliberately unlike the rating picker above: a rating is one
+  // click of five known values, so it writes immediately and reconciles
+  // optimistically. A system is free text you are halfway through typing, and
+  // writing on every keystroke would file the game under "S", then "SN", then
+  // "SNE". Hence a draft plus an explicit Save, the same shape the wishlist
+  // notes field uses.
+  const [systemDraft, setSystemDraft] = useState(game.system);
+
   const rate = (next: Rating | "") => {
-    const gameId = game.id;
-    if (gameId === undefined) return;
     // Any rating write answers the "how was it?" prompt, including one made
     // with the picker at the top of the dialog — leaving it up would keep
     // asking a question that has just been answered.
     setRatePrompt(false);
-    run(() => updateGameRating(gameId, next), {
+    run(() => updateGameRating(game.id, next), {
       optimistic: () => setOptimisticRating(next),
     });
   };
 
   const startPlaying = () => {
-    const gameId = game.id;
-    if (gameId === undefined) return;
     // Clear any leftover rating prompt from the previous playthrough.
     setRatePrompt(false);
-    run(() => logSession(gameId, localToday(), null));
+    run(() => logSession(game.id, localToday(), null));
   };
 
   // "Stop playing" closes the session and nothing else. It used to only OPEN a
@@ -71,7 +84,7 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   // does what it says, and the rating became a follow-up question below.
   const stopPlaying = () => {
     const sessionId = game.openSessionId;
-    if (sessionId == null) {
+    if (sessionId === null) {
       // Unreachable in practice: this control only renders when `playing`
       // below has already established the id is there. But a bare `return`
       // here would be one more way for this button to silently do nothing,
@@ -87,12 +100,11 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
   };
 
   const saveLoggedSession = () => {
-    const gameId = game.id;
-    if (gameId === undefined || logStart === "") return;
+    if (logStart === "") return;
     // An empty end date logs a backdated session that's still going — the
     // game becomes currently playing (or a 409 if it already is).
     const end = logEnd === "" ? null : logEnd;
-    run(() => logSession(gameId, logStart, end), {
+    run(() => logSession(game.id, logStart, end), {
       onSuccess: () => {
         setLogOpen(false);
         setLogStart("");
@@ -105,16 +117,23 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
     });
   };
 
-  const removeGame = () => {
-    const gameId = game.id;
-    if (gameId === undefined) return;
-    // The game is gone — close the dialog; revalidation removes the card.
-    run(() => deleteGame(gameId), { onSuccess: onClose });
+  const saveSystem = () => {
+    run(() => updateGameSystem(game.id, systemDraft));
   };
 
-  const playing = game.currentlyPlaying && game.openSessionId != null;
+  const removeGame = () => {
+    // The game is gone — close the dialog; revalidation removes the card.
+    run(() => deleteGame(game.id), { onSuccess: onClose });
+  };
+
+  // `openSessionId` is always present but is null whenever nothing is open, so
+  // this check is real — unlike the id guards this component used to carry.
+  const playing = game.currentlyPlaying && game.openSessionId !== null;
   const logDatesInvalid = logEnd !== "" && logStart !== "" && logEnd < logStart;
-  const sessionCount = game.sessionCount ?? 0;
+  const sessionCount = game.sessionCount;
+  // Compared trimmed, so trailing whitespace alone does not offer a Save that
+  // would write the value the row already holds.
+  const systemDirty = systemDraft.trim() !== game.system && systemDraft.trim() !== "";
 
   return (
     <ModalShell
@@ -142,6 +161,43 @@ export function EditGameModal({ game, onClose }: EditGameModalProps) {
             Unrated games move to the Unrated shelf (visible only to you) until rated again.
           </p>
         )}
+
+        <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
+          System
+        </p>
+        {/* A <datalist> is what the add and promote forms already use, so all
+            three share one control to replace when the mobile-combobox item
+            lands: on a phone this degrades to a plain text field. */}
+        <label className={`mt-2 ${labelClass}`}>
+          <span className="sr-only">Console this game is filed under</span>
+          <input
+            type="text"
+            value={systemDraft}
+            onChange={(e) => setSystemDraft(e.target.value)}
+            list="edit-game-systems"
+            maxLength={100}
+            placeholder="e.g. SNES, PS5"
+            className={inputClass}
+          />
+        </label>
+        <datalist id="edit-game-systems">
+          {existingSystems.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+        {systemDirty && (
+          <button
+            type="button"
+            onClick={saveSystem}
+            disabled={isPending}
+            className={`mt-2 ${buttonClass}`}
+          >
+            Save system
+          </button>
+        )}
+        <p className="mt-1.5 text-[11px] text-shelf-text-muted">
+          Moving a game to another console keeps its rating and play history.
+        </p>
 
         <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
           Play

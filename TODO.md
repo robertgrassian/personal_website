@@ -178,11 +178,10 @@ to keep that section at five._
       backstop, so a duplicate add is a 409 whatever console it names. "What duplicate means"
       was answered by the identity rule: same `igdb_id`, or same name among that user's own
       hand-entered games.<br>
-      _What is left, and it is a real gap._ The 409 currently has **no escape hatch**: with
-      `GameUpdate` still rating-only there is no way to change which console an entry
-      records, so "I own this on SNES and just got the DS version" is a dead end. That fix
-      lives in **"Make library and wishlist entries fully editable"** in Backlog, which now
-      leads with it. Close this item once that ships.<br>
+      _The escape hatch shipped 2026-08-11_ (see Recently Completed): `PATCH /me/games/{id}`
+      takes `system`, so "I own this on SNES and just got the DS version" is an edit rather
+      than a dead end. This item stays open only for the annotation mismatch in the last
+      paragraph, which is a cosmetic looseness rather than a dead end.<br>
       _Historical, kept because it explains the current UI._ **The search half
       shipped 2026-08-09** (branch `claude/duplicate-add-warning`): `GameLibrary` now builds a
       folded-name → systems map and threads it through `AddGameModal` to `GameSearchStep`, so a
@@ -365,11 +364,8 @@ head` being run by hand from a laptop pointed at production.<br>
       (`tests/test_play_state.py`), and moving it into SQL trades Python you can test for SQL
       you cannot, for six session rows across 155 games. If you touch it at all, take only the
       cheap half — select the four columns instead of whole ORM objects.<br>
-      _Now unblocked, and cheap:_ making `Game.id`, `sessionCount` and `openSessionId`
-      non-optional. It is correct (the API schemas mark them required, and the optionality
-      forces guards that can never fire) and it was deferred only because it touched the same
-      components as the frontend splits. Those have landed, so this is the easy follow-up it
-      was waiting to become.
+      _The non-optional `Game.id` / `sessionCount` / `openSessionId` follow-up shipped
+      2026-08-11_ and is in Recently Completed; only the four backend items above are left here.
 
 - [ ] **Move the Following/Followers tabs to their own route.** The honest altitude answer that
       the `GameShelves` extraction deliberately did not take: the follow lists are a different
@@ -557,9 +553,11 @@ head` being run by hand from a laptop pointed at production.<br>
 - [ ] **Add public libraries to `sitemap.ts`.** Carried over from the spec's Phase 6
       (2026-07-30). Today the sitemap lists static routes only; `/video-games/u/[username]`
       pages are public and indexable but unlisted, so search engines reach them only by
-      crawling follower lists. Deliberately skipped once already (2026-07-29, recorded in
-      Recently Completed) on the grounds that one hardcoded username in a sitemap is worse
-      than none. With real signups that reasoning inverts: the entry becomes a generated list.
+      crawling follower lists. Deliberately skipped once already, when the route moved under
+      `/video-games/u/` (2026-07-29): the sitemap already lists `/video-games`, which **is**
+      Robert's library, so adding `/video-games/u/rgrassian` would have submitted two URLs for
+      identical content, and a canonical link is the fix for that rather than a sitemap entry.
+      With real signups that reasoning inverts: the entry becomes a generated list.
       Wants a decision on whether users can opt out of indexing, since spec decision #6 made
       every library public with no privacy setting, and "public" and "indexed by Google" are
       not the same promise.
@@ -626,14 +624,11 @@ head` being run by hand from a laptop pointed at production.<br>
       (2026-08-10). Since the catalog migration a library entry is unique on
       `(user_id, metadata_id)`, so adding a game you already own on a second console is a
       409 — and with `GameUpdate` still rating-only there is **no way out of that 409 at
-      all**. Editing `system` is the escape hatch, and it is a small change on its own:
-      `GameUpdate` gains `system`, a repo `update_game_system` mirroring
-      `update_game_rating`, and a field in `EditGameModal`. Worth doing first even if the
-      rest of this item waits.<br>
-      Both sides are stuck today: `GameUpdate` (`api/app/schemas/me.py`) is
-      **rating-only** by design ("future metadata edits extend this model"), so
-      `EditGameModal` cannot touch system, or rating aside, anything else — the earlier
-      framing that only the wishlist was limited was wrong. Note name, genres, release date
+      all**. **That half shipped 2026-08-11** — see Recently Completed — so the 409 now has
+      an escape hatch and this item is back to being the broader "edit everything" want.<br>
+      `GameUpdate` (`api/app/schemas/me.py`) now carries rating and system, and nothing
+      else; `EditGameModal` has a system field with an explicit Save. Note name, genres,
+      release date
       and cover art now live on the **shared** `game_metadata` row, so editing those is a
       different and harder question than editing `system`: a shared row is visible to
       everyone who owns that game, and nothing in the UI edits one today by design. Editing
@@ -645,8 +640,9 @@ head` being run by hand from a laptop pointed at production.<br>
       _Want:_ edit essentially every field from either modal, with the same form in both.
       Keep only the genuinely mode-specific bits apart: rating on the library side, starred on
       the wishlist side.<br>
-      _Work:_ extend `GameUpdate` past rating and add the matching service/repository handling
-      (routers → services → repositories), extend `WishlistUpdate` past starred/notes/system,
+      _Work:_ extend `GameUpdate` past rating and system, following the same
+      router → service → repository path `update_game_system` took, extend `WishlistUpdate`
+      past starred/notes/system,
       then lift the shared field set out of `EditGameModal` into one component both modals
       render, with Server Actions in `video-games/actions.ts` doing the usual
       `revalidateTag(libraryCacheTag(...))`. Cover art edits must keep
@@ -685,7 +681,8 @@ head` being run by hand from a laptop pointed at production.<br>
       one round trip after hydration still lands after first paint. The symptom list also lost
       the Unrated shelf on 2026-08-07: unrated games are no longer `canEdit`-gated at all.<br>
       The pre-paint `data-authed` flag that fixed the CTA banner and `AuthButton`
-      (2026-07-29, see Recently Completed) **cannot** be extended to cover this: the cookie proves
+      (2026-07-29; an inline script in `src/app/layout.tsx` stamps it from the session cookie,
+      logic in `src/lib/authFlag.ts`) **cannot** be extended to cover this: the cookie proves
       a session exists but not whose it is, and the JWT's `sub` claim is a user id, not a
       username, so answering "is this viewer the owner of THIS library?" needs the
       `/me/relationship` round trip either way.<br>
@@ -794,6 +791,39 @@ head` being run by hand from a laptop pointed at production.<br>
 ## Recently Completed
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
+
+- [x] **You can change which console a library entry records** (2026-08-11). `GameUpdate` gains
+      `system`, `update_game_system` in `api/app/repositories/me.py` mirrors
+      `update_game_rating`, and `EditGameModal` has a System field. This is the escape hatch the
+      duplicate-add 409 had been missing since the catalog migration: the library is keyed on
+      `(user_id, metadata_id)`, so a second console cannot be a second add and has to be an
+      edit.<br>
+      _The asymmetry with rating, which is the thing to know before extending this._ Rating has
+      a cleared state and `""`/`null` both mean "unrate". System does **not**:
+      `played_games.system` is NOT NULL, so blank and null are both 422s and omitting the key is
+      the only way to say "leave unchanged". Tests cover all three spellings.<br>
+      _The UI deliberately does not follow the rating picker's instant write._ A rating is one
+      click of five known values; a system is free text mid-typing, and writing per keystroke
+      would file a game under "S", then "SN", then "SNE". So it is a draft plus a "Save system"
+      button that appears only when dirty, the shape the wishlist notes field already uses. It
+      is also a third `<datalist>`, joining the add and promote forms, so the mobile-combobox
+      item in Backlog now has three call sites to fix rather than two.<br>
+      _Still deliberately out:_ name, genres, cover and release date. Those live on the shared
+      `game_metadata` row, so editing one changes the game for everyone who owns it. `system` is
+      per-user and carries none of that question.
+
+- [x] **The library's row ids and session counts are non-optional** (2026-08-11). `Game.id`,
+      `Game.sessionCount`, `Game.openSessionId`, `WishlistGame.id` and `GameCaseInput.id` all
+      dropped their `?`. The API has always declared them required (`GameRead` /
+      `WishlistGameRead`, `api/app/schemas/users.py`) and games only ever arrive from those
+      endpoints, so the optionality bought nothing and cost eight `if (id === undefined) return`
+      guards that could not fire. Those are gone, along with `GameCase`'s
+      `game.id !== undefined` half of its `editable` test and `GameLibrary`'s `game.id ?? null`.
+      Split out of the tier-3 refactor item in Backlog, which had it as the "now unblocked, and
+      cheap" follow-up.<br>
+      _One guard is NOT dead and was kept:_ `openSessionId` is `number | null`, where `null` is
+      the real "not playing" value. `EditGameModal`'s `stopPlaying` still checks it, and the
+      test tightened from `== null` to `=== null` now that `undefined` is off the table.
 
 - [x] **Sort by rating** (2026-08-11). `rating-best` / `rating-worst` on the played view only,
       rendered as "Rating: Best" / "Rating: Worst". Grouping by rating withdraws both options,
@@ -1184,63 +1214,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       comes from the client, which `revalidateMyLibrary` explicitly warns against, so
       `revalidateOtherLibrary` documents why it is sound there and nowhere else (the worst a
       forged call achieves is re-fetching an already-public page).
-- [x] **Game library nested under `/video-games`** (2026-07-29) — per-user libraries moved from
-      `/u/{username}` to `/video-games/u/{username}`, so the app owns one prefix instead of
-      leaking a top-level `/u` namespace. Settles the routing/namespace backlog item in favour of
-      per-app route prefixes on one domain. Redirect added in `next.config.ts` next to the
-      kebab-case ones, but **temporary (307), not permanent** — a 308 is cached by browsers
-      more or less forever, and the spec plans for `/u/[username]` to become a cross-library
-      profile hub if movie/book libraries materialize, which a permanent redirect would fight
-      with no way to reach browsers holding the cached answer. There is no ranking to preserve
-      on a URL that was live for two days. It is worth having at all only because
-      `/u/{username}` was linked from `/video-games/start`, which is in `sitemap.ts` and is
-      Google's App homepage, so crawlers have plausibly seen it.<br>
-      Verified against `next start` that `/u/rgrassian`, `/u/RGrassian` and `/u/nosuchuser` all
-      forward, that the unknown user still 404s after forwarding, and that the older snake-case
-      redirects still chain to 200.<br>
-      **Closed a real hole while in there:** `USERNAME_RE` accepts underscores and hyphens
-      alike, but the reserved-username set only listed the underscore spelling of
-      `video_games`, so **`video-games` was a claimable username** and would have sat
-      confusingly beside the route. Rather than listing both spellings by hand, a
-      `_both_spellings()` helper in `api/app/services/me.py` derives them, so a route name
-      added later in either spelling is reserved in both. A test asserts that invariant over
-      the whole set instead of over a few literals.<br>
-      _Deliberately not done, contra the original entry:_ no `sitemap.ts` change. The sitemap
-      already lists `/video-games`, which **is** Robert's library, so adding
-      `/video-games/u/rgrassian` would submit two URLs for identical content. If that duplication
-      bothers anyone the fix is a canonical link, which is its own concern.<br>
-      _Worth knowing:_ the route-collision half of `RESERVED_USERNAMES` is now defensive rather
-      than load-bearing on the web side, since a username can only appear under
-      `/video-games/u/` and cannot shadow a site route at any depth. It still matters for the
-      API's own `/users` namespace, so it stays.
-- [x] **Auth UI now decides before first paint, not after hydration** (2026-07-29) — fixes both
-      the sign-up CTA banner flashing at signed-in viewers and the `AuthButton` popping in a beat
-      late. An inline `<script>` first in `<body>` (`src/app/layout.tsx`) reads the session cookie
-      and stamps `data-authed` on `<html>`; two rules in `globals.css` drop whichever half of the
-      auth UI does not apply. Both halves stay in the cached HTML for every viewer, so
-      `/video-games` is still prerendered static: the served markup is identical and only the
-      script's output differs. Logic in `src/lib/authFlag.ts`.<br>
-      **The banner was the least valuable of the three things the original entry named.** The
-      flash is nearly unreachable in practice: `/library` sends signed-in users to
-      `/u/{username}`, so hitting `/video-games` with a session takes a typed URL, an old
-      bookmark, or a shared link to Robert's library. The `AuthButton` pop-in is what justified
-      the work: it hit every viewer on every load of both library routes.<br>
-      _What it cannot fix, contrary to the original entry:_ the owner edit affordances. A cookie
-      says a session exists, not whose it is (the JWT's `sub` is a user id, not a username), so
-      the owner check still needs a round trip after hydration. Own backlog item now. (That check
-      was `useIsLibraryOwner` + `/me/profile` when this was written; since 2026-08-07 it is
-      `useViewerRelationship` + `/me/relationship`, one request instead of two — the reasoning
-      here is unchanged.)<br>
-      _Two costs accepted:_ `sessionCookieKey` duplicates supabase-js's own storage-key
-      derivation (`sb-${hostname.split(".")[0]}-auth-token`), so if that ever changes the flag
-      silently stops setting and the flash quietly returns — it degrades rather than breaks, but
-      nothing reports it. And a cookie present with an invalid session shows "Sign out" for a
-      frame before the subscription corrects it, where before it showed nothing. That second one
-      is narrower than it first looked: `src/middleware.ts` matches `/video-games` and
-      `updateSession` calls `getUser()`, so a revoked or long-expired session has its cookie
-      deleted by `Set-Cookie` on the same document response, before the script runs. The window
-      only survives when the refresh fails for a network reason, since auth-js keeps the session
-      then. Also note the cookie key is
-      inlined at build time from `NEXT_PUBLIC_SUPABASE_URL`, so a local build bakes in
-      `sb-127-auth-token` and Vercel bakes in the project ref.<br>
-      _Bonus:_ `SignupCta` dropped `"use client"` entirely and now ships zero JavaScript.

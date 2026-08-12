@@ -5,10 +5,10 @@ import type { BaseGame } from "./baseGame";
 
 // Wishlist-only fields. No `rating` or `lastPlayed` (those are Game-only).
 export interface WishlistGame extends BaseGame {
-  // DB row id from the library API (optional at the type level for the same
-  // shared-card reason as Game.id; always present on real API rows). Owner
-  // edits (PATCH/DELETE /me/wishlist/{id}, promote) require it.
-  id?: number;
+  // DB row id from the library API. Owner edits (PATCH/DELETE
+  // /me/wishlist/{id}, promote) target it. Required for the same reason as
+  // Game.id: WishlistGameRead declares it a plain `int`.
+  id: number;
   starred: boolean; // priority sublist
   dateAdded: string; // ISO date ("" if unknown)
   notes: string; // free text

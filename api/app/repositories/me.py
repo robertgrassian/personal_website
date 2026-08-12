@@ -203,6 +203,15 @@ def delete_game(db: Session, game: PlayedGame) -> None:
     db.commit()
 
 
+def update_game_system(db: Session, game: PlayedGame, system: str) -> PlayedGame:
+    # No uniqueness to worry about: the library's key is (user_id, metadata_id),
+    # so which console an entry records has no bearing on whether it collides.
+    game.system = system
+    db.commit()
+    # No refresh, for the same reason spelled out on update_game_rating below.
+    return game
+
+
 def update_game_rating(db: Session, game: PlayedGame, rating: str | None) -> PlayedGame:
     game.rating = rating
     db.commit()

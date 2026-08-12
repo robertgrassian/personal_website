@@ -412,6 +412,16 @@ export function updateMyGameRating(gameId: number, rating: string): Promise<Muta
   return mutate(`/api/py/me/games/${gameId}`, "PATCH", { rating }, "update the rating");
 }
 
+/** Change which console one of the caller's games is filed under.
+ *
+ *  Separate call rather than a `fields` bag like updateMyWishlistItem, because
+ *  the PATCH is partial on the server: sending only the key that changed is
+ *  what keeps "omitted = leave unchanged" meaningful. There is no clear: the
+ *  API 422s a blank system, since a library row must name a console. */
+export function updateMyGameSystem(gameId: number, system: string): Promise<MutateResult> {
+  return mutate(`/api/py/me/games/${gameId}`, "PATCH", { system }, "update the system");
+}
+
 /** Start playing (endDate null → open session) or log a past playthrough
  *  (both dates) on one of the caller's games. Dates are YYYY-MM-DD. */
 export function createMySession(

@@ -115,7 +115,13 @@ class GameUpdate(CamelModel):
     """Partial edit of one game in the caller's library (PATCH semantics):
     only fields the client actually sent are applied — the service checks
     ``model_fields_set``, so an omitted field is "leave unchanged", never
-    "reset". Currently rating-only; future metadata edits extend this model.
+    "reset". Rating and system today; future metadata edits extend this model.
+
+    Note what is deliberately absent: name, genres, cover and release date all
+    live on the SHARED ``game_metadata`` row now, so editing one of those would
+    change the game for every user who owns it. That question is open (see the
+    catalog identity notes in api/README.md); ``system`` is per-user by
+    definition and carries none of it.
     """
 
     model_config = FORBID_EXTRA
@@ -124,8 +130,23 @@ class GameUpdate(CamelModel):
     # the known ratings. Validated here rather than the service because it's
     # pure shape/vocabulary — no DB or business state involved.
     rating: str | None = None
+    # Unlike rating, system has no "cleared" state: played_games.system is NOT
+    # NULL, and GameCreate requires it. So an empty or whitespace-only value is
+    # a 422, not a clear — which is what strip_required enforces. Sending the
+    # field at all is optional; sending it blank is an error.
+    system: str | None = Field(default=None, max_length=100)
 
     _known_rating = field_validator("rating")(validate_known_rating)
+
+    @field_validator("system")
+    @classmethod
+    def _system_not_blank(cls, value: str | None) -> str | None:
+        # ``null`` is rejected rather than read as "leave unchanged": omission
+        # is the only way to say that under PATCH semantics, and accepting a
+        # second spelling of it would make a client bug look like a no-op.
+        if value is None:
+            raise ValueError("must not be null — omit the field to leave the system unchanged")
+        return strip_required(value)
 
 
 class GameCreate(CamelModel):

@@ -46,8 +46,8 @@ class BaseGameRead(CamelModel):
 
 class GameRead(BaseGameRead):
     """Mirrors ``Game`` (src/lib/games.ts): BaseGame + rating + derived play
-    state — plus the row ``id`` (optional on the TS type for shared-card
-    reasons) that the owner write path targets (PATCH /me/games/{id}).
+    state — plus the row ``id`` that the owner write path targets
+    (PATCH /me/games/{id}), required on both sides.
 
     Exposing ids on the public read is an accepted trade-off: anyone can
     enumerate a library's row ids, but ids grant nothing — every mutation
