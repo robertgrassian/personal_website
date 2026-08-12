@@ -139,21 +139,6 @@ to keep that section at five._
       Completed, which burned two plausible-but-wrong fixes before a device confirmed the real
       one: get this verified on a phone before and after, rather than shipping on reasoning.
 
-- [ ] **`--subtle` fails WCAG AA for body text in both color schemes.** Measured 2026-07-28
-      while fixing the landing page: dark mode is `#6b7280` on `#0a0a0a` = **4.1:1**, light mode
-      is `#9ca3af` on `#ffffff` = **2.5:1**. The AA minimum for normal-size text is 4.5:1, so
-      the light value is the worse of the two by a wide margin. Fine for genuinely decorative
-      text; not fine for the prose it currently carries in several places.<br>
-      The landing page was fixed by moving its copy to `text-foreground`, which is a workaround
-      rather than a fix: the token is still wrong everywhere else it holds real sentences.
-      Proper fix is darkening the light value and lightening the dark one, then walking the
-      pages that use it (`about`, `resume`, the shelf UI, `StatsPanel`, `SqlQueryPanel`) to
-      confirm nothing that was meant to recede now shouts. Worth doing as its own pass with
-      before/after screenshots, since it touches the look of the whole site.<br>
-      _Note the dark value is currently darker than the light one_ (gray-500 vs gray-400),
-      which is backwards: muted text on a dark background needs to be lighter, not darker.
-      That inversion is probably the original mistake.
-
 - [ ] **Anyone can define a shared catalog row for everyone, because `igdb_id` is never
       checked against IGDB.** Found in the code review of the catalog migration (PR #105,
       2026-08-10) and documented as a known gap in `api/README.md`. `create_my_game` takes
@@ -791,6 +776,27 @@ head` being run by hand from a laptop pointed at production.<br>
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **`--subtle` now clears WCAG AA in both color schemes** (2026-08-12). Light was 2.5:1 and
+      dark 4.1:1, against a 4.5:1 minimum for normal text. Dark was also literally darker than
+      light, which is backwards for muted text on a dark ground and was the original mistake.
+      Now `--subtle` is gray-500 in light (4.8:1) and a hand-picked step between gray-500 and
+      gray-400 in dark (5.5:1).<br>
+      _`--muted` moved too, and that is the part worth remembering._ Passing AA put `--subtle`
+      at roughly where `--muted` already sat, which would have collapsed two tokens onto one
+      color. So `--muted` went gray-500 → gray-600 in light mode to reopen the gap. Only its
+      contrast went up, so nothing it styles got harder to read; dark-mode `--muted` was already
+      fine at 7.8:1 and did not move.<br>
+      _Verified by walking the rendered pages, not by reading hex values._ A Playwright pass over
+      `/about`, `/privacy`, `/video-games/start`, `/resume` and `/onboarding` in both schemes
+      checked every text node against the background actually painted behind it, and all pass.
+      Two traps in writing that check, if it is ever rebuilt: Tailwind v4 emits `oklab(... / 0.9)`
+      for alpha-modified colors like the nav's `bg-background/90`, so a regex over the digits
+      reads it as near-black (paint the layers onto a canvas and let the browser blend); and
+      elements carrying `transition-colors` sample mid-animation if you mutate tokens at runtime.<br>
+      _The landing-page workaround was left in place._ `/video-games/start` moved its body copy to
+      `text-foreground` when this bug was found; the lead paragraph is the page's pitch and wants
+      full contrast on its own merits, so only the stale comment explaining it was corrected.
+
 - [x] **Removed the Wikipedia/Wikidata genre lookup from the add-game flow** (2026-08-12).
       The confirm step now shows IGDB's own genres, editable, and posts them; nothing is fetched
       between picking a game and saving it. Gone with it: `GET /api/py/genres/lookup`, its router
@@ -1173,17 +1179,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       _Worth knowing:_ `ShelfSection` supplies its own `mt-10`, so Unrated never needed spacing
       of its own — deleting the padding outright would have fixed the gap and reintroduced the
       problem `pb-24` exists to solve (the last shelf jammed against the viewport bottom).
-
-- [x] **Browser pass on the Phase 5 UI** (2026-07-30) — the client-rendered surfaces no test
-      reaches: the follow toggle, its absence on your own library and when signed out, "Back to
-      my library", the Following/Followers tabs and their links, `?view=followers` deep-links,
-      and both users' counts agreeing after a follow (the two-tag revalidation). Clean, no
-      defects found.<br>
-      Worth knowing the two real bugs were caught by a code review **before** this pass, not by
-      it: following while signed in but not onboarded 500'd (`follows.follower_id` is an FK to
-      `profiles`, and the relationship read answered "not following" for those users, which is
-      what rendered the button that 500'd), and signup's auto-follow never purged the founder's
-      cache tag. Both were invisible to a green suite and to casual clicking — the first needed
-      an abandoned onboarding, the second a stale page nobody would think to reload. The rule
-      that came out of it is in `api/README.md`: any write that creates a follow edge changes
-      both endpoints of it.
