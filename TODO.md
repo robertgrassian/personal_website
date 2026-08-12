@@ -19,6 +19,33 @@ asked for, which needs no reason and is marked `(Promoted by request YYYY-MM-DD.
 get demoted back out. Adding a sixth item means demoting one, on purpose. (Split out 2026-08-07:
 the old rule sent every bug straight here, so four of five slots were defects.)
 
+- [ ] **The genres, release date and cover art you edit while adding a game are silently
+      discarded whenever someone else already added that IGDB game.** (Promoted by request 2026-08-12.)
+      Found in the code review of this branch (2026-08-12), confirmed by reading `find_or_create_metadata`
+      (`api/app/repositories/me.py`): it returns an existing catalog row **untouched**, so every
+      field the caller passed is dropped on the floor. The add form still offers those fields
+      (`GameDraftForm`), the API still answers 201, and the game still lands on the shelf — with
+      somebody else's metadata. Nothing tells you, which is what makes it worse than a rejection.
+      Today it needs a second user to bite; it becomes ordinary the moment there are any.<br>
+      _Why it is not simply a bug in that function._ The row is SHARED by design: one
+      `game_metadata` per IGDB id, which is the whole point of the catalog migration. Honouring
+      the caller's edits would rewrite the game for everyone who owns it, which is exactly the
+      thing `api/README.md` records as deliberately not possible from the UI. So this is a product
+      decision wearing a bug's clothes, and the honest options differ in cost, not in
+      correctness:<br>
+      **(a)** Say so in the form: once a pick resolves to a catalog row that exists, show its
+      metadata read-only with a note, so nothing is offered that cannot be saved. Cheapest, and it
+      makes the current behaviour honest rather than changing it.<br>
+      **(b)** Fork a private row when the caller's values differ, which loses catalog sharing for
+      exactly the games people care enough to edit.<br>
+      **(c)** Let the edit change the shared row for everyone, which needs an answer to "who owns
+      a catalog row" that nothing in the codebase has yet.<br>
+      _Decide this with the two items it is the same question as:_ **"Anyone can define a shared
+      catalog row for everyone"** below (the write path trusting client metadata) and **"Make
+      library and wishlist entries fully editable"** in Backlog (which already names forking vs
+      restricting vs changing-for-everyone as the open choice). Answering one in isolation will
+      pre-commit the other two.
+
 - [ ] **Take a pass at the catalog rows whose `igdb_id` points at a variant, not the base
       game.** (Promoted by request 2026-08-10.) Eleven on prod, surfaced by
       `backfill_platforms.py`'s guard: it skips any row where a console someone actually owns
@@ -96,33 +123,6 @@ the old rule sent every bug straight here, so four of five slots were defects.)
 _Confirmed defects that are not urgent enough for Up Next. Roughly severity-ordered, worst first.
 Promote one into Up Next when it starts blocking the sharing goal above, and demote something else
 to keep that section at five._
-
-- [ ] **The genres, release date and cover art you edit while adding a game are silently
-      discarded whenever someone else already added that IGDB game.** Found in the code review of
-      this branch (2026-08-12), confirmed by reading `find_or_create_metadata`
-      (`api/app/repositories/me.py`): it returns an existing catalog row **untouched**, so every
-      field the caller passed is dropped on the floor. The add form still offers those fields
-      (`GameDraftForm`), the API still answers 201, and the game still lands on the shelf — with
-      somebody else's metadata. Nothing tells you, which is what makes it worse than a rejection.
-      Today it needs a second user to bite; it becomes ordinary the moment there are any.<br>
-      _Why it is not simply a bug in that function._ The row is SHARED by design: one
-      `game_metadata` per IGDB id, which is the whole point of the catalog migration. Honouring
-      the caller's edits would rewrite the game for everyone who owns it, which is exactly the
-      thing `api/README.md` records as deliberately not possible from the UI. So this is a product
-      decision wearing a bug's clothes, and the honest options differ in cost, not in
-      correctness:<br>
-      **(a)** Say so in the form: once a pick resolves to a catalog row that exists, show its
-      metadata read-only with a note, so nothing is offered that cannot be saved. Cheapest, and it
-      makes the current behaviour honest rather than changing it.<br>
-      **(b)** Fork a private row when the caller's values differ, which loses catalog sharing for
-      exactly the games people care enough to edit.<br>
-      **(c)** Let the edit change the shared row for everyone, which needs an answer to "who owns
-      a catalog row" that nothing in the codebase has yet.<br>
-      _Decide this with the two items it is the same question as:_ **"Anyone can define a shared
-      catalog row for everyone"** below (the write path trusting client metadata) and **"Make
-      library and wishlist entries fully editable"** in Backlog (which already names forking vs
-      restricting vs changing-for-everyone as the open choice). Answering one in isolation will
-      pre-commit the other two.
 
 - [ ] **Anyone can define a shared catalog row for everyone, because `igdb_id` is never
       checked against IGDB.** Found in the code review of the catalog migration (PR #105,
