@@ -97,6 +97,33 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 Promote one into Up Next when it starts blocking the sharing goal above, and demote something else
 to keep that section at five._
 
+- [ ] **The genres, release date and cover art you edit while adding a game are silently
+      discarded whenever someone else already added that IGDB game.** Found in the code review of
+      this branch (2026-08-12), confirmed by reading `find_or_create_metadata`
+      (`api/app/repositories/me.py`): it returns an existing catalog row **untouched**, so every
+      field the caller passed is dropped on the floor. The add form still offers those fields
+      (`GameDraftForm`), the API still answers 201, and the game still lands on the shelf — with
+      somebody else's metadata. Nothing tells you, which is what makes it worse than a rejection.
+      Today it needs a second user to bite; it becomes ordinary the moment there are any.<br>
+      _Why it is not simply a bug in that function._ The row is SHARED by design: one
+      `game_metadata` per IGDB id, which is the whole point of the catalog migration. Honouring
+      the caller's edits would rewrite the game for everyone who owns it, which is exactly the
+      thing `api/README.md` records as deliberately not possible from the UI. So this is a product
+      decision wearing a bug's clothes, and the honest options differ in cost, not in
+      correctness:<br>
+      **(a)** Say so in the form: once a pick resolves to a catalog row that exists, show its
+      metadata read-only with a note, so nothing is offered that cannot be saved. Cheapest, and it
+      makes the current behaviour honest rather than changing it.<br>
+      **(b)** Fork a private row when the caller's values differ, which loses catalog sharing for
+      exactly the games people care enough to edit.<br>
+      **(c)** Let the edit change the shared row for everyone, which needs an answer to "who owns
+      a catalog row" that nothing in the codebase has yet.<br>
+      _Decide this with the two items it is the same question as:_ **"Anyone can define a shared
+      catalog row for everyone"** below (the write path trusting client metadata) and **"Make
+      library and wishlist entries fully editable"** in Backlog (which already names forking vs
+      restricting vs changing-for-everyone as the open choice). Answering one in isolation will
+      pre-commit the other two.
+
 - [ ] **Anyone can define a shared catalog row for everyone, because `igdb_id` is never
       checked against IGDB.** Found in the code review of the catalog migration (PR #105,
       2026-08-10) and documented as a known gap in `api/README.md`. `create_my_game` takes
@@ -127,6 +154,45 @@ to keep that section at five._
       neighbouring question — whether editing a shared row forks a private copy, restricts
       the edit to private rows, or genuinely changes the game for everyone. Answer both
       together; they are the same question about who owns a catalog row.
+
+- [ ] **A dropdown change mid-search can put back a character you already typed past.** Raised
+      by the code review of this branch (2026-08-12) and **not reproduced** — read the mechanism
+      below and confirm before fixing, because this is the same bug that
+      `pushedSearchValues` in `useGameLibraryUrlState` was built to kill, and the comment on that
+      ref is a good record of what has already been tried.<br>
+      _The mechanism, from reading the code._ There are **two** writers of `?search` and only one
+      of them registers what it wrote. The debounced search effect adds its value to
+      `pushedSearchValues` before calling `router.replace`. But `updateParam` — every dropdown,
+      via `paramsWithLiveSearch()` — also writes the live search value into the URL, and adds
+      nothing to the set. So changing a dropdown while a search push is still in flight produces
+      an echo carrying the same string, which `pushedSearchValues.current.delete(fromUrl)`
+      consumes as if it were the search effect's own. When the real echo lands a moment later the
+      set is already empty, so it is read as an external navigation and written back over the
+      input — putting back the string as it stood before the last keystrokes.<br>
+      _What this means for the fix._ The review's suggestion was a per-push counter, but the
+      existing comment argues against a count for a good reason: a coalesced transition that never
+      echoes drains it wrong and starts swallowing real navigations **forever**, where matching on
+      value is self-correcting. The likelier fix is to make the second writer register too, so
+      `updateParam` accounts for the `?search` it carries. Confirm the interleaving first: it
+      needs a dropdown change inside the 300ms debounce plus a transition, which is a narrow
+      window and may be why nobody has hit it.
+
+- [ ] **An unwell library API makes the account page unreachable, and account deletion with
+      it.** Found in the code review of this branch (2026-08-12). `AccountPage`
+      (`src/app/video-games/account/page.tsx`) awaits `fetchMyProfile()` unguarded, and that
+      function throws on an unreachable hop and on any status that is not 404 or 0
+      (`src/lib/meApi.ts`), so a timeout or a 500 errors the whole route.<br>
+      _What makes this a clear call rather than a judgement one:_ the two reads immediately below
+      it, `getGames` and `getWishlist`, are already `.catch(() => null)`-guarded, and the comment
+      explaining why says exactly this — that throwing "would error the whole page and make the
+      delete control unreachable exactly when the site is misbehaving, the moment someone is most
+      likely to want it". The reasoning was written down and then not applied one line
+      above.<br>
+      _It is close to a one-liner._ `AccountPanel` already takes `username: string | null` and
+      substitutes the word "delete" as the confirm phrase when it is null, so the degraded page
+      works today. What wants deciding is whether a null username there should say something
+      ("we could not load your account details") rather than quietly presenting a weaker confirm
+      prompt, since the prompt's whole job is to force a moment of comprehension.
 
 - [ ] **Field suggestions (system, genre, …) should work on mobile, not just desktop.** The
       add/promote forms use a native `<datalist>` (`AddGameModal.tsx`, `EditWishlistModal.tsx`),
