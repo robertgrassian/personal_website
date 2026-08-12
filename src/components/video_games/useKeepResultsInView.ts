@@ -19,18 +19,19 @@ const GAP_PX = 8;
  *
  *  Three rules keep it from becoming its own annoyance:
  *
- *  - **Only when the result set actually changed.** `signature` describes the
- *    shelves' contents, so re-sorting inside the same shelves is not a change.
+ *  - **Only when the visitor narrowed the library differently.** `signature`
+ *    must describe the FILTERS, not the shelves that came back: an owner edit
+ *    changes the shelves too, and rating a game should never move the page.
  *  - **Only upward.** The early return when the results already clear the
  *    chrome is what stops this yanking the page while someone is reading.
  *  - **Never touches focus.** `window.scrollTo` moves the viewport and nothing
  *    else; `scrollIntoView` on or near the search box could dismiss the
  *    keyboard mid-search, which would trade this annoyance for a worse one.
  *
- *  The caller must pass a signature derived from the DEFERRED pipeline output,
- *  not from the raw input value. GameShelves runs its filters through
- *  useDeferredValue, and driving this off the live value would scroll on every
- *  keystroke, fighting the typist. */
+ *  The caller must build the signature from the DEFERRED filter values, not the
+ *  live ones. GameShelves runs its filters through useDeferredValue, and driving
+ *  this off the live value would scroll on every keystroke, fighting the
+ *  typist. */
 export function useKeepResultsInView(
   resultsRef: RefObject<HTMLElement | null>,
   barRef: RefObject<HTMLElement | null>,

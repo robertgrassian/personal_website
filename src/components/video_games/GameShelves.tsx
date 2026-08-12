@@ -173,15 +173,39 @@ export function GameShelves({
   const barRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
-  // Which shelves exist and how full each one is. Derived from `activeShelves`,
-  // which runs off the DEFERRED filters, so it trails a keystroke by a render
-  // rather than firing on each one. Re-sorting inside a shelf reorders
-  // `activeShelves` without changing this string, which is the point: a sort is
-  // not a new result set and must not move the page.
-  const shelfSignature = activeShelves.map((s) => `${s.label}:${s.games.length}`).join("|");
-  useKeepResultsInView(resultsRef, barRef, shelfSignature);
+  // What the visitor narrowed the library BY, not what came back.
+  //
+  // Describing the output instead (shelf labels and counts) looks equivalent and
+  // is not: an owner edit changes the counts too, so rating a game while scrolled
+  // deep into the shelves would scroll the page out from under them — under
+  // groupBy=rating the game even moves shelves. That is the yank this hook is
+  // supposed to prevent, arriving from the one direction the output cannot
+  // distinguish. The input says "the visitor asked for something different",
+  // which is the only thing that should move the viewport.
+  //
+  // Built from the DEFERRED filters, so it trails a keystroke by a render rather
+  // than firing on each one. `sortOrder` is deliberately absent: a re-sort keeps
+  // every game on screen and must not move the page. So is `groupBy`, which
+  // reshuffles shelves without narrowing anything, so it cannot strand the
+  // results the way a filter that collapses the document can.
+  const filterSignature =
+    view === "played"
+      ? [
+          "played",
+          deferredFilters.search,
+          deferredFilters.system,
+          deferredFilters.genre,
+          deferredFilters.rating,
+        ].join(" ")
+      : [
+          "wishlist",
+          deferredWishlistFilters.search,
+          deferredWishlistFilters.system,
+          deferredWishlistFilters.genre,
+        ].join(" ");
+  useKeepResultsInView(resultsRef, barRef, filterSignature);
 
-  // The eight props both views pass identically. Spread rather than repeated,
+  // The props both views pass identically. Spread rather than repeated,
   // so a new shared prop cannot land on one view and not the other.
   //
   // `view` stays a literal at each call site on purpose: FilterBarProps is a
