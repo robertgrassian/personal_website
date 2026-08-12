@@ -76,11 +76,20 @@ export function useKeepResultsInView(
       const top = results.getBoundingClientRect().top;
       if (top >= safeTop) return; // already clear of the chrome; leave it alone
 
+      // Instant, not smooth, which is a deliberate reversal of the usual
+      // preference. Smooth scrolling earns its cost carrying you through content
+      // that stays put, so you keep your bearings -- but the results were just
+      // replaced, so it would animate through a list that no longer exists.
+      // Three things make it actively worse here: the filter can change on every
+      // keystroke, and each change restarts the animation so the page never
+      // settles while you type; the distances run to thousands of pixels; and an
+      // animation can be interrupted mid-flight by a thumb or by the keyboard
+      // resizing the viewport, which strands the scroll partway. A jump lands in
+      // the same frame as the new results and reads as cause and effect. It is
+      // also what prefers-reduced-motion would have forced anyway.
+      //
       // `top - safeTop` is negative here, which is what makes this upward-only.
-      window.scrollTo({
-        top: window.scrollY + top - safeTop,
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-      });
+      window.scrollTo({ top: window.scrollY + top - safeTop, behavior: "auto" });
     });
     return () => cancelAnimationFrame(frame);
   }, [signature, resultsRef, barRef]);
