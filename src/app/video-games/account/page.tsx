@@ -30,6 +30,11 @@ import { AccountPanel } from "./AccountPanel";
 // Per-request (reads the session cookie) — never statically rendered.
 export const dynamic = "force-dynamic";
 
+// Sentinel for "the profile fetch failed", so it stays distinguishable from
+// the null that means "no profile yet". A string literal rather than a third
+// boolean lets TypeScript narrow `profile` to MyProfile on one comparison.
+const UNAVAILABLE = "unavailable" as const;
+
 export const metadata: Metadata = {
   title: "Account",
   description: "Manage your game library account.",
@@ -46,7 +51,24 @@ export default async function AccountPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/video-games/start");
 
-  const profile = await fetchMyProfile();
+  // Three states, not two. fetchMyProfile returns null ONLY for the genuine
+  // "signed in, never onboarded" 404; it throws on an unreachable hop and on
+  // any other bad status. That throw used to escape and error the whole route,
+  // which is the exact failure the comment on the two guarded reads below
+  // argues against — the delete control went missing precisely when the site
+  // was misbehaving.
+  //
+  // The failure is kept distinct from null rather than collapsed into it,
+  // because the page says different things: offering "finish setting up your
+  // library" to someone whose profile merely failed to load is a lie, and the
+  // weaker confirm phrase needs explaining rather than silently appearing.
+  const profile = await fetchMyProfile().catch(() => UNAVAILABLE);
+  const detailsUnavailable = profile === UNAVAILABLE;
+  // Narrowed once here so the JSX below can stay a plain null check. The
+  // narrowing survives the const boolean above (TypeScript tracks a condition
+  // stored in a const back to the check that produced it), so this types as
+  // MyProfile | null with no cast.
+  const myProfile = detailsUnavailable ? null : profile;
 
   // Both reads are tagged and cached (libraryApi), and this viewer's library
   // page has almost certainly warmed them already, so the counts cost nothing
@@ -58,10 +80,10 @@ export default async function AccountPage() {
   // unreachable exactly when the site is misbehaving — the moment someone is
   // most likely to want it. A null count drops the number from the prompt and
   // changes nothing else.
-  const counts = profile
+  const counts = myProfile
     ? await Promise.all([
-        getGames(profile.username).catch(() => null),
-        getWishlist(profile.username).catch(() => null),
+        getGames(myProfile.username).catch(() => null),
+        getWishlist(myProfile.username).catch(() => null),
       ])
     : null;
   const gameCount = counts?.[0]?.length ?? null;
@@ -77,18 +99,27 @@ export default async function AccountPage() {
             <dt className="text-shelf-text-muted">Signed in as</dt>
             <dd className="text-shelf-text">{user.email}</dd>
           </div>
-          {profile !== null && (
+          {myProfile !== null && (
             <div className="flex gap-2">
               <dt className="text-shelf-text-muted">Username</dt>
-              <dd className="text-shelf-text">{profile.username}</dd>
+              <dd className="text-shelf-text">{myProfile.username}</dd>
             </div>
           )}
         </dl>
 
+        {/* Three branches matching the three states above. The degraded one
+            offers no link at all: "back to your library" needs a username we
+            do not have, and "finish setting up" would be wrong for the likely
+            case that the profile exists and only the read failed. */}
         <p className="mt-6 text-sm">
-          {profile !== null ? (
+          {detailsUnavailable ? (
+            <span className="text-shelf-text-muted">
+              We could not load your account details just now. Everything below still works, and
+              your username will be back once the library is reachable again.
+            </span>
+          ) : myProfile !== null ? (
             <Link
-              href={userLibraryPath(profile.username)}
+              href={userLibraryPath(myProfile.username)}
               className="text-link underline underline-offset-4"
             >
               Back to your library
@@ -107,7 +138,8 @@ export default async function AccountPage() {
             restored through the site.
           </p>
           <AccountPanel
-            username={profile?.username ?? null}
+            username={myProfile?.username ?? null}
+            detailsUnavailable={detailsUnavailable}
             gameCount={gameCount}
             wishlistCount={wishlistCount}
           />

@@ -26,6 +26,12 @@ type AccountPanelProps = {
   /** Null for a signed-in user who never finished onboarding. They still have
    *  a deletable account, just no library and no handle to type. */
   username: string | null;
+  /** True when `username` is null because the library API did not answer,
+   *  rather than because there is no profile. Both fall back to typing "delete",
+   *  but only this case needs saying out loud: the prompt exists to force a
+   *  moment of comprehension, and a phrase that quietly changed to something
+   *  easier undermines that unless the reason is on screen. */
+  detailsUnavailable?: boolean;
   /** Null when the library API could not be reached. The counts are a nicety;
    *  losing them must not take the delete control down with them. */
   gameCount: number | null;
@@ -51,7 +57,12 @@ function describeLosses(gameCount: number | null, wishlistCount: number | null):
   return parts.join(", ");
 }
 
-export function AccountPanel({ username, gameCount, wishlistCount }: AccountPanelProps) {
+export function AccountPanel({
+  username,
+  detailsUnavailable = false,
+  gameCount,
+  wishlistCount,
+}: AccountPanelProps) {
   const router = useRouter();
   const { isPending, error, run } = useServerAction();
   const [typed, setTyped] = useState("");
@@ -95,6 +106,12 @@ export function AccountPanel({ username, gameCount, wishlistCount }: AccountPane
           <>
             This permanently deletes {describeLosses(gameCount, wishlistCount)}. It cannot be
             undone.
+            {detailsUnavailable && (
+              <span className="mt-3 block">
+                We could not load your account details, so this list has no numbers in it and the
+                word below stands in for your username. The deletion itself is unaffected.
+              </span>
+            )}
             <span className="mt-3 block">
               Type <span className="font-semibold text-shelf-text">{phrase}</span> to confirm.
             </span>
