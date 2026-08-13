@@ -177,23 +177,6 @@ to keep that section at five._
       needs a dropdown change inside the 300ms debounce plus a transition, which is a narrow
       window and may be why nobody has hit it.
 
-- [ ] **An unwell library API makes the account page unreachable, and account deletion with
-      it.** Found in the code review of this branch (2026-08-12). `AccountPage`
-      (`src/app/video-games/account/page.tsx`) awaits `fetchMyProfile()` unguarded, and that
-      function throws on an unreachable hop and on any status that is not 404 or 0
-      (`src/lib/meApi.ts`), so a timeout or a 500 errors the whole route.<br>
-      _What makes this a clear call rather than a judgement one:_ the two reads immediately below
-      it, `getGames` and `getWishlist`, are already `.catch(() => null)`-guarded, and the comment
-      explaining why says exactly this — that throwing "would error the whole page and make the
-      delete control unreachable exactly when the site is misbehaving, the moment someone is most
-      likely to want it". The reasoning was written down and then not applied one line
-      above.<br>
-      _It is close to a one-liner._ `AccountPanel` already takes `username: string | null` and
-      substitutes the word "delete" as the confirm phrase when it is null, so the degraded page
-      works today. What wants deciding is whether a null username there should say something
-      ("we could not load your account details") rather than quietly presenting a weaker confirm
-      prompt, since the prompt's whole job is to force a moment of comprehension.
-
 - [ ] **Field suggestions (system, genre, …) should work on mobile, not just desktop.** The
       add/promote forms use a native `<datalist>` (`AddGameModal.tsx`, `EditWishlistModal.tsx`),
       which mobile Safari/Chrome either render poorly or ignore, so on a phone the system
@@ -298,15 +281,18 @@ to keep that section at five._
       block list stays reserved for values that are never right.<br>
       _On the "really smart picker" ambition, before building one._ There are two vocabularies in
       play already: IGDB's coarse genres at add time (since 2026-08-12) and Wikipedia infoboxes in
-      the backfill. The cheap experiment for a third is an LLM pass over name + Wikipedia lead +
+      the backfill. Wikidata's `P136` was tried as a structured third source in 2026-07-30 and
+      **rejected** as frequently thin or wrong (Kinect Sports as "association football video
+      game", Minish Cap as "role-playing video game"); it survives only as a fallback for
+      infoboxes with no genre field, so do not re-propose it as the clean machine-readable
+      answer. The cheap experiment for a third is an LLM pass over name + Wikipedia lead +
       IGDB genres run **offline inside the backfill's plan step**, where a human already reviews
       every changing row: the review gate that makes a bad automated genre survivable exists only
       there, not in the live add path. Do not put a model in the write path first.<br>
       _The constraint that applies to every fix here:_ genres live on the **shared**
       `game_metadata` row, so correcting one rewrites the genre for every user who owns that game
       (the runbook says this outright). Fine for one curator, re-think before strangers.<br>
-      Related: **"Take a pass at the catalog rows whose `igdb_id` points at a variant"** in Up Next
-      - those eleven rows carry the *variant's* genres, so some of what this audit turns up is that
+      Related: **"Take a pass at the catalog rows whose `igdb_id` points at a variant"** in Up Next - those eleven rows carry the _variant's_ genres, so some of what this audit turns up is that
       item's job rather than this one, and doing it first shrinks this list. And **"Make library
       and wishlist entries fully editable"** below would give genres a write path from the UI, at
       which point one-off corrections stop needing a script at all.
@@ -855,6 +841,18 @@ head` being run by hand from a laptop pointed at production.<br>
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
+- [x] **An unwell library API no longer takes the account page down with it** (2026-08-13).
+      `AccountPage` awaited `fetchMyProfile()` unguarded, so a timeout or a 500 errored the whole
+      route and made account deletion unreachable exactly when someone would want it. Now caught,
+      into a **third** state rather than folded into the existing null: null still means "signed
+      in, never onboarded" and only that state offers the onboarding link, because telling
+      someone whose profile merely failed to load to go finish setting one up is a lie. The
+      degraded page drops the username row, says so in a muted line, and passes
+      `detailsUnavailable` to `AccountPanel`, which explains inside the confirm prompt why the
+      phrase to type became "delete". That last part was the only judgement call: the prompt's
+      job is to force comprehension, so a phrase that silently got easier needed a reason on
+      screen.
+
 - [x] **Filtering no longer strands the results under the sticky chrome** (2026-08-12).
       `useKeepResultsInView` (`src/components/video_games/`) scrolls the results back below the
       nav and filter bar when the visitor narrows the library differently. Fires only on a
@@ -1262,35 +1260,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       lists, 44 distinct genres with no case/spelling collisions, and no junk values. It caught
       two things since fixed: "Role-Playing" on Untitled Goose Game, and a
       "Monster Tamer"/"Monster-taming" split that would have shown as two filter options.
-
-- [x] **Genres re-sourced from Wikipedia, and the add flow wired to the same source**
-      (2026-07-30). Replaces the original plan, which had it backwards: it said to normalize
-      onto _IGDB's_ vocabulary, but IGDB's `genres` field is too coarse to describe a library
-      (Hades II as "Role-playing (RPG), Hack and slash, Adventure, Indie", no roguelike). Built
-      `api/app/services/genres.py`, `GET /api/py/genres/lookup` (own `genre_lookup` rate-limit
-      bucket), the add-game modal calling it on IGDB pick with IGDB genres as the fallback,
-      `api/scripts/backfill_genres.py`, and the `clean_genres` case/duplicate dedupe. Suite
-      175 -> 285.<br>
-      **Wikidata `P136` was tried first and rejected**, which is the thing worth remembering.
-      It is structured and batchable, so it looks like the obvious choice, but it is frequently
-      thin or wrong: Kinect Sports "association football video game", Zelda: The Minish Cap
-      "role-playing video game", Dance Central "music video game". The Wikipedia
-      `{{Infobox video game}}` genre field says Sports, Action-adventure, Rhythm — correct, and
-      already the library's vocabulary, because the original genres were read off those same
-      infoboxes by hand. Switching sources took the backfill from 65 changed rows to 42 and
-      auto-matches from 89 to 118; _fewer_ changes was the signal the source was right. P136
-      survives only as a fallback when an infobox has no genre field.<br>
-      _Two matching bugs the design exists to prevent, both real:_ searching "Zelda: Twilight
-      Princess" ranks the **manga** first (genres "adventure anime and manga"), so a candidate
-      must carry `{{Infobox video game}}`; and taking the first _game_ hit resolved "Hades II"
-      to **Hades** and "Animal Well" to **Animal Crossing**, so survivors are ranked by title
-      similarity. Also: Wikimedia 429s generic User-Agents, and title similarity is a bad
-      confidence signal (0.895 "Octopath Traveller"->"Octopath Traveler II" is wrong, 0.538
-      "Halo CE"->"Halo: Combat Evolved" is right), hence auto-accept only at ~0.97.<br>
-      _A code review caught two more before anything was written:_ `--apply` had no `user_id`
-      filter and would have rewritten **every** user's genres, and the confidently-matched tier
-      was never shown to a human despite being where the real damage was (55 of 68 rows dropped
-      a curated genre). Both fixed; `--review` now walks every changing row.<br>
-      _Deliberately no alias map_ (asked twice): the library takes the source's spelling, so
-      `RPG -> Role-Playing` and `Racing -> Kart Racing`. Only spelling-level variants snap to
-      existing terms, which is what keeps case-only duplicates out of the filter dropdown.
