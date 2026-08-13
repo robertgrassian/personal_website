@@ -258,6 +258,59 @@ to keep that section at five._
 
 ## Backlog / Ideas
 
+- [ ] **Audit the genre vocabulary, fix the wrong values in the database with a script, and stop
+      them coming back.** Prompted by **Star Fox Adventures being the only game tagged
+      "Shooter"**, which is both wrong for that game and useless as a filter. The ask is the audit
+      first: sweep for genres like it, then decide per case between a one-off replace script, a
+      block list, and a genuinely smarter picker. Named as a known weak point of the system, and
+      of game sites generally.<br>
+      _The premise is unverified against the database, so start there._ The seed fixture
+      (`api/scripts/fixtures/games.csv`) records Star Fox Adventures as `Action-Adventure`, and
+      ~19 fixture rows carry some spelling of "shooter", so whatever produced today's state
+      happened **after** seeding. Most likely the Wikipedia backfill moved the other shooters onto
+      the more specific infobox terms ("First-person shooter", "Third-person shooter") and left
+      this one row on the bare word: that is a plausible reading of the code and the fixtures, not
+      something confirmed by querying prod. Confirm before fixing, because it changes whether this
+      is one bad row or a systematic coarse-vs-specific split.<br>
+      _The audit query names itself, which makes this cheaper than it sounds._ `useFilterOptions`
+      builds `allGenres` by flat-mapping every game's genres with **no minimum count**, so a genre
+      held by exactly one game earns a permanent dropdown entry that filters to that single game.
+      "Genres with a count of 1" is therefore both the detection rule and the exact symptom
+      complained about. Count 2 is worth eyeballing too.<br>
+      _Both tools the ask imagines already half-exist, and the gap between them is the real work._
+      **The block list** is `THEME_VALUES` + `normalize_genre` (`api/app/services/genres.py`). But
+      it is only reachable from the Wikipedia path: `normalize_genres` is called from
+      `lookup_many` and `_fill_gaps_from_wikidata` and nowhere else. The add-game write path
+      validates through `clean_genres` (`api/app/schemas/me.py`), a different function that only
+      trims, dedupes case-insensitively and caps at `MAX_GENRES`. **So adding "Shooter" to
+      `THEME_VALUES` today would not stop the add form writing it.** Making a block list actually
+      bite means calling the normalizer from `clean_genres`, which is the change of shape hiding
+      in this item. **The replace script** is `scripts/backfill_genres.py`, which already has
+      plan → review → apply with `docs/genre-backfill-runbook.md` as the procedure; what it does
+      not have is a targeted mode ("replace genre X with Y everywhere", "drop genre X"), since it
+      re-sources the whole library from Wikipedia, which is a much bigger hammer than an audit fix
+      wants.<br>
+      _The counter-argument to blocking, which `THEME_VALUES` makes itself:_ its comment warns
+      that guessing deletes genuine genres unseen, and that "Horror" and "Cozy" read like themes
+      but are real. "Shooter" is not junk, it is **too coarse for this row** - blocking it
+      library-wide would be wrong the day a game arrives whose best genre really is plain Shooter.
+      So the likely answer is per-game corrections plus a small coarse → specific rule, and the
+      block list stays reserved for values that are never right.<br>
+      _On the "really smart picker" ambition, before building one._ There are two vocabularies in
+      play already: IGDB's coarse genres at add time (since 2026-08-12) and Wikipedia infoboxes in
+      the backfill. The cheap experiment for a third is an LLM pass over name + Wikipedia lead +
+      IGDB genres run **offline inside the backfill's plan step**, where a human already reviews
+      every changing row: the review gate that makes a bad automated genre survivable exists only
+      there, not in the live add path. Do not put a model in the write path first.<br>
+      _The constraint that applies to every fix here:_ genres live on the **shared**
+      `game_metadata` row, so correcting one rewrites the genre for every user who owns that game
+      (the runbook says this outright). Fine for one curator, re-think before strangers.<br>
+      Related: **"Take a pass at the catalog rows whose `igdb_id` points at a variant"** in Up Next
+      - those eleven rows carry the *variant's* genres, so some of what this audit turns up is that
+      item's job rather than this one, and doing it first shrinks this list. And **"Make library
+      and wishlist entries fully editable"** below would give genres a write path from the UI, at
+      which point one-off corrections stop needing a script at all.
+
 - [ ] **Detect where the title sits on a game cover, and crop the CRT picture so it is not cut
       off.** The TV screen is landscape and cover art is portrait, so `object-cover` throws away
       most of the height. Today every game gets the **same** hardcoded crop:
@@ -702,7 +755,7 @@ head` being run by hand from a laptop pointed at production.<br>
       `validate_igdb_image_url` (`GameCreate` restricts `imageUrl` to IGDB CDN URLs so nobody
       uses their library as free image hosting) — an "edit image" field that accepts arbitrary
       URLs would reopen exactly that, and the argument is stronger now that the field writes a
-      shared row. Genre editing here also unblocks the genre-vocabulary backlog item below,
+      shared row. Genre editing here also unblocks **"Audit the genre vocabulary"** above,
       which currently needs a one-off script for want of a write path.
 - [ ] **Fold "+ Add to wishlist" into a single "+ Add game" that picks its destination.**
       `GameLibrary.tsx` swaps the button label by view, and `AddGameModal` already takes a
@@ -752,8 +805,8 @@ head` being run by hand from a laptop pointed at production.<br>
       system string, that silently splits one shelf into two. So this needs a normalization
       step: map IGDB platform names onto existing shelf systems where one matches, and only
       offer the raw IGDB name when it's genuinely a system you don't own yet. Worth deciding
-      the mapping alongside the genre-vocabulary normalization below, since it's the same
-      problem one column over.<br>
+      the mapping alongside the genre normalization in **"Audit the genre vocabulary"** above,
+      since it's the same problem one column over.<br>
       _New since 2026-08-05:_ the search rework built half of this. `_build_platform_aliases`
       (`api/app/services/igdb.py`) already turns IGDB's `/platforms` into normalized aliases
       ("nes", "snes", "switch 2"), cached per process. What is still missing is the other
