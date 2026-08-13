@@ -43,16 +43,12 @@ approach in services/igdb.py.
 import difflib
 import logging
 import re
-import uuid
 from dataclasses import dataclass, field
-from datetime import timedelta
 
 import httpx
-from sqlalchemy.orm import Session
 
 from app.core.text import fold_text as _fold
 from app.models.game import MAX_GENRES
-from app.services import rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -594,29 +590,3 @@ def _qids_for_articles(articles: list[str]) -> dict[str, str]:
             if qid and page.get("title"):
                 out[page["title"]] = qid
     return out
-
-
-# Its own bucket rather than the shared "writes" one: this is a read, and it
-# fans out to two free third-party services, so it needs a budget of its own.
-# Sized like igdb_search, which the add flow calls immediately before this.
-RATE_LIMIT_BUCKET = "genre_lookup"
-RATE_LIMIT_MAX = 30
-RATE_LIMIT_WINDOW = timedelta(seconds=60)
-
-
-def lookup_for_user(db: Session, user_id: uuid.UUID, name: str) -> GenreLookup:
-    """Genres for one title, on behalf of an authenticated caller.
-
-    Charged before the upstream calls, so a hammering client burns its own
-    budget rather than the shared Wikimedia one.
-    """
-    rate_limit.enforce(
-        db,
-        user_id,
-        RATE_LIMIT_BUCKET,
-        RATE_LIMIT_MAX,
-        RATE_LIMIT_WINDOW,
-        f"Too many genre lookups: limited to {RATE_LIMIT_MAX} per minute. "
-        "Wait a moment and try again.",
-    )
-    return lookup_many([name])[name]

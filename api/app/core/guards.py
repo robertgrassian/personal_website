@@ -72,7 +72,7 @@ def rate_limit_writes(user: CurrentUser, db: Annotated[Session, Depends(get_db)]
 # coverage is visible where the route is declared.
 #
 # Not applied at the router level: routers/me.py mixes reads and writes, and the
-# read routes must not be charged against the write budget. routers/igdb.py and
-# routers/genres.py list `Depends(forbid_in_preview)` explicitly instead — they
-# are GETs that write through a cache, so the guard is worth seeing in place.
+# read routes must not be charged against the write budget. routers/igdb.py lists
+# `Depends(forbid_in_preview)` explicitly instead — it is a GET that writes
+# rate-limit counters, so the guard is worth seeing in place.
 WRITE_GUARDS = [Depends(forbid_in_preview), Depends(rate_limit_writes)]

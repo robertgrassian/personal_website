@@ -33,9 +33,8 @@ type AddGameModalProps = {
 // The two steps are separate components because they share no state and no
 // handlers — the seam was already visible in the JSX as `draft === null`.
 // Keeping them in one component meant seven search state slots stayed alive
-// and re-rendered on every keystroke typed into the confirm form, and the
-// genre-lookup state was dead weight during search. Each now unmounts when the
-// other is showing.
+// and re-rendered on every keystroke typed into the confirm form. Each now
+// unmounts when the other is showing.
 export function AddGameModal({ target, existingSystems, ownedNames, onClose }: AddGameModalProps) {
   // null = search step; set = confirm step.
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -49,9 +48,6 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
   // Accepted because the alternative is keeping the whole result list mounted
   // behind the confirm form, which is the cost this split exists to remove.
   const [lastQuery, setLastQuery] = useState("");
-  // The name to look up genres for, or null on the manual path. Passed down
-  // rather than fetched here so the lookup lives with the field it writes to.
-  const [lookupGenresFor, setLookupGenresFor] = useState<string | null>(null);
 
   const { isPending, error, setError, run } = useServerAction();
 
@@ -68,10 +64,9 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
       // Best guess; the field is editable and existing shelves are suggested.
       system: r.platforms[0] ?? "",
       platforms: r.platforms,
-      // IGDB's genres, as the fallback for when the Wikipedia/Wikidata lookup
-      // misses. Held but not shown until that lookup settles: the confirm form
-      // renders the field as loading until then, so the user sees one genre
-      // list rather than IGDB's being overwritten in front of them.
+      // IGDB's own genres, shown immediately and editable. They are coarse
+      // (no roguelike on Hades II), so the confirm form is where a better
+      // vocabulary gets typed in.
       genresText: r.genres.join(", "),
       releaseDate: r.releaseDate || null,
       imageUrl: r.coverUrl,
@@ -79,13 +74,11 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
       rating: "",
       starred: false,
     });
-    setLookupGenresFor(r.name);
   };
 
   const startManual = (query: string) => {
     setError(null);
     setLastQuery(query);
-    setLookupGenresFor(null);
     setDraft({
       name: query.trim(),
       system: "",
@@ -164,7 +157,6 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
           draft={draft}
           setDraft={setDraft}
           existingSystems={existingSystems}
-          lookupGenresFor={lookupGenresFor}
           isPending={isPending}
           onBack={() => setDraft(null)}
           onSave={save}
