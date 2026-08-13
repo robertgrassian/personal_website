@@ -43,10 +43,11 @@ export default function StartPage() {
           person's name or a tagline. */}
       <h1 className="text-4xl font-bold text-foreground">{APP_NAME}</h1>
 
-      {/* Body copy uses text-foreground, not text-subtle. In dark mode
-          --subtle is #6b7280 on a #0a0a0a background, which measures 4.1:1
-          against the 4.5:1 WCAG AA minimum for body text, so it is too low
-          for prose. Reserved below for the one line of small print. */}
+      {/* Body copy uses text-foreground, not text-subtle. This started as a
+          workaround for --subtle failing WCAG AA (4.1:1 in dark mode), which
+          is fixed in globals.css as of 2026-08-12 — but the lead paragraph is
+          the page's pitch and wants full contrast on its own merits, so it
+          stays. --subtle is reserved below for the one line of small print. */}
       <p className="mt-4 text-lg leading-relaxed text-foreground">
         Keep track of every video game you have played: what you finished, how you rated it, what
         you are playing now, and what you want to play next.

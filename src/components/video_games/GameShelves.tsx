@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { Game } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
@@ -16,6 +16,7 @@ import {
   sortWishlist,
 } from "./pipeline";
 import { useFilterOptions } from "./useFilterOptions";
+import { useKeepResultsInView } from "./useKeepResultsInView";
 import type { UrlState } from "./useGameLibraryUrlState";
 import { accentButtonClass } from "./formStyles";
 import { systemLabel } from "@/lib/games";
@@ -165,13 +166,53 @@ export function GameShelves({
       .map((group) => ({ ...group, games: sortWishlist(group.games, sortOrder) }));
   }, [view, games, wishlist, deferredFilters, deferredWishlistFilters, groupBy, sortOrder]);
 
-  // The seven props both views pass identically. Spread rather than repeated,
+  // Filtering collapses the document, the browser clamps the scroll position,
+  // and the surviving shelves can land under the sticky chrome. These two refs
+  // are what lets that be corrected: the bar knows how much room to clear, the
+  // results are what has to clear it.
+  const barRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+
+  // What the visitor narrowed the library BY, not what came back.
+  //
+  // Describing the output instead (shelf labels and counts) looks equivalent and
+  // is not: an owner edit changes the counts too, so rating a game while scrolled
+  // deep into the shelves would scroll the page out from under them — under
+  // groupBy=rating the game even moves shelves. That is the yank this hook is
+  // supposed to prevent, arriving from the one direction the output cannot
+  // distinguish. The input says "the visitor asked for something different",
+  // which is the only thing that should move the viewport.
+  //
+  // Built from the DEFERRED filters, so it trails a keystroke by a render rather
+  // than firing on each one. `sortOrder` is deliberately absent: a re-sort keeps
+  // every game on screen and must not move the page. So is `groupBy`, which
+  // reshuffles shelves without narrowing anything, so it cannot strand the
+  // results the way a filter that collapses the document can.
+  const filterSignature =
+    view === "played"
+      ? [
+          "played",
+          deferredFilters.search,
+          deferredFilters.system,
+          deferredFilters.genre,
+          deferredFilters.rating,
+        ].join(" ")
+      : [
+          "wishlist",
+          deferredWishlistFilters.search,
+          deferredWishlistFilters.system,
+          deferredWishlistFilters.genre,
+        ].join(" ");
+  useKeepResultsInView(resultsRef, barRef, filterSignature);
+
+  // The props both views pass identically. Spread rather than repeated,
   // so a new shared prop cannot land on one view and not the other.
   //
   // `view` stays a literal at each call site on purpose: FilterBarProps is a
   // discriminated union on it, and that is what still narrows onRatingChange to
   // the played view only.
   const filterBarCommon = {
+    barRef,
     onSharedFilterChange: setSharedFilter,
     groupBy,
     sortOrder,
@@ -236,7 +277,7 @@ export function GameShelves({
           shelves under groupBy system/genre/decade/none, collect under
           "Unrated" (pinned last) under groupBy=rating, and answer to search and
           to every filter — which the separate shelf never did. */}
-      <div className="pb-24">
+      <div ref={resultsRef} className="pb-24">
         {activeShelves.length === 0 ? (
           // Three situations, three needs: a brand-new owner needs a way in, a
           // visitor to an empty library needs to know it's empty rather than

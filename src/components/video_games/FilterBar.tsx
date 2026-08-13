@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import type { Filters, RatingFilter } from "@/lib/games";
 import { RATINGS, UNRATED_LABEL, systemLabel } from "@/lib/games";
 import type { WishlistFilters } from "@/lib/wishlist";
@@ -42,6 +42,11 @@ const MIN_SCROLL_DELTA = 10;
 // exist in PlayedProps, and TS narrows to them inside `view === "played"`.
 
 type SharedProps = {
+  // Owned by GameShelves rather than declared here, because the height of this
+  // bar is what the results below it have to clear when a filter changes (see
+  // useKeepResultsInView). The bar is still the only thing that measures it for
+  // its own hide-on-scroll threshold; the ref just lives one level up now.
+  barRef: RefObject<HTMLDivElement | null>;
   groupBy: GroupBy;
   sortOrder: SortOrder;
   validGroupBy: readonly GroupBy[];
@@ -125,6 +130,7 @@ export function FilterBar(props: FilterBarProps) {
   const {
     view,
     filters,
+    barRef,
     groupBy,
     sortOrder,
     validGroupBy,
@@ -154,7 +160,6 @@ export function FilterBar(props: FilterBarProps) {
   // than the element's natural layout position. getBoundingClientRect().top + scrollY
   // always gives the absolute document position, so we snapshot it once before any scroll.
   const stickyThresholdRef = useRef(0);
-  const barRef = useRef<HTMLDivElement>(null);
 
   // Keep the ref in sync with the state value on every render.
   visibleRef.current = visible;
@@ -169,7 +174,7 @@ export function FilterBar(props: FilterBarProps) {
       // point where direction-based hide/show logic should start.
       stickyThresholdRef.current = barRef.current.getBoundingClientRect().top + window.scrollY;
     }
-  }, []);
+  }, [barRef]);
 
   useEffect(() => {
     const handleScroll = () => {

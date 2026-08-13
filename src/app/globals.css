@@ -7,8 +7,17 @@
   --foreground: #171717;
   --emphasis: #1f2937; /* gray-800 */
   --body: #374151; /* gray-700 */
-  --muted: #6b7280; /* gray-500 */
-  --subtle: #9ca3af; /* gray-400 */
+  /* The four text steps are a contrast ladder, and every rung clears WCAG AA
+     for normal text (4.5:1) against --background. On white: foreground 17.9,
+     emphasis 14.7, body 10.3, muted 7.6, subtle 4.8.
+
+     --muted moved gray-500 → gray-600 to make room. --subtle was gray-400
+     (2.5:1, a clear AA failure) and had to land near gray-500 to pass, which
+     is where --muted already sat; leaving both there would have collapsed two
+     tokens onto one color. Darkening --muted only raises its contrast, so
+     nothing it styles got harder to read. */
+  --muted: #4b5563; /* gray-600 */
+  --subtle: #6b7280; /* gray-500 */
   --divider: #e5e7eb; /* gray-200 */
   --link: #b45309; /* amber-700 — also referenced as OG.accent in src/lib/og-theme.ts */
   --link-hover: #92400e; /* amber-800 */
@@ -35,7 +44,16 @@
     --emphasis: #e5e7eb; /* gray-200 */
     --body: #d1d5db; /* gray-300 */
     --muted: #9ca3af; /* gray-400 */
-    --subtle: #6b7280; /* gray-500 */
+    /* Same ladder as light mode, and the same AA floor: on #0a0a0a,
+       foreground 16.9, emphasis 16.0, body 13.4, muted 7.8, subtle 5.5.
+
+       --subtle was gray-500 (4.1:1, failing) — literally DARKER than the light
+       mode value, which is backwards: muted text on a dark background has to
+       be lighter, not darker. That inversion was the original mistake. There
+       is no Tailwind gray between 400 and 500, so this is a hand-picked step:
+       gray-500 lightened until it cleared AA with room to spare, while staying
+       visibly quieter than --muted. */
+    --subtle: #7f8795; /* between gray-500 and gray-400 */
     --divider: #374151; /* gray-700 */
     --link: #f59e0b; /* amber-500 */
     --link-hover: #fbbf24; /* amber-400 */

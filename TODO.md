@@ -19,6 +19,33 @@ asked for, which needs no reason and is marked `(Promoted by request YYYY-MM-DD.
 get demoted back out. Adding a sixth item means demoting one, on purpose. (Split out 2026-08-07:
 the old rule sent every bug straight here, so four of five slots were defects.)
 
+- [ ] **The genres, release date and cover art you edit while adding a game are silently
+      discarded whenever someone else already added that IGDB game.** (Promoted by request 2026-08-12.)
+      Found in the code review of this branch (2026-08-12), confirmed by reading `find_or_create_metadata`
+      (`api/app/repositories/me.py`): it returns an existing catalog row **untouched**, so every
+      field the caller passed is dropped on the floor. The add form still offers those fields
+      (`GameDraftForm`), the API still answers 201, and the game still lands on the shelf — with
+      somebody else's metadata. Nothing tells you, which is what makes it worse than a rejection.
+      Today it needs a second user to bite; it becomes ordinary the moment there are any.<br>
+      _Why it is not simply a bug in that function._ The row is SHARED by design: one
+      `game_metadata` per IGDB id, which is the whole point of the catalog migration. Honouring
+      the caller's edits would rewrite the game for everyone who owns it, which is exactly the
+      thing `api/README.md` records as deliberately not possible from the UI. So this is a product
+      decision wearing a bug's clothes, and the honest options differ in cost, not in
+      correctness:<br>
+      **(a)** Say so in the form: once a pick resolves to a catalog row that exists, show its
+      metadata read-only with a note, so nothing is offered that cannot be saved. Cheapest, and it
+      makes the current behaviour honest rather than changing it.<br>
+      **(b)** Fork a private row when the caller's values differ, which loses catalog sharing for
+      exactly the games people care enough to edit.<br>
+      **(c)** Let the edit change the shared row for everyone, which needs an answer to "who owns
+      a catalog row" that nothing in the codebase has yet.<br>
+      _Decide this with the two items it is the same question as:_ **"Anyone can define a shared
+      catalog row for everyone"** below (the write path trusting client metadata) and **"Make
+      library and wishlist entries fully editable"** in Backlog (which already names forking vs
+      restricting vs changing-for-everyone as the open choice). Answering one in isolation will
+      pre-commit the other two.
+
 - [ ] **Take a pass at the catalog rows whose `igdb_id` points at a variant, not the base
       game.** (Promoted by request 2026-08-10.) Eleven on prod, surfaced by
       `backfill_platforms.py`'s guard: it skips any row where a console someone actually owns
@@ -97,63 +124,6 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 Promote one into Up Next when it starts blocking the sharing goal above, and demote something else
 to keep that section at five._
 
-- [ ] **On mobile, filtering down to one shelf leaves the result hidden under the filter bar (or
-      under the keyboard), so you cannot see what you just found.** Reported 2026-08-09, on a
-      device. Repro: scroll down the library, scroll up slightly so the sticky bar comes back,
-      then type a search that matches a single row while the keyboard is still up. The matching
-      shelf renders where you can barely see it: a sliver of a case, sometimes just the plank. You
-      have to scroll or dismiss the keyboard to see the result. Listed first here because it hits
-      **any** visitor on a phone, not just the owner, and searching is the main thing a stranger
-      does with someone else's library.<br>
-      _Premise correction on the suspected cause:_ "we need to render under the filter bar" is
-      already what happens. `FilterBar` is `sticky top-[var(--nav-height)] z-20` and sits in
-      normal flow, so the shelves come after it in layout and cannot be painted behind it. The
-      overlap is not a stacking problem, which means a z-index or padding fix will not touch
-      it.<br>
-      _Most likely the real mechanism, and it is two things at once — confirm on a device before
-      fixing._ **(1) Nothing in the app ever scrolls after a filter.** There is no `scrollIntoView`,
-      `scrollTo`, `scroll-margin` or `visualViewport` usage anywhere in `src/` (checked
-      2026-08-09). Filtering 155 games to one shelf collapses the document height, the browser
-      clamps `scrollY` to the new maximum, and wherever that lands is where you stay: the one
-      surviving shelf can easily end up at the very top of a now-short page with the sticky
-      chrome over it. **(2) iOS keyboard and viewport units disagree.** `position: sticky` resolves
-      against the **layout** viewport, which does not shrink when the keyboard opens; only the
-      **visual** viewport does. So with the keyboard up, the space the user can actually see is a
-      band that the sticky bar was not positioned against, which is exactly why this reproduces on
-      a phone and not in desktop devtools — devtools mobile emulation has no keyboard.<br>
-      _What the fix has to get right, since "just scroll to the results" has traps._ Scroll only
-      when the result set actually changes and only **upward**, or it will yank the page while
-      someone is reading. Drive it off the deferred search value, not the raw input:
-      `GameShelves` already runs the pipeline through `useDeferredValue`, so a per-keystroke
-      scroll would fight the typist. The landing offset must clear nav height **plus** the bar's
-      own height, which is what `scroll-margin-top` on the shelf container expresses more cleanly
-      than arithmetic in a `scrollTo`. And whatever it does must not blur the search input:
-      dismissing the keyboard mid-search would trade this annoyance for a worse one.<br>
-      _The `visualViewport` API is how the keyboard half gets solved_ if step one is not enough:
-      it reports the real visible band and fires `resize`/`scroll` when the keyboard opens. Note
-      `FilterBar` already keeps a hand-rolled scroll model on mobile (a `stickyThresholdRef`
-      snapshotted once in `useLayoutEffect`, plus a hide-on-scroll-down toggle behind a 640px
-      media query listener), so this belongs alongside that logic rather than as a second
-      independent scroll listener.<br>
-      _Not reproducible without hardware._ Same class as the mobile flip-lag bug in Recently
-      Completed, which burned two plausible-but-wrong fixes before a device confirmed the real
-      one: get this verified on a phone before and after, rather than shipping on reasoning.
-
-- [ ] **`--subtle` fails WCAG AA for body text in both color schemes.** Measured 2026-07-28
-      while fixing the landing page: dark mode is `#6b7280` on `#0a0a0a` = **4.1:1**, light mode
-      is `#9ca3af` on `#ffffff` = **2.5:1**. The AA minimum for normal-size text is 4.5:1, so
-      the light value is the worse of the two by a wide margin. Fine for genuinely decorative
-      text; not fine for the prose it currently carries in several places.<br>
-      The landing page was fixed by moving its copy to `text-foreground`, which is a workaround
-      rather than a fix: the token is still wrong everywhere else it holds real sentences.
-      Proper fix is darkening the light value and lightening the dark one, then walking the
-      pages that use it (`about`, `resume`, the shelf UI, `StatsPanel`, `SqlQueryPanel`) to
-      confirm nothing that was meant to recede now shouts. Worth doing as its own pass with
-      before/after screenshots, since it touches the look of the whole site.<br>
-      _Note the dark value is currently darker than the light one_ (gray-500 vs gray-400),
-      which is backwards: muted text on a dark background needs to be lighter, not darker.
-      That inversion is probably the original mistake.
-
 - [ ] **Anyone can define a shared catalog row for everyone, because `igdb_id` is never
       checked against IGDB.** Found in the code review of the catalog migration (PR #105,
       2026-08-10) and documented as a known gap in `api/README.md`. `create_my_game` takes
@@ -184,6 +154,45 @@ to keep that section at five._
       neighbouring question — whether editing a shared row forks a private copy, restricts
       the edit to private rows, or genuinely changes the game for everyone. Answer both
       together; they are the same question about who owns a catalog row.
+
+- [ ] **A dropdown change mid-search can put back a character you already typed past.** Raised
+      by the code review of this branch (2026-08-12) and **not reproduced** — read the mechanism
+      below and confirm before fixing, because this is the same bug that
+      `pushedSearchValues` in `useGameLibraryUrlState` was built to kill, and the comment on that
+      ref is a good record of what has already been tried.<br>
+      _The mechanism, from reading the code._ There are **two** writers of `?search` and only one
+      of them registers what it wrote. The debounced search effect adds its value to
+      `pushedSearchValues` before calling `router.replace`. But `updateParam` — every dropdown,
+      via `paramsWithLiveSearch()` — also writes the live search value into the URL, and adds
+      nothing to the set. So changing a dropdown while a search push is still in flight produces
+      an echo carrying the same string, which `pushedSearchValues.current.delete(fromUrl)`
+      consumes as if it were the search effect's own. When the real echo lands a moment later the
+      set is already empty, so it is read as an external navigation and written back over the
+      input — putting back the string as it stood before the last keystrokes.<br>
+      _What this means for the fix._ The review's suggestion was a per-push counter, but the
+      existing comment argues against a count for a good reason: a coalesced transition that never
+      echoes drains it wrong and starts swallowing real navigations **forever**, where matching on
+      value is self-correcting. The likelier fix is to make the second writer register too, so
+      `updateParam` accounts for the `?search` it carries. Confirm the interleaving first: it
+      needs a dropdown change inside the 300ms debounce plus a transition, which is a narrow
+      window and may be why nobody has hit it.
+
+- [ ] **An unwell library API makes the account page unreachable, and account deletion with
+      it.** Found in the code review of this branch (2026-08-12). `AccountPage`
+      (`src/app/video-games/account/page.tsx`) awaits `fetchMyProfile()` unguarded, and that
+      function throws on an unreachable hop and on any status that is not 404 or 0
+      (`src/lib/meApi.ts`), so a timeout or a 500 errors the whole route.<br>
+      _What makes this a clear call rather than a judgement one:_ the two reads immediately below
+      it, `getGames` and `getWishlist`, are already `.catch(() => null)`-guarded, and the comment
+      explaining why says exactly this — that throwing "would error the whole page and make the
+      delete control unreachable exactly when the site is misbehaving, the moment someone is most
+      likely to want it". The reasoning was written down and then not applied one line
+      above.<br>
+      _It is close to a one-liner._ `AccountPanel` already takes `username: string | null` and
+      substitutes the word "delete" as the confirm phrase when it is null, so the degraded page
+      works today. What wants deciding is whether a null username there should say something
+      ("we could not load your account details") rather than quietly presenting a weaker confirm
+      prompt, since the prompt's whole job is to force a moment of comprehension.
 
 - [ ] **Field suggestions (system, genre, …) should work on mobile, not just desktop.** The
       add/promote forms use a native `<datalist>` (`AddGameModal.tsx`, `EditWishlistModal.tsx`),
@@ -527,8 +536,10 @@ head` being run by hand from a laptop pointed at production.<br>
       or it will read as two separate things happening. `.game-case-inner` currently owns both the
       `preserve-3d` flip and the `group-hover` lift (`src/app/video-games/video-games.css`), so
       whichever element animates position cannot be that same element without fighting its
-      transform. Note the mobile flip-lag bug in Bugs above is about this exact element: fix that
-      first or this lands on top of it.<br>
+      transform. The mobile flip-lag bug was about this exact element and **shipped 2026-08-08**
+      (see Recently Completed), so this no longer has to wait on it — but read that entry first,
+      because the fix that worked was a `will-change: transform` compositing head start scoped to
+      the pressed case, and a new animation on the same element can undo it.<br>
       _If edit moves onto the back face, decide what happens to `EditGameModal`._ It is not just
       a rating picker — it holds start/stop session, log a past session, remove from library, and
       the `useOptimistic` rating write. Hosting all of that on a card face means either the card
@@ -790,6 +801,71 @@ head` being run by hand from a laptop pointed at production.<br>
 ## Recently Completed
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
+
+- [x] **Filtering no longer strands the results under the sticky chrome** (2026-08-12).
+      `useKeepResultsInView` (`src/components/video_games/`) scrolls the results back below the
+      nav and filter bar when the visitor narrows the library differently. Fires only on a
+      filter change, only upward, and through `window.scrollTo` so focus and the keyboard are
+      untouched. Built from the DEFERRED filter values, so it does not fight a typist.
+      **Confirmed on a device by the owner** (2026-08-12), which is what closes it: the
+      keyboard half was never reproducible in development.<br>
+      _Key it on the filters, never on the shelves that came back._ The first version used shelf
+      labels and counts, which looks equivalent and is not: an owner edit changes the counts too,
+      so rating a game while scrolled deep would scroll the page out from under you, and under
+      `groupBy=rating` the game moves shelves as well. That is the yank the hook exists to
+      prevent, arriving from the one direction the output cannot tell apart from a filter change.
+      Caught in review, not in testing. `sortOrder` and `groupBy` stay out for the same reason a
+      re-sort always did: neither narrows anything, so neither can strand the results.<br>
+      _The premise correction held up:_ the shelves are in normal flow after the sticky bar and
+      were never painted behind it. This was a scroll-position bug, and a z-index or padding
+      change would not have touched it. What actually happens is that filtering collapses the
+      document, the browser clamps `scrollY` to the new maximum, and nothing ever scrolled
+      afterward.<br>
+      _Two measurement details worth keeping._ How much room to clear is measured rather than
+      restated: the bar's own sticky `top` resolves `--nav-height` to pixels, so
+      `stickyTop + offsetHeight` is the exact chrome height, and `offsetHeight` rather than
+      `getBoundingClientRect()` keeps the bar's hide-on-scroll transform out of the number.
+      `visualViewport.offsetTop` is folded into the target for when a software keyboard has
+      pushed the visible band away from the layout viewport that `position: sticky` resolves
+      against.<br>
+      _Instant, not smooth, and this is the part that surprised._ Smooth scrolling earns its
+      cost carrying you through content that stays put; here the results were just replaced, so
+      it animates through a list that no longer exists. It also restarts on every keystroke, runs
+      to thousands of pixels, and can be stranded mid-flight by a thumb or by the keyboard
+      resizing the viewport. Switching to instant took the residual failures from 12 to 0, so it
+      was a correctness change, not a stylistic one.<br>
+      _How it was measured, since this bug class had burned two wrong fixes before._ Driven in
+      Chromium against the real page with 155 fixture games behind a stub API, over 96
+      phone-shaped configurations of viewport, scroll depth and search breadth: **63 broken
+      before, 0 after**. It reproduced worst at short viewport heights, which is the keyboard
+      case, but also at full phone height with no keyboard, so it was never purely a keyboard
+      problem.<br>
+      _Emulating the keyboard as a short viewport turned out to be a good enough proxy_, which is
+      the reusable lesson: Playwright has no software keyboard, so 390x400 stood in for one, and
+      the device check afterwards agreed with it. Worth reaching for again on the next mobile
+      layout bug, since it made a bug that "only happens on a phone" reproducible in CI-shaped
+      tooling. Still not a substitute for the device check, which is what actually closed this.
+
+- [x] **`--subtle` now clears WCAG AA in both color schemes** (2026-08-12). Light was 2.5:1 and
+      dark 4.1:1, against a 4.5:1 minimum for normal text. Dark was also literally darker than
+      light, which is backwards for muted text on a dark ground and was the original mistake.
+      Now `--subtle` is gray-500 in light (4.8:1) and a hand-picked step between gray-500 and
+      gray-400 in dark (5.5:1).<br>
+      _`--muted` moved too, and that is the part worth remembering._ Passing AA put `--subtle`
+      at roughly where `--muted` already sat, which would have collapsed two tokens onto one
+      color. So `--muted` went gray-500 → gray-600 in light mode to reopen the gap. Only its
+      contrast went up, so nothing it styles got harder to read; dark-mode `--muted` was already
+      fine at 7.8:1 and did not move.<br>
+      _Verified by walking the rendered pages, not by reading hex values._ A Playwright pass over
+      `/about`, `/privacy`, `/video-games/start`, `/resume` and `/onboarding` in both schemes
+      checked every text node against the background actually painted behind it, and all pass.
+      Two traps in writing that check, if it is ever rebuilt: Tailwind v4 emits `oklab(... / 0.9)`
+      for alpha-modified colors like the nav's `bg-background/90`, so a regex over the digits
+      reads it as near-black (paint the layers onto a canvas and let the browser blend); and
+      elements carrying `transition-colors` sample mid-animation if you mutate tokens at runtime.<br>
+      _The landing-page workaround was left in place._ `/video-games/start` moved its body copy to
+      `text-foreground` when this bug was found; the lead paragraph is the page's pitch and wants
+      full contrast on its own merits, so only the stale comment explaining it was corrected.
 
 - [x] **Removed the Wikipedia/Wikidata genre lookup from the add-game flow** (2026-08-12).
       The confirm step now shows IGDB's own genres, editable, and posts them; nothing is fetched
@@ -1165,25 +1241,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       _Deliberately no alias map_ (asked twice): the library takes the source's spelling, so
       `RPG -> Role-Playing` and `Racing -> Kart Racing`. Only spelling-level variants snap to
       existing terms, which is what keeps case-only duplicates out of the filter dropdown.
-
-- [x] **Fixed the gap above the "Unrated" shelf** (2026-07-30, `GameLibrary.tsx`). The grouped
-      shelves carried `pb-24` while the Unrated shelf rendered outside that wrapper, so the
-      6rem of trailing space landed _between_ the two groups. Both groups now sit inside one
-      `pb-24` container and the inner block keeps only `mt-6`.<br>
-      _Worth knowing:_ `ShelfSection` supplies its own `mt-10`, so Unrated never needed spacing
-      of its own — deleting the padding outright would have fixed the gap and reintroduced the
-      problem `pb-24` exists to solve (the last shelf jammed against the viewport bottom).
-
-- [x] **Browser pass on the Phase 5 UI** (2026-07-30) — the client-rendered surfaces no test
-      reaches: the follow toggle, its absence on your own library and when signed out, "Back to
-      my library", the Following/Followers tabs and their links, `?view=followers` deep-links,
-      and both users' counts agreeing after a follow (the two-tag revalidation). Clean, no
-      defects found.<br>
-      Worth knowing the two real bugs were caught by a code review **before** this pass, not by
-      it: following while signed in but not onboarded 500'd (`follows.follower_id` is an FK to
-      `profiles`, and the relationship read answered "not following" for those users, which is
-      what rendered the button that 500'd), and signup's auto-follow never purged the founder's
-      cache tag. Both were invisible to a green suite and to casual clicking — the first needed
-      an abandoned onboarding, the second a stale page nobody would think to reload. The rule
-      that came out of it is in `api/README.md`: any write that creates a follow edge changes
-      both endpoints of it.
