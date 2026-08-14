@@ -316,24 +316,15 @@ _PAREN = re.compile(r"\s*\([^)]*\)\s*$")
 # "Super Smash Bros. for Nintendo 3DS and Wii U".
 _SERIES_MARKER = re.compile(r"\d+|[ivxlcdm]+")
 
-# Wikipedia's parenthetical for a franchise overview article rather than a game:
-# "Pokémon (video game series)", "Borderlands (series)".
+# Wikipedia's parenthetical for a franchise overview rather than a game:
+# "Pokémon (video game series)". These pass is_video_game because they carry
+# {{Infobox video game series}} and _INFOBOX_VIDEO_GAME has no terminator after
+# "game". Their title is a subset of every entry, so containment scores them 1.0
+# and only ranking can separate them.
 #
-# These pass the is-it-a-game filter because they carry {{Infobox video game
-# series}}, and _INFOBOX_VIDEO_GAME has no terminator after "game", so it
-# matches that variant as readily as the plain template. Their title is then a
-# *subset* of every entry in the series, so containment scores them a perfect
-# 1.0 against any single game. Nothing in the score can separate them from the
-# real article, so ranking has to.
-#
-# Matching on the article TITLE is the weaker of the two available signals: the
-# template name is the direct one and is already in the wikitext lookup_many has
-# fetched. Threading that through would also catch the franchise articles with
-# no parenthetical at all ("Super Mario"), which this regex structurally cannot
-# see. Recorded as a follow-up in TODO.md rather than done here.
-#
-# Matched on the parenthetical only, not anywhere in the title: "Sonic Mania"
-# and a hypothetical "Series" in a real game's name must not be caught by this.
+# Trailing parenthetical only, so a real game with "Series" in its name is safe.
+# The template name is the stronger signal and would also catch the untagged
+# ones ("Super Mario"); tracked in TODO.md.
 _SERIES_ARTICLE = re.compile(r"\([^)]*\b(?:series|franchise)\b[^)]*\)\s*$", re.IGNORECASE)
 
 
@@ -380,50 +371,23 @@ def _rank_key(name: str, article: str):
     ties: between two articles that both contain our name, the one that adds
     least is the one that is most likely to *be* it.
 
-    Two rules sit between those, both for the case where the tied candidates
-    include a franchise or series article rather than a game:
+    Between those sit two rules for when a franchise article is one of the tied
+    candidates: a ``(... series)`` / ``(... franchise)`` title loses to any game
+    it ties with (demoted, not rejected, so a lone overview article still yields
+    a genre), then fewest leftover words, which is how *Super Mario 3D World*
+    beats the untagged *Super Mario*. Length is measured with the disambiguating
+    parenthetical stripped, which is what stops "Bomberman DS" taking the
+    spinoff *Bomberman Story DS*; full length is the last resort.
 
-      * A ``(... series)`` / ``(... franchise)`` article loses to any game
-        article it ties with. This is what stops "Pokémon FireRed" resolving to
-        *Pokémon (video game series)* instead of *Pokémon FireRed and LeafGreen*.
-        It demotes rather than rejects: if the overview article is the only
-        candidate, its genre is still better than none.
-      * Then, fewest leftover words. Comparing the two titles as word sets, the
-        candidate whose symmetric difference from ours is smallest wins, which is
-        how *Super Mario 3D World* beats the untagged franchise article
-        *Super Mario* for "Super Mario 3D World + Bowser's Fury": the franchise
-        title leaves five of our words unaccounted for and the real one leaves
-        three. (Five and three rather than four and two because _fold turns the
-        apostrophe into a space, so "Bowser's" counts as two tokens.)
+    Leftover-words alone was measured FAILING and is not a fix on its own: bare
+    *Pokémon* leaves one word over against "Pokémon FireRed" while the correct
+    combined article leaves two. It works only after the parenthetical rule has
+    removed that candidate.
 
-    Leftover-word count on its own is NOT enough and was measured failing: the
-    bare franchise name *Pokémon* leaves one word over ("FireRed") while the
-    correct combined article leaves two ("and", "LeafGreen"), so it picks the
-    franchise. It only works above because the parenthetical rule has already
-    removed that class of candidate.
-
-    The length tiebreak then measures the title with its disambiguating
-    parenthetical removed, since that parenthetical is Wikipedia's bookkeeping
-    and says nothing about how much the title adds to ours. That is what stops
-    "Bomberman DS" resolving to the unrelated spinoff *Bomberman Story DS*: it
-    and *Bomberman (2005 video game)* leave exactly one word over each, and 9
-    characters of "Bomberman" beat 18 of "Bomberman Story DS".
-
-    Full article length is the last word, breaking only what stripped length
-    leaves tied, which means it decides between candidates sharing one bare
-    title: it prefers the shorter disambiguator. That is what it is for in the
-    clear case, an undisambiguated title against the same title plus a
-    parenthetical (*The Legend of Zelda: Link's Awakening* against *...Link's
-    Awakening (2019 video game)*). It also silently decides less defensible
-    pairs the same way, preferring *Final Fantasy (video game)* over *Final
-    Fantasy (1987 video game)* on length alone, which is arbitrary rather than
-    principled.
-
-    It masks search-order dependence rather than removing it. Siblings whose
-    disambiguators are the same length still tie on every component and fall
-    through to whichever the search listed first, which is how "Bomberman DS"
-    lands on *Bomberman (1985 video game)* rather than *(2005 video game)*.
-    Separating those needs a signal that is not in the title at all.
+    Full length only prefers a shorter disambiguator, which is arbitrary, and it
+    masks rather than removes search-order dependence: same-length siblings like
+    *Bomberman (1985 video game)* and *(2005 video game)* tie on every component
+    and fall to whichever the search listed first.
     """
     bare = _PAREN.sub("", article)
     folded_bare, folded_name = _fold(bare), _fold(name)
@@ -566,29 +530,18 @@ def genres_for_qids(qids: list[str]) -> dict[str, list[str]]:
     return out
 
 
-# The floor a match must clear to be written to a catalog row unreviewed.
+# The floor a match must clear to be written to a catalog row unreviewed. Just
+# below an exact match, matching backfill_genres.py's AUTO_ACCEPT, because a
+# mid-range threshold gets this BACKWARDS: a wrong entry in a series is one
+# character from correct ("Octopath Traveller" -> *Octopath Traveler II*, 0.895)
+# while a correct abbreviation is far from it ("Halo CE" -> *Halo: Combat
+# Evolved*, 0.538).
 #
-# Set just below an exact match for the reason backfill_genres.py sets
-# AUTO_ACCEPT to the same number: string distance is a bad confidence signal for
-# game titles, and a mid-range threshold gets it BACKWARDS. A wrong entry in a
-# series is one character from correct ("Octopath Traveller" -> *Octopath
-# Traveler II* at 0.895), while a correct abbreviation is far from it ("Halo CE"
-# -> *Halo: Combat Evolved* at 0.538). Anything in the middle admits the first
-# kind.
-#
-# Measured over the 155 titles in scripts/fixtures/games.csv: 154 resolve to an
-# article and every one of them scores exactly 1.0, because _title_similarity
-# answers a flat 1.0 for each shape of correct-but-reworded article it knows
-# about (combined articles, a dropped subtitle, an added "Deluxe"). Nothing
-# genuine lands in the scored band at all, so this rejects nothing real and its
-# whole job is titles that resolved to something unrelated -- an invented or
-# misspelled name, which is exactly what a hand-typed add can produce.
-#
-# What it cannot do is separate two candidates that both score 1.0 by
-# containment, which is how a franchise or spinoff article beat the real one
-# ("Pokémon FireRed" -> *Pokémon (video game series)*). That is a ranking
-# problem rather than a threshold one and is handled in _rank_key; raising this
-# number would only start rejecting correct matches.
+# Measured over the 155 titles in scripts/fixtures/games.csv, all 154 matches
+# score exactly 1.0, so this rejects nothing real; its whole job is a title that
+# resolved to something unrelated, which is what a hand-typed add can produce.
+# It cannot separate two candidates that both score 1.0 -- that is _rank_key's
+# job, and raising this number would only start rejecting correct matches.
 MIN_WRITE_CONFIDENCE = 0.97
 
 
@@ -603,14 +556,10 @@ def lookup_one(title: str) -> list[str]:
         Minish Cap a role-playing game. Skipping it bounds this at two requests.
       * Never raises. A third-party miss must not fail an add, so the caller
         gets [] and falls back to what the client sent.
-      * A confidence floor. lookup_many ranks candidates against each other and
-        returns the best one however bad it is, which is fine for a backfill
-        run a human reads afterwards and not fine here: this writes to the
-        SHARED catalog row, so one person adding an obscure or misspelled game
-        would define wrong genres for everyone who adds it later. Rejecting a
-        weak match costs a caller nothing (it falls back to the genres the
-        client sent), while accepting one is invisible and sticky, so the
-        asymmetry is worth paying for.
+      * A confidence floor. lookup_many returns its best candidate however bad
+        it is, fine for a backfill a human reviews and not fine for a write to
+        the SHARED catalog row. Rejecting a weak match costs nothing (the
+        client's genres stand in); accepting one is invisible and sticky.
     """
     try:
         result = lookup_many([title], wikidata_fallback=False)[title]

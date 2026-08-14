@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { localToday, type NewGame } from "@/lib/games";
 import { buttonClass, ghostButtonClass, inputClass, labelClass } from "./formStyles";
+import { SuggestInput } from "./SuggestInput";
 import { RatingPicker } from "./RatingPicker";
 import { CatalogInfo } from "./CatalogInfo";
 
@@ -41,16 +42,22 @@ export function GameDraftForm({
   onBack,
   onSave,
 }: GameDraftFormProps) {
-  // Existing shelves first (the value you usually want), then the pick's own
-  // IGDB platform names, deduped.
-  const systemSuggestions = [...new Set([...existingSystems, ...draft.platforms])];
-
   // An IGDB id resolves to the SHARED game_metadata row for that id: its name
   // and release date are the catalog's, and the API sources its genres from
   // Wikipedia. None of the three is this form's to set, so none of them is a
   // field — the picked game's identity shows as a header instead. A
   // hand-entered game gets a private row and keeps the full form.
   const fromIgdb = draft.igdbId !== null;
+
+  // A picked game suggests the platforms it released on; the old union with
+  // every shelf offered "PS5" for a SNES-only game. Falls back to the shelves
+  // when there is no pick, or a pick IGDB has no platforms for.
+  //
+  // These are the STORED names (IGDB's own, per migration d1a83f6c25e7), not
+  // systemLabel() output: what the suggestion writes is what gets POSTed, and a
+  // display label would create a second shelf beside the real one.
+  const systemSuggestions =
+    fromIgdb && draft.platforms.length > 0 ? draft.platforms : existingSystems;
 
   // The draft in the shape the API takes. Rebuilt every render, which is why
   // CatalogInfo's effect keys on the game's identity rather than this object.
@@ -75,8 +82,18 @@ export function GameDraftForm({
       {/* overflow-x-hidden is not redundant: per CSS, one axis set to anything
           but `visible` computes the other to `auto`, so `overflow-y-auto` alone
           made this scrollable sideways whenever a child was a pixel too wide.
-          overscroll-contain keeps a flick from chaining to the page behind. */}
-      <div className="mt-4 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+          overscroll-contain keeps a flick from chaining to the page behind.
+
+          -mx-1 px-1 is what keeps the focus ring visible. A Tailwind ring is a
+          box-shadow drawn OUTSIDE the border box, and the fields are w-full, so
+          against a bare clip edge the left and right sides of the ring were cut
+          off while the top and bottom survived on the scrolling axis. Widening
+          this box by 4px a side and padding the content back in restores the
+          fields to their old width with clip-free room around them. The panel's
+          p-5 absorbs the negative margin. The alternative, focus:ring-inset in
+          formStyles, would have changed the ring everywhere it is used,
+          including the filter bar, which is not clipped and has no bug. */}
+      <div className="mt-4 -mx-1 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1">
         {/* Which game you picked, not a field: without it the form is a system
             box with no subject. `relative` is load-bearing — CatalogInfo
             anchors its panel to this row. Manual entries skip it because their
@@ -127,22 +144,12 @@ export function GameDraftForm({
 
           <label className={labelClass}>
             {target === "library" ? "System" : "System (optional)"}
-            <input
-              type="text"
+            <SuggestInput
               value={draft.system}
-              onChange={(e) => setDraft({ ...draft, system: e.target.value })}
-              list="known-systems"
-              placeholder="e.g. SNES, PS5"
-              className={inputClass}
+              onChange={(system) => setDraft({ ...draft, system })}
+              options={systemSuggestions}
             />
           </label>
-          {/* Native autocomplete: shelf systems appear as suggestions
-              under the input, but any free-text value is allowed. */}
-          <datalist id="known-systems">
-            {systemSuggestions.map((s) => (
-              <option key={s} value={s} />
-            ))}
-          </datalist>
 
           {/* Manual path only. Leave genres blank and the API tries Wikipedia
               on the typed name; whatever is typed here wins over that. */}

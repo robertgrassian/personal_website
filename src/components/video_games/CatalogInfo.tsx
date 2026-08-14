@@ -105,27 +105,18 @@ export function CatalogInfo({ game }: CatalogInfoProps) {
           ) : preview === null ? (
             <p className="text-shelf-text-muted">Loading game data...</p>
           ) : (
-            // The note sits OUTSIDE the dl: a <dl> may contain only dt, dd and
-            // grouping divs, and a stray <p> is skipped by screen readers
-            // walking the list — which would drop the one sentence explaining
-            // why these are not editable.
-            <>
-              <dl className="flex flex-col gap-2">
-                <div>
-                  <dt className="text-[10px] uppercase tracking-wide text-shelf-label">Genres</dt>
-                  <dd>{preview.genres.length > 0 ? preview.genres.join(", ") : "None found"}</dd>
-                </div>
-                <div>
-                  <dt className="text-[10px] uppercase tracking-wide text-shelf-label">
-                    Release date
-                  </dt>
-                  <dd>{formatReleaseDate(preview.releaseDate)}</dd>
-                </div>
-              </dl>
-              <p className="mt-2 text-shelf-text-muted">
-                Shared by everyone who has this game, so they cannot be edited here.
-              </p>
-            </>
+            <dl className="flex flex-col gap-2">
+              <div>
+                <dt className="text-[10px] uppercase tracking-wide text-shelf-label">Genres</dt>
+                <dd>{preview.genres.length > 0 ? preview.genres.join(", ") : "None found"}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-wide text-shelf-label">
+                  Release date
+                </dt>
+                <dd>{formatReleaseDate(preview.releaseDate)}</dd>
+              </div>
+            </dl>
           )}
         </div>
       )}

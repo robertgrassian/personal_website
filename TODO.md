@@ -161,10 +161,11 @@ to keep that section at five._
       which mobile Safari/Chrome either render poorly or ignore, so on a phone the system
       field is a bare free-text input. Replace the datalist with a real combobox (controlled
       input + filtered dropdown list, keyboard + touch friendly) so suggestions appear on
-      every device. Also make the suggestions game-specific: `AddGameModal` already merges
-      IGDB's `draft.platforms` for the selected game into the shelf-system list, but the
-      promote form in `EditWishlistModal` only offers existing shelf systems — thread the
-      IGDB platforms through there too, and consider doing the same for genres.
+      every device. The add form is already game-specific as of 2026-08-14 (`GameDraftForm`
+      suggests the pick's `draft.platforms`); the promote form in `EditWishlistModal` is not,
+      and cannot be cheaply, because a `WishlistGame` carries no platform list. Giving it one
+      means putting `game_metadata.platforms` on the read schema, the same widening the
+      catalog-variant item wants. Consider doing the same for genres.
 
 - [ ] **The add form's info popover can promise genres the add then fails to store.** Found in
       the code review of this branch (2026-08-14) and accepted as a known limit rather than
@@ -803,46 +804,6 @@ head` being run by hand from a laptop pointed at production.<br>
       `revalidateMyLibrary()` in `src/app/video-games/actions.ts` as of PR #69, so it does not
       need restating here. Both constraints disappear if the memo does — dropping it costs one
       extra round trip per write and nothing else.
-- [ ] **Restrict the add-game "system" suggestions to the platforms the game actually released
-      on.** Today `AddGameModal.tsx` builds the `<datalist>` as a _union_ —
-      `[...new Set([...existingSystems, ...(draft?.platforms ?? [])])]` — with every shelf
-      system you already own listed **first**, so the picked game's real IGDB platforms are
-      buried at the bottom of a long list. Want: once a game is picked from IGDB, the
-      suggestions are just that game's platforms, so you can't accidentally file Chrono
-      Trigger under Xbox.<br>
-      _Keep the fallback:_ when there is no IGDB pick (manual entry — `draft.platforms` is
-      empty) the list must fall back to `existingSystems`, or the field offers nothing at all.<br>
-      _The wrinkle that makes this more than a one-line change:_ IGDB platform names are
-      verbose and won't match your shelf labels (IGDB says "Nintendo Entertainment System",
-      the shelf says "NES"). Restricting to IGDB names alone would start writing a second
-      spelling of a system you already have, and since the library groups shelves by exact
-      system string, that silently splits one shelf into two. So this needs a normalization
-      step: map IGDB platform names onto existing shelf systems where one matches, and only
-      offer the raw IGDB name when it's genuinely a system you don't own yet. Worth deciding
-      the mapping alongside the genre normalization in **"Audit the genre vocabulary"** above,
-      since it's the same problem one column over.<br>
-      _New since 2026-08-05:_ the search rework built half of this. `_build_platform_aliases`
-      (`api/app/services/igdb.py`) already turns IGDB's `/platforms` into normalized aliases
-      ("nes", "snes", "switch 2"), cached per process. What is still missing is the other
-      direction — alias → _your_ shelf label — so this becomes "match the shelf system whose
-      normalized form hits the same alias" rather than a hand-written mapping table.<br>
-      _New since 2026-08-10:_ **`game_metadata.platforms` is now where "the platforms this
-      game released on" belongs**, and it is a fact about the game rather than something the
-      client has to carry through from the IGDB search result. Two consequences. **(1)** The
-      answer survives a page reload and works for a game already in the library, not only for
-      one just picked from search. **(2)** The column is now populated from IGDB
-      (2026-08-10), so this item's blocker has cleared.<br>
-      _And the normalization problem this item was mostly about has largely gone with it._
-      `played_games.system` now stores IGDB's platform names too (migration `d1a83f6c25e7`),
-      so "is this system one the game released on?" is a set membership test rather than a
-      fuzzy match, and no alias table is needed. What remains is display: `systemLabel` in
-      `src/lib/games.ts` maps IGDB's uglier names for rendering, so suggestions should offer
-      the stored name and show the label. The column is still not on the read schema, so
-      exposing it is the same widening the duplicate-add bug wants — that is now the bulk of
-      the work here.<br>
-      Same change applies to the promote form in `EditWishlistModal.tsx`, which today offers
-      only existing shelf systems and no IGDB platforms at all (see the mobile field-suggestions
-      item in Bugs, which covers the same form).
 - [ ] Library-level "create session" button (owner-only) — start or log a session for any game without opening that game's pencil/edit modal: a game picker (search the library) + the same start-now / past-dates form the modal has. Stretch goal: accept a game NOT in the library yet ("I just started something new") — the flow would add the game to the library (IGDB search, Phase 3 slice 4's proxy) and open its session in one go. Backend already supports everything except add+start-in-one; UI is the work. Keep simple, iterate later.
 - [ ] Profile pictures for user accounts (instanced game libraries follow-up, post-v1 — likely Supabase Storage + upload/crop flow, shown in the library profile header and follower lists)
 - [ ] Homepage customization per user (instanced game libraries follow-up, post-v1 — let users personalize their library page: hero/backdrop, shelf styling, featured games, etc. Scope TBD)
@@ -868,6 +829,28 @@ head` being run by hand from a laptop pointed at production.<br>
 ## Recently Completed
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
+
+- [x] **The add form's system field suggests the platforms the game actually released on**
+      (2026-08-14). Closes "Restrict the add-game 'system' suggestions…". `GameDraftForm`'s
+      `systemSuggestions` is no longer a union with `existingSystems`: an IGDB pick suggests
+      only `draft.platforms`, and a hand-entered game (or a pick IGDB has no platforms for)
+      still falls back to the shelf systems so the field is never empty. Picking a result also
+      stopped prefilling `system` with `platforms[0]` unless there is exactly one platform, and
+      the `e.g. SNES, PS5` placeholder is gone.<br>
+      _The normalization wrinkle this item feared never materialized:_ since migration
+      `d1a83f6c25e7` the `system` column stores IGDB's own names, so suggesting a raw IGDB
+      platform cannot split a shelf. Only `"PC (Microsoft Windows)"` differs from its
+      `systemLabel` display form, so the datalist shows raw stored values rather than gambling
+      on `<option value label>`, which datalist renders inconsistently across browsers.<br>
+      _Still open:_ the promote form in `EditWishlistModal` (a `WishlistGame` carries no
+      platforms, so that half needs `game_metadata.platforms` on the read schema), and the
+      combobox rewrite that makes any of these suggestions work on mobile. Both live in the
+      field-suggestions item in Bugs.<br>
+      _Shipped alongside it:_ the focus ring on the add form's fields was being clipped left and
+      right. A Tailwind ring is a box-shadow outside the border box, the fields are `w-full`,
+      and the scroll container is `overflow-x-hidden`, so only the vertical sides survived. The
+      container gained `-mx-1 px-1`, which keeps the fix local instead of switching the shared
+      `fieldClass` to `focus:ring-inset` and changing the ring in the filter bar too.
 
 - [x] **A shared title is no longer treated as the same game** (2026-08-14). Closes the last
       open half of "you can add a game you already have": the duplicate check, and the
@@ -1288,19 +1271,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       of cast, so a junk value falls back to "all" rather than rendering an empty library.
       `playedCount` collapsed to `games.length`, and `StatsPanel`'s `queryableGames` merge became
       a no-op and was deleted.
-- [x] **The two per-viewer API calls on a library page collapsed into one** (2026-08-07).
-      `useIsLibraryOwner.ts` is deleted. Edit affordances now read `isMe` off the relationship
-      response via a `useIsOwner()` selector exported from `FollowControls.tsx`, so one request
-      answers both "am I following them?" and "may I edit this?" — `RelationshipRead` had
-      carried `is_me` for exactly this since Phase 5.<br>
-      _The blast radius was the provider, not the hook._ `FollowStateProvider` wrapped only the
-      header, so it was hoisted in `LibraryPage.tsx` to wrap the whole `max-w-7xl` div and
-      `GameLibrary` lost its `ownerUsername` prop, which existed only to feed the deleted hook.
-      Widening the provider costs nothing across the server/client boundary: `children` is a
-      serialized RSC slot rather than an import, so the server-rendered subtree ships no extra
-      JS and React re-renders only the provider when the answer lands.<br>
-      _The visible win beyond the round trip:_ the two answers used to resolve independently, so
-      edit pencils could appear while the Follow button was still deciding. Now they cannot
-      disagree.<br>
-      _Still open:_ the pop-in item in Bugs. Edit controls resolve one request sooner but still in
-      a `useEffect`, so they continue to appear a beat after first paint.
