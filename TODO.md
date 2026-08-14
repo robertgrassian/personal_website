@@ -210,6 +210,17 @@ to keep that section at five._
       a new input to the ranker rather than a new tiebreak. Genre went from
       "Puzzle, Action Role-Playing" to "Maze"; the curated value is "Action, Puzzle", so this
       one is still wrong, just wrong from a Bomberman game instead of a spinoff.<br>
+      _The best next move, identified in review of the fix and better than any title-based rule._
+      The series signal is already in the data `lookup_many` has **already fetched**. These
+      articles pass `is_video_game` because they carry `{{Infobox video game series}}`, and
+      `_INFOBOX_VIDEO_GAME` has no terminator after "game" so it matches that variant too.
+      Detecting the template and threading a flag into `_rank_key` would replace the current
+      `_SERIES_ARTICLE` title regex with the direct signal, and would catch the franchise
+      articles that carry **no parenthetical at all** (_Super Mario_, _The Legend of Zelda_),
+      which a title regex structurally cannot see. It would very likely remove the need for the
+      leftover-words term entirely. Note `_rank_key` takes only `(name, article)` today, so this
+      means changing its signature or closing over the wikitext at the call site in
+      `lookup_many`.<br>
       _Constraints any further change must keep._ `_title_similarity`'s containment rule and its
       `_SERIES_MARKER` guard exist to stop "Hades II" matching "Hades", and combined articles
       (_Pokémon Scarlet and Violet_, _Super Smash Bros. for Nintendo 3DS and Wii U_) must keep

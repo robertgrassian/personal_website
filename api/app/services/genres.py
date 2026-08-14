@@ -317,11 +317,20 @@ _PAREN = re.compile(r"\s*\([^)]*\)\s*$")
 _SERIES_MARKER = re.compile(r"\d+|[ivxlcdm]+")
 
 # Wikipedia's parenthetical for a franchise overview article rather than a game:
-# "Pokémon (video game series)", "Borderlands (series)". These carry
-# {{Infobox video game}}, so the is-it-a-game filter keeps them, and their title
-# is a *subset* of every entry in the series, so containment scores them a
-# perfect 1.0 against any single game. Nothing in the score can separate them
-# from the real article, so ranking has to.
+# "Pokémon (video game series)", "Borderlands (series)".
+#
+# These pass the is-it-a-game filter because they carry {{Infobox video game
+# series}}, and _INFOBOX_VIDEO_GAME has no terminator after "game", so it
+# matches that variant as readily as the plain template. Their title is then a
+# *subset* of every entry in the series, so containment scores them a perfect
+# 1.0 against any single game. Nothing in the score can separate them from the
+# real article, so ranking has to.
+#
+# Matching on the article TITLE is the weaker of the two available signals: the
+# template name is the direct one and is already in the wikitext lookup_many has
+# fetched. Threading that through would also catch the franchise articles with
+# no parenthetical at all ("Super Mario"), which this regex structurally cannot
+# see. Recorded as a follow-up in TODO.md rather than done here.
 #
 # Matched on the parenthetical only, not anywhere in the title: "Sonic Mania"
 # and a hypothetical "Series" in a real game's name must not be caught by this.
@@ -383,8 +392,9 @@ def _rank_key(name: str, article: str):
         candidate whose symmetric difference from ours is smallest wins, which is
         how *Super Mario 3D World* beats the untagged franchise article
         *Super Mario* for "Super Mario 3D World + Bowser's Fury": the franchise
-        title leaves four of our words unaccounted for and the real one leaves
-        two.
+        title leaves five of our words unaccounted for and the real one leaves
+        three. (Five and three rather than four and two because _fold turns the
+        apostrophe into a space, so "Bowser's" counts as two tokens.)
 
     Leftover-word count on its own is NOT enough and was measured failing: the
     bare franchise name *Pokémon* leaves one word over ("FireRed") while the
@@ -400,11 +410,20 @@ def _rank_key(name: str, article: str):
     characters of "Bomberman" beat 18 of "Bomberman Story DS".
 
     Full article length is the last word, breaking only what stripped length
-    leaves tied. That is one specific shape: an undisambiguated title competing
-    with the same title plus a parenthetical, as *The Legend of Zelda: Link's
-    Awakening* does with *...Link's Awakening (2019 video game)*. Those agree on
-    every earlier component, and without this the winner would be whichever the
-    search happened to list first.
+    leaves tied, which means it decides between candidates sharing one bare
+    title: it prefers the shorter disambiguator. That is what it is for in the
+    clear case, an undisambiguated title against the same title plus a
+    parenthetical (*The Legend of Zelda: Link's Awakening* against *...Link's
+    Awakening (2019 video game)*). It also silently decides less defensible
+    pairs the same way, preferring *Final Fantasy (video game)* over *Final
+    Fantasy (1987 video game)* on length alone, which is arbitrary rather than
+    principled.
+
+    It masks search-order dependence rather than removing it. Siblings whose
+    disambiguators are the same length still tie on every component and fall
+    through to whichever the search listed first, which is how "Bomberman DS"
+    lands on *Bomberman (1985 video game)* rather than *(2005 video game)*.
+    Separating those needs a signal that is not in the title at all.
     """
     bare = _PAREN.sub("", article)
     folded_bare, folded_name = _fold(bare), _fold(name)

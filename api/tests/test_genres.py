@@ -588,8 +588,10 @@ def test_the_series_article_is_still_used_when_it_is_the_only_candidate(monkeypa
 def test_fewest_leftover_words_beats_an_untagged_franchise_article(monkeypatch):
     """*Super Mario* carries no "(series)" parenthetical, so the rule above
     cannot see it, and it is SHORTER than the real article. Comparing the titles
-    as word sets is what separates them: the franchise leaves four of our words
-    unaccounted for, *Super Mario 3D World* leaves two."""
+    as word sets is what separates them: the franchise leaves five of our words
+    unaccounted for, *Super Mario 3D World* leaves three. Five and three rather
+    than four and two because fold_text turns the apostrophe into a space, so
+    "Bowser's" is two tokens."""
     title = "Super Mario 3D World + Bowser's Fury"
     monkeypatch.setattr(
         genre_service,
@@ -660,6 +662,71 @@ def test_an_undisambiguated_title_beats_the_same_title_plus_a_parenthetical(monk
     )
     title = "The Legend of Zelda: Link's Awakening"
     assert genre_service.lookup_many([title])[title].article == title
+
+
+def test_a_combined_article_still_wins_end_to_end(monkeypatch):
+    """The combined-article constraint pinned through lookup_many, not only
+    through _title_similarity.
+
+    Worth having separately: similarity is one term of the rank key, and the
+    three terms added below it can override a candidate it scores 1.0. A test
+    at the _title_similarity level alone cannot see that.
+    """
+    title = "Super Smash Bros. for Wii U"
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {
+                f"{title} video game": [
+                    "Super Smash Bros. for Nintendo 3DS and Wii U",
+                    "Super Smash Bros. Ultimate",
+                ]
+            },
+            {
+                "Super Smash Bros. for Nintendo 3DS and Wii U": GAME("[[Fighting]]"),
+                "Super Smash Bros. Ultimate": GAME("[[Platform fighter]]"),
+            },
+        ),
+    )
+    out = genre_service.lookup_many([title])
+    assert out[title].article == "Super Smash Bros. for Nintendo 3DS and Wii U"
+    assert out[title].genres == ["Fighting"]
+
+
+def test_a_bare_series_title_beats_its_combined_article_a_known_limitation(monkeypatch):
+    """Documents TODAY'S behaviour, and is not an endorsement of it.
+
+    Against the bare *Super Smash Bros.* the combined article loses: both leave
+    three words over ("for", "wii", "u" on one side; "nintendo", "3ds", "and" on
+    the other), so the shorter title takes it. The old rank key chose the same
+    way, so this is a pre-existing limit of a title-only rule rather than a
+    regression, and it does not occur in practice because the live search does
+    not return the bare series article for this query.
+
+    The fix is not to reorder the key, which would re-open the validated diff
+    over the fixture library. It is the follow-up recorded in TODO.md: read
+    series-ness from the {{Infobox video game series}} template already present
+    in the fetched wikitext instead of guessing at it from the title.
+    """
+    title = "Super Smash Bros. for Wii U"
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {
+                f"{title} video game": [
+                    "Super Smash Bros. for Nintendo 3DS and Wii U",
+                    "Super Smash Bros.",
+                ]
+            },
+            {
+                "Super Smash Bros. for Nintendo 3DS and Wii U": GAME("[[Fighting]]"),
+                "Super Smash Bros.": GAME("[[Fighting]]"),
+            },
+        ),
+    )
+    assert genre_service.lookup_many([title])[title].article == "Super Smash Bros."
 
 
 @pytest.mark.parametrize(
