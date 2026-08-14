@@ -100,9 +100,9 @@ export interface Game extends BaseGame {
 }
 
 // One candidate from GET /api/py/igdb/search — the add-game picker's row.
-// Platforms/genres are IGDB's own names. The confirm step lets the owner pick
-// which shelf (system) the game lands on, but not rewrite the IGDB-sourced
-// fields: those become the shared catalog row every owner of the game reads.
+// Platforms/genres are IGDB's own names. The confirm step picks which shelf
+// the game lands on, but cannot rewrite these: they become the shared catalog
+// row every owner of the game reads.
 export interface IgdbSearchResult {
   igdbId: number;
   name: string;
