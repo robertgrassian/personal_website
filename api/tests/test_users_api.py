@@ -2,12 +2,16 @@
 local database (same skip pattern as test_db_constraints.py: they run only
 when DATABASE_URL is set).
 
-Expectations are DERIVED from the repo-root CSVs at test time via the seed's
-own pure parsers, so tests keep passing as the CSVs grow (they are living
-data — /add-game and rating changes mutate them routinely). Pinned literals
-here would break on the next reseed for non-code reasons. Play-state
-*semantics* are owned by test_play_state.py with hand-built cases; these
-tests only assert liveness and wiring against whatever the CSVs currently say.
+Expectations are DERIVED from the database at test time, never pinned as
+literals, so they survive a reseed. Play-state *semantics* are owned by
+test_play_state.py with hand-built cases; these tests assert liveness and
+wiring against whatever the library currently holds.
+
+They used to derive from scripts/fixtures/*.csv instead. That premise died
+when the API became the sole data source: writes land in the DB and never go
+back to the CSVs, so the fixtures are a frozen snapshot the library drifts
+away from with every add, rename or session. Any assertion comparing the two
+fails on a developer's machine for no reason a code change caused.
 """
 
 import uuid
@@ -20,7 +24,6 @@ from app.core.auth import AuthenticatedUser, get_current_user
 from app.core.config import get_settings
 from app.core.db import get_sessionmaker
 from app.main import create_app
-from scripts.seed import parse_game_rows, parse_wishlist_rows, read_csv
 
 requires_db = pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
 
@@ -59,20 +62,52 @@ WISHLIST_KEYS = {
 }
 
 
-def expected_games() -> list[dict]:
-    return parse_game_rows(read_csv("games.csv"), [])
+def _rows(sql: str, **params) -> list[tuple]:
+    with get_sessionmaker()() as session:
+        return session.execute(text(sql), params).all()
 
 
-def expected_wishlist() -> list[dict]:
-    return parse_wishlist_rows(read_csv("wishlist.csv"), [])
+def library_names(username: str) -> list[str]:
+    """Game names in the order the read endpoint returns them (played_games.id)."""
+    return [
+        r[0]
+        for r in _rows(
+            """SELECT m.name FROM played_games p
+                 JOIN game_metadata m ON m.id = p.metadata_id
+                 JOIN profiles pr ON pr.id = p.user_id
+                WHERE pr.username = :username ORDER BY p.id""",
+            username=username,
+        )
+    ]
 
 
-def session_names(open_only: bool) -> set[str]:
-    """Game names that have at least one open (or closed) session in the CSV."""
-    rows = read_csv("sessions.csv")
-    if open_only:
-        return {r["game"].strip() for r in rows if not (r.get("end_date") or "").strip()}
-    return {r["game"].strip() for r in rows if (r.get("end_date") or "").strip()}
+def wishlist_names(username: str) -> list[str]:
+    return [
+        r[0]
+        for r in _rows(
+            """SELECT m.name FROM wishlist_games w
+                 JOIN game_metadata m ON m.id = w.metadata_id
+                 JOIN profiles pr ON pr.id = w.user_id
+                WHERE pr.username = :username ORDER BY w.id""",
+            username=username,
+        )
+    ]
+
+
+def session_names(username: str, *, open_only: bool) -> set[str]:
+    """Game names with at least one open (or closed) play session."""
+    end_date = "IS NULL" if open_only else "IS NOT NULL"
+    return {
+        r[0]
+        for r in _rows(
+            f"""SELECT m.name FROM play_sessions s
+                  JOIN played_games p ON p.id = s.game_id
+                  JOIN game_metadata m ON m.id = p.metadata_id
+                  JOIN profiles pr ON pr.id = p.user_id
+                 WHERE pr.username = :username AND s.end_date {end_date}""",
+            username=username,
+        )
+    }
 
 
 @pytest.fixture(scope="module")
@@ -85,19 +120,18 @@ def test_games_returns_full_library_with_camel_case_keys(client: TestClient) -> 
     response = client.get("/api/py/users/rgrassian/games")
     assert response.status_code == 200
     games = response.json()
-    expected = expected_games()
-    assert len(games) == len(expected)
+    assert games, "seeded library is empty; the assertions below would be vacuous"
     for game in games:
         assert set(game) == GAME_KEYS
-    # Deterministic order (by id = insertion order = CSV order).
-    assert games[0]["name"] == expected[0]["name"]
+    # Whole library, in played_games.id order — count and ordering in one.
+    assert [g["name"] for g in games] == library_names("rgrassian")
 
 
 @requires_db
 def test_open_session_games_are_currently_playing(client: TestClient) -> None:
-    open_names = session_names(open_only=True)
+    open_names = session_names("rgrassian", open_only=True)
     if not open_names:
-        pytest.skip("sessions.csv currently has no open session")
+        pytest.skip("no open session in the library")
     games = client.get("/api/py/users/rgrassian/games").json()
     by_name = {g["name"]: g for g in games}
     for name in open_names:
@@ -115,9 +149,9 @@ def test_open_session_games_are_currently_playing(client: TestClient) -> None:
 
 @requires_db
 def test_closed_session_games_have_last_played(client: TestClient) -> None:
-    closed_names = session_names(open_only=False)
+    closed_names = session_names("rgrassian", open_only=False)
     if not closed_names:
-        pytest.skip("sessions.csv currently has no closed session")
+        pytest.skip("no closed session in the library")
     games = client.get("/api/py/users/rgrassian/games").json()
     by_name = {g["name"]: g for g in games}
     for name in closed_names:
@@ -126,26 +160,40 @@ def test_closed_session_games_have_last_played(client: TestClient) -> None:
 
 @requires_db
 def test_game_without_sessions_has_empty_play_state(client: TestClient) -> None:
-    in_sessions = session_names(open_only=True) | session_names(open_only=False)
-    expected = next(g for g in expected_games() if g["name"] not in in_sessions)
+    row = _rows(
+        """SELECT m.name, p.rating, m.genres, m.release_date
+             FROM played_games p
+             JOIN game_metadata m ON m.id = p.metadata_id
+             JOIN profiles pr ON pr.id = p.user_id
+            WHERE pr.username = 'rgrassian'
+              AND NOT EXISTS (SELECT 1 FROM play_sessions s WHERE s.game_id = p.id)
+            ORDER BY p.id LIMIT 1"""
+    )
+    if not row:
+        pytest.skip("every game in the library has a session")
+    name, rating, genres, release_date = row[0]
+
     games = client.get("/api/py/users/rgrassian/games").json()
-    game = next(g for g in games if g["name"] == expected["name"])
+    game = next(g for g in games if g["name"] == name)
     assert game["currentlyPlaying"] is False
     assert game["lastPlayed"] == ""
     assert game["playingSince"] == ""
-    # Scalar fields round-trip from the CSV parse ("" for NULL on the wire).
-    assert game["rating"] == (expected["rating"] or "")
-    assert game["genres"] == expected["genres"]
-    expected_date = expected["release_date"].isoformat() if expected["release_date"] else ""
-    assert game["releaseDate"] == expected_date
+    # Scalars reach the wire unchanged ("" for NULL).
+    assert game["rating"] == (rating or "")
+    assert game["genres"] == (genres or [])
+    assert game["releaseDate"] == (release_date.isoformat() if release_date else "")
 
 
 @requires_db
 def test_username_lookup_is_case_insensitive(client: TestClient) -> None:
-    # citext username: /users/Rgrassian resolves to the same profile.
+    # citext username: /users/Rgrassian resolves to the same profile, so it
+    # must return the same library the lowercase spelling does.
     response = client.get("/api/py/users/Rgrassian/games")
     assert response.status_code == 200
-    assert len(response.json()) == len(expected_games())
+    # Pinned to the library itself, not just to the lowercase response, so this
+    # still bites if both spellings resolve to the same WRONG profile.
+    assert [g["name"] for g in response.json()] == library_names("rgrassian")
+    assert response.json() == client.get("/api/py/users/rgrassian/games").json()
 
 
 @requires_db
@@ -153,15 +201,22 @@ def test_wishlist_returns_all_items_with_camel_case_keys(client: TestClient) -> 
     response = client.get("/api/py/users/rgrassian/wishlist")
     assert response.status_code == 200
     items = response.json()
-    expected = expected_wishlist()
-    assert len(items) == len(expected)
+    assert items, "seeded wishlist is empty; the assertions below would be vacuous"
     for item in items:
         assert set(item) == WISHLIST_KEYS
-    first, expected_first = items[0], expected[0]
-    assert first["name"] == expected_first["name"]
-    assert first["starred"] is expected_first["starred"]
-    assert first["dateAdded"] == expected_first["date_added"].isoformat()
-    assert first["notes"] == expected_first["notes"]
+    assert [i["name"] for i in items] == wishlist_names("rgrassian")
+
+    first = items[0]
+    stored = _rows(
+        """SELECT w.starred, w.date_added, w.notes
+             FROM wishlist_games w
+             JOIN profiles pr ON pr.id = w.user_id
+            WHERE pr.username = 'rgrassian' ORDER BY w.id LIMIT 1"""
+    )[0]
+    starred, date_added, notes = stored
+    assert first["starred"] is starred
+    assert first["dateAdded"] == date_added.isoformat()
+    assert first["notes"] == notes
 
 
 @requires_db
@@ -328,7 +383,7 @@ def test_one_users_rows_never_appear_in_anothers_library(
     # And Robert's library is entirely absent from theirs.
     other_games = client.get(f"/api/py/users/{other_user}/games").json()
     assert len(other_games) == 1
-    assert len(robert_games) == len(expected_games())
+    assert len(robert_games) == len(library_names("rgrassian"))
 
 
 @requires_db
