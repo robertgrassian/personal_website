@@ -41,16 +41,29 @@ export function GameDraftForm({
   onBack,
   onSave,
 }: GameDraftFormProps) {
-  // Existing shelves first (the value you usually want), then the pick's own
-  // IGDB platform names, deduped.
-  const systemSuggestions = [...new Set([...existingSystems, ...draft.platforms])];
-
   // An IGDB id resolves to the SHARED game_metadata row for that id: its name
   // and release date are the catalog's, and the API sources its genres from
   // Wikipedia. None of the three is this form's to set, so none of them is a
   // field — the picked game's identity shows as a header instead. A
   // hand-entered game gets a private row and keeps the full form.
   const fromIgdb = draft.igdbId !== null;
+
+  // Suggestions for the system field. For a picked game these are the
+  // platforms it actually released on, which is the only set of answers that
+  // can be correct; mixing in the library's other shelves offered "PS5" for a
+  // SNES-only game and buried the real answers under them. A hand-entered game
+  // has no platform list, so it falls back to the existing shelves rather than
+  // offering nothing. Same fallback when IGDB returns a game with no platforms.
+  //
+  // Values are the STORED system names (IGDB's own, per migration
+  // d1a83f6c25e7), never systemLabel() output: what the datalist writes into
+  // the input is what gets POSTed, and a display label would create a second
+  // shelf next to the real one. `<option value label>` could show the friendly
+  // name over the stored value, but datalist renders that inconsistently
+  // across browsers, and only one platform name currently differs from its
+  // label ("PC (Microsoft Windows)" → "PC"), so the raw value is shown.
+  const systemSuggestions =
+    fromIgdb && draft.platforms.length > 0 ? draft.platforms : existingSystems;
 
   // The draft in the shape the API takes. Rebuilt every render, which is why
   // CatalogInfo's effect keys on the game's identity rather than this object.
@@ -75,8 +88,18 @@ export function GameDraftForm({
       {/* overflow-x-hidden is not redundant: per CSS, one axis set to anything
           but `visible` computes the other to `auto`, so `overflow-y-auto` alone
           made this scrollable sideways whenever a child was a pixel too wide.
-          overscroll-contain keeps a flick from chaining to the page behind. */}
-      <div className="mt-4 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+          overscroll-contain keeps a flick from chaining to the page behind.
+
+          -mx-1 px-1 is what keeps the focus ring visible. A Tailwind ring is a
+          box-shadow drawn OUTSIDE the border box, and the fields are w-full, so
+          against a bare clip edge the left and right sides of the ring were cut
+          off while the top and bottom survived on the scrolling axis. Widening
+          this box by 4px a side and padding the content back in restores the
+          fields to their old width with clip-free room around them. The panel's
+          p-5 absorbs the negative margin. The alternative, focus:ring-inset in
+          formStyles, would have changed the ring everywhere it is used,
+          including the filter bar, which is not clipped and has no bug. */}
+      <div className="mt-4 -mx-1 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1">
         {/* Which game you picked, not a field: without it the form is a system
             box with no subject. `relative` is load-bearing — CatalogInfo
             anchors its panel to this row. Manual entries skip it because their
@@ -132,12 +155,11 @@ export function GameDraftForm({
               value={draft.system}
               onChange={(e) => setDraft({ ...draft, system: e.target.value })}
               list="known-systems"
-              placeholder="e.g. SNES, PS5"
               className={inputClass}
             />
           </label>
-          {/* Native autocomplete: shelf systems appear as suggestions
-              under the input, but any free-text value is allowed. */}
+          {/* Native autocomplete: the suggestions above appear under the
+              input, but any free-text value is still allowed. */}
           <datalist id="known-systems">
             {systemSuggestions.map((s) => (
               <option key={s} value={s} />

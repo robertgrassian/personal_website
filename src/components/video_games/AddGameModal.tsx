@@ -61,8 +61,12 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
     setLastQuery(query);
     setDraft({
       name: r.name,
-      // Best guess; the field is editable and existing shelves are suggested.
-      system: r.platforms[0] ?? "",
+      // Only prefilled when IGDB knows of exactly one platform, where there is
+      // nothing to guess. With two or more, picking the first is arbitrary and
+      // wrong most of the time, and a wrong prefilled value is worse than an
+      // empty one: it reads as confirmed and gets saved unread. Left blank
+      // instead, with the platforms offered as suggestions on the field.
+      system: r.platforms.length === 1 ? r.platforms[0] : "",
       platforms: r.platforms,
       // Still sent, but only as the fallback: the API re-sources genres from
       // Wikipedia when it creates the catalog row, and uses these if it misses.
