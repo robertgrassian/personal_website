@@ -13,7 +13,7 @@ import { useIsOwner } from "./FollowControls";
 import { EditGameModal } from "./EditGameModal";
 import { EditWishlistModal } from "./EditWishlistModal";
 import { AddGameModal } from "./AddGameModal";
-import { foldForSearch } from "./pipeline";
+import { ownedKey } from "./GameSearchStep";
 import type { GameCaseInput } from "./GameCase";
 import { LibraryEditingProvider } from "./LibraryEditingContext";
 
@@ -110,18 +110,19 @@ export function GameLibrary({
   const existingSystems = useMemo(() => [...new Set(games.map((g) => g.system))].sort(), [games]);
 
   // What the add-game search already has, so a result can say so instead of
-  // silently letting you add a second copy. Keyed on the folded name and
-  // valued with the systems it is on, which is what makes this an annotation
-  // rather than a policy: the same name on two systems is two rows on purpose
-  // (Chrono Trigger on SNES and on DS), so the row reports what you own and
-  // leaves the decision alone.
+  // silently letting you add a second copy. Valued with the systems it is on,
+  // which is what makes this an annotation rather than a policy: it reports
+  // what you own and leaves the decision alone.
   //
-  // Name, not igdbId, because the read path does not expose one: `igdb_id` is
-  // on both tables and on the create payloads, but not on the API's read
-  // schema and so not on `Game`/`WishlistGame`. See the TODO item. That makes
-  // this annotation looser than the rule it previews — the server resolves a
-  // game to a catalog row, this compares folded names — so treat it as a hint,
-  // not as the check.
+  // The value is a list for history: uq_played_games_user_id_metadata_id makes
+  // a second row for the same game impossible, so only two hand-entered rows
+  // whose names fold equal ("Pokemon" / "Pokémon") still fill it. Kept because
+  // relaxing that key to include `system` is a live option (api/README.md).
+  //
+  // Keyed by `ownedKey`, which mirrors the server's identity rule: igdbId when
+  // there is one, folded name only for hand-entered games. Keying on the name
+  // alone used to flag every "Star Fox" in the results as owned when only one
+  // of them was.
   //
   // Scoped to the collection being added to: adding to the wishlist checks the
   // wishlist, adding to the library checks the library. Both the map and the
@@ -132,19 +133,19 @@ export function GameLibrary({
   // survives a view change.
   const addTarget = view === "played" ? "library" : "wishlist";
   const ownedNames = useMemo(() => {
-    const source: Array<{ name: string; system: string }> =
+    const source: Array<{ name: string; system: string; igdbId: number | null }> =
       addTarget === "wishlist" ? wishlist : games;
-    const byName = new Map<string, string[]>();
+    const byGame = new Map<string, string[]>();
     for (const entry of source) {
-      const key = foldForSearch(entry.name);
-      const systems = byName.get(key);
+      const key = ownedKey(entry);
+      const systems = byGame.get(key);
       if (systems === undefined) {
-        byName.set(key, entry.system ? [entry.system] : []);
+        byGame.set(key, entry.system ? [entry.system] : []);
       } else if (entry.system && !systems.includes(entry.system)) {
         systems.push(entry.system);
       }
     }
-    return byName;
+    return byGame;
   }, [addTarget, games, wishlist]);
 
   return (

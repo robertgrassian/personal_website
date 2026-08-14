@@ -166,37 +166,6 @@ to keep that section at five._
       promote form in `EditWishlistModal` only offers existing shelf systems — thread the
       IGDB platforms through there too, and consider doing the same for genres.
 
-- [ ] **You can add a game you already have in your library. Reject a duplicate add
-      server-side, and decide what "duplicate" means.** Reported 2026-08-08. **Mostly closed
-      2026-08-10 by the catalog migration** — kept open only for the follow-up in the last
-      paragraph. `create_my_game` now resolves the game to a `game_metadata` row and checks
-      `find_game_by_metadata`, with `UNIQUE (user_id, metadata_id)` as the concurrency
-      backstop, so a duplicate add is a 409 whatever console it names. "What duplicate means"
-      was answered by the identity rule: same `igdb_id`, or same name among that user's own
-      hand-entered games.<br>
-      _The escape hatch shipped 2026-08-11_ (see Recently Completed): `PATCH /me/games/{id}`
-      takes `system`, so "I own this on SNES and just got the DS version" is an edit rather
-      than a dead end. This item stays open only for the annotation mismatch in the last
-      paragraph, which is a cosmetic looseness rather than a dead end.<br>
-      _Historical, kept because it explains the current UI._ **The search half
-      shipped 2026-08-09** (branch `claude/duplicate-add-warning`): `GameLibrary` now builds a
-      folded-name → systems map and threads it through `AddGameModal` to `GameSearchStep`, so a
-      result you already have renders a third line reading "In your library: SNES, DS" (or "On
-      your wishlist"). It annotates and never blocks, because the remaining question is exactly
-      what it must not answer on its own.<br>
-      _Still true about that annotation, and worth revisiting._ It matches on **folded names**,
-      not on `igdb_id`, because `igdb_id` is on the create payloads but **not on the API's read
-      schema** (`api/app/schemas/users.py`) and so not on `Game` or `WishlistGame`. The server
-      now keys the real check on the catalog row, so the client annotation is looser than the
-      rule it is previewing: it can say "in your library" for a same-named game the server
-      would happily accept, and miss one it would reject. Tightening it means exposing
-      `metadataId` (or `igdbId`) on the read schema, the repository projection and
-      `libraryApi.ts`, which adds one int per row to the cached `/video-games` payload.<br>
-      _Note the 2026-08-09 "systems as a list" decision was reversed_ (2026-08-10) in favor of
-      one entry per game with a single `system`; see the catalog entry in Recently Completed.
-      **"Overhaul the wishlist promote flow"** hits the identical identity question one column
-      over and can now reuse the same `metadata_id` lookup.
-
 - [ ] **The add form's info popover can promise genres the add then fails to store.** Found in
       the code review of this branch (2026-08-14) and accepted as a known limit rather than
       fixed. The popover (`CatalogInfo`) and the add itself go through the same decision
@@ -772,7 +741,9 @@ head` being run by hand from a laptop pointed at production.<br>
       _The wiring:_ the modal only receives `item` and `existingSystems`
       (`EditWishlistModal.tsx`), so "is this already in the library?" needs the library
       names threaded in from `GameLibrary` (which has `games` in hand) — and matching by name
-      alone will misfire across systems, so decide whether `igdb_id` is the key. Starting a
+      alone misfires on shared titles, which is settled now: `igdbId` is on `Game` and
+      `WishlistGame` as of 2026-08-14, and `ownedKey` (`GameSearchStep.tsx`) is the key
+      function to reuse rather than write a second one. Starting a
       session from here means reaching the same `logSession` path `EditGameModal` uses.
 - [ ] **Make library and wishlist entries fully editable, and keep the two edit modals 1:1.**
       **Changing which console an entry records is now the urgent half of this**
@@ -906,6 +877,23 @@ head` being run by hand from a laptop pointed at production.<br>
 ## Recently Completed
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
+
+- [x] **A shared title is no longer treated as the same game** (2026-08-14). Closes the last
+      open half of "you can add a game you already have": the duplicate check, and the
+      add-game search's "already in your library" line, both key on `igdb_id` now, falling
+      back to the title only for hand-entered games that have no id.<br>
+      _The bug:_ five different games are called "Star Fox". Owning one of them made the
+      other four unaddable (409) and flagged all five in the search results. The
+      `(user_id, metadata_id)` key was always right; the title fallback beside it
+      (`find_game_by_name`) was doing more than close its gap, so it now takes the incoming
+      `igdb_id` and narrows to `igdb_id IS NULL` rows when there is one. The
+      search-then-by-hand case it exists for still 409s, in both directions.<br>
+      _The client half needed the id on the wire._ `igdbId` is now on `BaseGameRead` and so
+      on `Game`/`WishlistGame`, which is one int per row on the cached `/video-games`
+      payload — the cost that entry had flagged. `ownedKey` (`GameSearchStep.tsx`) builds
+      the annotation's map key and looks it up, so the two sides cannot drift apart, and the
+      lookup tries the id then the folded name because the server can still call a
+      hand-entered entry the same game.
 
 - [x] **Adding a game sources its genres from Wikipedia again, server-side this time**
       (2026-08-14). The add path wrote IGDB's coarse genres straight to the catalog row, so
@@ -1176,7 +1164,10 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       proposing "Elden Ring" -> _Elden Ring Nightreign_ and "Dead Cells" -> _Dead Cells+_.
       Every result needed reading anyway, so the map is that reading done once.
       **(2)** `play_sessions.game_id` still points at the user's row and must keep doing so;
-      the reasons are on the column and in `api/README.md`.
+      the reasons are on the column and in `api/README.md`. **(3)** "Cadence of Hyrule" is
+      deliberately NOT stored under its full canonical title: the longer string matches the
+      Wikipedia article "The Legend of Zelda" (its words are a subset) and takes that game's
+      genres.
 
 - [x] **The add-game form no longer pans sideways on a phone** (2026-08-09, branch
       `claude/mobile-modal-zoom`). Three changes, addressing two independent mechanisms.<br>
@@ -1322,24 +1313,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       disagree.<br>
       _Still open:_ the pop-in item in Bugs. Edit controls resolve one request sooner but still in
       a `useEffect`, so they continue to appear a beat after first paint.
-- [x] **Add-game IGDB search: more results, platform in the query, fuzzy fallback, better
-      ranking** (2026-08-05). `SEARCH_LIMIT` 10 → 25 plus `offset` paging behind a "Show more
-      results" button (`page` query param, capped at `MAX_PAGE = 4`; the click bypasses the
-      debounce so one click is one charge against the `igdb_search` bucket). "star fox switch 2"
-      now works: `/platforms` is fetched once per process and cached 12h into an alias map
-      (name, abbreviation, alternative names, plus vendor-stripped "Nintendo Switch 2" →
-      "switch 2"), the longest matching **suffix** is split off the query into
-      `where platforms = (...)`, and a miss retries with the whole string as a title.<br>
-      _Two rules that keep it from doing harm:_ an alias must contain a letter, or Nintendo 64's
-      "64" would eat the tail of "Star Fox 64" and hide the 3DS remake; and a bare platform
-      name ("switch") stays a title search since nothing would be left to search for.<br>
-      _"Civ 6":_ when the name search returns nothing, one fallback query substring-matches
-      `name` and `alternative_names.name` — first page only, since paging past a fallback would
-      splice two differently-ordered result sets together.<br>
-      _Ranking:_ results are re-sorted by IGDB's `game_type` (stable, so relevance order
-      survives inside a tier), which is what puts _Pokémon FireRed Version_ (Remake) above
-      _Pokémon Fire Red Extended_ (Mod).<br>
-      _Left for the "restrict the add-game system suggestions" item:_ the alias map is
-      IGDB-name → IGDB-id, not IGDB-name → shelf label, so it does not by itself solve the
-      "Nintendo Entertainment System" vs "NES" mapping that item needs — but it is the obvious
-      place to hang it.

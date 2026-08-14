@@ -42,6 +42,12 @@ class BaseGameRead(CamelModel):
     genres: list[str]
     release_date: str  # ISO date or "" if unknown
     image_url: str  # "" = FE renders its fallback art
+    # Catalog identity: the IGDB id of the game, or null for a hand-entered
+    # one. Null rather than "" because this is the one non-string scalar here
+    # and 0 is a real id — the "" convention above covers the text fields.
+    # Read so the add-game search can tell "already in your library" from a
+    # different game that merely shares a title.
+    igdb_id: int | None
 
 
 class GameRead(BaseGameRead):
