@@ -76,6 +76,15 @@ reasoning behind the shape, which the models themselves don't record.
   consoles later is a one-statement relaxation of that key to include `system`, with no
   data rewrite — but note the _feature_ then lives in the frontend, since two rows means
   two cases on the shelf until `pipeline.ts` groups them by `metadata_id`.
+  <br>
+  "Same game" means same catalog row, i.e. same `igdb_id` — **not** same title. IGDB
+  titles are not unique (five distinct games are called "Star Fox"), so owning one of
+  them must not lock the rest out. Titles are only compared when one side has no
+  `igdb_id` to compare: `find_game_by_name` closes the gap where the same game is added
+  once through search and once by hand, since those are two catalog rows the unique key
+  cannot see as one. That rule is mirrored in the add-game search's "already in your
+  library" annotation (`ownedKey` in `GameSearchStep.tsx`), which is why `igdbId` is on
+  the read DTOs.
 - **`play_sessions.game_id` points at the user's row, not the catalog.** It is a real FK
   (the CSVs joined sessions to games by exact name, which is the correctness bug this
   schema exists to fix), and it must stay on `played_games`: a session is a fact about a

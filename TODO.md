@@ -187,37 +187,6 @@ to keep that section at five._
       promote form in `EditWishlistModal` only offers existing shelf systems — thread the
       IGDB platforms through there too, and consider doing the same for genres.
 
-- [ ] **You can add a game you already have in your library. Reject a duplicate add
-      server-side, and decide what "duplicate" means.** Reported 2026-08-08. **Mostly closed
-      2026-08-10 by the catalog migration** — kept open only for the follow-up in the last
-      paragraph. `create_my_game` now resolves the game to a `game_metadata` row and checks
-      `find_game_by_metadata`, with `UNIQUE (user_id, metadata_id)` as the concurrency
-      backstop, so a duplicate add is a 409 whatever console it names. "What duplicate means"
-      was answered by the identity rule: same `igdb_id`, or same name among that user's own
-      hand-entered games.<br>
-      _The escape hatch shipped 2026-08-11_ (see Recently Completed): `PATCH /me/games/{id}`
-      takes `system`, so "I own this on SNES and just got the DS version" is an edit rather
-      than a dead end. This item stays open only for the annotation mismatch in the last
-      paragraph, which is a cosmetic looseness rather than a dead end.<br>
-      _Historical, kept because it explains the current UI._ **The search half
-      shipped 2026-08-09** (branch `claude/duplicate-add-warning`): `GameLibrary` now builds a
-      folded-name → systems map and threads it through `AddGameModal` to `GameSearchStep`, so a
-      result you already have renders a third line reading "In your library: SNES, DS" (or "On
-      your wishlist"). It annotates and never blocks, because the remaining question is exactly
-      what it must not answer on its own.<br>
-      _Still true about that annotation, and worth revisiting._ It matches on **folded names**,
-      not on `igdb_id`, because `igdb_id` is on the create payloads but **not on the API's read
-      schema** (`api/app/schemas/users.py`) and so not on `Game` or `WishlistGame`. The server
-      now keys the real check on the catalog row, so the client annotation is looser than the
-      rule it is previewing: it can say "in your library" for a same-named game the server
-      would happily accept, and miss one it would reject. Tightening it means exposing
-      `metadataId` (or `igdbId`) on the read schema, the repository projection and
-      `libraryApi.ts`, which adds one int per row to the cached `/video-games` payload.<br>
-      _Note the 2026-08-09 "systems as a list" decision was reversed_ (2026-08-10) in favor of
-      one entry per game with a single `system`; see the catalog entry in Recently Completed.
-      **"Overhaul the wishlist promote flow"** hits the identical identity question one column
-      over and can now reuse the same `metadata_id` lookup.
-
 - [ ] **Owner edit affordances still pop in after hydration.** The pencils and "Add game" appear
       a beat after first paint on your own library, because the answer
       resolves in a `useEffect` — `useViewerRelationship`
@@ -709,7 +678,9 @@ head` being run by hand from a laptop pointed at production.<br>
       _The wiring:_ the modal only receives `item` and `existingSystems`
       (`EditWishlistModal.tsx`), so "is this already in the library?" needs the library
       names threaded in from `GameLibrary` (which has `games` in hand) — and matching by name
-      alone will misfire across systems, so decide whether `igdb_id` is the key. Starting a
+      alone misfires on shared titles, which is settled now: `igdbId` is on `Game` and
+      `WishlistGame` as of 2026-08-14, and `ownedKey` (`GameSearchStep.tsx`) is the key
+      function to reuse rather than write a second one. Starting a
       session from here means reaching the same `logSession` path `EditGameModal` uses.
 - [ ] **Make library and wishlist entries fully editable, and keep the two edit modals 1:1.**
       **Changing which console an entry records is now the urgent half of this**
@@ -840,6 +811,23 @@ head` being run by hand from a laptop pointed at production.<br>
 ## Recently Completed
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
+
+- [x] **A shared title is no longer treated as the same game** (2026-08-14). Closes the last
+      open half of "you can add a game you already have": the duplicate check, and the
+      add-game search's "already in your library" line, both key on `igdb_id` now, falling
+      back to the title only for hand-entered games that have no id.<br>
+      _The bug:_ five different games are called "Star Fox". Owning one of them made the
+      other four unaddable (409) and flagged all five in the search results. The
+      `(user_id, metadata_id)` key was always right; the title fallback beside it
+      (`find_game_by_name`) was doing more than close its gap, so it now takes the incoming
+      `igdb_id` and narrows to `igdb_id IS NULL` rows when there is one. The
+      search-then-by-hand case it exists for still 409s, in both directions.<br>
+      _The client half needed the id on the wire._ `igdbId` is now on `BaseGameRead` and so
+      on `Game`/`WishlistGame`, which is one int per row on the cached `/video-games`
+      payload — the cost that entry had flagged. `ownedKey` (`GameSearchStep.tsx`) builds
+      the annotation's map key and looks it up, so the two sides cannot drift apart, and the
+      lookup tries the id then the folded name because the server can still call a
+      hand-entered entry the same game.
 
 - [x] **An unwell library API no longer takes the account page down with it** (2026-08-13).
       `AccountPage` awaited `fetchMyProfile()` unguarded, so a timeout or a 500 errored the whole
@@ -1055,7 +1043,10 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       `backfill_genres.py` now walk `game_metadata` (one row per game, not one per entry),
       and a shared row's genres are shared — fine for one curator, re-think before strangers.
       **(2)** `play_sessions.game_id` still points at the user's row and must keep doing so;
-      the reasons are on the column and in `api/README.md`.
+      the reasons are on the column and in `api/README.md`. **(3)** "Cadence of Hyrule" is
+      deliberately NOT stored under its full canonical title: the longer string matches the
+      Wikipedia article "The Legend of Zelda" (its words are a subset) and takes that game's
+      genres.
 
 - [x] **The add-game form no longer pans sideways on a phone** (2026-08-09, branch
       `claude/mobile-modal-zoom`). Three changes, addressing two independent mechanisms.<br>
@@ -1236,27 +1227,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       _The step most easily forgotten_ is flushing the cache: the scripts write straight to
       Postgres, so `revalidateTag` never fires and prod serves stale pages until an owner write
       happens in the UI. Rating a game and undoing it is enough.
-
-- [x] **Titles backfilled to canonical names, then genres re-sourced** (2026-08-03, local DB
-      only). 54 renames, then 22 genre rows. The ordering was the point: doing titles first took
-      the genre plan from **118 auto / 36 needing review to 154 auto / 0**.<br>
-      **`backfill_titles.py` is a hardcoded map on purpose.** The first version resolved every
-      title against IGDB and scored the candidates; it could not tell a canonical title from an
-      edition or spin-off whose name merely extends it, proposing "Elden Ring" -> _Elden Ring
-      Nightreign_, "Halo CE" -> _Halo CE+_, "Dead Cells" -> _Dead Cells+_. Every result needed
-      reading anyway, so the map is that reading done once — auditable, and it cannot drift.
-      Preview is the default, so a prod run is always a select before an update.<br>
-      _A real parser bug surfaced in the re-run:_ an infobox `genre` that is the template's LAST
-      parameter swallowed the article prose after it, so Majora's Mask picked up Japanese title
-      text and "and quality of life changes" as genres. The field now stops at `}}` as well as
-      at the next parameter. This one mattered beyond the backfill — it is the live add-game
-      lookup.<br>
-      _"Cadence of Hyrule" is deliberately NOT renamed_ to its full canonical title. IGDB is
-      right that it is the formal name, but the longer string then matched the Wikipedia article
-      "The Legend of Zelda" (its words are a subset) and took that game's genres.<br>
-      _Seed fixtures were renamed in lockstep_, so `seed.py` reproduces the canonical library;
-      `sessions.csv` references games by name and would otherwise attach sessions to nothing.<br>
-      _Verified by a review agent against the live DB:_ 155 games, no duplicates, no empty genre
-      lists, 44 distinct genres with no case/spelling collisions, and no junk values. It caught
-      two things since fixed: "Role-Playing" on Untitled Goose Game, and a
-      "Monster Tamer"/"Monster-taming" split that would have shown as two filter options.

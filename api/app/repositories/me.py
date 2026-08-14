@@ -143,35 +143,50 @@ def find_game_by_metadata(db: Session, user_id: uuid.UUID, metadata_id: int) -> 
     ).scalar_one_or_none()
 
 
-def find_game_by_name(db: Session, user_id: uuid.UUID, name: str) -> PlayedGame | None:
-    """Any library entry of the caller's whose catalog row carries this name.
+def find_game_by_name(
+    db: Session, user_id: uuid.UUID, name: str, igdb_id: int | None = None
+) -> PlayedGame | None:
+    """Any HAND-ENTERED library entry of the caller's carrying this name.
 
     Backstops find_game_by_metadata, which is not enough on its own: the same
     title can resolve to two DIFFERENT catalog rows — the shared one for its
     igdb_id, and a private one if the user later types the name in by hand — and
     those have different metadata_ids, so the unique constraint permits both.
-    That would put two identical cases on the shelf, which the old
-    uq_games_user_id_name_system prevented.
+    That would put two identical cases on the shelf.
+
+    ``igdb_id`` is the id of the game being added, and it narrows what counts
+    as a match. Titles are not unique in IGDB (five different games are called
+    "Star Fox"), so once the incoming game HAS an igdb_id, identity is that id
+    and only it: the only same-name rows that can still be the same game are
+    the ones with no id of their own to compare. With no incoming id (a custom
+    game) there is nothing but the title to go on, so every same-name row
+    counts.
 
     Application-level, unlike the metadata check: no constraint can express it,
     since the name lives on the row being joined to.
     """
-    return db.execute(
+    stmt = (
         select(PlayedGame)
         .join(GameMetadata, GameMetadata.id == PlayedGame.metadata_id)
         .where(PlayedGame.user_id == user_id, GameMetadata.name == name)
-        .limit(1)
-    ).scalar_one_or_none()
+    )
+    if igdb_id is not None:
+        stmt = stmt.where(GameMetadata.igdb_id.is_(None))
+    return db.execute(stmt.limit(1)).scalar_one_or_none()
 
 
-def find_wishlist_item_by_name(db: Session, user_id: uuid.UUID, name: str) -> WishlistGame | None:
-    """The wishlist twin of find_game_by_name, for the same reason."""
-    return db.execute(
+def find_wishlist_item_by_name(
+    db: Session, user_id: uuid.UUID, name: str, igdb_id: int | None = None
+) -> WishlistGame | None:
+    """The wishlist twin of find_game_by_name, narrowed the same way."""
+    stmt = (
         select(WishlistGame)
         .join(GameMetadata, GameMetadata.id == WishlistGame.metadata_id)
         .where(WishlistGame.user_id == user_id, GameMetadata.name == name)
-        .limit(1)
-    ).scalar_one_or_none()
+    )
+    if igdb_id is not None:
+        stmt = stmt.where(GameMetadata.igdb_id.is_(None))
+    return db.execute(stmt.limit(1)).scalar_one_or_none()
 
 
 def create_game(

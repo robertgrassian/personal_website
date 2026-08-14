@@ -7,19 +7,30 @@ import { searchGames } from "@/app/video-games/actions";
 import { ghostButtonClass, inputClass } from "./formStyles";
 import { foldForSearch } from "./pipeline";
 
+// The identity of a game for "do I already have this?", as one map key.
+//
+// Mirrors the server's rule (api/app/repositories/me.py, find_game_by_name):
+// an IGDB game IS its igdb_id, and only a hand-entered game — which has no id
+// to compare — falls back to its name. Both sides of the annotation go through
+// this one function so the map and the lookup cannot disagree; the prefixes
+// keep an id from ever colliding with a title that happens to be a number.
+export function ownedKey(game: { name: string; igdbId: number | null }): string {
+  return game.igdbId === null ? `name:${foldForSearch(game.name)}` : `igdb:${game.igdbId}`;
+}
+
 type GameSearchStepProps = {
   // Restores the box when the user comes back from the confirm form. This
   // component is unmounted while that form is open, so the query has to be
   // handed up at the seam and back down on return.
   initialQuery: string;
   inputRef: React.RefObject<HTMLInputElement | null>;
-  // Folded name → systems already owned under that name, for the collection
-  // being added to. A hit annotates the row rather than disabling it, but it is
-  // now a warning rather than a note: since the shared catalog landed, one
-  // entry per game per user is enforced, so picking a matched row and
-  // submitting gets a 409 whatever system you choose. Matching on folded names
-  // is looser than the server's rule, so this can over- and under-report;
-  // disabling the row on a guess would be worse than warning on one.
+  // ownedKey → systems already owned under that key, for the collection being
+  // added to. A hit annotates the row rather than disabling it, but it is now
+  // a warning rather than a note: since the shared catalog landed, one entry
+  // per game per user is enforced, so picking a matched row and submitting
+  // gets a 409 whatever system you choose. A search result always has an
+  // igdb id, so the only looseness left is against hand-entered games, where
+  // both sides fall back to the folded name.
   ownedNames: Map<string, string[]>;
   // What a hit is called: "In your library" or "On your wishlist".
   ownedLabel: string;
@@ -177,10 +188,15 @@ export function GameSearchStep({
             <li className="text-xs text-shelf-text-muted italic">No matches.</li>
           )}
           {results.map((r) => {
+            // Two lookups, matching the two ways the server can call this the
+            // same game: the id first, then the name — which only hits a
+            // hand-entered entry, since anything with an id is filed under it.
+            //
             // undefined = not owned. An empty array means owned with no system
             // recorded, which the wishlist allows, so the two cases are
             // distinguished by presence rather than by length.
-            const ownedOn = ownedNames.get(foldForSearch(r.name));
+            const ownedOn =
+              ownedNames.get(ownedKey(r)) ?? ownedNames.get(`name:${foldForSearch(r.name)}`);
             return (
               <li key={r.igdbId}>
                 <button

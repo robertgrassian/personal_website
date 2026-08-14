@@ -492,11 +492,15 @@ def create_my_game(db: Session, user: AuthenticatedUser, payload: GameCreate) ->
             release_date=payload.release_date,
             image_url=payload.image_url or None,
         )
-        # Two checks, not one. The first is the constraint-backed "same game";
-        # the second catches the same TITLE resolving to a different catalog
-        # row (shared vs. hand-entered), which no constraint can express.
+        # Two checks, not one. The first is the constraint-backed "same game",
+        # which for an IGDB game is the whole rule — identity is the igdb_id,
+        # and find_or_create_metadata resolves that to one shared catalog row.
+        # The second catches the same TITLE resolving to a different catalog
+        # row (shared vs. hand-entered), which no constraint can express; it
+        # takes the incoming igdb_id so it only fires where a title is really
+        # all there is to compare.
         if me_repo.find_game_by_metadata(db, user.id, meta.id) or me_repo.find_game_by_name(
-            db, user.id, meta.name
+            db, user.id, meta.name, meta.igdb_id
         ):
             raise GameExistsError(payload.name)
         game = me_repo.create_game(
@@ -585,7 +589,7 @@ def create_my_wishlist_item(
         # Same two-check shape as create_my_game: metadata id, then title.
         if me_repo.find_wishlist_item_by_metadata(
             db, user.id, meta.id
-        ) or me_repo.find_wishlist_item_by_name(db, user.id, meta.name):
+        ) or me_repo.find_wishlist_item_by_name(db, user.id, meta.name, meta.igdb_id):
             raise WishlistItemExistsError(payload.name)
         item = me_repo.create_wishlist_item(
             db,
@@ -658,7 +662,7 @@ def promote_my_wishlist_item(
     if me_repo.count_games(db, user.id) >= limit:
         raise LibraryFullError(limit)
     if me_repo.find_game_by_metadata(db, user.id, item.metadata_id) or me_repo.find_game_by_name(
-        db, user.id, meta.name
+        db, user.id, meta.name, meta.igdb_id
     ):
         raise GameExistsError(meta.name)
 

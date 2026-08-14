@@ -1120,6 +1120,36 @@ def test_same_title_via_search_then_by_hand_is_a_conflict(fresh_user_with_game) 
 
 
 @requires_db
+def test_two_igdb_games_sharing_a_title_are_both_addable(fresh_user_with_game) -> None:
+    """The other side of the title check: a shared title is NOT a duplicate.
+
+    IGDB titles are not unique -- searching "Star Fox" returns the SNES
+    original, the 2017 remaster and three more, all under that one name. Each
+    is a different game with a different igdb_id, so owning one must not lock
+    the rest out, which is what a title-only check did.
+    """
+    user_id, _ = fresh_user_with_game
+    client = client_as(user_id)
+    original = client.post(
+        "/api/py/me/games",
+        json={"name": "Star Fox", "system": "SNES", "igdbId": TEST_IGDB_BASE + 8},
+    )
+    assert original.status_code == 201
+    remaster = client.post(
+        "/api/py/me/games",
+        json={"name": "Star Fox", "system": "Nintendo Switch", "igdbId": TEST_IGDB_BASE + 9},
+    )
+    assert remaster.status_code == 201
+    assert remaster.json()["id"] != original.json()["id"]
+    # ...but the SAME igdb_id still is a duplicate, whatever console it names.
+    dupe = client.post(
+        "/api/py/me/games",
+        json={"name": "Star Fox", "system": "Wii", "igdbId": TEST_IGDB_BASE + 8},
+    )
+    assert dupe.status_code == 409
+
+
+@requires_db
 def test_losing_the_race_to_create_a_shared_row_still_succeeds(
     fresh_auth_user, monkeypatch
 ) -> None:
