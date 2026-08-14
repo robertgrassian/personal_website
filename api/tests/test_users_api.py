@@ -24,6 +24,10 @@ from scripts.seed import parse_game_rows, parse_wishlist_rows, read_csv
 
 requires_db = pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
 
+# The fixtures below build their users through the real write path, so adding
+# their games reaches the genre lookup the same way /me/games does. See conftest.
+pytestmark = pytest.mark.usefixtures("stub_genre_lookup")
+
 # The exact wire keys of the TS types being mirrored (src/lib/games.ts,
 # src/lib/wishlist.ts) — camelCase, via the schema alias generator.
 GAME_KEYS = {

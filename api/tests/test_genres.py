@@ -642,3 +642,124 @@ def test_plural_qualifiers_are_stripped_too(raw, expected):
 @pytest.mark.parametrize("raw", ["game", "games", "video game", "video games"])
 def test_a_bare_qualifier_is_not_a_genre(raw):
     assert genre_service.normalize_genre(raw) is None
+
+
+# --- lookup_one: the add-game write path ------------------------------------
+
+
+def test_lookup_one_returns_the_infobox_genres(monkeypatch):
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Hades II video game": ["Hades II"]},
+            {"Hades II": GAME("[[Roguelike]], [[Action role-playing game|Action RPG]]")},
+        ),
+    )
+    assert genre_service.lookup_one("Hades II") == ["Roguelike", "Action RPG"]
+
+
+def test_lookup_one_skips_the_wikidata_fallback(monkeypatch):
+    """The write path trades the P136 backstop for a bounded wait: two requests,
+    never the 20s SPARQL leg. An empty infobox is simply a miss here, where
+    lookup_many would go on to ask Wikidata."""
+    urls: list[str] = []
+
+    def fake_get(url, params):
+        urls.append(url)
+        if params.get("list") == "search":
+            return FakeResponse({"query": {"search": [{"title": "Ball x Pit"}]}})
+        return FakeResponse(
+            {
+                "query": {
+                    "pages": [
+                        {
+                            "title": "Ball x Pit",
+                            "revisions": [
+                                {"slots": {"main": {"content": "{{Infobox video game\n}}"}}}
+                            ],
+                        }
+                    ]
+                }
+            }
+        )
+
+    monkeypatch.setattr(genre_service, "_get", fake_get)
+    assert genre_service.lookup_one("Ball x Pit") == []
+    assert genre_service.WIKIDATA_SPARQL not in urls
+    assert len(urls) == 2
+
+
+def test_lookup_one_never_raises(monkeypatch):
+    """A third-party outage must not fail an add, so every failure is a miss."""
+
+    def explode(url, params):
+        raise RuntimeError("wikipedia is down")
+
+    monkeypatch.setattr(genre_service, "_get", explode)
+    assert genre_service.lookup_one("Anything") == []
+
+
+def test_lookup_one_rejects_a_match_that_is_not_the_game(monkeypatch):
+    """The reason the floor exists. Wikipedia's search always returns SOMETHING,
+    and lookup_many hands back the best of it however unrelated -- fine for a
+    backfill a human reviews, wrong for a write that defines the shared catalog
+    row. A game nobody has heard of resolves to a real but different game, and
+    the caller must be told nothing was found."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Homebrew Quest video game": ["Cosmic Blaster"]},
+            {"Cosmic Blaster": GAME("[[Shoot 'em up]]")},
+        ),
+    )
+    assert genre_service.lookup_one("Homebrew Quest") == []
+
+
+def test_lookup_many_still_takes_the_weak_match(monkeypatch):
+    """The floor is lookup_one's alone: backfill_genres.py prints its matches
+    for review, so a weak one there is a suggestion rather than a silent write."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Homebrew Quest video game": ["Cosmic Blaster"]},
+            {"Cosmic Blaster": GAME("[[Shoot 'em up]]")},
+        ),
+    )
+    out = genre_service.lookup_many(["Homebrew Quest"])
+    assert out["Homebrew Quest"].genres == ["Shoot 'em Up"]
+
+
+def test_lookup_one_keeps_a_combined_article(monkeypatch):
+    """The floor must not undo _title_similarity's containment rule. Wikipedia
+    covers many games in a combined article, which scores badly as raw text and
+    is exactly right; this is the case that would break if the floor were
+    applied to a plain sequence ratio."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Pokemon Violet video game": ["Pokémon Scarlet and Violet"]},
+            {"Pokémon Scarlet and Violet": GAME("[[Role-playing video game|Role-playing]]")},
+        ),
+    )
+    assert genre_service.lookup_one("Pokemon Violet") == ["Role-Playing"]
+
+
+def test_lookup_one_rejects_the_wrong_entry_in_a_series(monkeypatch):
+    """The case that decides where the floor sits. A wrong sequel is one
+    character from correct -- "Octopath Traveller" scores 0.895 against
+    *Octopath Traveler II* -- so any mid-range floor admits it while still
+    rejecting correct abbreviations that score far lower. Hence a floor just
+    below an exact match, the same place backfill_genres.py puts AUTO_ACCEPT."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Octopath Traveller video game": ["Octopath Traveler II"]},
+            {"Octopath Traveler II": GAME("[[Role-playing video game|Role-playing]]")},
+        ),
+    )
+    assert genre_service.lookup_one("Octopath Traveller") == []

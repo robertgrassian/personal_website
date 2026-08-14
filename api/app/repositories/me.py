@@ -94,6 +94,18 @@ def find_or_create_metadata(
     return meta
 
 
+def find_metadata(
+    db: Session, *, user_id: uuid.UUID, igdb_id: int | None, name: str
+) -> GameMetadata | None:
+    """The catalog row this game already resolves to, or None if adding it
+    would create one. Same lookup find_or_create_metadata does, exposed so the
+    add path can tell whether the genres it is about to send will be used at
+    all -- an existing row keeps its own, so sourcing better ones first would
+    be wasted work.
+    """
+    return _select_metadata(db, user_id=user_id, igdb_id=igdb_id, name=name)
+
+
 def _select_metadata(
     db: Session, *, user_id: uuid.UUID, igdb_id: int | None, name: str
 ) -> GameMetadata | None:

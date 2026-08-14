@@ -23,14 +23,24 @@ from app.core.config import get_settings
 from app.core.db import get_sessionmaker
 from app.main import create_app
 from app.models import GameMetadata, PlayedGame, PlaySession
+from app.services import genres as genre_service
 from scripts.seed import ROBERT_PROFILE_ID
 
 requires_db = pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
+
+# Adding a game or a wishlist entry calls Wikipedia for any catalog row that
+# does not exist yet, which is most rows these tests create. See conftest.
+pytestmark = pytest.mark.usefixtures("stub_genre_lookup")
 
 # Test igdb ids start well above anything IGDB actually issues (their ids are
 # six digits at most). Since igdb_id became the catalog's identity key, a test
 # id that collided with a seeded one would silently resolve to the seeded game
 # instead of creating a row -- a failure that looks like a bug in the code.
+#
+# The same applies BETWEEN tests, and catalog rows outlive the per-test user:
+# reusing an offset means the second test adopts the first's row, genres and
+# all. Two branches picked +8 at once and that is exactly what happened, so
+# take the next free offset rather than the next number after the test above.
 TEST_IGDB_BASE = 90_000_000
 
 
@@ -1008,9 +1018,32 @@ def test_add_game_full_igdb_payload(fresh_user_with_game) -> None:
     assert response.status_code == 201
     game = response.json()
     assert game["rating"] == "Perfect"
+    # The client's genres, because stub_genre_lookup makes Wikipedia a miss.
     assert game["genres"] == ["RPG", "Adventure"]
     assert game["releaseDate"] == "1995-03-11"
     assert game["imageUrl"].endswith("co2mkh.jpg")
+
+
+@requires_db
+def test_add_game_stores_wikipedias_genres_over_the_clients(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The one test here that lets the lookup answer, overriding the module's
+    # autouse miss. IGDB's genres lose to the infobox's: that is the whole
+    # point of sourcing on the write path.
+    user_id, _ = fresh_user_with_game
+    monkeypatch.setattr(genre_service, "lookup_one", lambda name: ["Roguelike", "Action RPG"])
+    response = client_as(user_id).post(
+        "/api/py/me/games",
+        json={
+            "name": "Hades II",
+            "system": "PC",
+            "genres": ["Adventure"],
+            "igdbId": TEST_IGDB_BASE + 8,
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["genres"] == ["Roguelike", "Action RPG"]
 
 
 @requires_db
@@ -1153,19 +1186,19 @@ def test_two_igdb_games_sharing_a_title_are_both_addable(fresh_user_with_game) -
     client = client_as(user_id)
     original = client.post(
         "/api/py/me/games",
-        json={"name": "Star Fox", "system": "SNES", "igdbId": TEST_IGDB_BASE + 8},
+        json={"name": "Star Fox", "system": "SNES", "igdbId": TEST_IGDB_BASE + 20},
     )
     assert original.status_code == 201
     remaster = client.post(
         "/api/py/me/games",
-        json={"name": "Star Fox", "system": "Nintendo Switch", "igdbId": TEST_IGDB_BASE + 9},
+        json={"name": "Star Fox", "system": "Nintendo Switch", "igdbId": TEST_IGDB_BASE + 21},
     )
     assert remaster.status_code == 201
     assert remaster.json()["id"] != original.json()["id"]
     # ...but the SAME igdb_id still is a duplicate, whatever console it names.
     dupe = client.post(
         "/api/py/me/games",
-        json={"name": "Star Fox", "system": "Wii", "igdbId": TEST_IGDB_BASE + 8},
+        json={"name": "Star Fox", "system": "Wii", "igdbId": TEST_IGDB_BASE + 20},
     )
     assert dupe.status_code == 409
 
@@ -1209,7 +1242,10 @@ def test_losing_the_race_to_create_a_shared_row_still_succeeds(
         response = client_as(loser_id).post(
             "/api/py/me/games", json={**payload, "system": "Switch"}
         )
-        monkeypatch.undo()
+        # Revert this one stub, not monkeypatch.undo(): the same function-scoped
+        # instance also carries the autouse network guard and the genre stub, and
+        # undo() would drop those too, leaving the rest of the test unguarded.
+        monkeypatch.setattr(me_repo, "_select_metadata", real)
 
         assert response.status_code == 201, response.json()
         assert response.json()["system"] == "Switch"

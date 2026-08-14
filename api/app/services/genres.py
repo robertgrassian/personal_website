@@ -489,7 +489,72 @@ def genres_for_qids(qids: list[str]) -> dict[str, list[str]]:
     return out
 
 
-def lookup_many(titles: list[str], *, on_progress=None) -> dict[str, GenreLookup]:
+# The floor a match must clear to be written to a catalog row unreviewed.
+#
+# Set just below an exact match for the reason backfill_genres.py sets
+# AUTO_ACCEPT to the same number: string distance is a bad confidence signal for
+# game titles, and a mid-range threshold gets it BACKWARDS. A wrong entry in a
+# series is one character from correct ("Octopath Traveller" -> *Octopath
+# Traveler II* at 0.895), while a correct abbreviation is far from it ("Halo CE"
+# -> *Halo: Combat Evolved* at 0.538). Anything in the middle admits the first
+# kind.
+#
+# Measured over the 155 titles in scripts/fixtures/games.csv: 154 resolve to an
+# article and every one of them scores exactly 1.0, because _title_similarity
+# answers a flat 1.0 for each shape of correct-but-reworded article it knows
+# about (combined articles, a dropped subtitle, an added "Deluxe"). Nothing
+# genuine lands in the scored band at all, so this rejects nothing real and its
+# whole job is titles that resolved to something unrelated -- an invented or
+# misspelled name, which is exactly what a hand-typed add can produce.
+#
+# What it cannot do is catch a wrong article that scores 1.0 by containment:
+# "Pokémon FireRed" resolves to *Pokémon (video game series)*. Those need a
+# different mechanism than a threshold; see TODO.md.
+MIN_WRITE_CONFIDENCE = 0.97
+
+
+def lookup_one(title: str) -> list[str]:
+    """Genres for a single title, for the add-game write path. [] on a miss.
+
+    Three differences from lookup_many, all because a user is waiting on the
+    POST rather than watching a batch job:
+
+      * No Wikidata fallback. It is the slow leg (a 20s SPARQL ceiling on a
+        shared public endpoint) and the least accurate one -- P136 calls The
+        Minish Cap a role-playing game. Skipping it bounds this at two requests.
+      * Never raises. A third-party miss must not fail an add, so the caller
+        gets [] and falls back to what the client sent.
+      * A confidence floor. lookup_many ranks candidates against each other and
+        returns the best one however bad it is, which is fine for a backfill
+        run a human reads afterwards and not fine here: this writes to the
+        SHARED catalog row, so one person adding an obscure or misspelled game
+        would define wrong genres for everyone who adds it later. Rejecting a
+        weak match costs a caller nothing (it falls back to the genres the
+        client sent), while accepting one is invisible and sticky, so the
+        asymmetry is worth paying for.
+    """
+    try:
+        result = lookup_many([title], wikidata_fallback=False)[title]
+    except Exception:
+        logger.exception("Genre lookup failed for %r", title)
+        return []
+    if not result.article:
+        return []
+    confidence = _title_similarity(title, result.article)
+    if confidence < MIN_WRITE_CONFIDENCE:
+        logger.info(
+            "Rejected low-confidence match for %r: %r scored %.2f",
+            title,
+            result.article,
+            confidence,
+        )
+        return []
+    return result.genres
+
+
+def lookup_many(
+    titles: list[str], *, on_progress=None, wikidata_fallback: bool = True
+) -> dict[str, GenreLookup]:
     """Resolve many titles: one Wikipedia search each, then a single batched
     Wikidata query for all the ids found.
 
@@ -537,7 +602,8 @@ def lookup_many(titles: list[str], *, on_progress=None) -> dict[str, GenreLookup
 
     # Phase 4: Wikidata only for what the infobox could not answer -- some
     # articles carry the template but leave `genre` empty.
-    _fill_gaps_from_wikidata(results)
+    if wikidata_fallback:
+        _fill_gaps_from_wikidata(results)
     return results
 
 

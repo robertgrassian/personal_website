@@ -19,33 +19,6 @@ asked for, which needs no reason and is marked `(Promoted by request YYYY-MM-DD.
 get demoted back out. Adding a sixth item means demoting one, on purpose. (Split out 2026-08-07:
 the old rule sent every bug straight here, so four of five slots were defects.)
 
-- [ ] **The genres, release date and cover art you edit while adding a game are silently
-      discarded whenever someone else already added that IGDB game.** (Promoted by request 2026-08-12.)
-      Found in the code review of this branch (2026-08-12), confirmed by reading `find_or_create_metadata`
-      (`api/app/repositories/me.py`): it returns an existing catalog row **untouched**, so every
-      field the caller passed is dropped on the floor. The add form still offers those fields
-      (`GameDraftForm`), the API still answers 201, and the game still lands on the shelf — with
-      somebody else's metadata. Nothing tells you, which is what makes it worse than a rejection.
-      Today it needs a second user to bite; it becomes ordinary the moment there are any.<br>
-      _Why it is not simply a bug in that function._ The row is SHARED by design: one
-      `game_metadata` per IGDB id, which is the whole point of the catalog migration. Honouring
-      the caller's edits would rewrite the game for everyone who owns it, which is exactly the
-      thing `api/README.md` records as deliberately not possible from the UI. So this is a product
-      decision wearing a bug's clothes, and the honest options differ in cost, not in
-      correctness:<br>
-      **(a)** Say so in the form: once a pick resolves to a catalog row that exists, show its
-      metadata read-only with a note, so nothing is offered that cannot be saved. Cheapest, and it
-      makes the current behaviour honest rather than changing it.<br>
-      **(b)** Fork a private row when the caller's values differ, which loses catalog sharing for
-      exactly the games people care enough to edit.<br>
-      **(c)** Let the edit change the shared row for everyone, which needs an answer to "who owns
-      a catalog row" that nothing in the codebase has yet.<br>
-      _Decide this with the two items it is the same question as:_ **"Anyone can define a shared
-      catalog row for everyone"** below (the write path trusting client metadata) and **"Make
-      library and wishlist entries fully editable"** in Backlog (which already names forking vs
-      restricting vs changing-for-everyone as the open choice). Answering one in isolation will
-      pre-commit the other two.
-
 - [ ] **Take a pass at the catalog rows whose `igdb_id` points at a variant, not the base
       game.** (Promoted by request 2026-08-10.) Eleven on prod, surfaced by
       `backfill_platforms.py`'s guard: it skips any row where a console someone actually owns
@@ -136,6 +109,12 @@ to keep that section at five._
       _Why this is filed here and not in Up Next:_ it needs a second account acting badly,
       and there is one user. Ranked above the duplicate-add item below because the damage is
       silent, shared, and currently unrepairable from the app.<br>
+      _Narrowed to a crafted request 2026-08-14, but not fixed._ The add form now renders the
+      catalog fields read-only for any IGDB pick (`fromIgdb` in `GameDraftForm`), so the honest
+      UI path posts IGDB's own name, genres and release date verbatim and can no longer define
+      a shared row from typed text. The API is unchanged and still trusts the payload, so a
+      hand-rolled POST does exactly what it always did. This is now purely a server-side
+      hole.<br>
       _What already bounds it, so the fix is not urgent:_ `max_users` is 100 and signup is
       capped (`api/app/core/config.py`); every `/me/*` write goes through `rate_limit_writes`
       (`api/app/core/guards.py`); and `validate_igdb_image_url` restricts `imageUrl` to the
@@ -187,6 +166,84 @@ to keep that section at five._
       promote form in `EditWishlistModal` only offers existing shelf systems — thread the
       IGDB platforms through there too, and consider doing the same for genres.
 
+- [ ] **The add form's info popover can promise genres the add then fails to store.** Found in
+      the code review of this branch (2026-08-14) and accepted as a known limit rather than
+      fixed. The popover (`CatalogInfo`) and the add itself go through the same decision
+      (`_sourced_genres` in `api/app/services/me.py`), so they cannot disagree about the
+      **rule** — but each makes its own `lookup_one` call. Wikipedia answering the preview and
+      timing out during the POST means the popover showed "Metroidvania" and the catalog row
+      got IGDB's coarse fallback. Rare (it needs the lookup to succeed and then fail seconds
+      later) and self-limiting (the genres are wrong, not missing), which is why it is filed
+      here rather than fixed.<br>
+      _Why the obvious fix does not work._ Memoizing the lookup so the preview warms the write
+      is the natural answer and the API is a Vercel serverless function, so the two requests
+      may not share a process. A durable cache means a table, which is a lot of machinery for
+      a narrow window.<br>
+      _The cheaper answer, if it ever matters:_ let the client send the previewed genres on the
+      POST and have the server use them when present. Explicitly **declined 2026-08-14** on
+      the grounds that it adds a second path through the write path and lets a crafted POST
+      pick the genres every later owner inherits — the same trust question as **"Anyone can
+      define a shared catalog row for everyone"** above. Re-decide the two together, not
+      separately.
+
+- [ ] **The genre lookup resolves some games to their franchise article, at a confidence score
+      that says the match is perfect.** Measured 2026-08-14 by running the real lookup over all
+      155 titles in `api/scripts/fixtures/games.csv`: 154 resolve to an article, and **every one
+      of them scores exactly 1.0**. Seven of those are the wrong article. All four Pokémon
+      entries (`Pokémon FireRed`, `Brilliant Diamond`, `Omega Ruby`, `Let's Go, Pikachu!`) land
+      on _Pokémon (video game series)_; `Super Mario 3D World + Bowser's Fury` on _Super Mario_;
+      `Bomberman DS` on the unrelated _Bomberman Story DS_; `Call of Duty: Modern Warfare 3` on
+      the _– Defiance_ DS spinoff.<br>
+      _Why no threshold can catch these, which is the point of filing it._ `_title_similarity`
+      (`api/app/services/genres.py`) returns a flat 1.0 whenever one title's words wholly contain
+      the other's, so that a combined article like _Pokémon Scarlet and Violet_ scores as a
+      correct match for "Pokémon Violet". A franchise or spinoff article is a superset of the
+      shelf title in exactly the same way, so it scores 1.0 too and is indistinguishable by
+      score. `MIN_WRITE_CONFIDENCE` on the add path and `AUTO_ACCEPT` in
+      `scripts/backfill_genres.py` are both thresholds and neither sees these.<br>
+      _Impact is mild, which is why this sits here and not higher._ A franchise article's genre
+      is usually right for its entries, so six of the seven store a correct value anyway
+      (_Pokémon (video game series)_ → Role-Playing). The one real degradation is `Bomberman DS`,
+      which picks up "Action Role-Playing" from a spinoff instead of its curated "Action".
+      Affects `backfill_genres.py` and the add-game write path identically, since both go through
+      `lookup_many`'s candidate ranking.<br>
+      _Where it actually goes wrong, measured 2026-08-14 by calling `search_candidates` and
+      `lead_sections` directly for all seven._ **In six of the seven the correct article is
+      already among the five candidates and already ties at 1.0.** It loses only on `_rank_key`'s
+      final tiebreak, `-len(article)`, which prefers the shorter title: _Pokémon FireRed and
+      LeafGreen_ (29 chars) loses to _Pokémon (video game series)_ (27), and the same shape
+      decides Brilliant Diamond (43 vs 27), Omega Ruby (37 vs 27) and Let's Go Pikachu (48 vs 27).
+      _Super Mario 3D World_ (20) loses to _Super Mario_ (11); _Bomberman (2005 video game)_ (27)
+      loses to _Bomberman Story DS_ (18). So this is a tiebreak problem, not a search problem, and
+      the fix is a few lines in `_rank_key`.<br>
+      _The exception, which no ranking change can reach._ `Call of Duty: Modern Warfare 3`'s real
+      article is **not among its candidates at all** — they are MWIII (2023), COD4, MW2, MWII
+      (2022) and the _– Defiance_ spinoff. That one needs `search_candidates` to return something
+      different, which is a separate and larger change.<br>
+      _Two rules were checked against the data and both fail, so do not start from either._
+      Preferring the candidate closest in **word count** still picks the franchise article:
+      _Pokémon_ is one word from "Pokémon FireRed" while the correct combined article is two.
+      Preferring a **superset** of our title over a subset fixes all four Pokémon and Super Mario,
+      but gets Bomberman DS wrong in the other direction, because the spinoff _Bomberman Story DS_
+      is a superset while the correct _Bomberman (2005 video game)_ is a subset. There is no clean
+      rule here; expect a heuristic with a genuine trade-off.<br>
+      _The counter-argument._ Loosening the containment rule is how these got fixed the naive way
+      and is exactly what its comment warns against: it exists to stop "Hades II" matching
+      "Hades", and the `_SERIES_MARKER` guard is already the second attempt at that boundary.
+      Anything here must keep the combined-article cases (_Pokémon Scarlet and Violet_,
+      _Super Smash Bros. for Nintendo 3DS and Wii U_) scoring 1.0. The shortest-wins tiebreak is
+      load-bearing for the same reason: its comment records that it is what stops "Kinect
+      Adventures" picking _Kinect: Disneyland Adventures_ over _Kinect Adventures!_, so a change
+      that simply prefers longer titles trades these seven for that one.<br>
+      _How to validate any fix, since 147 titles are currently right._ Re-run the lookup over all
+      155 titles in `api/scripts/fixtures/games.csv` and diff the chosen article before and after.
+      A change that fixes six and breaks four is not obviously progress, and only the diff shows
+      which it is.<br>
+      Related: **"Audit the genre vocabulary"** in Backlog / Ideas is the other half of genre
+      quality, and its "really smart picker" paragraph is where a better matcher would land.
+      **"Take a pass at the catalog rows whose `igdb_id` points at a variant"** in Up Next is the
+      same class of problem one identifier over.
+
 - [ ] **Owner edit affordances still pop in after hydration.** The pencils and "Add game" appear
       a beat after first paint on your own library, because the answer
       resolves in a `useEffect` — `useViewerRelationship`
@@ -237,7 +294,12 @@ to keep that section at five._
       trims, dedupes case-insensitively and caps at `MAX_GENRES`. **So adding "Shooter" to
       `THEME_VALUES` today would not stop the add form writing it.** Making a block list actually
       bite means calling the normalizer from `clean_genres`, which is the change of shape hiding
-      in this item. **The replace script** is `scripts/backfill_genres.py`, which already has
+      in this item. **Premise narrowed 2026-08-14, and this is most of the item:** the add path
+      now sources genres through `genre_service.lookup_one`, which runs `normalize_genres`
+      internally, so `THEME_VALUES` **does** bite every IGDB add today. The hole that is left is
+      genres **typed by hand** on the manual path, which still reach `clean_genres` and nothing
+      else. So the remaining work is smaller than written: route `clean_genres` through the
+      normalizer, or accept that a hand-typed genre on a private row is the owner's business. **The replace script** is `scripts/backfill_genres.py`, which already has
       plan → review → apply with `docs/genre-backfill-runbook.md` as the procedure; what it does
       not have is a targeted mode ("replace genre X with Y everywhere", "drop genre X"), since it
       re-sources the whole library from Wikipedia, which is a much bigger hammer than an audit fix
@@ -248,9 +310,10 @@ to keep that section at five._
       library-wide would be wrong the day a game arrives whose best genre really is plain Shooter.
       So the likely answer is per-game corrections plus a small coarse → specific rule, and the
       block list stays reserved for values that are never right.<br>
-      _On the "really smart picker" ambition, before building one._ There are two vocabularies in
-      play already: IGDB's coarse genres at add time (since 2026-08-12) and Wikipedia infoboxes in
-      the backfill. Wikidata's `P136` was tried as a structured third source in 2026-07-30 and
+      _On the "really smart picker" ambition, before building one._ There is now **one**
+      vocabulary rather than two: Wikipedia infoboxes, on the add path and in the backfill alike
+      (2026-08-14). IGDB's coarse genres survive only as the fallback for a title Wikipedia cannot
+      resolve. Wikidata's `P136` was tried as a structured third source in 2026-07-30 and
       **rejected** as frequently thin or wrong (Kinect Sports as "association football video
       game", Minish Cap as "role-playing video game"); it survives only as a fallback for
       infoboxes with no genre field, so do not re-propose it as the clean machine-readable
@@ -696,7 +759,10 @@ head` being run by hand from a laptop pointed at production.<br>
       different and harder question than editing `system`: a shared row is visible to
       everyone who owns that game, and nothing in the UI edits one today by design. Editing
       metadata means deciding whether the edit forks a private row, is restricted to private
-      rows, or genuinely changes the game for everyone. `EditWishlistModal`
+      rows, or genuinely changes the game for everyone. **This item now owns that question
+      outright** (2026-08-14): the add form stopped offering catalog fields on IGDB picks, so
+      there is no write path to a shared row's name, genres or release date anywhere in the UI,
+      and a wrong genre can only be fixed by `scripts/backfill_genres.py`. `EditWishlistModal`
       supports starred/notes/system plus promote and delete
       (`PATCH /api/py/me/wishlist/{id}`), and the promote step is still the only place a
       wishlist item's system gets set.<br>
@@ -828,6 +894,56 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       the annotation's map key and looks it up, so the two sides cannot drift apart, and the
       lookup tries the id then the folded name because the server can still call a
       hand-entered entry the same game.
+
+- [x] **Adding a game sources its genres from Wikipedia again, server-side this time**
+      (2026-08-14). The add path wrote IGDB's coarse genres straight to the catalog row, so
+      anything added after a backfill run disagreed with the rest of the library until the next
+      one. `create_my_game` and `create_my_wishlist_item` now call `genre_service.lookup_one`
+      before the transaction opens and store what it finds.<br>
+      _This is the third position on a question that has now moved twice, so read the history
+      before moving it again._ A `GET /api/py/genres/lookup` endpoint did this from the **browser**
+      until 2026-08-12 (`23ee3e3`), and was removed because it made you watch a spinner with Save
+      disabled while two third-party hops resolved. Correct at the time. What changed is that
+      genres stopped being a form field at all, so nothing needs to resolve before Save and the
+      lookup could move into the POST, where the same work is invisible.<br>
+      _Three things bound the cost, and they are the reason this is not the old design again._
+      It runs **only when the catalog row does not already exist** (`me_repo.find_metadata`
+      answers that in one SELECT; the common add pays nothing). `lookup_one` **skips the Wikidata
+      leg**, capping it at two requests instead of four with a 20s SPARQL ceiling. And it
+      **never raises** — any miss or outage falls back to the IGDB genres the client already
+      sent, so Wikipedia being down cannot fail an add. No new rate-limit bucket: unlike the old
+      endpoint this sits behind `rate_limit_writes`.<br>
+      _Hand-entered games:_ typed genres win, and the lookup only runs when the field is left
+      blank. Overriding what someone typed into their own private row would be the same silent
+      discard this branch started out fixing.<br>
+      _Sourced genres bypass the create schema_, so `clean_genres` is applied by hand in
+      `_genres_for_new_catalog_row`, with over-long values dropped rather than raising.
+      `MAX_GENRE_LENGTH` moved next to `MAX_GENRES` in `models/game.py` so the two paths cannot
+      cap differently. Note the vocabulary normalizer (`normalize_genres`, `THEME_VALUES`) now
+      runs on the live add path for the first time, since it is inside `lookup_many`.
+
+- [x] **The add form shows only fields it can actually save** (2026-08-14). Fixed the silent
+      discard: `find_or_create_metadata` returns an existing `game_metadata` row untouched, so the
+      name, genres and release date typed into `GameDraftForm` were dropped whenever anyone had
+      already added that IGDB game. Option (a) of the three that were written up, chosen because
+      the row is shared **by design** and the other two (fork a private row on divergence, or let
+      one user rewrite the game for everyone) both need an answer to "who owns a catalog row" that
+      still does not exist.<br>
+      _The rule, and it is simpler than "does the row already exist":_ the split is
+      `draft.igdbId !== null`, not a lookup. An IGDB pick resolves to the SHARED row for that id,
+      so name, genres and release date are **not rendered as fields at all**; the picked game
+      shows as a cover-plus-title header, and the form is System and Rating. A hand-entered game
+      gets a PRIVATE row keyed on `(created_by_user_id, name)` and keeps the full form. No extra
+      round trip, and it matches what `api/app/models/game_metadata.py` already claims outright
+      ("nothing in the UI can edit a shared row"). `system` and `rating` are per-user columns on
+      `played_games` and were never affected.<br>
+      _Read-only fields were the first shape and were rejected:_ a greyed-out box invites hunting
+      for the switch that turns it on, and once genres came from Wikipedia at save time, showing
+      IGDB's list would have displayed a value that is not what gets stored. A field the form
+      cannot set does not belong on the form.<br>
+      _Still open on the server:_ it builds a brand-new shared row from the client's payload
+      (name, release date, cover), so a crafted POST still defines a catalog row. That is the
+      **"Anyone can define a shared catalog row for everyone"** bug, now purely server-side.
 
 - [x] **An unwell library API no longer takes the account page down with it** (2026-08-13).
       `AccountPage` awaited `fetchMyProfile()` unguarded, so a timeout or a 500 errored the whole
@@ -1042,6 +1158,11 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       _Two gotchas for whoever touches this next._ **(1)** `backfill_titles.py` and
       `backfill_genres.py` now walk `game_metadata` (one row per game, not one per entry),
       and a shared row's genres are shared — fine for one curator, re-think before strangers.
+      `backfill_titles.py` is a **hardcoded map on purpose** (folded in from the 2026-08-03
+      entry, dropped at the 20-entry cap): its first version scored IGDB candidates and could
+      not tell a canonical title from an edition or spin-off whose name merely extends it,
+      proposing "Elden Ring" -> _Elden Ring Nightreign_ and "Dead Cells" -> _Dead Cells+_.
+      Every result needed reading anyway, so the map is that reading done once.
       **(2)** `play_sessions.game_id` still points at the user's row and must keep doing so;
       the reasons are on the column and in `api/README.md`. **(3)** "Cadence of Hyrule" is
       deliberately NOT stored under its full canonical title: the longer string matches the
@@ -1192,38 +1313,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       disagree.<br>
       _Still open:_ the pop-in item in Bugs. Edit controls resolve one request sooner but still in
       a `useEffect`, so they continue to appear a beat after first paint.
-- [x] **Add-game IGDB search: more results, platform in the query, fuzzy fallback, better
-      ranking** (2026-08-05). `SEARCH_LIMIT` 10 → 25 plus `offset` paging behind a "Show more
-      results" button (`page` query param, capped at `MAX_PAGE = 4`; the click bypasses the
-      debounce so one click is one charge against the `igdb_search` bucket). "star fox switch 2"
-      now works: `/platforms` is fetched once per process and cached 12h into an alias map
-      (name, abbreviation, alternative names, plus vendor-stripped "Nintendo Switch 2" →
-      "switch 2"), the longest matching **suffix** is split off the query into
-      `where platforms = (...)`, and a miss retries with the whole string as a title.<br>
-      _Two rules that keep it from doing harm:_ an alias must contain a letter, or Nintendo 64's
-      "64" would eat the tail of "Star Fox 64" and hide the 3DS remake; and a bare platform
-      name ("switch") stays a title search since nothing would be left to search for.<br>
-      _"Civ 6":_ when the name search returns nothing, one fallback query substring-matches
-      `name` and `alternative_names.name` — first page only, since paging past a fallback would
-      splice two differently-ordered result sets together.<br>
-      _Ranking:_ results are re-sorted by IGDB's `game_type` (stable, so relevance order
-      survives inside a tier), which is what puts _Pokémon FireRed Version_ (Remake) above
-      _Pokémon Fire Red Extended_ (Mod).<br>
-      _Left for the "restrict the add-game system suggestions" item:_ the alias map is
-      IGDB-name → IGDB-id, not IGDB-name → shelf label, so it does not by itself solve the
-      "Nintendo Entertainment System" vs "NES" mapping that item needs — but it is the obvious
-      place to hang it.
-- [x] **Both backfills run against production** (2026-08-05, PR #81). Titles then genres, on
-      the library and the wishlist, verified on the live site. Procedure kept in
-      `docs/genre-backfill-runbook.md` if it is ever needed again.<br>
-      _The ordering was the whole point:_ renaming the informal titles first took the genre plan
-      from 118 auto / 36 needing review to **183 auto / 0**. Two rows were not merely uncertain
-      but silently wrong from the informal name ("Call of Duty Black Ops 2" resolved to _Black
-      Ops 7_), so titles-first removed a class of wrong answers, not just review work.<br>
-      _Reviewing the prod plan caught things local never hit_, which is the argument for reading
-      a plan rather than trusting a green run: "Plants vs. Zombies" matched the **franchise**
-      article and picked up Garden Warfare's and Heroes' genres, and "Kinect Adventures" matched
-      "Kinect: Disneyland Adventures". Both are now in `OVERRIDES`.<br>
-      _The step most easily forgotten_ is flushing the cache: the scripts write straight to
-      Postgres, so `revalidateTag` never fires and prod serves stale pages until an owner write
-      happens in the UI. Rating a game and undoing it is enough.
