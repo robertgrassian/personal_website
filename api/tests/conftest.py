@@ -10,7 +10,8 @@ search happened to return that day.
 
 `stub_genre_lookup` is the fix for the modules that add games; `no_outbound_http`
 is the backstop that makes the next module to forget fail loudly instead of
-quietly depending on Wikipedia.
+quietly depending on Wikipedia. It both raises and records, because the callers
+swallow exceptions by design; see its docstring.
 
 Blocking the module-level httpx functions rather than sockets is deliberate.
 The two seams that reach third parties are services/genres.py (httpx.get) and
@@ -54,43 +55,68 @@ _BLOCKED = ("get", "post", "put", "patch", "delete", "head", "options", "request
 _ALLOWED_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "testserver"})
 
 
-class OutboundHTTPBlocked(BaseException):
-    """Deliberately not an Exception.
+class OutboundHTTPBlocked(Exception):
+    """Raised in place of a real request to an off-machine host."""
 
-    Both services that call out wrap their requests in a broad `except
-    Exception` so a third-party outage degrades to a miss instead of failing a
-    user's request. That is right in production and useless in a test: it would
-    swallow this guard and hand the caller a plausible-looking empty result, so
-    an accidental network call would go on passing silently -- the exact
-    quietness that let the Wikipedia calls into the suite to begin with.
-    Inheriting from BaseException puts it past those handlers.
-    """
+
+# httpx.request and httpx.stream take (method, url); the rest take (url) first.
+_URL_IS_SECOND = frozenset({"request", "stream"})
 
 
 @pytest.fixture(autouse=True)
-def no_outbound_http(monkeypatch: pytest.MonkeyPatch) -> None:
+def no_outbound_http(monkeypatch: pytest.MonkeyPatch):
     """Fail any test that makes a real outbound HTTP request.
 
     A test that needs a third-party response stubs the seam its service calls
     (`genre_service._get`, see test_genres.py). Reaching this is a bug in the
     test, not a reason to allow the call.
+
+    Raising is not enough on its own. Both services that call out wrap their
+    requests in a broad `except Exception` so that a third-party outage degrades
+    to a miss rather than failing a user's request, which is right in production
+    and would silently absorb this guard in a test -- handing the caller a
+    plausible-looking empty result, the same quietness that let the Wikipedia
+    calls into the suite to begin with. So every blocked call is also recorded,
+    and the check below fails the test at teardown whether or not the raise
+    survived.
+
+    An earlier version solved that by inheriting from BaseException to get past
+    those handlers. It worked and cost too much: BaseException is outside the
+    `(OutcomeException, Exception)` that pytest catches around finalizers, so a
+    guard firing in a fixture teardown escaped the finalizer loop and every
+    remaining finalizer on that node was skipped -- leaking monkeypatch undos
+    into later tests and orphaning rows the fixture was meant to delete.
     """
+    blocked: list[str] = []
 
     for name in _BLOCKED:
-        monkeypatch.setattr(httpx, name, _guard(getattr(httpx, name)))
+        monkeypatch.setattr(httpx, name, _guard(name, getattr(httpx, name), blocked))
+
+    yield
+
+    if blocked:
+        pytest.fail(
+            "Test made real outbound HTTP request(s) to: "
+            + ", ".join(sorted(set(blocked)))
+            + ". Stub the service's seam instead (e.g. monkeypatch genre_service._get)."
+        )
 
 
-def _guard(original):
+def _guard(name, original, blocked: list[str]):
     """Wrap one httpx function so off-machine hosts raise and loopback passes
     through to the real implementation."""
 
-    def blocked(*args, **kwargs):
-        target = args[0] if args else kwargs.get("url", "?")
-        if urlsplit(str(target)).hostname in _ALLOWED_HOSTS:
+    def guarded(*args, **kwargs):
+        url = kwargs.get("url")
+        if url is None:
+            index = 1 if name in _URL_IS_SECOND else 0
+            url = args[index] if len(args) > index else "?"
+        if urlsplit(str(url)).hostname in _ALLOWED_HOSTS:
             return original(*args, **kwargs)
+        blocked.append(str(url))
         raise OutboundHTTPBlocked(
-            f"Test made a real outbound HTTP request to {target!r}. "
+            f"Test made a real outbound HTTP request to {str(url)!r}. "
             "Stub the service's seam instead (e.g. monkeypatch genre_service._get)."
         )
 
-    return blocked
+    return guarded

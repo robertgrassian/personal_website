@@ -1034,7 +1034,7 @@ def test_add_game_stores_wikipedias_genres_over_the_clients(
             "name": "Hades II",
             "system": "PC",
             "genres": ["Adventure"],
-            "igdbId": TEST_IGDB_BASE + 7,
+            "igdbId": TEST_IGDB_BASE + 8,
         },
     )
     assert response.status_code == 201
@@ -1186,7 +1186,10 @@ def test_losing_the_race_to_create_a_shared_row_still_succeeds(
         response = client_as(loser_id).post(
             "/api/py/me/games", json={**payload, "system": "Switch"}
         )
-        monkeypatch.undo()
+        # Revert this one stub, not monkeypatch.undo(): the same function-scoped
+        # instance also carries the autouse network guard and the genre stub, and
+        # undo() would drop those too, leaving the rest of the test unguarded.
+        monkeypatch.setattr(me_repo, "_select_metadata", real)
 
         assert response.status_code == 201, response.json()
         assert response.json()["system"] == "Switch"
