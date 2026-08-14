@@ -23,9 +23,14 @@ from app.core.config import get_settings
 from app.core.db import get_sessionmaker
 from app.main import create_app
 from app.models import GameMetadata, PlayedGame, PlaySession
+from app.services import genres as genre_service
 from scripts.seed import ROBERT_PROFILE_ID
 
 requires_db = pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
+
+# Adding a game or a wishlist entry calls Wikipedia for any catalog row that
+# does not exist yet, which is most rows these tests create. See conftest.
+pytestmark = pytest.mark.usefixtures("stub_genre_lookup")
 
 # Test igdb ids start well above anything IGDB actually issues (their ids are
 # six digits at most). Since igdb_id became the catalog's identity key, a test
@@ -1008,9 +1013,32 @@ def test_add_game_full_igdb_payload(fresh_user_with_game) -> None:
     assert response.status_code == 201
     game = response.json()
     assert game["rating"] == "Perfect"
+    # The client's genres, because stub_genre_lookup makes Wikipedia a miss.
     assert game["genres"] == ["RPG", "Adventure"]
     assert game["releaseDate"] == "1995-03-11"
     assert game["imageUrl"].endswith("co2mkh.jpg")
+
+
+@requires_db
+def test_add_game_stores_wikipedias_genres_over_the_clients(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The one test here that lets the lookup answer, overriding the module's
+    # autouse miss. IGDB's genres lose to the infobox's: that is the whole
+    # point of sourcing on the write path.
+    user_id, _ = fresh_user_with_game
+    monkeypatch.setattr(genre_service, "lookup_one", lambda name: ["Roguelike", "Action RPG"])
+    response = client_as(user_id).post(
+        "/api/py/me/games",
+        json={
+            "name": "Hades II",
+            "system": "PC",
+            "genres": ["Adventure"],
+            "igdbId": TEST_IGDB_BASE + 7,
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["genres"] == ["Roguelike", "Action RPG"]
 
 
 @requires_db

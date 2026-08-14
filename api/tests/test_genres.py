@@ -698,3 +698,51 @@ def test_lookup_one_never_raises(monkeypatch):
 
     monkeypatch.setattr(genre_service, "_get", explode)
     assert genre_service.lookup_one("Anything") == []
+
+
+def test_lookup_one_rejects_a_match_that_is_not_the_game(monkeypatch):
+    """The reason the floor exists. Wikipedia's search always returns SOMETHING,
+    and lookup_many hands back the best of it however unrelated -- fine for a
+    backfill a human reviews, wrong for a write that defines the shared catalog
+    row. A game nobody has heard of resolves to a real but different game, and
+    the caller must be told nothing was found."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Homebrew Quest video game": ["Cosmic Blaster"]},
+            {"Cosmic Blaster": GAME("[[Shoot 'em up]]")},
+        ),
+    )
+    assert genre_service.lookup_one("Homebrew Quest") == []
+
+
+def test_lookup_many_still_takes_the_weak_match(monkeypatch):
+    """The floor is lookup_one's alone: backfill_genres.py prints its matches
+    for review, so a weak one there is a suggestion rather than a silent write."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Homebrew Quest video game": ["Cosmic Blaster"]},
+            {"Cosmic Blaster": GAME("[[Shoot 'em up]]")},
+        ),
+    )
+    out = genre_service.lookup_many(["Homebrew Quest"])
+    assert out["Homebrew Quest"].genres == ["Shoot 'em Up"]
+
+
+def test_lookup_one_keeps_a_combined_article(monkeypatch):
+    """The floor must not undo _title_similarity's containment rule. Wikipedia
+    covers many games in a combined article, which scores badly as raw text and
+    is exactly right; this is the case that would break if the floor were
+    applied to a plain sequence ratio."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Pokemon Violet video game": ["Pokémon Scarlet and Violet"]},
+            {"Pokémon Scarlet and Violet": GAME("[[Role-playing video game|Role-playing]]")},
+        ),
+    )
+    assert genre_service.lookup_one("Pokemon Violet") == ["Role-Playing"]

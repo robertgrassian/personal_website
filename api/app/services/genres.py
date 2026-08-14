@@ -489,10 +489,18 @@ def genres_for_qids(qids: list[str]) -> dict[str, list[str]]:
     return out
 
 
+# The floor a match must clear to be written to a catalog row unreviewed.
+# _title_similarity returns a flat 1.0 for every shape of correct-but-reworded
+# article it knows about (combined articles, a missing "The Legend of"), so a
+# genuine match rarely lands in the scored band at all, and this mostly decides
+# what happens to titles that resolved to something unrelated.
+MIN_WRITE_CONFIDENCE = 0.8
+
+
 def lookup_one(title: str) -> list[str]:
     """Genres for a single title, for the add-game write path. [] on a miss.
 
-    Two differences from lookup_many, both because a user is waiting on the
+    Three differences from lookup_many, all because a user is waiting on the
     POST rather than watching a batch job:
 
       * No Wikidata fallback. It is the slow leg (a 20s SPARQL ceiling on a
@@ -500,12 +508,32 @@ def lookup_one(title: str) -> list[str]:
         Minish Cap a role-playing game. Skipping it bounds this at two requests.
       * Never raises. A third-party miss must not fail an add, so the caller
         gets [] and falls back to what the client sent.
+      * A confidence floor. lookup_many ranks candidates against each other and
+        returns the best one however bad it is, which is fine for a backfill
+        run a human reads afterwards and not fine here: this writes to the
+        SHARED catalog row, so one person adding an obscure or misspelled game
+        would define wrong genres for everyone who adds it later. Rejecting a
+        weak match costs a caller nothing (it falls back to the genres the
+        client sent), while accepting one is invisible and sticky, so the
+        asymmetry is worth paying for.
     """
     try:
-        return lookup_many([title], wikidata_fallback=False)[title].genres
+        result = lookup_many([title], wikidata_fallback=False)[title]
     except Exception:
         logger.exception("Genre lookup failed for %r", title)
         return []
+    if not result.article:
+        return []
+    confidence = _title_similarity(title, result.article)
+    if confidence < MIN_WRITE_CONFIDENCE:
+        logger.info(
+            "Rejected low-confidence match for %r: %r scored %.2f",
+            title,
+            result.article,
+            confidence,
+        )
+        return []
+    return result.genres
 
 
 def lookup_many(
