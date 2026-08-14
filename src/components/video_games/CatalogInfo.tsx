@@ -35,11 +35,23 @@ export function CatalogInfo({ game }: CatalogInfoProps) {
     // pick) must not be written to state. Without it the popover can show the
     // previous game's genres.
     let ignore = false;
-    previewGameCatalog(game).then((result) => {
-      if (ignore) return;
-      if (result.ok) setPreview(result.preview);
-      else setError(result.message);
-    });
+    // Clear first: on a dep change the previous game's answer would otherwise
+    // stay on screen until the new one lands, and a previous error would win
+    // over it forever (the render branches on error before preview).
+    setPreview(null);
+    setError(null);
+    previewGameCatalog(game)
+      .then((result) => {
+        if (ignore) return;
+        if (result.ok) setPreview(result.preview);
+        else setError(result.message);
+      })
+      // previewGameCatalog turns transport failures into {ok: false}, so the
+      // only way here is the Server Action RPC itself failing (offline, a 500,
+      // deployment skew). Without this the panel says "Loading" forever.
+      .catch(() => {
+        if (!ignore) setError("Could not load this game's details.");
+      });
     return () => {
       ignore = true;
     };
@@ -59,7 +71,13 @@ export function CatalogInfo({ game }: CatalogInfoProps) {
         onPointerEnter={(e) => e.pointerType === "mouse" && setOpen(true)}
         onPointerLeave={(e) => e.pointerType === "mouse" && setOpen(false)}
         onClick={() => setOpen((o) => !o)}
-        onFocus={() => setOpen(true)}
+        // :focus-visible, not plain focus. A tap on Chrome for Android fires
+        // focus THEN click, so opening on any focus meant the tap opened the
+        // panel and the click immediately toggled it shut — the affordance
+        // flashed and vanished, on touch only. focus-visible is false for the
+        // focus that follows a pointer press and true for keyboard tabbing,
+        // which is exactly the distinction wanted.
+        onFocus={(e) => e.target.matches(":focus-visible") && setOpen(true)}
         onBlur={() => setOpen(false)}
         aria-expanded={open}
         aria-controls="catalog-info-panel"
@@ -76,28 +94,38 @@ export function CatalogInfo({ game }: CatalogInfoProps) {
           // asynchronously, so a screen reader should hear it when it lands
           // rather than only on hover.
           role="status"
-          className="absolute left-0 top-full z-10 mt-1 w-full rounded-md border border-shelf-plank bg-shelf-input p-3 text-xs text-shelf-text shadow-lg"
+          // bg-shelf-bg, matching ModalShell's own panel. NOT bg-shelf-input:
+          // that token is a translucent fill (4% white in dark mode) meant to
+          // sit on an opaque surface, so the System field underneath showed
+          // straight through this text.
+          className="absolute left-0 top-full z-10 mt-1 w-full rounded-md border border-shelf-plank bg-shelf-bg p-3 text-xs text-shelf-text shadow-lg"
         >
           {error !== null ? (
             <p className="text-shelf-text-muted">{error}</p>
           ) : preview === null ? (
             <p className="text-shelf-text-muted">Loading game data...</p>
           ) : (
-            <dl className="flex flex-col gap-2">
-              <div>
-                <dt className="text-[10px] uppercase tracking-wide text-shelf-label">Genres</dt>
-                <dd>{preview.genres.length > 0 ? preview.genres.join(", ") : "None found"}</dd>
-              </div>
-              <div>
-                <dt className="text-[10px] uppercase tracking-wide text-shelf-label">
-                  Release date
-                </dt>
-                <dd>{formatReleaseDate(preview.releaseDate)}</dd>
-              </div>
-              <p className="text-shelf-text-muted">
+            // The note sits OUTSIDE the dl: a <dl> may contain only dt, dd and
+            // grouping divs, and a stray <p> is skipped by screen readers
+            // walking the list — which would drop the one sentence explaining
+            // why these are not editable.
+            <>
+              <dl className="flex flex-col gap-2">
+                <div>
+                  <dt className="text-[10px] uppercase tracking-wide text-shelf-label">Genres</dt>
+                  <dd>{preview.genres.length > 0 ? preview.genres.join(", ") : "None found"}</dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] uppercase tracking-wide text-shelf-label">
+                    Release date
+                  </dt>
+                  <dd>{formatReleaseDate(preview.releaseDate)}</dd>
+                </div>
+              </dl>
+              <p className="mt-2 text-shelf-text-muted">
                 Shared by everyone who has this game, so they cannot be edited here.
               </p>
-            </dl>
+            </>
           )}
         </div>
       )}

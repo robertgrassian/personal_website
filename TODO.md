@@ -197,6 +197,26 @@ to keep that section at five._
       **"Overhaul the wishlist promote flow"** hits the identical identity question one column
       over and can now reuse the same `metadata_id` lookup.
 
+- [ ] **The add form's info popover can promise genres the add then fails to store.** Found in
+      the code review of this branch (2026-08-14) and accepted as a known limit rather than
+      fixed. The popover (`CatalogInfo`) and the add itself go through the same decision
+      (`_sourced_genres` in `api/app/services/me.py`), so they cannot disagree about the
+      **rule** — but each makes its own `lookup_one` call. Wikipedia answering the preview and
+      timing out during the POST means the popover showed "Metroidvania" and the catalog row
+      got IGDB's coarse fallback. Rare (it needs the lookup to succeed and then fail seconds
+      later) and self-limiting (the genres are wrong, not missing), which is why it is filed
+      here rather than fixed.<br>
+      _Why the obvious fix does not work._ Memoizing the lookup so the preview warms the write
+      is the natural answer and the API is a Vercel serverless function, so the two requests
+      may not share a process. A durable cache means a table, which is a lot of machinery for
+      a narrow window.<br>
+      _The cheaper answer, if it ever matters:_ let the client send the previewed genres on the
+      POST and have the server use them when present. Explicitly **declined 2026-08-14** on
+      the grounds that it adds a second path through the write path and lets a crafted POST
+      pick the genres every later owner inherits — the same trust question as **"Anyone can
+      define a shared catalog row for everyone"** above. Re-decide the two together, not
+      separately.
+
 - [ ] **Owner edit affordances still pop in after hydration.** The pencils and "Add game" appear
       a beat after first paint on your own library, because the answer
       resolves in a `useEffect` — `useViewerRelationship`
@@ -1265,17 +1285,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       IGDB-name → IGDB-id, not IGDB-name → shelf label, so it does not by itself solve the
       "Nintendo Entertainment System" vs "NES" mapping that item needs — but it is the obvious
       place to hang it.
-- [x] **Both backfills run against production** (2026-08-05, PR #81). Titles then genres, on
-      the library and the wishlist, verified on the live site. Procedure kept in
-      `docs/genre-backfill-runbook.md` if it is ever needed again.<br>
-      _The ordering was the whole point:_ renaming the informal titles first took the genre plan
-      from 118 auto / 36 needing review to **183 auto / 0**. Two rows were not merely uncertain
-      but silently wrong from the informal name ("Call of Duty Black Ops 2" resolved to _Black
-      Ops 7_), so titles-first removed a class of wrong answers, not just review work.<br>
-      _Reviewing the prod plan caught things local never hit_, which is the argument for reading
-      a plan rather than trusting a green run: "Plants vs. Zombies" matched the **franchise**
-      article and picked up Garden Warfare's and Heroes' genres, and "Kinect Adventures" matched
-      "Kinect: Disneyland Adventures". Both are now in `OVERRIDES`.<br>
-      _The step most easily forgotten_ is flushing the cache: the scripts write straight to
-      Postgres, so `revalidateTag` never fires and prod serves stale pages until an owner write
-      happens in the UI. Rating a game and undoing it is enough.

@@ -494,26 +494,46 @@ def _genres_for_new_catalog_row(
     """
     if me_repo.find_metadata(db, user_id=user_id, igdb_id=igdb_id, name=name) is not None:
         return from_client
+    # End the read transaction the queries above opened, before a call that can
+    # block for seconds. SQLAlchemy autobegins on the first statement, so
+    # "nothing has been written yet" does NOT mean "no transaction is open" —
+    # under NullPool and a transaction-mode pooler, that would hold a pooler
+    # connection idle-in-transaction for the whole Wikipedia round trip. The
+    # writes below autobegin a fresh one.
+    db.rollback()
     return _sourced_genres(igdb_id=igdb_id, name=name, from_client=from_client)
 
 
 def _sourced_genres(*, igdb_id: int | None, name: str, from_client: list[str]) -> list[str]:
     """The genres for a catalog row that does not exist yet. Split out of the
-    function above so preview_catalog_entry answers with the same values the
-    add would store — a preview that re-derives its own answer is a second
-    implementation waiting to disagree with the first."""
+    function above so preview_catalog_entry decides the same way an add does.
+
+    Note what that does and does not buy: the two share this implementation, so
+    they cannot disagree about the RULE, but each makes its own Wikipedia call,
+    so a lookup that succeeds for the preview and times out for the add will
+    still store something the popover did not show. Nothing short of caching
+    the result fixes that, and a serverless function has nowhere to cache it.
+    """
     if igdb_id is None and from_client:
         return from_client
     # Two outbound requests on the slowest add there is: a game nobody has
     # entered before. Bounded by lookup_one, which never raises and skips the
     # Wikidata leg.
-    sourced = genre_service.lookup_one(name)
-    if not sourced:
-        return from_client
-    # These never pass through a create schema, so apply its shaping here, the
-    # way the backfill does. Over-long values are dropped rather than raising:
-    # a malformed infobox must not fail an add.
-    return clean_genres([g for g in sourced if len(g) <= MAX_GENRE_LENGTH])
+    sourced = _shaped_genres(genre_service.lookup_one(name))
+    # Shaping first, emptiness second. The other order looks equivalent and is
+    # not: a single over-long infobox genre is a truthy lookup that shapes down
+    # to nothing, which would then be stored as "no genres" instead of falling
+    # back to what the client sent.
+    return sourced or from_client
+
+
+def _shaped_genres(genres: list[str]) -> list[str]:
+    """Genres shaped the way a create schema would shape them. Values reaching
+    the catalog from Wikipedia or a query string never pass through
+    GameCreate, so the trim/dedupe/cap it applies is applied here instead.
+    Over-long values are dropped rather than raising, because a malformed
+    infobox must not fail an add."""
+    return clean_genres([g for g in genres if len(g) <= MAX_GENRE_LENGTH])
 
 
 # Its own bucket rather than the shared "writes" one: this is a read, and it
@@ -554,8 +574,16 @@ def preview_catalog_entry(
     existing = me_repo.find_metadata(db, user_id=user.id, igdb_id=igdb_id, name=name)
     if existing is not None:
         return CatalogPreview(genres=existing.genres, release_date=existing.release_date)
+    # Same reason as the add path: do not hold a transaction open across the
+    # lookup. rate_limit.enforce above commits its own, and find_metadata
+    # reopened one.
+    db.rollback()
     return CatalogPreview(
-        genres=_sourced_genres(igdb_id=igdb_id, name=name, from_client=genres),
+        # The client's genres are shaped before they are used as the fallback,
+        # because the write path shapes them too (via GameCreate). Skipping it
+        # here would let the popover show "RPG, rpg" for a row that will store
+        # one of them.
+        genres=_sourced_genres(igdb_id=igdb_id, name=name, from_client=_shaped_genres(genres)),
         release_date=release_date,
     )
 

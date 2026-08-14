@@ -86,6 +86,14 @@ class TestValidateUsername:
         assert exc.value.reason == "reserved"
 
 
+# A stand-in Session. Only rollback() is ever called on it: the service ends
+# its read transaction before the Wikipedia lookup so a slow third party cannot
+# hold a pooler connection idle-in-transaction, and every query these tests
+# reach is stubbed at the repository.
+def fake_db():
+    return SimpleNamespace(rollback=lambda: None)
+
+
 class TestGenresForNewCatalogRow:
     """Which genres an add stores, and when it pays for a Wikipedia lookup.
 
@@ -115,7 +123,7 @@ class TestGenresForNewCatalogRow:
 
     def source(self, *, igdb_id=1051, name="Chrono Trigger", from_client=None):
         return me_service._genres_for_new_catalog_row(
-            None,
+            fake_db(),
             user_id=uuid.uuid4(),
             igdb_id=igdb_id,
             name=name,
@@ -152,6 +160,13 @@ class TestGenresForNewCatalogRow:
         assert self.source(igdb_id=None, name="Obscure Thing", from_client=[]) == ["Puzzle"]
         assert calls == ["Obscure Thing"]
 
+    def test_an_all_dropped_lookup_still_falls_back(self, stub):
+        """The shaping runs BEFORE the emptiness check, so a lookup whose every
+        value is dropped is a miss rather than a stored empty list. Truthy
+        garbage in, client genres out."""
+        stub(found=["x" * 60, "   "])
+        assert self.source() == ["Role-playing (RPG)"]
+
     def test_sourced_genres_are_shaped_like_a_create_payload(self, stub):
         """They never pass through the create schema, so the cap and the
         per-genre length limit are applied here instead."""
@@ -173,7 +188,7 @@ class TestPreviewCatalogEntry:
 
     def preview(self, **kw):
         return me_service.preview_catalog_entry(
-            None,
+            fake_db(),
             SimpleNamespace(id=uuid.uuid4()),
             name=kw.get("name", "Chrono Trigger"),
             igdb_id=kw.get("igdb_id", 1051),
@@ -208,7 +223,7 @@ class TestPreviewCatalogEntry:
         monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: None)
         monkeypatch.setattr(me_service.genre_service, "lookup_one", lambda name: ["Roguelike"])
         stored = me_service._genres_for_new_catalog_row(
-            None,
+            fake_db(),
             user_id=uuid.uuid4(),
             igdb_id=1051,
             name="Chrono Trigger",

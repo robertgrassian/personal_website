@@ -14,6 +14,7 @@ from app.core.auth import CurrentUser
 from app.core.config import API_PREFIX
 from app.core.db import DbSession
 from app.core.guards import WRITE_GUARDS, forbid_in_preview
+from app.models.game import MAX_GENRES
 from app.schemas.me import (
     CatalogPreview,
     GameCreate,
@@ -277,9 +278,14 @@ def preview_catalog_entry(
     user: CurrentUser,
     db: DbSession,
     name: Annotated[str, Query(min_length=1, max_length=200)],
-    igdb_id: Annotated[int | None, Query()] = None,
-    genres: Annotated[list[str], Query()] = [],  # noqa: B006 (FastAPI reads the default, never mutates it)
-    release_date: Annotated[date | None, Query()] = None,
+    # Explicit aliases, because CamelModel's camelCase convention covers SCHEMA
+    # fields and not bare query params: without these the parameters are named
+    # igdb_id / release_date on the wire, FastAPI silently ignores the client's
+    # camelCase spelling, and the preview runs as though the game had no IGDB id
+    # and no release date. That shipped once; do not remove them.
+    igdb_id: Annotated[int | None, Query(alias="igdbId")] = None,
+    genres: Annotated[list[str], Query(max_length=MAX_GENRES)] = [],  # noqa: B006 (FastAPI reads the default, never mutates it)
+    release_date: Annotated[date | None, Query(alias="releaseDate")] = None,
 ) -> CatalogPreview:
     """The catalog values a game would carry if it were added right now.
 

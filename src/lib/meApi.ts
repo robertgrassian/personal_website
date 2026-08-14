@@ -60,7 +60,14 @@ const FOREIGN_API_WRITE_MESSAGE =
 // fails fast instead of stalling the render until the function timeout. The
 // wider igdb budget exists because that endpoint proxies somebody else's
 // network, so it carries an upstream round trip inside our own.
-const TIMEOUT_MS = { default: 5_000, igdb: 10_000 };
+//
+// `add` is wider still, and the number is not arbitrary: creating a catalog row
+// runs a Wikipedia lookup inside the POST (services/me.py), which is two
+// sequential requests at the genre service's 8s ceiling each. This deadline MUST
+// stay above that worst case. Below it, Next aborts a request the API goes on to
+// commit, and the user is told the add failed while the game is on the shelf —
+// with no revalidateTag, so the shelf does not even show it.
+const TIMEOUT_MS = { default: 5_000, igdb: 10_000, add: 20_000 };
 
 // Outcome of one /me/* call. `status` rides along on both arms so callers that
 // care (createMyProfile's 409/422/403/429 map, fetchMyProfile's 404) can branch
@@ -320,16 +327,19 @@ async function mutate(
   path: string,
   method: "POST" | "PATCH" | "DELETE",
   body: Record<string, unknown> | null,
-  what: string
+  what: string,
+  // Only the two create paths pass this. Everything else is a plain database
+  // write and has no business taking longer than the default.
+  timeoutMs?: number
 ): Promise<MutateResult> {
-  const res = await callMeApi<void>(path, { method, body, what });
+  const res = await callMeApi<void>(path, { method, body, what, timeoutMs });
   return res.ok ? { ok: true } : { ok: false, message: res.message };
 }
 
 /** Add a game to the caller's library. `rating: ""` and `igdbId: null` etc.
  *  are sent as-is — the API treats ""/null as absent for optional fields. */
 export function createMyGame(game: NewGame): Promise<MutateResult> {
-  return mutate("/api/py/me/games", "POST", { ...game }, "add the game");
+  return mutate("/api/py/me/games", "POST", { ...game }, "add the game", TIMEOUT_MS.add);
 }
 
 /** Remove a game (and, server-side via cascade, its play sessions). */
@@ -339,7 +349,7 @@ export function deleteMyGame(gameId: number): Promise<MutateResult> {
 
 /** Add a wishlist entry. */
 export function createMyWishlistItem(item: NewWishlistItem): Promise<MutateResult> {
-  return mutate("/api/py/me/wishlist", "POST", { ...item }, "add to the wishlist");
+  return mutate("/api/py/me/wishlist", "POST", { ...item }, "add to the wishlist", TIMEOUT_MS.add);
 }
 
 /** Partially edit a wishlist entry — pass only the fields to change
@@ -402,6 +412,11 @@ export async function previewCatalogEntry(
   const params = new URLSearchParams({ name: game.name });
   if (game.igdbId !== null) params.set("igdbId", String(game.igdbId));
   if (game.releaseDate) params.set("releaseDate", game.releaseDate);
+  // camelCase is the wire convention everywhere else in this API (CamelModel
+  // aliases every schema field), so the endpoint declares matching aliases
+  // rather than this call site converting. FastAPI IGNORES query params it does
+  // not recognize, which is how a mismatch here went unnoticed: the preview
+  // silently ran as though the game had no IGDB id.
   // Repeated key per value: FastAPI reads a list query param that way, and
   // URLSearchParams would otherwise comma-join them into one genre.
   for (const genre of game.genres) params.append("genres", genre);
