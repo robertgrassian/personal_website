@@ -316,6 +316,17 @@ _PAREN = re.compile(r"\s*\([^)]*\)\s*$")
 # "Super Smash Bros. for Nintendo 3DS and Wii U".
 _SERIES_MARKER = re.compile(r"\d+|[ivxlcdm]+")
 
+# Wikipedia's parenthetical for a franchise overview article rather than a game:
+# "Pokémon (video game series)", "Borderlands (series)". These carry
+# {{Infobox video game}}, so the is-it-a-game filter keeps them, and their title
+# is a *subset* of every entry in the series, so containment scores them a
+# perfect 1.0 against any single game. Nothing in the score can separate them
+# from the real article, so ranking has to.
+#
+# Matched on the parenthetical only, not anywhere in the title: "Sonic Mania"
+# and a hypothetical "Series" in a real game's name must not be caught by this.
+_SERIES_ARTICLE = re.compile(r"\([^)]*\b(?:series|franchise)\b[^)]*\)\s*$", re.IGNORECASE)
+
 
 def _title_similarity(name: str, article: str) -> float:
     """0..1 confidence that ``article`` is the article for ``name``.
@@ -359,9 +370,56 @@ def _rank_key(name: str, article: str):
     So an exact title wins outright, and a shorter title breaks the remaining
     ties: between two articles that both contain our name, the one that adds
     least is the one that is most likely to *be* it.
+
+    Two rules sit between those, both for the case where the tied candidates
+    include a franchise or series article rather than a game:
+
+      * A ``(... series)`` / ``(... franchise)`` article loses to any game
+        article it ties with. This is what stops "Pokémon FireRed" resolving to
+        *Pokémon (video game series)* instead of *Pokémon FireRed and LeafGreen*.
+        It demotes rather than rejects: if the overview article is the only
+        candidate, its genre is still better than none.
+      * Then, fewest leftover words. Comparing the two titles as word sets, the
+        candidate whose symmetric difference from ours is smallest wins, which is
+        how *Super Mario 3D World* beats the untagged franchise article
+        *Super Mario* for "Super Mario 3D World + Bowser's Fury": the franchise
+        title leaves four of our words unaccounted for and the real one leaves
+        two.
+
+    Leftover-word count on its own is NOT enough and was measured failing: the
+    bare franchise name *Pokémon* leaves one word over ("FireRed") while the
+    correct combined article leaves two ("and", "LeafGreen"), so it picks the
+    franchise. It only works above because the parenthetical rule has already
+    removed that class of candidate.
+
+    The length tiebreak then measures the title with its disambiguating
+    parenthetical removed, since that parenthetical is Wikipedia's bookkeeping
+    and says nothing about how much the title adds to ours. That is what stops
+    "Bomberman DS" resolving to the unrelated spinoff *Bomberman Story DS*: it
+    and *Bomberman (2005 video game)* leave exactly one word over each, and 9
+    characters of "Bomberman" beat 18 of "Bomberman Story DS".
+
+    Full article length is the last word, breaking only what stripped length
+    leaves tied. That is one specific shape: an undisambiguated title competing
+    with the same title plus a parenthetical, as *The Legend of Zelda: Link's
+    Awakening* does with *...Link's Awakening (2019 video game)*. Those agree on
+    every earlier component, and without this the winner would be whichever the
+    search happened to list first.
     """
-    exact = _fold(_PAREN.sub("", article)) == _fold(name)
-    return (exact, _title_similarity(name, article), -len(article))
+    bare = _PAREN.sub("", article)
+    folded_bare, folded_name = _fold(bare), _fold(name)
+    exact = folded_bare == folded_name
+    is_game_article = not _SERIES_ARTICLE.search(article)
+    # Symmetric difference: words either title has that the other does not.
+    leftover = set(folded_bare.split()) ^ set(folded_name.split())
+    return (
+        exact,
+        _title_similarity(name, article),
+        is_game_article,
+        -len(leftover),
+        -len(bare),
+        -len(article),
+    )
 
 
 def search_candidates(title: str) -> list[str]:
@@ -507,9 +565,11 @@ def genres_for_qids(qids: list[str]) -> dict[str, list[str]]:
 # whole job is titles that resolved to something unrelated -- an invented or
 # misspelled name, which is exactly what a hand-typed add can produce.
 #
-# What it cannot do is catch a wrong article that scores 1.0 by containment:
-# "Pokémon FireRed" resolves to *Pokémon (video game series)*. Those need a
-# different mechanism than a threshold; see TODO.md.
+# What it cannot do is separate two candidates that both score 1.0 by
+# containment, which is how a franchise or spinoff article beat the real one
+# ("Pokémon FireRed" -> *Pokémon (video game series)*). That is a ranking
+# problem rather than a threshold one and is handled in _rank_key; raising this
+# number would only start rejecting correct matches.
 MIN_WRITE_CONFIDENCE = 0.97
 
 
