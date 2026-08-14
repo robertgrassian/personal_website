@@ -100,9 +100,10 @@ export interface Game extends BaseGame {
 }
 
 // One candidate from GET /api/py/igdb/search — the add-game picker's row.
-// Platforms/genres are IGDB's own names. The confirm step picks which shelf
-// the game lands on, but cannot rewrite these: they become the shared catalog
-// row every owner of the game reads.
+// Platforms/genres are IGDB's own names. The confirm step picks which shelf the
+// game lands on but cannot rewrite the rest: name and release date become the
+// shared catalog row, and genres are re-sourced from Wikipedia server-side, so
+// the ones here are only the fallback for a title Wikipedia cannot resolve.
 export interface IgdbSearchResult {
   igdbId: number;
   name: string;

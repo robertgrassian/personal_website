@@ -27,6 +27,7 @@ from app.core.supabase_admin import (
     delete_auth_user_or_raise,
 )
 from app.models import Profile
+from app.models.game import MAX_GENRE_LENGTH
 from app.repositories import me as me_repo
 from app.repositories import rate_limit as rate_limit_repo
 from app.repositories import users as users_repo
@@ -40,8 +41,10 @@ from app.schemas.me import (
     WishlistCreate,
     WishlistPromote,
     WishlistUpdate,
+    clean_genres,
 )
 from app.schemas.users import GameRead, WishlistGameRead
+from app.services import genres as genre_service
 from app.services.users import derive_play_state, to_game_read, to_wishlist_read
 
 # Mirrors the DB CHECK on profiles.username (app/models/profile.py): starts
@@ -460,6 +463,48 @@ def delete_my_account(db: Session, user: AuthenticatedUser) -> None:
     logger.info("Deleted account %s", user.id)
 
 
+def _genres_for_new_catalog_row(
+    db: Session,
+    *,
+    user_id: uuid.UUID,
+    igdb_id: int | None,
+    name: str,
+    from_client: list[str],
+) -> list[str]:
+    """The genres to store for a game being added, sourced from Wikipedia.
+
+    IGDB's genre field is too coarse to describe a library (Hades II with no
+    roguelike anywhere); Wikipedia's infoboxes are where the shelves' existing
+    vocabulary came from. See services/genres.py. Sourcing on the write path is
+    what keeps the two agreeing, so scripts/backfill_genres.py stays a repair
+    tool rather than the only way good genres ever land.
+
+    Three cases where the lookup is skipped, and none of them is an error:
+
+      * The catalog row already exists, so its genres win and anything sent
+        here is discarded regardless. The common case, and it costs nothing.
+      * A hand-entered game whose genres the caller typed. A private row is
+        theirs to name; overriding it would be the silent discard this path
+        exists to avoid.
+      * Wikipedia has no article, or is down. Falling back to the client's
+        genres keeps a third-party outage from failing an add.
+    """
+    if me_repo.find_metadata(db, user_id=user_id, igdb_id=igdb_id, name=name) is not None:
+        return from_client
+    if igdb_id is None and from_client:
+        return from_client
+    # Two outbound requests on the slowest add there is: a game nobody has
+    # entered before. Bounded by lookup_one, which never raises and skips the
+    # Wikidata leg.
+    sourced = genre_service.lookup_one(name)
+    if not sourced:
+        return from_client
+    # These never pass through a create schema, so apply its shaping here, the
+    # way the backfill does. Over-long values are dropped rather than raising:
+    # a malformed infobox must not fail an add.
+    return clean_genres([g for g in sourced if len(g) <= MAX_GENRE_LENGTH])
+
+
 def create_my_game(db: Session, user: AuthenticatedUser, payload: GameCreate) -> GameRead:
     """Add a game to the caller's library.
 
@@ -482,13 +527,24 @@ def create_my_game(db: Session, user: AuthenticatedUser, payload: GameCreate) ->
     if me_repo.count_games(db, user.id) >= limit:
         raise LibraryFullError(limit)
 
+    # Before the transaction opens: this can make network calls, and holding a
+    # Postgres transaction across a third-party request is how a slow Wikipedia
+    # turns into held connections.
+    genres = _genres_for_new_catalog_row(
+        db,
+        user_id=user.id,
+        igdb_id=payload.igdb_id,
+        name=payload.name,
+        from_client=payload.genres,
+    )
+
     try:
         meta = me_repo.find_or_create_metadata(
             db,
             user_id=user.id,
             igdb_id=payload.igdb_id,
             name=payload.name,
-            genres=payload.genres,
+            genres=genres,
             release_date=payload.release_date,
             image_url=payload.image_url or None,
         )
@@ -572,13 +628,24 @@ def create_my_wishlist_item(
     if me_repo.get_profile_by_id(db, user.id) is None:
         raise OnboardingRequiredError("using your wishlist")
 
+    # Same sourcing as the library path, and before the transaction for the
+    # same reason: a wishlist entry becomes a library game later, so the two
+    # must agree on where genres come from or promoting one would change them.
+    genres = _genres_for_new_catalog_row(
+        db,
+        user_id=user.id,
+        igdb_id=payload.igdb_id,
+        name=payload.name,
+        from_client=payload.genres,
+    )
+
     try:
         meta = me_repo.find_or_create_metadata(
             db,
             user_id=user.id,
             igdb_id=payload.igdb_id,
             name=payload.name,
-            genres=payload.genres,
+            genres=genres,
             release_date=payload.release_date,
             image_url=payload.image_url or None,
         )

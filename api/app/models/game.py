@@ -46,6 +46,11 @@ RATING_CHECK_SQL = "rating IN ({})".format(",".join(f"'{name}'" for name in RATI
 # cap HTTP writes at one value and the backfill path at another.
 MAX_GENRES = 12
 
+# Per-genre length cap, same one-number reasoning as above: enforced by
+# clean_genres for HTTP writes and applied by the add path to the genres it
+# sources from Wikipedia, which never pass through a create schema.
+MAX_GENRE_LENGTH = 50
+
 
 class PlayedGame(Base):
     """One row = one game in one user's library."""

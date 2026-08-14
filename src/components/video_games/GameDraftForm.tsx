@@ -44,10 +44,11 @@ export function GameDraftForm({
   // IGDB platform names, deduped.
   const systemSuggestions = [...new Set([...existingSystems, ...draft.platforms])];
 
-  // An IGDB id resolves to the SHARED game_metadata row for that id, so name,
-  // genres and release date are either dropped silently (the row exists) or
-  // written on everyone's behalf (it doesn't) — read-only either way. A
-  // hand-entered game gets a private row, so it stays fully editable.
+  // An IGDB id resolves to the SHARED game_metadata row for that id: its name
+  // and release date are the catalog's, and the API sources its genres from
+  // Wikipedia. None of the three is this form's to set, so none of them is a
+  // field — the picked game's identity shows as a header instead. A
+  // hand-entered game gets a private row and keeps the full form.
   const fromIgdb = draft.igdbId !== null;
 
   // Wishlist entries may leave the system undecided; library games can't.
@@ -63,29 +64,43 @@ export function GameDraftForm({
           made this scrollable sideways whenever a child was a pixel too wide.
           overscroll-contain keeps a flick from chaining to the page behind. */}
       <div className="mt-4 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
-        {draft.imageUrl && (
-          <Image
-            src={draft.imageUrl}
-            alt={`Cover of ${draft.name}`}
-            width={80}
-            height={107}
-            className="mb-3 h-[107px] w-20 rounded object-cover"
-          />
+        {/* Which game you picked, not a field: without it the form is a system
+            box with no subject. Manual entries skip it because their name IS a
+            field, directly below. */}
+        {fromIgdb ? (
+          <div className="mb-3 flex items-center gap-3">
+            {draft.imageUrl && (
+              <Image
+                src={draft.imageUrl}
+                alt={`Cover of ${draft.name}`}
+                width={60}
+                height={80}
+                className="h-20 w-[60px] shrink-0 rounded object-cover"
+              />
+            )}
+            <div className="min-w-0">
+              <p className="font-medium text-shelf-text">{draft.name}</p>
+              {draft.releaseDate && (
+                <p className="text-xs text-shelf-text-muted">
+                  {formatReleaseDate(draft.releaseDate)}
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          draft.imageUrl && (
+            <Image
+              src={draft.imageUrl}
+              alt={`Cover of ${draft.name}`}
+              width={80}
+              height={107}
+              className="mb-3 h-[107px] w-20 rounded object-cover"
+            />
+          )
         )}
 
         <div className="flex flex-col gap-3">
-          {fromIgdb ? (
-            // Boxed so the note below reads as covering all three fields.
-            <div className="flex flex-col gap-3 rounded-md border border-shelf-plank p-3">
-              <ReadOnlyField label="Name" value={draft.name} />
-              <ReadOnlyField label="Genres" value={draft.genresText} />
-              <ReadOnlyField label="Release date" value={formatReleaseDate(draft.releaseDate)} />
-              <p className="text-xs text-shelf-text-muted">
-                These come from IGDB and are shared by everyone who has this game, so they are the
-                same in every library and cannot be edited here.
-              </p>
-            </div>
-          ) : (
+          {!fromIgdb && (
             <label className={labelClass}>
               Name
               <input
@@ -116,11 +131,12 @@ export function GameDraftForm({
             ))}
           </datalist>
 
-          {/* Manual path only; the IGDB path shows these read-only above. */}
+          {/* Manual path only. Leave genres blank and the API tries Wikipedia
+              on the typed name; whatever is typed here wins over that. */}
           {!fromIgdb && (
             <>
               <label className={labelClass}>
-                Genres (comma-separated)
+                Genres (comma-separated, optional)
                 <input
                   type="text"
                   value={draft.genresText}
@@ -181,20 +197,6 @@ export function GameDraftForm({
         </button>
       </div>
     </>
-  );
-}
-
-// A catalog field rendered as a value. Text, not a disabled <input>: a greyed
-// box reads as a control that is off, and invites hunting for the switch.
-function ReadOnlyField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className={labelClass}>
-      {label}
-      <p className="text-base pointer-fine:text-sm normal-case tracking-normal text-shelf-text">
-        {/* IGDB has no genres or release date for some entries. */}
-        {value.trim() === "" ? "—" : value}
-      </p>
-    </div>
   );
 }
 

@@ -489,7 +489,28 @@ def genres_for_qids(qids: list[str]) -> dict[str, list[str]]:
     return out
 
 
-def lookup_many(titles: list[str], *, on_progress=None) -> dict[str, GenreLookup]:
+def lookup_one(title: str) -> list[str]:
+    """Genres for a single title, for the add-game write path. [] on a miss.
+
+    Two differences from lookup_many, both because a user is waiting on the
+    POST rather than watching a batch job:
+
+      * No Wikidata fallback. It is the slow leg (a 20s SPARQL ceiling on a
+        shared public endpoint) and the least accurate one -- P136 calls The
+        Minish Cap a role-playing game. Skipping it bounds this at two requests.
+      * Never raises. A third-party miss must not fail an add, so the caller
+        gets [] and falls back to what the client sent.
+    """
+    try:
+        return lookup_many([title], wikidata_fallback=False)[title].genres
+    except Exception:
+        logger.exception("Genre lookup failed for %r", title)
+        return []
+
+
+def lookup_many(
+    titles: list[str], *, on_progress=None, wikidata_fallback: bool = True
+) -> dict[str, GenreLookup]:
     """Resolve many titles: one Wikipedia search each, then a single batched
     Wikidata query for all the ids found.
 
@@ -537,7 +558,8 @@ def lookup_many(titles: list[str], *, on_progress=None) -> dict[str, GenreLookup
 
     # Phase 4: Wikidata only for what the infobox could not answer -- some
     # articles carry the template but leave `genre` empty.
-    _fill_gaps_from_wikidata(results)
+    if wikidata_fallback:
+        _fill_gaps_from_wikidata(results)
     return results
 
 

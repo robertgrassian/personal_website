@@ -64,8 +64,8 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
       // Best guess; the field is editable and existing shelves are suggested.
       system: r.platforms[0] ?? "",
       platforms: r.platforms,
-      // IGDB's own genres, read-only on the confirm step: they land on the
-      // shared catalog row, so correcting them is not an add-time job.
+      // Still sent, but only as the fallback: the API re-sources genres from
+      // Wikipedia when it creates the catalog row, and uses these if it misses.
       genresText: r.genres.join(", "),
       releaseDate: r.releaseDate || null,
       imageUrl: r.coverUrl,

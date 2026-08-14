@@ -1,7 +1,12 @@
-"""Unit tests for the onboarding username validation (pure, no DB)."""
+"""Unit tests for the pure parts of the /me service: onboarding username
+validation, and which genres an add stores (both no DB, no network)."""
+
+import uuid
 
 import pytest
 
+from app.models.game import MAX_GENRE_LENGTH, MAX_GENRES
+from app.services import me as me_service
 from app.services.me import RESERVED_USERNAMES, UsernameError, _validate_username
 
 
@@ -77,3 +82,79 @@ class TestValidateUsername:
         with pytest.raises(UsernameError) as exc:
             _validate_username("SEARCH")
         assert exc.value.reason == "reserved"
+
+
+class TestGenresForNewCatalogRow:
+    """Which genres an add stores, and when it pays for a Wikipedia lookup.
+
+    No DB and no network: the repository lookup and the genre service are both
+    stubbed, since what is under test is the decision between them.
+    """
+
+    @pytest.fixture
+    def calls(self):
+        return []
+
+    @pytest.fixture
+    def stub(self, monkeypatch, calls):
+        """Wire both seams. `existing` is what the catalog lookup returns;
+        `found` is what Wikipedia answers."""
+
+        def wire(*, existing=None, found=None):
+            monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: existing)
+
+            def fake_lookup(name):
+                calls.append(name)
+                return found or []
+
+            monkeypatch.setattr(me_service.genre_service, "lookup_one", fake_lookup)
+
+        return wire
+
+    def source(self, *, igdb_id=1051, name="Chrono Trigger", from_client=None):
+        return me_service._genres_for_new_catalog_row(
+            None,
+            user_id=uuid.uuid4(),
+            igdb_id=igdb_id,
+            name=name,
+            from_client=from_client if from_client is not None else ["Role-playing (RPG)"],
+        )
+
+    def test_a_new_igdb_row_stores_wikipedias_genres(self, stub, calls):
+        # The whole point: IGDB's coarse "Role-playing (RPG)" is replaced by the
+        # infobox vocabulary the rest of the shelves already use.
+        stub(found=["Role-Playing", "Time Travel"])
+        assert self.source() == ["Role-Playing", "Time Travel"]
+        assert calls == ["Chrono Trigger"]
+
+    def test_an_existing_catalog_row_skips_the_lookup(self, stub, calls):
+        # find_or_create_metadata returns the existing row untouched, so
+        # sourcing genres for it would be two requests thrown away.
+        stub(existing=object(), found=["Role-Playing"])
+        assert self.source() == ["Role-playing (RPG)"]
+        assert calls == []
+
+    def test_a_wikipedia_miss_falls_back_to_the_clients_genres(self, stub):
+        stub(found=[])
+        assert self.source() == ["Role-playing (RPG)"]
+
+    def test_a_hand_entered_game_keeps_the_typed_genres(self, stub, calls):
+        # A private catalog row is the caller's to name; overriding it would be
+        # the silent discard this path exists to avoid.
+        stub(found=["Simulation"])
+        assert self.source(igdb_id=None, from_client=["Farm Life Sim"]) == ["Farm Life Sim"]
+        assert calls == []
+
+    def test_a_hand_entered_game_with_no_genres_is_looked_up(self, stub, calls):
+        stub(found=["Puzzle"])
+        assert self.source(igdb_id=None, name="Obscure Thing", from_client=[]) == ["Puzzle"]
+        assert calls == ["Obscure Thing"]
+
+    def test_sourced_genres_are_shaped_like_a_create_payload(self, stub):
+        """They never pass through the create schema, so the cap and the
+        per-genre length limit are applied here instead."""
+        stub(found=["Puzzle", "puzzle", "x" * 60] + [f"Genre {i}" for i in range(20)])
+        out = self.source()
+        assert len(out) == MAX_GENRES
+        assert out[:2] == ["Puzzle", "Genre 0"]
+        assert not any(len(g) > MAX_GENRE_LENGTH for g in out)

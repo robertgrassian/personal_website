@@ -642,3 +642,59 @@ def test_plural_qualifiers_are_stripped_too(raw, expected):
 @pytest.mark.parametrize("raw", ["game", "games", "video game", "video games"])
 def test_a_bare_qualifier_is_not_a_genre(raw):
     assert genre_service.normalize_genre(raw) is None
+
+
+# --- lookup_one: the add-game write path ------------------------------------
+
+
+def test_lookup_one_returns_the_infobox_genres(monkeypatch):
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Hades II video game": ["Hades II"]},
+            {"Hades II": GAME("[[Roguelike]], [[Action role-playing game|Action RPG]]")},
+        ),
+    )
+    assert genre_service.lookup_one("Hades II") == ["Roguelike", "Action RPG"]
+
+
+def test_lookup_one_skips_the_wikidata_fallback(monkeypatch):
+    """The write path trades the P136 backstop for a bounded wait: two requests,
+    never the 20s SPARQL leg. An empty infobox is simply a miss here, where
+    lookup_many would go on to ask Wikidata."""
+    urls: list[str] = []
+
+    def fake_get(url, params):
+        urls.append(url)
+        if params.get("list") == "search":
+            return FakeResponse({"query": {"search": [{"title": "Ball x Pit"}]}})
+        return FakeResponse(
+            {
+                "query": {
+                    "pages": [
+                        {
+                            "title": "Ball x Pit",
+                            "revisions": [
+                                {"slots": {"main": {"content": "{{Infobox video game\n}}"}}}
+                            ],
+                        }
+                    ]
+                }
+            }
+        )
+
+    monkeypatch.setattr(genre_service, "_get", fake_get)
+    assert genre_service.lookup_one("Ball x Pit") == []
+    assert genre_service.WIKIDATA_SPARQL not in urls
+    assert len(urls) == 2
+
+
+def test_lookup_one_never_raises(monkeypatch):
+    """A third-party outage must not fail an add, so every failure is a miss."""
+
+    def explode(url, params):
+        raise RuntimeError("wikipedia is down")
+
+    monkeypatch.setattr(genre_service, "_get", explode)
+    assert genre_service.lookup_one("Anything") == []

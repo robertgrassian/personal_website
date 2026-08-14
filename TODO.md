@@ -247,10 +247,12 @@ to keep that section at five._
       trims, dedupes case-insensitively and caps at `MAX_GENRES`. **So adding "Shooter" to
       `THEME_VALUES` today would not stop the add form writing it.** Making a block list actually
       bite means calling the normalizer from `clean_genres`, which is the change of shape hiding
-      in this item. (Since 2026-08-14 the add form only submits typed genres for **hand-entered**
-      games; an IGDB pick posts IGDB's own list read-only. That shrinks the hole without closing
-      it, and it means IGDB's coarse vocabulary now reaches the database unedited, which is an
-      argument for the normalizer rather than against it.) **The replace script** is `scripts/backfill_genres.py`, which already has
+      in this item. **Premise narrowed 2026-08-14, and this is most of the item:** the add path
+      now sources genres through `genre_service.lookup_one`, which runs `normalize_genres`
+      internally, so `THEME_VALUES` **does** bite every IGDB add today. The hole that is left is
+      genres **typed by hand** on the manual path, which still reach `clean_genres` and nothing
+      else. So the remaining work is smaller than written: route `clean_genres` through the
+      normalizer, or accept that a hand-typed genre on a private row is the owner's business. **The replace script** is `scripts/backfill_genres.py`, which already has
       plan → review → apply with `docs/genre-backfill-runbook.md` as the procedure; what it does
       not have is a targeted mode ("replace genre X with Y everywhere", "drop genre X"), since it
       re-sources the whole library from Wikipedia, which is a much bigger hammer than an audit fix
@@ -261,9 +263,10 @@ to keep that section at five._
       library-wide would be wrong the day a game arrives whose best genre really is plain Shooter.
       So the likely answer is per-game corrections plus a small coarse → specific rule, and the
       block list stays reserved for values that are never right.<br>
-      _On the "really smart picker" ambition, before building one._ There are two vocabularies in
-      play already: IGDB's coarse genres at add time (since 2026-08-12) and Wikipedia infoboxes in
-      the backfill. Wikidata's `P136` was tried as a structured third source in 2026-07-30 and
+      _On the "really smart picker" ambition, before building one._ There is now **one**
+      vocabulary rather than two: Wikipedia infoboxes, on the add path and in the backfill alike
+      (2026-08-14). IGDB's coarse genres survive only as the fallback for a title Wikipedia cannot
+      resolve. Wikidata's `P136` was tried as a structured third source in 2026-07-30 and
       **rejected** as frequently thin or wrong (Kinect Sports as "association football video
       game", Minish Cap as "role-playing video game"); it survives only as a fallback for
       infoboxes with no genre field, so do not re-propose it as the clean machine-readable
@@ -826,29 +829,55 @@ head` being run by hand from a laptop pointed at production.<br>
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
-- [x] **The add form no longer offers catalog fields it cannot save** (2026-08-14). Fixed the
-      silent discard: `find_or_create_metadata` returns an existing `game_metadata` row untouched,
-      so the name, genres and release date typed into `GameDraftForm` were dropped whenever anyone
-      had already added that IGDB game. Option (a) of the three that were written up, chosen
-      because the row is shared **by design** and the other two (fork a private row on divergence,
-      or let one user rewrite the game for everyone) both need an answer to "who owns a catalog
-      row" that still does not exist.<br>
-      _The rule that shipped, and it is simpler than "does the row already exist":_ the split is
+- [x] **Adding a game sources its genres from Wikipedia again, server-side this time**
+      (2026-08-14). The add path wrote IGDB's coarse genres straight to the catalog row, so
+      anything added after a backfill run disagreed with the rest of the library until the next
+      one. `create_my_game` and `create_my_wishlist_item` now call `genre_service.lookup_one`
+      before the transaction opens and store what it finds.<br>
+      _This is the third position on a question that has now moved twice, so read the history
+      before moving it again._ A `GET /api/py/genres/lookup` endpoint did this from the **browser**
+      until 2026-08-12 (`23ee3e3`), and was removed because it made you watch a spinner with Save
+      disabled while two third-party hops resolved. Correct at the time. What changed is that
+      genres stopped being a form field at all, so nothing needs to resolve before Save and the
+      lookup could move into the POST, where the same work is invisible.<br>
+      _Three things bound the cost, and they are the reason this is not the old design again._
+      It runs **only when the catalog row does not already exist** (`me_repo.find_metadata`
+      answers that in one SELECT; the common add pays nothing). `lookup_one` **skips the Wikidata
+      leg**, capping it at two requests instead of four with a 20s SPARQL ceiling. And it
+      **never raises** — any miss or outage falls back to the IGDB genres the client already
+      sent, so Wikipedia being down cannot fail an add. No new rate-limit bucket: unlike the old
+      endpoint this sits behind `rate_limit_writes`.<br>
+      _Hand-entered games:_ typed genres win, and the lookup only runs when the field is left
+      blank. Overriding what someone typed into their own private row would be the same silent
+      discard this branch started out fixing.<br>
+      _Sourced genres bypass the create schema_, so `clean_genres` is applied by hand in
+      `_genres_for_new_catalog_row`, with over-long values dropped rather than raising.
+      `MAX_GENRE_LENGTH` moved next to `MAX_GENRES` in `models/game.py` so the two paths cannot
+      cap differently. Note the vocabulary normalizer (`normalize_genres`, `THEME_VALUES`) now
+      runs on the live add path for the first time, since it is inside `lookup_many`.
+
+- [x] **The add form shows only fields it can actually save** (2026-08-14). Fixed the silent
+      discard: `find_or_create_metadata` returns an existing `game_metadata` row untouched, so the
+      name, genres and release date typed into `GameDraftForm` were dropped whenever anyone had
+      already added that IGDB game. Option (a) of the three that were written up, chosen because
+      the row is shared **by design** and the other two (fork a private row on divergence, or let
+      one user rewrite the game for everyone) both need an answer to "who owns a catalog row" that
+      still does not exist.<br>
+      _The rule, and it is simpler than "does the row already exist":_ the split is
       `draft.igdbId !== null`, not a lookup. An IGDB pick resolves to the SHARED row for that id,
-      so its name, genres and release date render as read-only values with a note; a hand-entered
-      game gets a PRIVATE row keyed on `(created_by_user_id, name)`, so every field stays
-      editable. That needs no extra round trip, and it matches what
-      `api/app/models/game_metadata.py` already claims outright ("nothing in the UI can edit a
-      shared row"). `system` and `rating` are per-user columns on `played_games` and were never
-      affected.<br>
-      _No API change, deliberately._ The server still builds a brand-new shared row from the
-      client's payload, because it has no other source: verifying against IGDB in the write path
-      is the separate **"Anyone can define a shared catalog row for everyone"** bug. What changed
-      is that the honest UI path now posts IGDB's own values verbatim.<br>
-      _The cost, accepted:_ IGDB genres are coarse and occasionally missing, and there is now **no
-      write path at all** for the genres of an IGDB game. That was already true for the other 155
-      games in the library, which is why `scripts/backfill_genres.py` exists. **"Make library and
-      wishlist entries fully editable"** in Backlog is where that gap gets closed.
+      so name, genres and release date are **not rendered as fields at all**; the picked game
+      shows as a cover-plus-title header, and the form is System and Rating. A hand-entered game
+      gets a PRIVATE row keyed on `(created_by_user_id, name)` and keeps the full form. No extra
+      round trip, and it matches what `api/app/models/game_metadata.py` already claims outright
+      ("nothing in the UI can edit a shared row"). `system` and `rating` are per-user columns on
+      `played_games` and were never affected.<br>
+      _Read-only fields were the first shape and were rejected:_ a greyed-out box invites hunting
+      for the switch that turns it on, and once genres came from Wikipedia at save time, showing
+      IGDB's list would have displayed a value that is not what gets stored. A field the form
+      cannot set does not belong on the form.<br>
+      _Still open on the server:_ it builds a brand-new shared row from the client's payload
+      (name, release date, cover), so a crafted POST still defines a catalog row. That is the
+      **"Anyone can define a shared catalog row for everyone"** bug, now purely server-side.
 
 - [x] **An unwell library API no longer takes the account page down with it** (2026-08-13).
       `AccountPage` awaited `fetchMyProfile()` unguarded, so a timeout or a 500 errored the whole

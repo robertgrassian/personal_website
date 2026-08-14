@@ -60,9 +60,19 @@ reasoning behind the shape, which the models themselves don't record.
   canonical key, so treating two users' "Tetris" as one game would let one person's typo
   rewrite the other's shelf. `created_by_user_id` is `ON DELETE SET NULL`, not CASCADE, so
   a deleted account cannot take a catalog row out from under someone else.
+- **Genres are sourced from Wikipedia on the write path, not taken from the client.** When
+  an add creates a catalog row, `create_my_game` / `create_my_wishlist_item` call
+  `genre_service.lookup_one` and store what the game's Wikipedia infobox says, because
+  IGDB's genre field is too coarse to describe a library (Hades II with no roguelike). The
+  client's genres are the fallback for a miss or an outage. It runs only when the row is
+  new, skips the Wikidata leg, and never raises, so the common add pays nothing and a
+  third-party outage cannot fail a write. This is what keeps new games agreeing with
+  `scripts/backfill_genres.py`, which is a repair tool rather than the only source of good
+  genres. Hand-entered games keep whatever the owner typed; the lookup runs only if they
+  left it blank.
 - **Known gap: creating a shared row is first-write-wins and unvalidated.** Nothing checks
   the client's `igdb_id` against IGDB, so whoever adds a given IGDB game first defines the
-  name, genres and release date every later adder inherits — and no UI path edits a shared
+  name and release date every later adder inherits — and no UI path edits a shared
   row afterwards. `POST /me/games {"name": "anything", "igdbId": 1051}` is enough. Bounded
   in three ways today: `MAX_USERS` is 100 and signup is capped, writes are rate-limited,
   and `validate_igdb_image_url` restricts `image_url` to the IGDB CDN so the cover can only

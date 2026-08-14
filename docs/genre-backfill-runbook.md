@@ -9,6 +9,13 @@ Run against local on 2026-08-03 and against production on 2026-08-05. Kept becau
 the scripts remain in the repo and the failure modes below are not obvious from
 reading them.
 
+**Since 2026-08-14 the genre backfill is a repair tool, not routine maintenance.**
+The add-game write path sources genres from the same Wikipedia lookup
+(`genre_service.lookup_one`, called from `create_my_game`), so a newly added game
+already carries the vocabulary this script would give it. Reach for it when the
+stored genres go bad in bulk: a vocabulary change, a parser fix worth re-applying,
+or rows added before that date.
+
 ## What they do, and why in this order
 
 `scripts/backfill_titles.py` renames games and wishlist entries to canonical
