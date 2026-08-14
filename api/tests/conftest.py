@@ -41,6 +41,7 @@ def stub_genre_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     monkeypatch.setattr(genre_service, "lookup_one", lambda name: [])
 
+
 # The module-level conveniences. httpx.Client methods are untouched on purpose,
 # because that is what TestClient is built on.
 _BLOCKED = ("get", "post", "put", "patch", "delete", "head", "options", "request", "stream")
