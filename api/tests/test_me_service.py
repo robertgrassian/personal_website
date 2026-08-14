@@ -1,7 +1,14 @@
-"""Unit tests for the onboarding username validation (pure, no DB)."""
+"""Unit tests for the pure parts of the /me service: onboarding username
+validation, and which genres an add stores (both no DB, no network)."""
+
+import uuid
+from datetime import date
+from types import SimpleNamespace
 
 import pytest
 
+from app.models.game import MAX_GENRE_LENGTH, MAX_GENRES
+from app.services import me as me_service
 from app.services.me import RESERVED_USERNAMES, UsernameError, _validate_username
 
 
@@ -77,3 +84,149 @@ class TestValidateUsername:
         with pytest.raises(UsernameError) as exc:
             _validate_username("SEARCH")
         assert exc.value.reason == "reserved"
+
+
+# A stand-in Session. Only rollback() is ever called on it: the service ends
+# its read transaction before the Wikipedia lookup so a slow third party cannot
+# hold a pooler connection idle-in-transaction, and every query these tests
+# reach is stubbed at the repository.
+def fake_db():
+    return SimpleNamespace(rollback=lambda: None)
+
+
+class TestGenresForNewCatalogRow:
+    """Which genres an add stores, and when it pays for a Wikipedia lookup.
+
+    No DB and no network: the repository lookup and the genre service are both
+    stubbed, since what is under test is the decision between them.
+    """
+
+    @pytest.fixture
+    def calls(self):
+        return []
+
+    @pytest.fixture
+    def stub(self, monkeypatch, calls):
+        """Wire both seams. `existing` is what the catalog lookup returns;
+        `found` is what Wikipedia answers."""
+
+        def wire(*, existing=None, found=None):
+            monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: existing)
+
+            def fake_lookup(name):
+                calls.append(name)
+                return found or []
+
+            monkeypatch.setattr(me_service.genre_service, "lookup_one", fake_lookup)
+
+        return wire
+
+    def source(self, *, igdb_id=1051, name="Chrono Trigger", from_client=None):
+        return me_service._genres_for_new_catalog_row(
+            fake_db(),
+            user_id=uuid.uuid4(),
+            igdb_id=igdb_id,
+            name=name,
+            from_client=from_client if from_client is not None else ["Role-playing (RPG)"],
+        )
+
+    def test_a_new_igdb_row_stores_wikipedias_genres(self, stub, calls):
+        # The whole point: IGDB's coarse "Role-playing (RPG)" is replaced by the
+        # infobox vocabulary the rest of the shelves already use.
+        stub(found=["Role-Playing", "Time Travel"])
+        assert self.source() == ["Role-Playing", "Time Travel"]
+        assert calls == ["Chrono Trigger"]
+
+    def test_an_existing_catalog_row_skips_the_lookup(self, stub, calls):
+        # find_or_create_metadata returns the existing row untouched, so
+        # sourcing genres for it would be two requests thrown away.
+        stub(existing=object(), found=["Role-Playing"])
+        assert self.source() == ["Role-playing (RPG)"]
+        assert calls == []
+
+    def test_a_wikipedia_miss_falls_back_to_the_clients_genres(self, stub):
+        stub(found=[])
+        assert self.source() == ["Role-playing (RPG)"]
+
+    def test_a_hand_entered_game_keeps_the_typed_genres(self, stub, calls):
+        # A private catalog row is the caller's to name; overriding it would be
+        # the silent discard this path exists to avoid.
+        stub(found=["Simulation"])
+        assert self.source(igdb_id=None, from_client=["Farm Life Sim"]) == ["Farm Life Sim"]
+        assert calls == []
+
+    def test_a_hand_entered_game_with_no_genres_is_looked_up(self, stub, calls):
+        stub(found=["Puzzle"])
+        assert self.source(igdb_id=None, name="Obscure Thing", from_client=[]) == ["Puzzle"]
+        assert calls == ["Obscure Thing"]
+
+    def test_an_all_dropped_lookup_still_falls_back(self, stub):
+        """The shaping runs BEFORE the emptiness check, so a lookup whose every
+        value is dropped is a miss rather than a stored empty list. Truthy
+        garbage in, client genres out."""
+        stub(found=["x" * 60, "   "])
+        assert self.source() == ["Role-playing (RPG)"]
+
+    def test_sourced_genres_are_shaped_like_a_create_payload(self, stub):
+        """They never pass through the create schema, so the cap and the
+        per-genre length limit are applied here instead."""
+        stub(found=["Puzzle", "puzzle", "x" * 60] + [f"Genre {i}" for i in range(20)])
+        out = self.source()
+        assert len(out) == MAX_GENRES
+        assert out[:2] == ["Puzzle", "Genre 0"]
+        assert not any(len(g) > MAX_GENRE_LENGTH for g in out)
+
+
+class TestPreviewCatalogEntry:
+    """The add form's info popover. What matters is that it answers with what
+    an add would STORE, not with a fresh opinion."""
+
+    @pytest.fixture(autouse=True)
+    def no_rate_limit(self, monkeypatch):
+        # Charged against a real bucket in production; here it would need a DB.
+        monkeypatch.setattr(me_service.rate_limit, "enforce", lambda *a, **kw: None)
+
+    def preview(self, **kw):
+        return me_service.preview_catalog_entry(
+            fake_db(),
+            SimpleNamespace(id=uuid.uuid4()),
+            name=kw.get("name", "Chrono Trigger"),
+            igdb_id=kw.get("igdb_id", 1051),
+            genres=kw.get("genres", ["Role-playing (RPG)"]),
+            release_date=kw.get("release_date", date(1995, 3, 11)),
+        )
+
+    def test_an_existing_row_is_shown_as_it_is(self, monkeypatch):
+        """The add will reuse this row untouched, so previewing a fresh
+        Wikipedia answer would show genres the game is not going to get."""
+        row = SimpleNamespace(
+            genres=["Role-Playing", "Time Travel"], release_date=date(1995, 3, 11)
+        )
+        monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: row)
+        monkeypatch.setattr(me_service.genre_service, "lookup_one", lambda name: ["Something Else"])
+        out = self.preview()
+        assert out.genres == ["Role-Playing", "Time Travel"]
+        assert out.release_date == date(1995, 3, 11)
+
+    def test_a_new_row_is_previewed_from_wikipedia(self, monkeypatch):
+        monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: None)
+        monkeypatch.setattr(me_service.genre_service, "lookup_one", lambda name: ["Role-Playing"])
+        out = self.preview(release_date=date(1995, 3, 11))
+        assert out.genres == ["Role-Playing"]
+        # No catalog row yet, so IGDB's date is the one that would be stored.
+        assert out.release_date == date(1995, 3, 11)
+
+    def test_it_agrees_with_what_the_add_would_store(self, monkeypatch):
+        """The regression this class exists for: preview and write must not
+        drift. Both go through _sourced_genres, so a change to one is a change
+        to both."""
+        monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: None)
+        monkeypatch.setattr(me_service.genre_service, "lookup_one", lambda name: ["Roguelike"])
+        stored = me_service._genres_for_new_catalog_row(
+            fake_db(),
+            user_id=uuid.uuid4(),
+            igdb_id=1051,
+            name="Chrono Trigger",
+            from_client=["Role-playing (RPG)"],
+        )
+        assert self.preview().genres == stored

@@ -13,6 +13,7 @@ exception style as services/users.py.
 import logging
 import re
 import uuid
+from datetime import date, timedelta
 
 from fastapi import status
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -27,10 +28,12 @@ from app.core.supabase_admin import (
     delete_auth_user_or_raise,
 )
 from app.models import Profile
+from app.models.game import MAX_GENRE_LENGTH
 from app.repositories import me as me_repo
 from app.repositories import rate_limit as rate_limit_repo
 from app.repositories import users as users_repo
 from app.schemas.me import (
+    CatalogPreview,
     GameCreate,
     GameUpdate,
     MyProfileRead,
@@ -40,8 +43,11 @@ from app.schemas.me import (
     WishlistCreate,
     WishlistPromote,
     WishlistUpdate,
+    clean_genres,
 )
 from app.schemas.users import GameRead, WishlistGameRead
+from app.services import genres as genre_service
+from app.services import rate_limit
 from app.services.users import derive_play_state, to_game_read, to_wishlist_read
 
 # Mirrors the DB CHECK on profiles.username (app/models/profile.py): starts
@@ -460,6 +466,128 @@ def delete_my_account(db: Session, user: AuthenticatedUser) -> None:
     logger.info("Deleted account %s", user.id)
 
 
+def _genres_for_new_catalog_row(
+    db: Session,
+    *,
+    user_id: uuid.UUID,
+    igdb_id: int | None,
+    name: str,
+    from_client: list[str],
+) -> list[str]:
+    """The genres to store for a game being added, sourced from Wikipedia.
+
+    IGDB's genre field is too coarse to describe a library (Hades II with no
+    roguelike anywhere); Wikipedia's infoboxes are where the shelves' existing
+    vocabulary came from. See services/genres.py. Sourcing on the write path is
+    what keeps the two agreeing, so scripts/backfill_genres.py stays a repair
+    tool rather than the only way good genres ever land.
+
+    Three cases where the lookup is skipped, and none of them is an error:
+
+      * The catalog row already exists, so its genres win and anything sent
+        here is discarded regardless. The common case, and it costs nothing.
+      * A hand-entered game whose genres the caller typed. A private row is
+        theirs to name; overriding it would be the silent discard this path
+        exists to avoid.
+      * Wikipedia has no article, or is down. Falling back to the client's
+        genres keeps a third-party outage from failing an add.
+    """
+    if me_repo.find_metadata(db, user_id=user_id, igdb_id=igdb_id, name=name) is not None:
+        return from_client
+    # End the read transaction the queries above opened, before a call that can
+    # block for seconds. SQLAlchemy autobegins on the first statement, so
+    # "nothing has been written yet" does NOT mean "no transaction is open" —
+    # under NullPool and a transaction-mode pooler, that would hold a pooler
+    # connection idle-in-transaction for the whole Wikipedia round trip. The
+    # writes below autobegin a fresh one.
+    db.rollback()
+    return _sourced_genres(igdb_id=igdb_id, name=name, from_client=from_client)
+
+
+def _sourced_genres(*, igdb_id: int | None, name: str, from_client: list[str]) -> list[str]:
+    """The genres for a catalog row that does not exist yet. Split out of the
+    function above so preview_catalog_entry decides the same way an add does.
+
+    Note what that does and does not buy: the two share this implementation, so
+    they cannot disagree about the RULE, but each makes its own Wikipedia call,
+    so a lookup that succeeds for the preview and times out for the add will
+    still store something the popover did not show. Nothing short of caching
+    the result fixes that, and a serverless function has nowhere to cache it.
+    """
+    if igdb_id is None and from_client:
+        return from_client
+    # Two outbound requests on the slowest add there is: a game nobody has
+    # entered before. Bounded by lookup_one, which never raises and skips the
+    # Wikidata leg.
+    sourced = _shaped_genres(genre_service.lookup_one(name))
+    # Shaping first, emptiness second. The other order looks equivalent and is
+    # not: a single over-long infobox genre is a truthy lookup that shapes down
+    # to nothing, which would then be stored as "no genres" instead of falling
+    # back to what the client sent.
+    return sourced or from_client
+
+
+def _shaped_genres(genres: list[str]) -> list[str]:
+    """Genres shaped the way a create schema would shape them. Values reaching
+    the catalog from Wikipedia or a query string never pass through
+    GameCreate, so the trim/dedupe/cap it applies is applied here instead.
+    Over-long values are dropped rather than raising, because a malformed
+    infobox must not fail an add."""
+    return clean_genres([g for g in genres if len(g) <= MAX_GENRE_LENGTH])
+
+
+# Its own bucket rather than the shared "writes" one: this is a read, and it
+# can fan out to Wikipedia, so it needs a budget of its own. Sized like
+# igdb_search, which the add flow calls immediately before it.
+PREVIEW_RATE_LIMIT_BUCKET = "catalog_preview"
+PREVIEW_RATE_LIMIT_MAX = 30
+PREVIEW_RATE_LIMIT_WINDOW = timedelta(seconds=60)
+
+
+def preview_catalog_entry(
+    db: Session,
+    user: AuthenticatedUser,
+    *,
+    name: str,
+    igdb_id: int | None,
+    genres: list[str],
+    release_date: date | None,
+) -> CatalogPreview:
+    """The catalog values this game would end up with if it were added now.
+
+    Answers the add form's "what is this game, actually?" without adding it.
+    The point is that it resolves the SAME way the write path does rather than
+    just looking genres up: a game whose catalog row already exists keeps that
+    row's genres and release date, so a preview showing a fresh Wikipedia
+    answer would be showing something the add will not store. Nothing here
+    writes, beyond the rate-limit counter charged below.
+    """
+    rate_limit.enforce(
+        db,
+        user.id,
+        PREVIEW_RATE_LIMIT_BUCKET,
+        PREVIEW_RATE_LIMIT_MAX,
+        PREVIEW_RATE_LIMIT_WINDOW,
+        f"Too many game lookups: limited to {PREVIEW_RATE_LIMIT_MAX} per minute. "
+        "Wait a moment and try again.",
+    )
+    existing = me_repo.find_metadata(db, user_id=user.id, igdb_id=igdb_id, name=name)
+    if existing is not None:
+        return CatalogPreview(genres=existing.genres, release_date=existing.release_date)
+    # Same reason as the add path: do not hold a transaction open across the
+    # lookup. rate_limit.enforce above commits its own, and find_metadata
+    # reopened one.
+    db.rollback()
+    return CatalogPreview(
+        # The client's genres are shaped before they are used as the fallback,
+        # because the write path shapes them too (via GameCreate). Skipping it
+        # here would let the popover show "RPG, rpg" for a row that will store
+        # one of them.
+        genres=_sourced_genres(igdb_id=igdb_id, name=name, from_client=_shaped_genres(genres)),
+        release_date=release_date,
+    )
+
+
 def create_my_game(db: Session, user: AuthenticatedUser, payload: GameCreate) -> GameRead:
     """Add a game to the caller's library.
 
@@ -482,13 +610,24 @@ def create_my_game(db: Session, user: AuthenticatedUser, payload: GameCreate) ->
     if me_repo.count_games(db, user.id) >= limit:
         raise LibraryFullError(limit)
 
+    # Before the transaction opens: this can make network calls, and holding a
+    # Postgres transaction across a third-party request is how a slow Wikipedia
+    # turns into held connections.
+    genres = _genres_for_new_catalog_row(
+        db,
+        user_id=user.id,
+        igdb_id=payload.igdb_id,
+        name=payload.name,
+        from_client=payload.genres,
+    )
+
     try:
         meta = me_repo.find_or_create_metadata(
             db,
             user_id=user.id,
             igdb_id=payload.igdb_id,
             name=payload.name,
-            genres=payload.genres,
+            genres=genres,
             release_date=payload.release_date,
             image_url=payload.image_url or None,
         )
@@ -572,13 +711,24 @@ def create_my_wishlist_item(
     if me_repo.get_profile_by_id(db, user.id) is None:
         raise OnboardingRequiredError("using your wishlist")
 
+    # Same sourcing as the library path, and before the transaction for the
+    # same reason: a wishlist entry becomes a library game later, so the two
+    # must agree on where genres come from or promoting one would change them.
+    genres = _genres_for_new_catalog_row(
+        db,
+        user_id=user.id,
+        igdb_id=payload.igdb_id,
+        name=payload.name,
+        from_client=payload.genres,
+    )
+
     try:
         meta = me_repo.find_or_create_metadata(
             db,
             user_id=user.id,
             igdb_id=payload.igdb_id,
             name=payload.name,
-            genres=payload.genres,
+            genres=genres,
             release_date=payload.release_date,
             image_url=payload.image_url or None,
         )

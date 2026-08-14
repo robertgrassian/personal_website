@@ -10,7 +10,7 @@ from datetime import date
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from app.models.game import MAX_GENRES, RATING_NAMES
+from app.models.game import MAX_GENRE_LENGTH, MAX_GENRES, RATING_NAMES
 from app.schemas.users import CamelModel
 
 # Request bodies reject unknown keys ("extra": a typo like {"ratings": ...}
@@ -106,8 +106,8 @@ def clean_genres(value: list[str]) -> list[str]:
             continue
         seen.add(stripped.casefold())
         cleaned.append(stripped)
-    if any(len(g) > 50 for g in cleaned):
-        raise ValueError("each genre must be 50 characters or fewer")
+    if any(len(g) > MAX_GENRE_LENGTH for g in cleaned):
+        raise ValueError(f"each genre must be {MAX_GENRE_LENGTH} characters or fewer")
     return cleaned[:MAX_GENRES]
 
 
@@ -212,6 +212,19 @@ class WishlistUpdate(CamelModel):
     starred: bool | None = None
     notes: str | None = Field(default=None, max_length=1000)
     system: str | None = Field(default=None, max_length=100)
+
+
+class CatalogPreview(CamelModel):
+    """What a game's shared catalog row holds, or would hold if added now.
+
+    A response shape only — nothing posts this. The add form reads it to show
+    the genres and release date it no longer offers as fields, which is the
+    whole reason it exists: those values are the catalog's, so the form can
+    display them but not set them.
+    """
+
+    genres: list[str]
+    release_date: date | None
 
 
 class WishlistPromote(CamelModel):

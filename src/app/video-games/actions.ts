@@ -18,12 +18,14 @@ import {
   deleteMyWishlistItem,
   fetchMyUsername,
   followUser,
+  previewCatalogEntry,
   promoteMyWishlistItem,
   searchIgdb,
   updateMyGameRating,
   updateMyGameSystem,
   unfollowUser,
   updateMyWishlistItem,
+  type CatalogPreviewResult,
   type MutateResult,
   type SearchIgdbResult,
 } from "@/lib/meApi";
@@ -209,6 +211,27 @@ export async function searchGames(query: string, page = 1): Promise<SearchIgdbRe
     return { ok: false, message: "No more results to show." };
   }
   return searchIgdb(trimmed, page);
+}
+
+/** What a picked game's catalog row holds, or would hold if added now: the
+ *  genres and release date the add form shows in its info popover but does not
+ *  offer as fields.
+ *
+ *  Server-side for the same reason searchGames is: meApi's session-cookie to
+ *  Bearer translation. No revalidation, since nothing changed. */
+export async function previewGameCatalog(
+  game: NewGame | NewWishlistItem
+): Promise<CatalogPreviewResult> {
+  const normalized = normalizeSharedFields(game);
+  if (normalized === null) {
+    return { ok: false, message: "Invalid lookup request." };
+  }
+  return previewCatalogEntry({
+    name: normalized.name,
+    igdbId: normalized.igdbId,
+    genres: normalized.genres,
+    releaseDate: normalized.releaseDate,
+  });
 }
 
 /** Add a game to the library (from an IGDB pick or manual entry). */

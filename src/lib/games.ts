@@ -100,8 +100,10 @@ export interface Game extends BaseGame {
 }
 
 // One candidate from GET /api/py/igdb/search — the add-game picker's row.
-// Platforms/genres are IGDB's own names; the confirm step lets the owner
-// edit them into this library's vocabulary before the game is created.
+// Platforms/genres are IGDB's own names. The confirm step picks which shelf the
+// game lands on but cannot rewrite the rest: name and release date become the
+// shared catalog row, and genres are re-sourced from Wikipedia server-side, so
+// the ones here are only the fallback for a title Wikipedia cannot resolve.
 export interface IgdbSearchResult {
   igdbId: number;
   name: string;
@@ -121,6 +123,15 @@ export interface NewGame {
   imageUrl: string; // "" or an https://images.igdb.com/ URL
   igdbId: number | null;
   rating: Rating | ""; // "" = enters the library unrated
+}
+
+// What a game's shared catalog row holds, or would hold if added right now.
+// Mirrors the API's CatalogPreview. The add form shows this in its info
+// popover: they are the fields it deliberately does not offer, because they
+// belong to the catalog rather than to the person adding the game.
+export interface CatalogPreview {
+  genres: string[];
+  releaseDate: string | null; // ISO date or null
 }
 
 // Today's date in the browser's (or server's) local timezone as YYYY-MM-DD.

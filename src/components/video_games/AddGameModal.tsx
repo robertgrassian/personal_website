@@ -8,7 +8,7 @@ import { ModalShell } from "./ModalShell";
 import { useServerAction } from "./useServerAction";
 import type { MutateResult } from "@/lib/meApi";
 import { GameSearchStep } from "./GameSearchStep";
-import { GameDraftForm, type Draft } from "./GameDraftForm";
+import { GameDraftForm, draftGenres, type Draft } from "./GameDraftForm";
 
 type AddGameModalProps = {
   // Where the confirmed game goes. Same search/confirm flow either way;
@@ -64,9 +64,8 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
       // Best guess; the field is editable and existing shelves are suggested.
       system: r.platforms[0] ?? "",
       platforms: r.platforms,
-      // IGDB's own genres, shown immediately and editable. They are coarse
-      // (no roguelike on Hades II), so the confirm form is where a better
-      // vocabulary gets typed in.
+      // Still sent, but only as the fallback: the API re-sources genres from
+      // Wikipedia when it creates the catalog row, and uses these if it misses.
       genresText: r.genres.join(", "),
       releaseDate: r.releaseDate || null,
       imageUrl: r.coverUrl,
@@ -94,10 +93,7 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
 
   const save = () => {
     if (draft === null) return;
-    const genres = draft.genresText
-      .split(",")
-      .map((g) => g.trim())
-      .filter(Boolean);
+    const genres = draftGenres(draft);
     // The two targets share every field except the last one, so the common
     // shape is built once and each branch adds only what is its own: a rating
     // for the library, starred + dateAdded for the wishlist.
