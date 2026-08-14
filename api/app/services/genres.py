@@ -490,11 +490,27 @@ def genres_for_qids(qids: list[str]) -> dict[str, list[str]]:
 
 
 # The floor a match must clear to be written to a catalog row unreviewed.
-# _title_similarity returns a flat 1.0 for every shape of correct-but-reworded
-# article it knows about (combined articles, a missing "The Legend of"), so a
-# genuine match rarely lands in the scored band at all, and this mostly decides
-# what happens to titles that resolved to something unrelated.
-MIN_WRITE_CONFIDENCE = 0.8
+#
+# Set just below an exact match for the reason backfill_genres.py sets
+# AUTO_ACCEPT to the same number: string distance is a bad confidence signal for
+# game titles, and a mid-range threshold gets it BACKWARDS. A wrong entry in a
+# series is one character from correct ("Octopath Traveller" -> *Octopath
+# Traveler II* at 0.895), while a correct abbreviation is far from it ("Halo CE"
+# -> *Halo: Combat Evolved* at 0.538). Anything in the middle admits the first
+# kind.
+#
+# Measured over the 155 titles in scripts/fixtures/games.csv: 154 resolve to an
+# article and every one of them scores exactly 1.0, because _title_similarity
+# answers a flat 1.0 for each shape of correct-but-reworded article it knows
+# about (combined articles, a dropped subtitle, an added "Deluxe"). Nothing
+# genuine lands in the scored band at all, so this rejects nothing real and its
+# whole job is titles that resolved to something unrelated -- an invented or
+# misspelled name, which is exactly what a hand-typed add can produce.
+#
+# What it cannot do is catch a wrong article that scores 1.0 by containment:
+# "Pokémon FireRed" resolves to *Pokémon (video game series)*. Those need a
+# different mechanism than a threshold; see TODO.md.
+MIN_WRITE_CONFIDENCE = 0.97
 
 
 def lookup_one(title: str) -> list[str]:

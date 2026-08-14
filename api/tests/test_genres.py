@@ -746,3 +746,20 @@ def test_lookup_one_keeps_a_combined_article(monkeypatch):
         ),
     )
     assert genre_service.lookup_one("Pokemon Violet") == ["Role-Playing"]
+
+
+def test_lookup_one_rejects_the_wrong_entry_in_a_series(monkeypatch):
+    """The case that decides where the floor sits. A wrong sequel is one
+    character from correct -- "Octopath Traveller" scores 0.895 against
+    *Octopath Traveler II* -- so any mid-range floor admits it while still
+    rejecting correct abbreviations that score far lower. Hence a floor just
+    below an exact match, the same place backfill_genres.py puts AUTO_ACCEPT."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Octopath Traveller video game": ["Octopath Traveler II"]},
+            {"Octopath Traveler II": GAME("[[Role-playing video game|Role-playing]]")},
+        ),
+    )
+    assert genre_service.lookup_one("Octopath Traveller") == []
