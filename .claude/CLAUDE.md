@@ -18,6 +18,7 @@ Personal website built with **Next.js 15, React 19, TypeScript, and Tailwind CSS
 - Call out when something is a Next.js convention vs a React convention vs a general web/JS/TS pattern, so I build the right mental model of where concepts live.
 - If there are multiple valid approaches, briefly explain the tradeoffs so I learn to evaluate options.
 - **Do not include analogies in code comments.** Keep comments descriptive and technical. Analogies belong in chat explanations, not in source files.
+- **Keep comments as short as the point allows.** Say the non-obvious "why" and stop. Prefer one or two lines to a paragraph, and cut any sentence restating what the code already says. Length is earned, not assumed: a longer comment is right only when the reasoning genuinely needs it, such as a subtle constraint or a rejected alternative that will otherwise be re-proposed. The teaching happens in chat, where it costs nothing to read past.
 
 ## Architecture
 
