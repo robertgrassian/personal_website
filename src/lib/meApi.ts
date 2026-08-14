@@ -14,7 +14,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { requireLibraryApiOrigin, targetsForeignEnvironmentApi } from "@/lib/libraryApi";
-import type { IgdbSearchResult, NewGame } from "@/lib/games";
+import type { CatalogPreview, IgdbSearchResult, NewGame } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
 
 export type MyProfile = {
@@ -382,6 +382,36 @@ export async function searchIgdb(query: string, page = 1): Promise<SearchIgdbRes
   );
   if (!res.ok) return { ok: false, message: res.message };
   return { ok: true, results: res.data.results, hasMore: res.data.hasMore };
+}
+
+// Same ok/message split as SearchIgdbResult, so the popover renders a failure
+// with the code path it uses for a success.
+export type CatalogPreviewResult =
+  | { ok: true; preview: CatalogPreview }
+  | { ok: false; message: string };
+
+/** What a game's catalog row holds, or would hold if added now.
+ *
+ *  `genres` and `releaseDate` are what the client already has from IGDB, sent
+ *  so the API can answer with the same fallbacks an add would use rather than
+ *  a second opinion. A GET that writes rate-limit counters, so it keeps
+ *  callMeApi's preview refusal like searchIgdb does. */
+export async function previewCatalogEntry(
+  game: Pick<CatalogPreview, "genres" | "releaseDate"> & { name: string; igdbId: number | null }
+): Promise<CatalogPreviewResult> {
+  const params = new URLSearchParams({ name: game.name });
+  if (game.igdbId !== null) params.set("igdbId", String(game.igdbId));
+  if (game.releaseDate) params.set("releaseDate", game.releaseDate);
+  // Repeated key per value: FastAPI reads a list query param that way, and
+  // URLSearchParams would otherwise comma-join them into one genre.
+  for (const genre of game.genres) params.append("genres", genre);
+
+  const res = await callMeApi<CatalogPreview>(`/api/py/me/catalog-preview?${params}`, {
+    what: "look up this game",
+    timeoutMs: TIMEOUT_MS.igdb,
+  });
+  if (!res.ok) return { ok: false, message: res.message };
+  return { ok: true, preview: res.data };
 }
 
 /** Set or clear ("" = unrated) the rating on one of the caller's games. */

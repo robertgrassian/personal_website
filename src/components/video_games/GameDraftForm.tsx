@@ -4,6 +4,7 @@ import Image from "next/image";
 import { localToday, type NewGame } from "@/lib/games";
 import { buttonClass, ghostButtonClass, inputClass, labelClass } from "./formStyles";
 import { RatingPicker } from "./RatingPicker";
+import { CatalogInfo } from "./CatalogInfo";
 
 // The confirm step's working copy: NewGame except genres, which stay a raw
 // comma-separated string while typing (splitting on every keystroke would
@@ -51,6 +52,18 @@ export function GameDraftForm({
   // hand-entered game gets a private row and keeps the full form.
   const fromIgdb = draft.igdbId !== null;
 
+  // The draft in the shape the API takes. Rebuilt every render, which is why
+  // CatalogInfo's effect keys on the game's identity rather than this object.
+  const postedShape: NewGame = {
+    name: draft.name,
+    system: draft.system,
+    genres: draftGenres(draft),
+    releaseDate: draft.releaseDate,
+    imageUrl: draft.imageUrl,
+    igdbId: draft.igdbId,
+    rating: draft.rating,
+  };
+
   // Wishlist entries may leave the system undecided; library games can't.
   const saveDisabled =
     isPending || !draft.name.trim() || (target === "library" && !draft.system.trim());
@@ -65,10 +78,11 @@ export function GameDraftForm({
           overscroll-contain keeps a flick from chaining to the page behind. */}
       <div className="mt-4 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
         {/* Which game you picked, not a field: without it the form is a system
-            box with no subject. Manual entries skip it because their name IS a
-            field, directly below. */}
+            box with no subject. `relative` is load-bearing — CatalogInfo
+            anchors its panel to this row. Manual entries skip it because their
+            name IS a field, directly below. */}
         {fromIgdb ? (
-          <div className="mb-3 flex items-center gap-3">
+          <div className="relative mb-3 flex items-center gap-3">
             {draft.imageUrl && (
               <Image
                 src={draft.imageUrl}
@@ -78,13 +92,12 @@ export function GameDraftForm({
                 className="h-20 w-[60px] shrink-0 rounded object-cover"
               />
             )}
-            <div className="min-w-0">
-              <p className="font-medium text-shelf-text">{draft.name}</p>
-              {draft.releaseDate && (
-                <p className="text-xs text-shelf-text-muted">
-                  {formatReleaseDate(draft.releaseDate)}
-                </p>
-              )}
+            {/* A div, not a p: CatalogInfo renders its panel as a sibling of
+                the icon, and a <div> inside a <p> is invalid nesting that
+                React warns about. */}
+            <div className="min-w-0 font-medium text-shelf-text">
+              {draft.name}
+              <CatalogInfo game={postedShape} />
             </div>
           </div>
         ) : (
@@ -200,14 +213,11 @@ export function GameDraftForm({
   );
 }
 
-// "2023-05-12" → "May 12, 2023". UTC-pinned like GameCaseBack's formatDate:
-// the ISO string parses as midnight UTC, a day earlier in negative offsets.
-function formatReleaseDate(iso: string | null): string {
-  if (!iso) return "";
-  return new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+// genresText as the API takes it. Exported because AddGameModal builds its POST
+// body from the same conversion, and two copies of the split would drift.
+export function draftGenres(draft: Draft): string[] {
+  return draft.genresText
+    .split(",")
+    .map((g) => g.trim())
+    .filter(Boolean);
 }

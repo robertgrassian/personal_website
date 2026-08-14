@@ -2,6 +2,8 @@
 validation, and which genres an add stores (both no DB, no network)."""
 
 import uuid
+from datetime import date
+from types import SimpleNamespace
 
 import pytest
 
@@ -158,3 +160,58 @@ class TestGenresForNewCatalogRow:
         assert len(out) == MAX_GENRES
         assert out[:2] == ["Puzzle", "Genre 0"]
         assert not any(len(g) > MAX_GENRE_LENGTH for g in out)
+
+
+class TestPreviewCatalogEntry:
+    """The add form's info popover. What matters is that it answers with what
+    an add would STORE, not with a fresh opinion."""
+
+    @pytest.fixture(autouse=True)
+    def no_rate_limit(self, monkeypatch):
+        # Charged against a real bucket in production; here it would need a DB.
+        monkeypatch.setattr(me_service.rate_limit, "enforce", lambda *a, **kw: None)
+
+    def preview(self, **kw):
+        return me_service.preview_catalog_entry(
+            None,
+            SimpleNamespace(id=uuid.uuid4()),
+            name=kw.get("name", "Chrono Trigger"),
+            igdb_id=kw.get("igdb_id", 1051),
+            genres=kw.get("genres", ["Role-playing (RPG)"]),
+            release_date=kw.get("release_date", date(1995, 3, 11)),
+        )
+
+    def test_an_existing_row_is_shown_as_it_is(self, monkeypatch):
+        """The add will reuse this row untouched, so previewing a fresh
+        Wikipedia answer would show genres the game is not going to get."""
+        row = SimpleNamespace(
+            genres=["Role-Playing", "Time Travel"], release_date=date(1995, 3, 11)
+        )
+        monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: row)
+        monkeypatch.setattr(me_service.genre_service, "lookup_one", lambda name: ["Something Else"])
+        out = self.preview()
+        assert out.genres == ["Role-Playing", "Time Travel"]
+        assert out.release_date == date(1995, 3, 11)
+
+    def test_a_new_row_is_previewed_from_wikipedia(self, monkeypatch):
+        monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: None)
+        monkeypatch.setattr(me_service.genre_service, "lookup_one", lambda name: ["Role-Playing"])
+        out = self.preview(release_date=date(1995, 3, 11))
+        assert out.genres == ["Role-Playing"]
+        # No catalog row yet, so IGDB's date is the one that would be stored.
+        assert out.release_date == date(1995, 3, 11)
+
+    def test_it_agrees_with_what_the_add_would_store(self, monkeypatch):
+        """The regression this class exists for: preview and write must not
+        drift. Both go through _sourced_genres, so a change to one is a change
+        to both."""
+        monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: None)
+        monkeypatch.setattr(me_service.genre_service, "lookup_one", lambda name: ["Roguelike"])
+        stored = me_service._genres_for_new_catalog_row(
+            None,
+            user_id=uuid.uuid4(),
+            igdb_id=1051,
+            name="Chrono Trigger",
+            from_client=["Role-playing (RPG)"],
+        )
+        assert self.preview().genres == stored

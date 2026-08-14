@@ -214,6 +214,19 @@ class WishlistUpdate(CamelModel):
     system: str | None = Field(default=None, max_length=100)
 
 
+class CatalogPreview(CamelModel):
+    """What a game's shared catalog row holds, or would hold if added now.
+
+    A response shape only — nothing posts this. The add form reads it to show
+    the genres and release date it no longer offers as fields, which is the
+    whole reason it exists: those values are the catalog's, so the form can
+    display them but not set them.
+    """
+
+    genres: list[str]
+    release_date: date | None
+
+
 class WishlistPromote(CamelModel):
     """Promote a wishlist entry to the library ("I bought it"). ``system`` is
     required by the games table, so it must arrive here when the wishlist row

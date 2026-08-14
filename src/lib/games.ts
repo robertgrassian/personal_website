@@ -125,6 +125,15 @@ export interface NewGame {
   rating: Rating | ""; // "" = enters the library unrated
 }
 
+// What a game's shared catalog row holds, or would hold if added right now.
+// Mirrors the API's CatalogPreview. The add form shows this in its info
+// popover: they are the fields it deliberately does not offer, because they
+// belong to the catalog rather than to the person adding the game.
+export interface CatalogPreview {
+  genres: string[];
+  releaseDate: string | null; // ISO date or null
+}
+
 // Today's date in the browser's (or server's) local timezone as YYYY-MM-DD.
 // Session writes send this explicitly: the API's own "today" default runs on
 // UTC serverless clocks, which would date an evening session tomorrow.

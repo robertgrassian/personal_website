@@ -13,6 +13,7 @@ exception style as services/users.py.
 import logging
 import re
 import uuid
+from datetime import date, timedelta
 
 from fastapi import status
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -32,6 +33,7 @@ from app.repositories import me as me_repo
 from app.repositories import rate_limit as rate_limit_repo
 from app.repositories import users as users_repo
 from app.schemas.me import (
+    CatalogPreview,
     GameCreate,
     GameUpdate,
     MyProfileRead,
@@ -45,6 +47,7 @@ from app.schemas.me import (
 )
 from app.schemas.users import GameRead, WishlistGameRead
 from app.services import genres as genre_service
+from app.services import rate_limit
 from app.services.users import derive_play_state, to_game_read, to_wishlist_read
 
 # Mirrors the DB CHECK on profiles.username (app/models/profile.py): starts
@@ -491,6 +494,14 @@ def _genres_for_new_catalog_row(
     """
     if me_repo.find_metadata(db, user_id=user_id, igdb_id=igdb_id, name=name) is not None:
         return from_client
+    return _sourced_genres(igdb_id=igdb_id, name=name, from_client=from_client)
+
+
+def _sourced_genres(*, igdb_id: int | None, name: str, from_client: list[str]) -> list[str]:
+    """The genres for a catalog row that does not exist yet. Split out of the
+    function above so preview_catalog_entry answers with the same values the
+    add would store — a preview that re-derives its own answer is a second
+    implementation waiting to disagree with the first."""
     if igdb_id is None and from_client:
         return from_client
     # Two outbound requests on the slowest add there is: a game nobody has
@@ -503,6 +514,50 @@ def _genres_for_new_catalog_row(
     # way the backfill does. Over-long values are dropped rather than raising:
     # a malformed infobox must not fail an add.
     return clean_genres([g for g in sourced if len(g) <= MAX_GENRE_LENGTH])
+
+
+# Its own bucket rather than the shared "writes" one: this is a read, and it
+# can fan out to Wikipedia, so it needs a budget of its own. Sized like
+# igdb_search, which the add flow calls immediately before it.
+PREVIEW_RATE_LIMIT_BUCKET = "catalog_preview"
+PREVIEW_RATE_LIMIT_MAX = 30
+PREVIEW_RATE_LIMIT_WINDOW = timedelta(seconds=60)
+
+
+def preview_catalog_entry(
+    db: Session,
+    user: AuthenticatedUser,
+    *,
+    name: str,
+    igdb_id: int | None,
+    genres: list[str],
+    release_date: date | None,
+) -> CatalogPreview:
+    """The catalog values this game would end up with if it were added now.
+
+    Answers the add form's "what is this game, actually?" without adding it.
+    The point is that it resolves the SAME way the write path does rather than
+    just looking genres up: a game whose catalog row already exists keeps that
+    row's genres and release date, so a preview showing a fresh Wikipedia
+    answer would be showing something the add will not store. Nothing here
+    writes, beyond the rate-limit counter charged below.
+    """
+    rate_limit.enforce(
+        db,
+        user.id,
+        PREVIEW_RATE_LIMIT_BUCKET,
+        PREVIEW_RATE_LIMIT_MAX,
+        PREVIEW_RATE_LIMIT_WINDOW,
+        f"Too many game lookups: limited to {PREVIEW_RATE_LIMIT_MAX} per minute. "
+        "Wait a moment and try again.",
+    )
+    existing = me_repo.find_metadata(db, user_id=user.id, igdb_id=igdb_id, name=name)
+    if existing is not None:
+        return CatalogPreview(genres=existing.genres, release_date=existing.release_date)
+    return CatalogPreview(
+        genres=_sourced_genres(igdb_id=igdb_id, name=name, from_client=genres),
+        release_date=release_date,
+    )
 
 
 def create_my_game(db: Session, user: AuthenticatedUser, payload: GameCreate) -> GameRead:
