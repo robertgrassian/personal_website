@@ -1,7 +1,8 @@
 """Suite-wide fixtures.
 
-Two things, both consequences of the add-game write path calling Wikipedia.
-Before that, every third-party call lived in a script or a route no DB test
+`purge_suite_catalog_rows` collects the catalog rows the suite leaks; see its
+docstring. The other two are consequences of the add-game write path calling
+Wikipedia. Before that, every third-party call lived in a script or a route no DB test
 touched, so nothing in the suite could reach the network by accident. Once
 create_my_game started sourcing genres, any test that added a game started
 making live requests without anyone noticing -- they passed locally, where the
@@ -48,8 +49,11 @@ def purge_suite_catalog_rows():
     through the UI mid-run, and the orphan check alone would take a shared row
     that legitimately has no links today.
     """
-    if not get_settings().database_url:
-        yield  # Same skip as requires_db: no DB, nothing to purge.
+    settings = get_settings()
+    # Same environment guard as scripts/seed.py, for the same reason: .env may
+    # hold a prod URL during a debugging session, and this issues a DELETE.
+    if not settings.database_url or settings.app_env != "dev":
+        yield
         return
 
     session_maker = get_sessionmaker()
@@ -58,19 +62,21 @@ def purge_suite_catalog_rows():
             text("SELECT COALESCE(MAX(id), 0) FROM game_metadata")
         ).scalar_one()
 
-    yield
-
-    with session_maker() as session:
-        session.execute(
-            text("""
-                DELETE FROM game_metadata m
-                WHERE m.id > :watermark
-                  AND NOT EXISTS (SELECT 1 FROM played_games p WHERE p.metadata_id = m.id)
-                  AND NOT EXISTS (SELECT 1 FROM wishlist_games w WHERE w.metadata_id = m.id)
-            """),
-            {"watermark": watermark},
-        )
-        session.commit()
+    try:
+        yield
+    finally:
+        # finally, so an interpreter-level exit still collects the rows.
+        with session_maker() as session:
+            session.execute(
+                text("""
+                    DELETE FROM game_metadata m
+                    WHERE m.id > :watermark
+                      AND NOT EXISTS (SELECT 1 FROM played_games p WHERE p.metadata_id = m.id)
+                      AND NOT EXISTS (SELECT 1 FROM wishlist_games w WHERE w.metadata_id = m.id)
+                """),
+                {"watermark": watermark},
+            )
+            session.commit()
 
 
 @pytest.fixture

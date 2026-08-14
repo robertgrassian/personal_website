@@ -190,7 +190,9 @@ def test_username_lookup_is_case_insensitive(client: TestClient) -> None:
     # must return the same library the lowercase spelling does.
     response = client.get("/api/py/users/Rgrassian/games")
     assert response.status_code == 200
-    assert response.json(), "empty on both spellings would pass vacuously"
+    # Pinned to the library itself, not just to the lowercase response, so this
+    # still bites if both spellings resolve to the same WRONG profile.
+    assert [g["name"] for g in response.json()] == library_names("rgrassian")
     assert response.json() == client.get("/api/py/users/rgrassian/games").json()
 
 
