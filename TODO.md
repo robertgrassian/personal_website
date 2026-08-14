@@ -238,19 +238,38 @@ to keep that section at five._
       which picks up "Action Role-Playing" from a spinoff instead of its curated "Action".
       Affects `backfill_genres.py` and the add-game write path identically, since both go through
       `lookup_many`'s candidate ranking.<br>
-      _Fix shape, unverified — this is reasoning from the measurement, not something tried._
-      Two candidates. Reject articles that are series overviews rather than games (a
-      `(video game series)` parenthetical is the obvious tell, and _Super Mario_ shows the tell is
-      not always present). Or break the 1.0 ties in `_rank_key`, which already prefers the shorter
-      title, by also preferring a candidate whose word set is closer in size to ours — that would
-      pick _Pokémon FireRed and LeafGreen_ over the series article if the search returned both.
-      Check what `search_candidates` actually returns for these seven before designing either;
-      the right article may not be among the five candidates at all, in which case neither helps.<br>
+      _Where it actually goes wrong, measured 2026-08-14 by calling `search_candidates` and
+      `lead_sections` directly for all seven._ **In six of the seven the correct article is
+      already among the five candidates and already ties at 1.0.** It loses only on `_rank_key`'s
+      final tiebreak, `-len(article)`, which prefers the shorter title: _Pokémon FireRed and
+      LeafGreen_ (29 chars) loses to _Pokémon (video game series)_ (27), and the same shape
+      decides Brilliant Diamond (43 vs 27), Omega Ruby (37 vs 27) and Let's Go Pikachu (48 vs 27).
+      _Super Mario 3D World_ (20) loses to _Super Mario_ (11); _Bomberman (2005 video game)_ (27)
+      loses to _Bomberman Story DS_ (18). So this is a tiebreak problem, not a search problem, and
+      the fix is a few lines in `_rank_key`.<br>
+      _The exception, which no ranking change can reach._ `Call of Duty: Modern Warfare 3`'s real
+      article is **not among its candidates at all** — they are MWIII (2023), COD4, MW2, MWII
+      (2022) and the _– Defiance_ spinoff. That one needs `search_candidates` to return something
+      different, which is a separate and larger change.<br>
+      _Two rules were checked against the data and both fail, so do not start from either._
+      Preferring the candidate closest in **word count** still picks the franchise article:
+      _Pokémon_ is one word from "Pokémon FireRed" while the correct combined article is two.
+      Preferring a **superset** of our title over a subset fixes all four Pokémon and Super Mario,
+      but gets Bomberman DS wrong in the other direction, because the spinoff _Bomberman Story DS_
+      is a superset while the correct _Bomberman (2005 video game)_ is a subset. There is no clean
+      rule here; expect a heuristic with a genuine trade-off.<br>
       _The counter-argument._ Loosening the containment rule is how these got fixed the naive way
       and is exactly what its comment warns against: it exists to stop "Hades II" matching
       "Hades", and the `_SERIES_MARKER` guard is already the second attempt at that boundary.
       Anything here must keep the combined-article cases (_Pokémon Scarlet and Violet_,
-      _Super Smash Bros. for Nintendo 3DS and Wii U_) scoring 1.0.<br>
+      _Super Smash Bros. for Nintendo 3DS and Wii U_) scoring 1.0. The shortest-wins tiebreak is
+      load-bearing for the same reason: its comment records that it is what stops "Kinect
+      Adventures" picking _Kinect: Disneyland Adventures_ over _Kinect Adventures!_, so a change
+      that simply prefers longer titles trades these seven for that one.<br>
+      _How to validate any fix, since 147 titles are currently right._ Re-run the lookup over all
+      155 titles in `api/scripts/fixtures/games.csv` and diff the chosen article before and after.
+      A change that fixes six and breaks four is not obviously progress, and only the diff shows
+      which it is.<br>
       Related: **"Audit the genre vocabulary"** in Backlog / Ideas is the other half of genre
       quality, and its "really smart picker" paragraph is where a better matcher would land.
       **"Take a pass at the catalog rows whose `igdb_id` points at a variant"** in Up Next is the
