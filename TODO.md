@@ -19,33 +19,6 @@ asked for, which needs no reason and is marked `(Promoted by request YYYY-MM-DD.
 get demoted back out. Adding a sixth item means demoting one, on purpose. (Split out 2026-08-07:
 the old rule sent every bug straight here, so four of five slots were defects.)
 
-- [ ] **The genres, release date and cover art you edit while adding a game are silently
-      discarded whenever someone else already added that IGDB game.** (Promoted by request 2026-08-12.)
-      Found in the code review of this branch (2026-08-12), confirmed by reading `find_or_create_metadata`
-      (`api/app/repositories/me.py`): it returns an existing catalog row **untouched**, so every
-      field the caller passed is dropped on the floor. The add form still offers those fields
-      (`GameDraftForm`), the API still answers 201, and the game still lands on the shelf — with
-      somebody else's metadata. Nothing tells you, which is what makes it worse than a rejection.
-      Today it needs a second user to bite; it becomes ordinary the moment there are any.<br>
-      _Why it is not simply a bug in that function._ The row is SHARED by design: one
-      `game_metadata` per IGDB id, which is the whole point of the catalog migration. Honouring
-      the caller's edits would rewrite the game for everyone who owns it, which is exactly the
-      thing `api/README.md` records as deliberately not possible from the UI. So this is a product
-      decision wearing a bug's clothes, and the honest options differ in cost, not in
-      correctness:<br>
-      **(a)** Say so in the form: once a pick resolves to a catalog row that exists, show its
-      metadata read-only with a note, so nothing is offered that cannot be saved. Cheapest, and it
-      makes the current behaviour honest rather than changing it.<br>
-      **(b)** Fork a private row when the caller's values differ, which loses catalog sharing for
-      exactly the games people care enough to edit.<br>
-      **(c)** Let the edit change the shared row for everyone, which needs an answer to "who owns
-      a catalog row" that nothing in the codebase has yet.<br>
-      _Decide this with the two items it is the same question as:_ **"Anyone can define a shared
-      catalog row for everyone"** below (the write path trusting client metadata) and **"Make
-      library and wishlist entries fully editable"** in Backlog (which already names forking vs
-      restricting vs changing-for-everyone as the open choice). Answering one in isolation will
-      pre-commit the other two.
-
 - [ ] **Take a pass at the catalog rows whose `igdb_id` points at a variant, not the base
       game.** (Promoted by request 2026-08-10.) Eleven on prod, surfaced by
       `backfill_platforms.py`'s guard: it skips any row where a console someone actually owns
@@ -136,6 +109,12 @@ to keep that section at five._
       _Why this is filed here and not in Up Next:_ it needs a second account acting badly,
       and there is one user. Ranked above the duplicate-add item below because the damage is
       silent, shared, and currently unrepairable from the app.<br>
+      _Narrowed to a crafted request 2026-08-14, but not fixed._ The add form now renders the
+      catalog fields read-only for any IGDB pick (`fromIgdb` in `GameDraftForm`), so the honest
+      UI path posts IGDB's own name, genres and release date verbatim and can no longer define
+      a shared row from typed text. The API is unchanged and still trusts the payload, so a
+      hand-rolled POST does exactly what it always did. This is now purely a server-side
+      hole.<br>
       _What already bounds it, so the fix is not urgent:_ `max_users` is 100 and signup is
       capped (`api/app/core/config.py`); every `/me/*` write goes through `rate_limit_writes`
       (`api/app/core/guards.py`); and `validate_igdb_image_url` restricts `imageUrl` to the
@@ -268,7 +247,10 @@ to keep that section at five._
       trims, dedupes case-insensitively and caps at `MAX_GENRES`. **So adding "Shooter" to
       `THEME_VALUES` today would not stop the add form writing it.** Making a block list actually
       bite means calling the normalizer from `clean_genres`, which is the change of shape hiding
-      in this item. **The replace script** is `scripts/backfill_genres.py`, which already has
+      in this item. (Since 2026-08-14 the add form only submits typed genres for **hand-entered**
+      games; an IGDB pick posts IGDB's own list read-only. That shrinks the hole without closing
+      it, and it means IGDB's coarse vocabulary now reaches the database unedited, which is an
+      argument for the normalizer rather than against it.) **The replace script** is `scripts/backfill_genres.py`, which already has
       plan → review → apply with `docs/genre-backfill-runbook.md` as the procedure; what it does
       not have is a targeted mode ("replace genre X with Y everywhere", "drop genre X"), since it
       re-sources the whole library from Wikipedia, which is a much bigger hammer than an audit fix
@@ -725,7 +707,10 @@ head` being run by hand from a laptop pointed at production.<br>
       different and harder question than editing `system`: a shared row is visible to
       everyone who owns that game, and nothing in the UI edits one today by design. Editing
       metadata means deciding whether the edit forks a private row, is restricted to private
-      rows, or genuinely changes the game for everyone. `EditWishlistModal`
+      rows, or genuinely changes the game for everyone. **This item now owns that question
+      outright** (2026-08-14): the add form stopped offering catalog fields on IGDB picks, so
+      there is no write path to a shared row's name, genres or release date anywhere in the UI,
+      and a wrong genre can only be fixed by `scripts/backfill_genres.py`. `EditWishlistModal`
       supports starred/notes/system plus promote and delete
       (`PATCH /api/py/me/wishlist/{id}`), and the promote step is still the only place a
       wishlist item's system gets set.<br>
@@ -840,6 +825,30 @@ head` being run by hand from a laptop pointed at production.<br>
 ## Recently Completed
 
 _Newest first, capped at 20 — drop the oldest when adding past that._
+
+- [x] **The add form no longer offers catalog fields it cannot save** (2026-08-14). Fixed the
+      silent discard: `find_or_create_metadata` returns an existing `game_metadata` row untouched,
+      so the name, genres and release date typed into `GameDraftForm` were dropped whenever anyone
+      had already added that IGDB game. Option (a) of the three that were written up, chosen
+      because the row is shared **by design** and the other two (fork a private row on divergence,
+      or let one user rewrite the game for everyone) both need an answer to "who owns a catalog
+      row" that still does not exist.<br>
+      _The rule that shipped, and it is simpler than "does the row already exist":_ the split is
+      `draft.igdbId !== null`, not a lookup. An IGDB pick resolves to the SHARED row for that id,
+      so its name, genres and release date render as read-only values with a note; a hand-entered
+      game gets a PRIVATE row keyed on `(created_by_user_id, name)`, so every field stays
+      editable. That needs no extra round trip, and it matches what
+      `api/app/models/game_metadata.py` already claims outright ("nothing in the UI can edit a
+      shared row"). `system` and `rating` are per-user columns on `played_games` and were never
+      affected.<br>
+      _No API change, deliberately._ The server still builds a brand-new shared row from the
+      client's payload, because it has no other source: verifying against IGDB in the write path
+      is the separate **"Anyone can define a shared catalog row for everyone"** bug. What changed
+      is that the honest UI path now posts IGDB's own values verbatim.<br>
+      _The cost, accepted:_ IGDB genres are coarse and occasionally missing, and there is now **no
+      write path at all** for the genres of an IGDB game. That was already true for the other 155
+      games in the library, which is why `scripts/backfill_genres.py` exists. **"Make library and
+      wishlist entries fully editable"** in Backlog is where that gap gets closed.
 
 - [x] **An unwell library API no longer takes the account page down with it** (2026-08-13).
       `AccountPage` awaited `fetchMyProfile()` unguarded, so a timeout or a 500 errored the whole
@@ -1054,6 +1063,11 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       _Two gotchas for whoever touches this next._ **(1)** `backfill_titles.py` and
       `backfill_genres.py` now walk `game_metadata` (one row per game, not one per entry),
       and a shared row's genres are shared — fine for one curator, re-think before strangers.
+      `backfill_titles.py` is a **hardcoded map on purpose** (folded in from the 2026-08-03
+      entry, dropped at the 20-entry cap): its first version scored IGDB candidates and could
+      not tell a canonical title from an edition or spin-off whose name merely extends it,
+      proposing "Elden Ring" -> _Elden Ring Nightreign_ and "Dead Cells" -> _Dead Cells+_.
+      Every result needed reading anyway, so the map is that reading done once.
       **(2)** `play_sessions.game_id` still points at the user's row and must keep doing so;
       the reasons are on the column and in `api/README.md`.
 
@@ -1236,27 +1250,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       _The step most easily forgotten_ is flushing the cache: the scripts write straight to
       Postgres, so `revalidateTag` never fires and prod serves stale pages until an owner write
       happens in the UI. Rating a game and undoing it is enough.
-
-- [x] **Titles backfilled to canonical names, then genres re-sourced** (2026-08-03, local DB
-      only). 54 renames, then 22 genre rows. The ordering was the point: doing titles first took
-      the genre plan from **118 auto / 36 needing review to 154 auto / 0**.<br>
-      **`backfill_titles.py` is a hardcoded map on purpose.** The first version resolved every
-      title against IGDB and scored the candidates; it could not tell a canonical title from an
-      edition or spin-off whose name merely extends it, proposing "Elden Ring" -> _Elden Ring
-      Nightreign_, "Halo CE" -> _Halo CE+_, "Dead Cells" -> _Dead Cells+_. Every result needed
-      reading anyway, so the map is that reading done once — auditable, and it cannot drift.
-      Preview is the default, so a prod run is always a select before an update.<br>
-      _A real parser bug surfaced in the re-run:_ an infobox `genre` that is the template's LAST
-      parameter swallowed the article prose after it, so Majora's Mask picked up Japanese title
-      text and "and quality of life changes" as genres. The field now stops at `}}` as well as
-      at the next parameter. This one mattered beyond the backfill — it is the live add-game
-      lookup.<br>
-      _"Cadence of Hyrule" is deliberately NOT renamed_ to its full canonical title. IGDB is
-      right that it is the formal name, but the longer string then matched the Wikipedia article
-      "The Legend of Zelda" (its words are a subset) and took that game's genres.<br>
-      _Seed fixtures were renamed in lockstep_, so `seed.py` reproduces the canonical library;
-      `sessions.csv` references games by name and would otherwise attach sessions to nothing.<br>
-      _Verified by a review agent against the live DB:_ 155 games, no duplicates, no empty genre
-      lists, 44 distinct genres with no case/spelling collisions, and no junk values. It caught
-      two things since fixed: "Role-Playing" on Untitled Goose Game, and a
-      "Monster Tamer"/"Monster-taming" split that would have shown as two filter options.

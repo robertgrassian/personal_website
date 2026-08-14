@@ -27,9 +27,11 @@ type GameDraftFormProps = {
   onSave: () => void;
 };
 
-// The confirm step of the add flow: edit the picked game's details and submit.
-// Split out of AddGameModal, which now owns only the shell and the draft.
-// Nothing here is shared with the search step — that was the seam.
+// The confirm step of the add flow: settle the picked game's details and
+// submit. Which details are settleable depends on where the game came from —
+// see `fromIgdb` below. Split out of AddGameModal, which now owns only the
+// shell and the draft. Nothing here is shared with the search step — that was
+// the seam.
 export function GameDraftForm({
   target,
   draft,
@@ -42,6 +44,17 @@ export function GameDraftForm({
   // Existing shelves first (the value you usually want), then the pick's own
   // IGDB platform names, deduped.
   const systemSuggestions = [...new Set([...existingSystems, ...draft.platforms])];
+
+  // An IGDB id means this game resolves to the SHARED game_metadata row for
+  // that id (api/app/models/game_metadata.py), which every user who owns the
+  // game reads. The server's find_or_create_metadata returns an existing row
+  // untouched, so anything typed into a catalog field here is either dropped
+  // silently (the row exists) or written on everyone's behalf (it doesn't).
+  // Neither is a thing a form should offer, so the catalog fields render as
+  // values rather than inputs. A hand-entered game has no IGDB id and gets a
+  // PRIVATE catalog row of its own, so there is nobody else to affect and
+  // every field stays editable.
+  const fromIgdb = draft.igdbId !== null;
 
   // Wishlist entries may leave the system undecided; library games can't.
   const saveDisabled =
@@ -67,15 +80,29 @@ export function GameDraftForm({
         )}
 
         <div className="flex flex-col gap-3">
-          <label className={labelClass}>
-            Name
-            <input
-              type="text"
-              value={draft.name}
-              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              className={inputClass}
-            />
-          </label>
+          {fromIgdb ? (
+            // The catalog's own fields, grouped and boxed so the note applies
+            // visibly to all three rather than reading as a stray sentence.
+            <div className="flex flex-col gap-3 rounded-md border border-shelf-plank p-3">
+              <ReadOnlyField label="Name" value={draft.name} />
+              <ReadOnlyField label="Genres" value={draft.genresText} />
+              <ReadOnlyField label="Release date" value={formatReleaseDate(draft.releaseDate)} />
+              <p className="text-xs text-shelf-text-muted">
+                These come from IGDB and are shared by everyone who has this game, so they are the
+                same in every library and cannot be edited here.
+              </p>
+            </div>
+          ) : (
+            <label className={labelClass}>
+              Name
+              <input
+                type="text"
+                value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                className={inputClass}
+              />
+            </label>
+          )}
 
           <label className={labelClass}>
             {target === "library" ? "System" : "System (optional)"}
@@ -96,33 +123,37 @@ export function GameDraftForm({
             ))}
           </datalist>
 
-          <label className={labelClass}>
-            Genres (comma-separated)
-            {/* Prefilled with IGDB's genres for a picked game, empty on the
-                manual path, and editable in both cases: the owner is the one
-                who decides the shelf vocabulary now. */}
-            <input
-              type="text"
-              value={draft.genresText}
-              onChange={(e) => setDraft({ ...draft, genresText: e.target.value })}
-              placeholder="e.g. RPG, Adventure"
-              className={inputClass}
-            />
-          </label>
+          {/* Manual path only: on a hand-entered game these write a private
+              catalog row, so there is no shared value to fight over. The IGDB
+              path shows them read-only in the box above. */}
+          {!fromIgdb && (
+            <>
+              <label className={labelClass}>
+                Genres (comma-separated)
+                <input
+                  type="text"
+                  value={draft.genresText}
+                  onChange={(e) => setDraft({ ...draft, genresText: e.target.value })}
+                  placeholder="e.g. RPG, Adventure"
+                  className={inputClass}
+                />
+              </label>
 
-          <label className={labelClass}>
-            Release date
-            {/* Capped at today for the library (you can't have played a
-                game that isn't out yet) but uncapped for the wishlist,
-                where unreleased games are the normal case. */}
-            <input
-              type="date"
-              value={draft.releaseDate ?? ""}
-              max={target === "library" ? localToday() : undefined}
-              onChange={(e) => setDraft({ ...draft, releaseDate: e.target.value || null })}
-              className={inputClass}
-            />
-          </label>
+              <label className={labelClass}>
+                Release date
+                {/* Capped at today for the library (you can't have played a
+                    game that isn't out yet) but uncapped for the wishlist,
+                    where unreleased games are the normal case. */}
+                <input
+                  type="date"
+                  value={draft.releaseDate ?? ""}
+                  max={target === "library" ? localToday() : undefined}
+                  onChange={(e) => setDraft({ ...draft, releaseDate: e.target.value || null })}
+                  className={inputClass}
+                />
+              </label>
+            </>
+          )}
 
           {target === "library" ? (
             <div>
@@ -160,4 +191,34 @@ export function GameDraftForm({
       </div>
     </>
   );
+}
+
+// A catalog field rendered as a value. Deliberately not a disabled <input>:
+// a greyed-out box still reads as "a control that is off right now", which
+// invites hunting for the thing that would switch it back on. Text says the
+// value is simply not this form's to change.
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className={labelClass}>
+      {label}
+      <p className="text-base pointer-fine:text-sm normal-case tracking-normal text-shelf-text">
+        {/* The em dash placeholder convention used elsewhere for "no value":
+            IGDB genuinely has no genres or release date for some entries. */}
+        {value.trim() === "" ? "—" : value}
+      </p>
+    </div>
+  );
+}
+
+// "2023-05-12" → "May 12, 2023". Same UTC-pinned parse as GameCaseBack's
+// formatDate: `new Date("2023-05-12")` is midnight UTC, which in a negative
+// offset renders as the day before.
+function formatReleaseDate(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }

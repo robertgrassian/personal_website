@@ -64,9 +64,9 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
       // Best guess; the field is editable and existing shelves are suggested.
       system: r.platforms[0] ?? "",
       platforms: r.platforms,
-      // IGDB's own genres, shown immediately and editable. They are coarse
-      // (no roguelike on Hades II), so the confirm form is where a better
-      // vocabulary gets typed in.
+      // IGDB's own genres, shown read-only on the confirm step because they
+      // land on the shared catalog row. They are coarse (no roguelike on
+      // Hades II); correcting them is a catalog-wide job, not an add-time one.
       genresText: r.genres.join(", "),
       releaseDate: r.releaseDate || null,
       imageUrl: r.coverUrl,
