@@ -543,6 +543,211 @@ def test_the_shorter_title_wins_when_neither_is_exact(monkeypatch):
     assert genre_service.lookup_many(["Some Game"])["Some Game"].article == "Some Game HD"
 
 
+def test_a_series_article_loses_to_a_real_game_it_ties_with(monkeypatch):
+    """A franchise overview article carries {{Infobox video game}} and its title
+    is a subset of every entry's, so containment scores it a perfect 1.0 for any
+    one game. "Pokémon FireRed" resolved to *Pokémon (video game series)*
+    instead of *Pokémon FireRed and LeafGreen*, and nothing in the score could
+    tell them apart."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {
+                "Pokémon FireRed video game": [
+                    "Pokémon FireRed and LeafGreen",
+                    "Pokémon (video game series)",
+                ]
+            },
+            {
+                "Pokémon FireRed and LeafGreen": GAME("[[Role-playing]]"),
+                "Pokémon (video game series)": GAME("[[Adventure]]"),
+            },
+        ),
+    )
+    out = genre_service.lookup_many(["Pokémon FireRed"])
+    assert out["Pokémon FireRed"].article == "Pokémon FireRed and LeafGreen"
+
+
+def test_the_series_article_is_still_used_when_it_is_the_only_candidate(monkeypatch):
+    """Demoted, not rejected. A franchise's genre is usually right for its
+    entries, so it beats storing nothing at all."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Pokémon Pinball video game": ["Pokémon (video game series)"]},
+            {"Pokémon (video game series)": GAME("[[Role-playing]]")},
+        ),
+    )
+    out = genre_service.lookup_many(["Pokémon Pinball"])
+    assert out["Pokémon Pinball"].article == "Pokémon (video game series)"
+    assert out["Pokémon Pinball"].genres == ["Role-Playing"]
+
+
+def test_fewest_leftover_words_beats_an_untagged_franchise_article(monkeypatch):
+    """*Super Mario* carries no "(series)" parenthetical, so the rule above
+    cannot see it, and it is SHORTER than the real article. Comparing the titles
+    as word sets is what separates them: the franchise leaves five of our words
+    unaccounted for, *Super Mario 3D World* leaves three. Five and three rather
+    than four and two because fold_text turns the apostrophe into a space, so
+    "Bowser's" is two tokens."""
+    title = "Super Mario 3D World + Bowser's Fury"
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {
+                f"{title} video game": [
+                    "Bowser's Fury",
+                    "Super Mario 3D World",
+                    "Super Mario",
+                ]
+            },
+            {
+                "Bowser's Fury": GAME("[[Adventure]]"),
+                "Super Mario 3D World": GAME("[[Platform]]"),
+                "Super Mario": GAME("[[Adventure]]"),
+            },
+        ),
+    )
+    assert genre_service.lookup_many([title])[title].article == "Super Mario 3D World"
+
+
+def test_length_is_measured_without_the_disambiguating_parenthetical(monkeypatch):
+    """ "Bomberman DS" resolved to the unrelated spinoff *Bomberman Story DS*,
+    because the old tiebreak compared FULL titles and the spinoff (18 chars) is
+    shorter than *Bomberman (2005 video game)* (27). Both leave exactly one word
+    over, so the parenthetical is the whole difference, and it is Wikipedia's
+    bookkeeping rather than part of the name."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {
+                "Bomberman DS video game": [
+                    "Bomberman Story DS",
+                    "Bomberman (2005 video game)",
+                ]
+            },
+            {
+                "Bomberman Story DS": GAME("[[Action role-playing]]"),
+                "Bomberman (2005 video game)": GAME("[[Action]], [[Maze]]"),
+            },
+        ),
+    )
+    out = genre_service.lookup_many(["Bomberman DS"])
+    assert out["Bomberman DS"].article == "Bomberman (2005 video game)"
+
+
+def test_an_undisambiguated_title_beats_the_same_title_plus_a_parenthetical(monkeypatch):
+    """These agree on every other component of the rank key, including length
+    once the parenthetical is stripped. Full article length is the last word,
+    and without it the winner is whichever the search listed first."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {
+                "The Legend of Zelda: Link's Awakening video game": [
+                    "The Legend of Zelda: Link's Awakening (2019 video game)",
+                    "The Legend of Zelda: Link's Awakening",
+                ]
+            },
+            {
+                "The Legend of Zelda: Link's Awakening (2019 video game)": GAME("[[Adventure]]"),
+                "The Legend of Zelda: Link's Awakening": GAME("[[Action-adventure]]"),
+            },
+        ),
+    )
+    title = "The Legend of Zelda: Link's Awakening"
+    assert genre_service.lookup_many([title])[title].article == title
+
+
+def test_a_combined_article_still_wins_end_to_end(monkeypatch):
+    """The combined-article constraint pinned through lookup_many, not only
+    through _title_similarity.
+
+    Worth having separately: similarity is one term of the rank key, and the
+    three terms added below it can override a candidate it scores 1.0. A test
+    at the _title_similarity level alone cannot see that.
+    """
+    title = "Super Smash Bros. for Wii U"
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {
+                f"{title} video game": [
+                    "Super Smash Bros. for Nintendo 3DS and Wii U",
+                    "Super Smash Bros. Ultimate",
+                ]
+            },
+            {
+                "Super Smash Bros. for Nintendo 3DS and Wii U": GAME("[[Fighting]]"),
+                "Super Smash Bros. Ultimate": GAME("[[Platform fighter]]"),
+            },
+        ),
+    )
+    out = genre_service.lookup_many([title])
+    assert out[title].article == "Super Smash Bros. for Nintendo 3DS and Wii U"
+    assert out[title].genres == ["Fighting"]
+
+
+def test_a_bare_series_title_beats_its_combined_article_a_known_limitation(monkeypatch):
+    """Documents TODAY'S behaviour, and is not an endorsement of it.
+
+    Against the bare *Super Smash Bros.* the combined article loses: both leave
+    three words over ("for", "wii", "u" on one side; "nintendo", "3ds", "and" on
+    the other), so the shorter title takes it. The old rank key chose the same
+    way, so this is a pre-existing limit of a title-only rule rather than a
+    regression, and it does not occur in practice because the live search does
+    not return the bare series article for this query.
+
+    The fix is not to reorder the key, which would re-open the validated diff
+    over the fixture library. It is the follow-up recorded in TODO.md: read
+    series-ness from the {{Infobox video game series}} template already present
+    in the fetched wikitext instead of guessing at it from the title.
+    """
+    title = "Super Smash Bros. for Wii U"
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {
+                f"{title} video game": [
+                    "Super Smash Bros. for Nintendo 3DS and Wii U",
+                    "Super Smash Bros.",
+                ]
+            },
+            {
+                "Super Smash Bros. for Nintendo 3DS and Wii U": GAME("[[Fighting]]"),
+                "Super Smash Bros.": GAME("[[Fighting]]"),
+            },
+        ),
+    )
+    assert genre_service.lookup_many([title])[title].article == "Super Smash Bros."
+
+
+@pytest.mark.parametrize(
+    "article,is_series",
+    [
+        ("Pokémon (video game series)", True),
+        ("Borderlands (series)", True),
+        ("God of War (franchise)", True),
+        # Only a TRAILING parenthetical counts. A game whose own name contains
+        # the word, or whose parenthetical is an ordinary disambiguator, is not
+        # a franchise article.
+        ("Portal (video game)", False),
+        ("Bomberman (2005 video game)", False),
+        ("Super Mario 3D World", False),
+        ("Series (video game)", False),
+    ],
+)
+def test_only_a_trailing_series_parenthetical_marks_a_franchise_article(article, is_series):
+    assert bool(genre_service._SERIES_ARTICLE.search(article)) is is_series
+
+
 def test_editor_annotations_are_stripped():
     """Wikipedia editors annotate the field: "Tower defense game (primary)".
     Left in, the annotation becomes part of the genre and sits in the filter

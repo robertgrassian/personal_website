@@ -186,63 +186,54 @@ to keep that section at five._
       define a shared catalog row for everyone"** above. Re-decide the two together, not
       separately.
 
-- [ ] **The genre lookup resolves some games to their franchise article, at a confidence score
-      that says the match is perfect.** Measured 2026-08-14 by running the real lookup over all
-      155 titles in `api/scripts/fixtures/games.csv`: 154 resolve to an article, and **every one
-      of them scores exactly 1.0**. Seven of those are the wrong article. All four Pokémon
-      entries (`Pokémon FireRed`, `Brilliant Diamond`, `Omega Ruby`, `Let's Go, Pikachu!`) land
-      on _Pokémon (video game series)_; `Super Mario 3D World + Bowser's Fury` on _Super Mario_;
-      `Bomberman DS` on the unrelated _Bomberman Story DS_; `Call of Duty: Modern Warfare 3` on
-      the _– Defiance_ DS spinoff.<br>
-      _Why no threshold can catch these, which is the point of filing it._ `_title_similarity`
-      (`api/app/services/genres.py`) returns a flat 1.0 whenever one title's words wholly contain
-      the other's, so that a combined article like _Pokémon Scarlet and Violet_ scores as a
-      correct match for "Pokémon Violet". A franchise or spinoff article is a superset of the
-      shelf title in exactly the same way, so it scores 1.0 too and is indistinguishable by
-      score. `MIN_WRITE_CONFIDENCE` on the add path and `AUTO_ACCEPT` in
-      `scripts/backfill_genres.py` are both thresholds and neither sees these.<br>
-      _Impact is mild, which is why this sits here and not higher._ A franchise article's genre
-      is usually right for its entries, so six of the seven store a correct value anyway
-      (_Pokémon (video game series)_ → Role-Playing). The one real degradation is `Bomberman DS`,
-      which picks up "Action Role-Playing" from a spinoff instead of its curated "Action".
-      Affects `backfill_genres.py` and the add-game write path identically, since both go through
-      `lookup_many`'s candidate ranking.<br>
-      _Where it actually goes wrong, measured 2026-08-14 by calling `search_candidates` and
-      `lead_sections` directly for all seven._ **In six of the seven the correct article is
-      already among the five candidates and already ties at 1.0.** It loses only on `_rank_key`'s
-      final tiebreak, `-len(article)`, which prefers the shorter title: _Pokémon FireRed and
-      LeafGreen_ (29 chars) loses to _Pokémon (video game series)_ (27), and the same shape
-      decides Brilliant Diamond (43 vs 27), Omega Ruby (37 vs 27) and Let's Go Pikachu (48 vs 27).
-      _Super Mario 3D World_ (20) loses to _Super Mario_ (11); _Bomberman (2005 video game)_ (27)
-      loses to _Bomberman Story DS_ (18). So this is a tiebreak problem, not a search problem, and
-      the fix is a few lines in `_rank_key`.<br>
-      _The exception, which no ranking change can reach._ `Call of Duty: Modern Warfare 3`'s real
-      article is **not among its candidates at all** — they are MWIII (2023), COD4, MW2, MWII
-      (2022) and the _– Defiance_ spinoff. That one needs `search_candidates` to return something
-      different, which is a separate and larger change.<br>
-      _Two rules were checked against the data and both fail, so do not start from either._
-      Preferring the candidate closest in **word count** still picks the franchise article:
-      _Pokémon_ is one word from "Pokémon FireRed" while the correct combined article is two.
-      Preferring a **superset** of our title over a subset fixes all four Pokémon and Super Mario,
-      but gets Bomberman DS wrong in the other direction, because the spinoff _Bomberman Story DS_
-      is a superset while the correct _Bomberman (2005 video game)_ is a subset. There is no clean
-      rule here; expect a heuristic with a genuine trade-off.<br>
-      _The counter-argument._ Loosening the containment rule is how these got fixed the naive way
-      and is exactly what its comment warns against: it exists to stop "Hades II" matching
-      "Hades", and the `_SERIES_MARKER` guard is already the second attempt at that boundary.
-      Anything here must keep the combined-article cases (_Pokémon Scarlet and Violet_,
-      _Super Smash Bros. for Nintendo 3DS and Wii U_) scoring 1.0. The shortest-wins tiebreak is
-      load-bearing for the same reason: its comment records that it is what stops "Kinect
-      Adventures" picking _Kinect: Disneyland Adventures_ over _Kinect Adventures!_, so a change
-      that simply prefers longer titles trades these seven for that one.<br>
-      _How to validate any fix, since 147 titles are currently right._ Re-run the lookup over all
-      155 titles in `api/scripts/fixtures/games.csv` and diff the chosen article before and after.
-      A change that fixes six and breaks four is not obviously progress, and only the diff shows
-      which it is.<br>
+- [ ] **The genre lookup picks the wrong Wikipedia article for two titles, at a confidence
+      score of 1.0.** Narrowed 2026-08-14 from a seven-case bug: `_rank_key`
+      (`api/app/services/genres.py`) now demotes a `(... series)` / `(... franchise)` article
+      below any game article it ties with, then prefers the candidate with the fewest leftover
+      words, then the shortest title measured with its disambiguating parenthetical removed.
+      Re-measured over all 155 titles in `api/scripts/fixtures/games.csv`: 8 picks changed, 0
+      regressed. Five of the seven are fully fixed, plus two extra improvements
+      (`God of War` was landing on _God of War (franchise)_, `Portal` on _Portal (series)_).<br>
+      _What is left, case one: the search never sees the right article._
+      `Call of Duty: Modern Warfare 3` still resolves to the _– Defiance_ DS spinoff. Measured
+      by calling `search_candidates` directly: the real article is **not among the five
+      candidates at all** (they are MWIII 2023, COD4, MW2, MWII 2022 and Defiance). No ranking
+      change can reach it, so fixing it means changing what `search_candidates` asks for, which
+      is the larger job this entry now mostly stands for. Genre impact is small: Defiance is
+      still a first-person shooter.<br>
+      _What is left, case two: two candidates that are string-identical._ `Bomberman DS` no
+      longer picks the unrelated _Bomberman Story DS_, but lands on _Bomberman (1985 video game)_
+      rather than the correct _Bomberman (2005 video game)_. Both strip to exactly "Bomberman",
+      so they tie on every component of the rank key and `max` takes whichever the search listed
+      first. **No title-based rule can separate them** — this needs a different signal
+      (release year against the shelf's `release_date`, or platform against `system`), which is
+      a new input to the ranker rather than a new tiebreak. Genre went from
+      "Puzzle, Action Role-Playing" to "Maze"; the curated value is "Action, Puzzle", so this
+      one is still wrong, just wrong from a Bomberman game instead of a spinoff.<br>
+      _The best next move, identified in review of the fix and better than any title-based rule._
+      The series signal is already in the data `lookup_many` has **already fetched**. These
+      articles pass `is_video_game` because they carry `{{Infobox video game series}}`, and
+      `_INFOBOX_VIDEO_GAME` has no terminator after "game" so it matches that variant too.
+      Detecting the template and threading a flag into `_rank_key` would replace the current
+      `_SERIES_ARTICLE` title regex with the direct signal, and would catch the franchise
+      articles that carry **no parenthetical at all** (_Super Mario_, _The Legend of Zelda_),
+      which a title regex structurally cannot see. It would very likely remove the need for the
+      leftover-words term entirely. Note `_rank_key` takes only `(name, article)` today, so this
+      means changing its signature or closing over the wikitext at the call site in
+      `lookup_many`.<br>
+      _Constraints any further change must keep._ `_title_similarity`'s containment rule and its
+      `_SERIES_MARKER` guard exist to stop "Hades II" matching "Hades", and combined articles
+      (_Pokémon Scarlet and Violet_, _Super Smash Bros. for Nintendo 3DS and Wii U_) must keep
+      scoring 1.0. "Kinect Adventures" must keep resolving to _Kinect Adventures!_ rather than
+      _Kinect: Disneyland Adventures_. All are covered by tests in `api/tests/test_genres.py`.
+      `MIN_WRITE_CONFIDENCE` and the backfill's `AUTO_ACCEPT` are calibrated and are not the
+      lever here.<br>
+      _How to validate._ Re-run the lookup over all 155 fixture titles and diff the chosen
+      article before and after. Recording the candidate lists as well as the pick lets any
+      ranking rule be re-scored offline, which is much faster than a second network run.<br>
       Related: **"Audit the genre vocabulary"** in Backlog / Ideas is the other half of genre
-      quality, and its "really smart picker" paragraph is where a better matcher would land.
-      **"Take a pass at the catalog rows whose `igdb_id` points at a variant"** in Up Next is the
-      same class of problem one identifier over.
+      quality. **"Take a pass at the catalog rows whose `igdb_id` points at a variant"** in Up
+      Next is the same class of problem one identifier over.
 
 - [ ] **Owner edit affordances still pop in after hydration.** The pencils and "Add game" appear
       a beat after first paint on your own library, because the answer
