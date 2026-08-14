@@ -132,8 +132,12 @@ def fresh_auth_user():
 @pytest.fixture
 def fresh_user_with_game(fresh_auth_user):
     """An onboarded throwaway user owning one game with one closed session.
-    Everything hangs off the auth user, so fresh_auth_user's teardown cascades
-    it all away (auth.users → profiles → games → play_sessions)."""
+
+    Everything the USER owns hangs off the auth user, so fresh_auth_user's
+    teardown cascades it away (auth.users → profiles → played_games →
+    play_sessions). The catalog row this game points at does not: game_metadata
+    is the parent of that FK, not a child of the user. The session-scoped
+    purge_suite_catalog_rows fixture in conftest collects it."""
     user_id, _ = fresh_auth_user
     username = f"gamer-{str(user_id)[:8]}"
     created = client_as(user_id).post("/api/py/me/profile", json={"username": username})

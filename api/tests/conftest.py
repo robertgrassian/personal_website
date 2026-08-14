@@ -25,8 +25,52 @@ from urllib.parse import urlsplit
 
 import httpx
 import pytest
+from sqlalchemy import text
 
+from app.core.config import get_settings
+from app.core.db import get_sessionmaker
 from app.services import genres as genre_service
+
+
+@pytest.fixture(scope="session", autouse=True)
+def purge_suite_catalog_rows():
+    """Delete the game_metadata rows the suite leaves behind.
+
+    Deleting a test's auth.users row cascades away everything it owns, but not
+    the catalog rows its games point at: game_metadata is the parent of that FK,
+    and created_by_user_id is ON DELETE SET NULL so a row outlives the account
+    that entered it. The cascade therefore strips the only column marking a row
+    as a test's and leaves it. Nothing collides afterwards either, since
+    uq_game_metadata_creator_name is UNIQUE over (created_by_user_id, name) and
+    NULLs never conflict -- so this silently grew to thousands of rows.
+
+    Deleting needs both guards: the watermark alone would take a row added
+    through the UI mid-run, and the orphan check alone would take a shared row
+    that legitimately has no links today.
+    """
+    if not get_settings().database_url:
+        yield  # Same skip as requires_db: no DB, nothing to purge.
+        return
+
+    session_maker = get_sessionmaker()
+    with session_maker() as session:
+        watermark = session.execute(
+            text("SELECT COALESCE(MAX(id), 0) FROM game_metadata")
+        ).scalar_one()
+
+    yield
+
+    with session_maker() as session:
+        session.execute(
+            text("""
+                DELETE FROM game_metadata m
+                WHERE m.id > :watermark
+                  AND NOT EXISTS (SELECT 1 FROM played_games p WHERE p.metadata_id = m.id)
+                  AND NOT EXISTS (SELECT 1 FROM wishlist_games w WHERE w.metadata_id = m.id)
+            """),
+            {"watermark": watermark},
+        )
+        session.commit()
 
 
 @pytest.fixture
