@@ -13,7 +13,8 @@ import { ModalShell } from "./ModalShell";
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
-import { buttonClass, fieldClass, ghostButtonClass, inputClass, labelClass } from "./formStyles";
+import { buttonClass, fieldClass, ghostButtonClass, labelClass } from "./formStyles";
+import { SuggestInput } from "./SuggestInput";
 
 // Date inputs size to their content rather than filling the row, so they take
 // the shared tokens plus their own padding instead of `inputClass`.
@@ -165,26 +166,16 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
         <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
           System
         </p>
-        {/* A <datalist> is what the add and promote forms already use, so all
-            three share one control to replace when the mobile-combobox item
-            lands: on a phone this degrades to a plain text field. */}
         <label className={`mt-2 ${labelClass}`}>
           <span className="sr-only">Console this game is filed under</span>
-          <input
-            type="text"
+          <SuggestInput
             value={systemDraft}
-            onChange={(e) => setSystemDraft(e.target.value)}
-            list="edit-game-systems"
+            onChange={setSystemDraft}
+            options={existingSystems}
             maxLength={100}
             placeholder="e.g. SNES, PS5"
-            className={inputClass}
           />
         </label>
-        <datalist id="edit-game-systems">
-          {existingSystems.map((s) => (
-            <option key={s} value={s} />
-          ))}
-        </datalist>
         {systemDirty && (
           <button
             type="button"

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { localToday, type NewGame } from "@/lib/games";
 import { buttonClass, ghostButtonClass, inputClass, labelClass } from "./formStyles";
+import { SuggestInput } from "./SuggestInput";
 import { RatingPicker } from "./RatingPicker";
 import { CatalogInfo } from "./CatalogInfo";
 
@@ -48,20 +49,13 @@ export function GameDraftForm({
   // hand-entered game gets a private row and keeps the full form.
   const fromIgdb = draft.igdbId !== null;
 
-  // Suggestions for the system field. For a picked game these are the
-  // platforms it actually released on, which is the only set of answers that
-  // can be correct; mixing in the library's other shelves offered "PS5" for a
-  // SNES-only game and buried the real answers under them. A hand-entered game
-  // has no platform list, so it falls back to the existing shelves rather than
-  // offering nothing. Same fallback when IGDB returns a game with no platforms.
+  // A picked game suggests the platforms it released on; the old union with
+  // every shelf offered "PS5" for a SNES-only game. Falls back to the shelves
+  // when there is no pick, or a pick IGDB has no platforms for.
   //
-  // Values are the STORED system names (IGDB's own, per migration
-  // d1a83f6c25e7), never systemLabel() output: what the datalist writes into
-  // the input is what gets POSTed, and a display label would create a second
-  // shelf next to the real one. `<option value label>` could show the friendly
-  // name over the stored value, but datalist renders that inconsistently
-  // across browsers, and only one platform name currently differs from its
-  // label ("PC (Microsoft Windows)" → "PC"), so the raw value is shown.
+  // These are the STORED names (IGDB's own, per migration d1a83f6c25e7), not
+  // systemLabel() output: what the suggestion writes is what gets POSTed, and a
+  // display label would create a second shelf beside the real one.
   const systemSuggestions =
     fromIgdb && draft.platforms.length > 0 ? draft.platforms : existingSystems;
 
@@ -150,32 +144,12 @@ export function GameDraftForm({
 
           <label className={labelClass}>
             {target === "library" ? "System" : "System (optional)"}
-            <input
-              type="text"
+            <SuggestInput
               value={draft.system}
-              onChange={(e) => setDraft({ ...draft, system: e.target.value })}
-              // Chrome opens a datalist only on a click into an already-focused
-              // field, so the first click into an empty box showed nothing.
-              // showPicker() asks for it directly. It needs user activation, so
-              // Tab-focus throws and keeps the browser's own behaviour.
-              onFocus={(e) => {
-                try {
-                  e.currentTarget.showPicker?.();
-                } catch {
-                  // Unsupported, or focused without user activation.
-                }
-              }}
-              list="known-systems"
-              className={inputClass}
+              onChange={(system) => setDraft({ ...draft, system })}
+              options={systemSuggestions}
             />
           </label>
-          {/* Native autocomplete: the suggestions above appear under the
-              input, but any free-text value is still allowed. */}
-          <datalist id="known-systems">
-            {systemSuggestions.map((s) => (
-              <option key={s} value={s} />
-            ))}
-          </datalist>
 
           {/* Manual path only. Leave genres blank and the API tries Wikipedia
               on the typed name; whatever is typed here wins over that. */}
