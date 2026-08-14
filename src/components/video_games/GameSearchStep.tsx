@@ -14,8 +14,14 @@ import { foldForSearch } from "./pipeline";
 // to compare — falls back to its name. Both sides of the annotation go through
 // this one function so the map and the lookup cannot disagree; the prefixes
 // keep an id from ever colliding with a title that happens to be a number.
+//
+// `== null` catches undefined too, on purpose: the library payload is
+// force-cached and tag-invalidated (libraryApi.ts), so an entry cached before
+// `igdbId` existed can still arrive without it. Under `===` those all key to
+// "igdb:undefined" and the annotation vanishes; under `==` they fall back to
+// the name.
 export function ownedKey(game: { name: string; igdbId: number | null }): string {
-  return game.igdbId === null ? `name:${foldForSearch(game.name)}` : `igdb:${game.igdbId}`;
+  return game.igdbId == null ? `name:${foldForSearch(game.name)}` : `igdb:${game.igdbId}`;
 }
 
 type GameSearchStepProps = {

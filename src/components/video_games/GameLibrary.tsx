@@ -110,10 +110,14 @@ export function GameLibrary({
   const existingSystems = useMemo(() => [...new Set(games.map((g) => g.system))].sort(), [games]);
 
   // What the add-game search already has, so a result can say so instead of
-  // silently letting you add a second copy. Valued with the systems the game
-  // is on, which is what makes this an annotation rather than a policy: the
-  // same game on two systems is two rows on purpose (Chrono Trigger on SNES
-  // and on DS), so the row reports what you own and leaves the decision alone.
+  // silently letting you add a second copy. Valued with the systems it is on,
+  // which is what makes this an annotation rather than a policy: it reports
+  // what you own and leaves the decision alone.
+  //
+  // The value is a list for history: uq_played_games_user_id_metadata_id makes
+  // a second row for the same game impossible, so only two hand-entered rows
+  // whose names fold equal ("Pokemon" / "Pokémon") still fill it. Kept because
+  // relaxing that key to include `system` is a live option (api/README.md).
   //
   // Keyed by `ownedKey`, which mirrors the server's identity rule: igdbId when
   // there is one, folded name only for hand-entered games. Keying on the name

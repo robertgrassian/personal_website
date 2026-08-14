@@ -144,7 +144,7 @@ def find_game_by_metadata(db: Session, user_id: uuid.UUID, metadata_id: int) -> 
 
 
 def find_game_by_name(
-    db: Session, user_id: uuid.UUID, name: str, igdb_id: int | None = None
+    db: Session, user_id: uuid.UUID, name: str, *, igdb_id: int | None
 ) -> PlayedGame | None:
     """Any HAND-ENTERED library entry of the caller's carrying this name.
 
@@ -160,7 +160,8 @@ def find_game_by_name(
     and only it: the only same-name rows that can still be the same game are
     the ones with no id of their own to compare. With no incoming id (a custom
     game) there is nothing but the title to go on, so every same-name row
-    counts.
+    counts. Required, not defaulted: a caller who omitted it would silently get
+    the title-only check this used to be.
 
     Application-level, unlike the metadata check: no constraint can express it,
     since the name lives on the row being joined to.
@@ -176,7 +177,7 @@ def find_game_by_name(
 
 
 def find_wishlist_item_by_name(
-    db: Session, user_id: uuid.UUID, name: str, igdb_id: int | None = None
+    db: Session, user_id: uuid.UUID, name: str, *, igdb_id: int | None
 ) -> WishlistGame | None:
     """The wishlist twin of find_game_by_name, narrowed the same way."""
     stmt = (

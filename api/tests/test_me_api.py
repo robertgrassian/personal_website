@@ -1120,6 +1120,27 @@ def test_same_title_via_search_then_by_hand_is_a_conflict(fresh_user_with_game) 
 
 
 @requires_db
+def test_by_hand_then_the_same_title_via_search_is_a_conflict(fresh_user_with_game) -> None:
+    """The same gap approached from the other side, where the incoming game HAS
+    an id and the narrowing is doing the work.
+
+    This is what stops the Star Fox fix from going too far: make the title
+    check skip entirely when an id is present and every other test here still
+    passes, because narrowing to id-less rows is what keeps a hand-entered
+    entry in scope. Verified by making that mutation."""
+    user_id, _ = fresh_user_with_game
+    client = client_as(user_id)
+    first = client.post("/api/py/me/games", json={"name": "Celeste", "system": "PC"})
+    assert first.status_code == 201
+    again = client.post(
+        "/api/py/me/games",
+        json={"name": "Celeste", "system": "Switch", "igdbId": TEST_IGDB_BASE + 10},
+    )
+    assert again.status_code == 409
+    assert "already in your library" in again.json()["detail"]
+
+
+@requires_db
 def test_two_igdb_games_sharing_a_title_are_both_addable(fresh_user_with_game) -> None:
     """The other side of the title check: a shared title is NOT a duplicate.
 
@@ -1403,7 +1424,8 @@ def test_add_wishlist_full(fresh_user_with_game) -> None:
 
 @requires_db
 def test_add_wishlist_duplicate_name_is_409(fresh_user_with_game) -> None:
-    # Dedupe is by name alone — same name on another system still conflicts.
+    # Both hand-entered, so both resolve to the same private catalog row: the
+    # console is not part of the identity either way.
     user_id, _ = fresh_user_with_game
     _add_wishlist(user_id, {"name": "Wish Once", "system": "PS5"})
     response = client_as(user_id).post(
@@ -1484,6 +1506,39 @@ def test_wishlist_foreign_and_nonexistent_are_404(fresh_user_with_game) -> None:
         client_as(ROBERT_PROFILE_ID).delete(f"/api/py/me/wishlist/{item['id']}").status_code == 404
     )
     assert client_as(user_id).patch("/api/py/me/wishlist/999999999", json={}).status_code == 404
+
+
+@requires_db
+def test_two_igdb_games_sharing_a_title_are_both_wishlistable(fresh_user_with_game) -> None:
+    # The wishlist twin of the library test: same rule, same narrowing in
+    # find_wishlist_item_by_name.
+    user_id, _ = fresh_user_with_game
+    _add_wishlist(user_id, {"name": "Star Fox", "igdbId": TEST_IGDB_BASE + 11})
+    _add_wishlist(user_id, {"name": "Star Fox", "igdbId": TEST_IGDB_BASE + 12})
+    dupe = client_as(user_id).post(
+        "/api/py/me/wishlist", json={"name": "Star Fox", "igdbId": TEST_IGDB_BASE + 11}
+    )
+    assert dupe.status_code == 409
+
+
+@requires_db
+def test_promoting_a_title_you_own_a_different_edition_of_succeeds(fresh_user_with_game) -> None:
+    # Promote runs its own copy of the two checks, against the item's existing
+    # catalog row rather than a freshly resolved one — so it needs the same
+    # igdb_id, or buying the remaster of a game you own would be a dead end.
+    user_id, _ = fresh_user_with_game
+    client = client_as(user_id)
+    owned = client.post(
+        "/api/py/me/games",
+        json={"name": "Star Fox", "system": "SNES", "igdbId": TEST_IGDB_BASE + 13},
+    )
+    assert owned.status_code == 201
+    item = _add_wishlist(user_id, {"name": "Star Fox", "igdbId": TEST_IGDB_BASE + 14})
+    response = client.post(
+        f"/api/py/me/wishlist/{item['id']}/promote", json={"system": "Nintendo Switch"}
+    )
+    assert response.status_code == 201
+    assert response.json()["id"] != owned.json()["id"]
 
 
 @requires_db
