@@ -154,6 +154,17 @@ export function GameDraftForm({
               type="text"
               value={draft.system}
               onChange={(e) => setDraft({ ...draft, system: e.target.value })}
+              // Chrome opens a datalist only on a click into an already-focused
+              // field, so the first click into an empty box showed nothing.
+              // showPicker() asks for it directly. It needs user activation, so
+              // Tab-focus throws and keeps the browser's own behaviour.
+              onFocus={(e) => {
+                try {
+                  e.currentTarget.showPicker?.();
+                } catch {
+                  // Unsupported, or focused without user activation.
+                }
+              }}
               list="known-systems"
               className={inputClass}
             />
