@@ -53,6 +53,24 @@ export const buttonClass =
   "hover:bg-shelf-input transition-colors cursor-pointer " +
   "disabled:opacity-50 disabled:cursor-default";
 
+// The filled pairing, shared by the two recipes below. `bg-link` with
+// `text-background` is what works in both schemes, because both tokens flip
+// together — a literal color on either side would invert wrongly in one.
+const filledBaseClass =
+  "rounded-md bg-link font-medium text-background " +
+  "transition-opacity hover:opacity-90 cursor-pointer disabled:opacity-50";
+
+// The commit half of a draft-then-save edit: rating, system, wishlist notes,
+// logged sessions. Filled rather than outlined because it appears only once
+// there are unsaved changes, so it has to read as the thing to press instead of
+// as more chrome belonging to the field above it.
+//
+// The line this draws: filled means "commit a pending draft", outlined means an
+// action with nothing pending behind it ("Move to library", "Add to library").
+// Two filled buttons can otherwise end up side by side competing, which is what
+// keeping the dialog-level actions on `buttonClass` avoids.
+export const saveButtonClass = `${filledBaseClass} px-3 py-1.5 text-sm disabled:cursor-default`;
+
 // Text-only affordance for secondary actions inside a form ("Clear rating",
 // "Enter manually"). Underlined rather than bordered so it reads as a link-like
 // action without competing with the real buttons.
@@ -93,13 +111,7 @@ export const headerLinkClass =
   "text-sm whitespace-nowrap text-shelf-text-muted hover:text-link cursor-pointer " +
   "underline underline-offset-4 transition-colors duration-150";
 
-// The one filled, high-emphasis button: sign in, sign up, "Add game". `bg-link`
-// with `text-background` is the pairing that works in both schemes, because both
-// tokens flip together — a literal color on either side would invert wrongly in
-// one of them.
-//
-// Carries no text size: call sites set their own, because the onboarding submit
-// is deliberately a step larger than the in-library buttons.
-export const accentButtonClass =
-  "rounded-md bg-link px-4 py-2 font-medium text-background " +
-  "transition-opacity hover:opacity-90 cursor-pointer disabled:opacity-50";
+// The page-level call to action: sign in, sign up, "Add game". Roomier than
+// saveButtonClass, and carries no text size — call sites set their own, because
+// the onboarding submit is deliberately a step larger than the in-library ones.
+export const accentButtonClass = `${filledBaseClass} px-4 py-2`;

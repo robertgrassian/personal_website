@@ -257,11 +257,11 @@ to keep that section at five._
       form. `AddGameModal` owns a search step and a draft that does not exist yet, and
       `GameDraftForm` splits its fields on `draft.igdbId` because an IGDB pick resolves to a
       SHARED catalog row it must not pretend to edit. `EditGameModal` owns a row that already
-      exists and writes each field independently: the rating writes on click through
-      `useOptimistic`, the system buffers to a draft with its own Save, and sessions and
-      delete live there too. So a merge has to answer what a single dialog does about
-      per-field writes versus one submit, which is the same question the "editing should need
-      a Confirm press" item is circling from the other side.<br>
+      exists and writes each field independently: rating and system each buffer to a draft
+      with their own Save (2026-08-15, see Recently Completed), while sessions and delete
+      still write on click. So a merge has to answer what a single dialog does about
+      per-field writes versus one submit — half-answered now that two fields confirm and the
+      rest do not.<br>
       _What they now genuinely share, and it is only one thing:_ `SuggestInput` (2026-08-14,
       rewritten as a real combobox 2026-08-15), which owns the field, its suggestion list and
       that list's open/close, filter and keyboard behaviour for all three forms.
@@ -378,30 +378,6 @@ to keep that section at five._
       most covers right, the remaining handful can be a hand-set override column, which is also the
       escape hatch any automated version needs anyway.
 
-- [ ] **Editing a game should need a "Confirm" press before the change takes effect.** Today a
-      rating write fires on the click itself: `RatingPicker`'s `onPick` calls `rate()` in
-      `EditGameModal.tsx`, which runs the `updateGameRating` Server Action immediately, so there
-      is no moment between picking a value and it being saved. The same is true of every other
-      control in that dialog (start/stop session, log a past session); `AddGameModal`'s rating
-      picker is the exception, since it is part of a form that already has a submit button.<br>
-      _What makes this more than adding a button:_ the rating picker is wired to `useOptimistic`
-      precisely because the write is instant, and `optimisticRating` is also what the "Remove
-      rating" button and the unrated hint below it read. Deferring the write turns that into
-      ordinary draft state (pick → local value → Confirm → action), so the optimistic hook either
-      goes away or moves to wrap the confirm. Decide too whether Confirm covers the whole dialog
-      or just the rating: `stopPlaying` applies a rating **atomically with closing the session**
-      on the API side, so a per-field confirm has to leave that path alone or it splits one write
-      into two.<br>
-      _Counter-argument worth keeping:_ one tap to re-rate a game is the nicest thing about the
-      current modal, and rating is already reversible from the same dialog. A confirm step earns
-      its cost mainly once the modal is a real multi-field form, which is exactly what the "make
-      library and wishlist entries fully editable" item below plans, and that item would supply a
-      Save button for free. Worth deciding whether to do this on its own or fold it into that.<br>
-      Note the pattern already exists for destructive actions: `ConfirmStep.tsx` is a two-step
-      trigger → prompt → confirm control used by "Remove from library". Related: the
-      "confirmation toast" item below is the other half of this (knowing a write landed), and the
-      audit-log/undo item directly below is the alternative answer to the same worry — undo after
-      the fact instead of confirm before it.
 - [ ] **An audit log of important library actions, primarily so a change can be undone.** No such
       table exists today: `api/app/models/` holds only `profile`, `game`, `wishlist_item`,
       `follow` and `igdb`, and nothing in the write path records what changed. Rating a game
@@ -620,7 +596,7 @@ head` being run by hand from a laptop pointed at production.<br>
       the pressed case, and a new animation on the same element can undo it.<br>
       _If edit moves onto the back face, decide what happens to `EditGameModal`._ It is not just
       a rating picker — it holds start/stop session, log a past session, remove from library, and
-      the `useOptimistic` rating write. Hosting all of that on a card face means either the card
+      the drafted rating write plus its Save. Hosting all of that on a card face means either the card
       becomes the modal (and `EditGameModal` is deleted) or the two coexist and drift. Related and
       pulling the same way: "make library and wishlist entries fully editable" wants one shared
       field form in both modals, and "an easy way to view a game's sessions" explicitly wants a
@@ -843,6 +819,42 @@ head` being run by hand from a laptop pointed at production.<br>
 
 ## Recently Completed
 
+_Newest first, capped at 20 — drop the oldest when adding past that._
+
+- [x] **Rating edits need a Save press, and every draft-then-save commit shares one filled
+      button** (2026-08-15, branch `claude/game-rating-edit-confirm-x7u80j`). Closes "Editing a
+      game should need a Confirm press". `RatingPicker`'s `onPick` in `EditGameModal` now sets
+      `ratingDraft` and nothing else; a `Save rating` / `Cancel` pair appears while the draft
+      differs from `game.rating`. "Remove rating" clears the draft rather than writing, so
+      removing is the same two-step as changing.<br>
+      _`useOptimistic` is gone from that component, on purpose._ The draft already shows the
+      picked value while the write is in flight, and the hook's automatic revert is the wrong
+      behaviour once a Save exists: a failed write now leaves the draft dirty so the button is
+      still there to retry, instead of silently discarding a deliberate pick.<br>
+      _What was deliberately not gated:_ start/stop playing. One labeled button is not the
+      five-target grid this was about, and `stopSession` applies its rating **atomically with
+      closing the session** server-side, which a per-field confirm would split into two writes.
+      That was the open question the old entry named; this is the answer, not an oversight.<br>
+      _The shared button is a class recipe, not a component._ `saveButtonClass` in
+      `formStyles.ts`, used by Save rating, Save system, the past-session Save and
+      `EditWishlistModal`'s Save notes. A `SaveButton` component was written first and deleted
+      in review: it held no state and enforced no invariant, and every other button in that file
+      is a composed class string. `filledBaseClass` now feeds both it and `accentButtonClass`,
+      which had been duplicating the `bg-link` / `text-background` pairing verbatim.<br>
+      _The rule the filled treatment encodes,_ since it is not self-evident: filled means
+      "commit a pending draft", outlined means an action with nothing pending ("Move to
+      library", "Add to library"). Keeping the dialog-level actions on `buttonClass` is what
+      stops two filled buttons competing in the same dialog.<br>
+      _The bug review caught, worth remembering because the draft rewrite created it:_ the
+      "Finished: how was it?" prompt is `clearable={false}`, so clicking the rating the game
+      already has left the draft clean, rendered no Save, and did nothing at all. Its Save is
+      therefore gated on a value being **picked**, not on the draft being dirty, and
+      `saveRating` dismisses without a write when nothing changed. Any future confirm derived
+      from dirtiness has the same hole.<br>
+      _One rough edge kept:_ while that prompt is open, both it and the rating section render a
+      Save for the same draft. The alternative is dropping the prompt's picker and moving its
+      question up into the rating section.
+
 - [x] **Field suggestions work on mobile: `SuggestInput` is a real combobox** (2026-08-15).
       The `<datalist>` is gone, so the system field suggests shelves and platforms on a phone
       instead of being a bare text box there. One file plus its three call sites
@@ -865,8 +877,6 @@ head` being run by hand from a laptop pointed at production.<br>
       the `label` / `labelHidden` / `className` props came from.<br>
       _Still no suggestions on genres_ (the add form's free-text genre field), which was
       floated in the old entry and is not blocked by anything now that the control exists.
-
-_Newest first, capped at 20 — drop the oldest when adding past that._
 
 - [x] **The add form's system field suggests the platforms the game actually released on**
       (2026-08-14). Closes "Restrict the add-game 'system' suggestions…". `GameDraftForm`'s
@@ -1261,28 +1271,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       response be applied unconditionally instead of guarding on whether the user has typed
       since. The draft still carries IGDB's genres the whole time, so saving mid-lookup submits
       them rather than nothing.
-
-- [x] **Account deletion shipped** (2026-08-08, branch `worktree-account-deletion`).
-      `DELETE /api/py/me/account`, a control at `/video-games/account` reached from an
-      "Account" link in the library header, and `/privacy` rewritten to point at it instead of
-      email.<br>
-      _Two things worth keeping._ The cascade root is `auth.users`, not `profiles` — the FK
-      runs profiles → auth.users, so the service cannot `db.delete(profile)` and expect the
-      auth user to follow; it calls the Admin API and lets the cascade run down. And
-      `rate_limits` has no FK to `profiles` (deliberate, so it can cover pre-onboarding
-      callers), so `rate_limit` repo's `delete_for_user` clears it by hand, after the Admin
-      call so a 503 leaves the account whole.<br>
-      _The trap that review caught._ A 404 from the Admin API is NOT proof the user is gone.
-      That URL is concatenated from `SUPABASE_URL`, so a trailing slash or a stray `/auth/v1`
-      404s with every row still in place, and the first version reported that as a 204.
-      `delete_auth_user_or_raise` now returns a bool and the service confirms the deletion by
-      re-reading the profile row (`me_repo`'s `profile_exists`, a fresh scalar count rather
-      than `db.get`, whose identity map would answer from cache). Reproduced against local
-      Supabase before and after. Nothing had ever depended on `SUPABASE_URL` being right
-      before this, because its only other consumer logs failures and moves on.<br>
-      _Two more things worth remembering._ The founder's account is undeletable
-      (`FounderUndeletableError`, 403): the handle is in `RESERVED_USERNAMES` so signup could
-      never reclaim it, `/video-games` would `notFound()` forever, and `opengraph-image.tsx`
-      would fail the next production build. And once the Admin call succeeds nothing may report
-      failure, so the `rate_limits` cleanup after it swallows `SQLAlchemyError` — a 500 there
-      would tell someone their deletion failed while every row of theirs was already gone.

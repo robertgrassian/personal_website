@@ -10,7 +10,13 @@ import {
 import { ModalShell } from "./ModalShell";
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
-import { buttonClass, ghostButtonClass, inputClass, labelClass } from "./formStyles";
+import {
+  buttonClass,
+  ghostButtonClass,
+  inputClass,
+  labelClass,
+  saveButtonClass,
+} from "./formStyles";
 import { SuggestInput } from "./SuggestInput";
 import { systemLabel } from "@/lib/games";
 
@@ -28,9 +34,10 @@ type EditWishlistModalProps = {
 export function EditWishlistModal({ item, existingSystems, onClose }: EditWishlistModalProps) {
   const { isPending, error, run } = useServerAction();
 
-  // Optimistic star, matching EditGameModal's rating: the checkbox flips on
-  // click instead of after the round-trip, converges on the prop once
-  // revalidation delivers fresh data, and reverts itself if the write fails.
+  // Optimistic star: the checkbox flips on click instead of after the
+  // round-trip, converges on the prop once revalidation delivers fresh data,
+  // and reverts itself if the write fails. Right here because one click is the
+  // whole interaction; the notes field below buffers to a draft instead.
   const [optimisticStarred, setOptimisticStarred] = useOptimistic<boolean>(item.starred);
 
   // Notes buffer locally until Save — a textarea that fires a server write
@@ -107,7 +114,7 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
             type="button"
             onClick={() => patch({ notes: notesDraft })}
             disabled={isPending}
-            className={`mt-2 ${buttonClass}`}
+            className={`mt-2 ${saveButtonClass}`}
           >
             Save notes
           </button>
