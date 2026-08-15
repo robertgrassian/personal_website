@@ -88,8 +88,9 @@ the old rule sent every bug straight here, so four of five slots were defects.)
       _This is the whole add-game screen's turn, per the ask._ Four other items touch this same
       form and are cheaper done in one pass than four: **"Remove genre keyword search when adding
       a game"**, **"Restrict the add-game 'system' suggestions to the platforms the game actually
-      released on"**, the mobile combobox item (`<datalist>` does not work on phones), and the
-      destination-switcher item above.
+      released on"** (both since done), and the destination-switcher item above. The mobile
+      combobox is done too, so any redesign here inherits `SuggestInput` rather than a
+      `<datalist>`.
 
 ## Bugs
 
@@ -155,21 +156,6 @@ to keep that section at five._
       `updateParam` accounts for the `?search` it carries. Confirm the interleaving first: it
       needs a dropdown change inside the 300ms debounce plus a transition, which is a narrow
       window and may be why nobody has hit it.
-
-- [ ] **Field suggestions (system, genre, …) should work on mobile, not just desktop.** The
-      suggestion fields use a native `<datalist>`, which mobile Safari/Chrome either render
-      poorly or ignore, so on a phone the system field is a bare free-text input. Replace it
-      with a real combobox (controlled input + filtered dropdown list, keyboard + touch
-      friendly) so suggestions appear on every device.<br>
-      _Now a one-file change, which it was not when this was written._ All three forms went
-      through `SuggestInput` on 2026-08-14 (`GameDraftForm`, `EditGameModal`,
-      `EditWishlistModal`), and it owns the input, the datalist, its `useId` id and the
-      first-click `showPicker()` call. Replace that component and every form follows.<br>
-      _The game-specific half is done and is no longer part of this item._ All three forms
-      suggest the game's own platforms, falling back to existing shelf systems when the list
-      is empty; `platforms` reached the read schema on 2026-08-14. What is left here is
-      purely the mobile control. Consider doing the same for genres, which have no
-      suggestions at all today.
 
 - [ ] **The add form's info popover can promise genres the add then fails to store.** Found in
       the code review of this branch (2026-08-14) and accepted as a known limit rather than
@@ -276,8 +262,9 @@ to keep that section at five._
       delete live there too. So a merge has to answer what a single dialog does about
       per-field writes versus one submit, which is the same question the "editing should need
       a Confirm press" item is circling from the other side.<br>
-      _What they now genuinely share, and it is only one thing:_ `SuggestInput` (2026-08-14),
-      which owns the input, its datalist and the first-click behaviour for all three forms.
+      _What they now genuinely share, and it is only one thing:_ `SuggestInput` (2026-08-14,
+      rewritten as a real combobox 2026-08-15), which owns the field, its suggestion list and
+      that list's open/close, filter and keyboard behaviour for all three forms.
       Everything else is coincidental resemblance.<br>
       _Sequence this with the three items that also want to reshape these dialogs_, or it
       will be done twice: **"When adding a game, let me say I'm playing it now"** in Up Next
@@ -856,6 +843,29 @@ head` being run by hand from a laptop pointed at production.<br>
 
 ## Recently Completed
 
+- [x] **Field suggestions work on mobile: `SuggestInput` is a real combobox** (2026-08-15).
+      The `<datalist>` is gone, so the system field suggests shelves and platforms on a phone
+      instead of being a bare text box there. One file plus its three call sites
+      (`GameDraftForm`, `EditGameModal`, `EditWishlistModal`), as predicted.<br>
+      _Two things the rewrite had to buy back that the native control gave for free._ Closing:
+      a `blur` handler is the obvious choice and the wrong one, because a browser that blurs
+      the input before the tap's `click` reaches an option unmounts the list and eats the pick
+      — so options `preventDefault()` on mouse-down (which the synthesized mouse-down of a tap
+      also honors), nothing ever takes focus off the input, and a document `pointerdown`
+      listener handles outside clicks. And Escape: `useModalChrome` closes the dialog from a
+      **window** listener, so the handler stops propagation while the list is open, which
+      leaves the first Escape for the list and the second for the dialog.<br>
+      _Two product decisions, both re-decidable._ Typing filters, but opening by click,
+      chevron or ArrowDown shows everything: filtering against a value already picked would
+      show a one-item list of the thing you are trying to change. And the chevron deliberately
+      does not focus the input, so tapping it on a phone opens the list without the keyboard
+      covering it.<br>
+      _The component now renders its own `<label>`_, because a listbox nested inside the
+      caller's label puts every option's text into the input's accessible name. That is where
+      the `label` / `labelHidden` / `className` props came from.<br>
+      _Still no suggestions on genres_ (the add form's free-text genre field), which was
+      floated in the old entry and is not blocked by anything now that the control exists.
+
 _Newest first, capped at 20 — drop the oldest when adding past that._
 
 - [x] **The add form's system field suggests the platforms the game actually released on**
@@ -868,12 +878,11 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       _The normalization wrinkle this item feared never materialized:_ since migration
       `d1a83f6c25e7` the `system` column stores IGDB's own names, so suggesting a raw IGDB
       platform cannot split a shelf. Only `"PC (Microsoft Windows)"` differs from its
-      `systemLabel` display form, so the datalist shows raw stored values rather than gambling
-      on `<option value label>`, which datalist renders inconsistently across browsers.<br>
-      _Still open:_ the promote form in `EditWishlistModal` (a `WishlistGame` carries no
-      platforms, so that half needs `game_metadata.platforms` on the read schema), and the
-      combobox rewrite that makes any of these suggestions work on mobile. Both live in the
-      field-suggestions item in Bugs.<br>
+      `systemLabel` display form, so the field suggests raw stored values: what the suggestion
+      writes is what gets POSTed, and a display label would create a second shelf beside the
+      real one.<br>
+      _Both halves left open here have since landed:_ the promote form in `EditWishlistModal`
+      (#126), and the mobile combobox above.<br>
       _Shipped alongside it:_ the focus ring on the add form's fields was being clipped left and
       right. A Tailwind ring is a box-shadow outside the border box, the fields are `w-full`,
       and the scroll container is `overflow-x-hidden`, so only the vertical sides survived. The
@@ -1054,8 +1063,8 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       click of five known values; a system is free text mid-typing, and writing per keystroke
       would file a game under "S", then "SN", then "SNE". So it is a draft plus a "Save system"
       button that appears only when dirty, the shape the wishlist notes field already uses. It
-      is also a third `<datalist>`, joining the add and promote forms, so the mobile-combobox
-      item in Bugs now has three call sites to fix rather than two.<br>
+      is also a third suggestion field, joining the add and promote forms; all three went
+      through `SuggestInput` and then through the combobox rewrite below.<br>
       _Still deliberately out:_ name, genres, cover and release date. Those live on the shared
       `game_metadata` row, so editing one changes the game for everyone who owns it. `system` is
       per-user and carries none of that question.
@@ -1277,25 +1286,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       would fail the next production build. And once the Admin call succeeds nothing may report
       failure, so the `rate_limits` cleanup after it swallows `SQLAlchemyError` — a 500 there
       would tell someone their deletion failed while every row of theirs was already gone.
-
-- [x] **Unrated games are first-class members of the library** (2026-08-07, branch
-      `worktree-fix+unrated-shelf-filtering`). Closes two items at once: "Filtering should apply
-      to the Unrated shelf too" and "Show the Unrated shelf to everyone, not just the owner".
-      `LibraryPage.tsx` no longer splits the API's games on `rating !== ""` — one list goes to
-      `GameLibrary` and through the one filter/group/sort pipeline, so the separate
-      `unratedGames` prop and the `canEdit`-gated trailing `<ShelfSection label="Unrated">` are
-      both gone.<br>
-      _The product decisions taken, since both were genuinely open:_ unrated games **mix into
-      their normal shelves** under groupBy system/genre/decade/none rather than staying a
-      separate group in every mode; under `groupBy: "rating"` they land in the `"Unrated"` group
-      `RATING_ORDER` had always pinned last but which no game could reach. Visitors see them
-      (cases without pencils, via the shared `onEditGame={canEdit ? … : undefined}` every shelf
-      already used). A currently-playing unrated game now appears on both the CRT and a shelf —
-      accepted, since rated in-progress games always double-billed the same way.<br>
-      _Worth knowing:_ the rating filter gained an "Unrated" option, which needed a filter-only
-      `RatingFilter` type in `src/lib/games.ts` (`Rating | "Unrated" | ""`) kept deliberately
-      distinct from `Game["rating"]` — `UNRATED_LABEL` is not a legal rating and must never reach
-      `updateGameRating` or `RatingPicker`. `?rating` is now validated against that set instead
-      of cast, so a junk value falls back to "all" rather than rendering an empty library.
-      `playedCount` collapsed to `games.length`, and `StatsPanel`'s `queryableGames` merge became
-      a no-op and was deleted.

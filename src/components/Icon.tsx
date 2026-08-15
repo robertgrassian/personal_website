@@ -76,6 +76,21 @@ export function InfoIcon({ className, ...rest }: IconProps) {
   );
 }
 
+export function ChevronDownIcon({ className, ...rest }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      className={className}
+      {...rest}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
 export function CloseIcon({ className, ...rest }: IconProps) {
   return (
     <svg
