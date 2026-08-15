@@ -1,24 +1,25 @@
 ---
 name: proj-todo
-description: "Owns the project backlog AND the tracked bug list, both in TODO.md at the repo root — NOT the in-session task tracker (TaskCreate/TaskUpdate), which is unrelated. Invoke for every interaction with that file, reads included: 'add to my todos', 'what should I work on next', 'mark X done', 'is X on my list?', 'drop that item', 'clean up the todo list', and any time you would otherwise read or edit TODO.md yourself. Bugs live in that file too, so invoke it before hunting for defects in the codebase: 'what bugs are open', 'find me a low-hanging-fruit bug to fix', 'what should I fix next', 'is that bug written down', 'file a bug for X' — a request to fix or find a bug starts here, not with a code search."
+description: "Owns the project backlog AND the tracked bug list, both in TODO.md at the repo root — NOT the in-session task tracker (TaskCreate/TaskUpdate), which is unrelated. Invoke for every interaction with that file, reads included: 'add to my todos', 'what should I work on next', 'mark X done', 'is X on my list?', 'drop that item', 'clean up the todo list', and any time you would otherwise read or edit TODO.md yourself. Bugs live in that file too, so invoke it before hunting for defects in the codebase: 'what bugs are open', 'find me a low-hanging-fruit bug to fix', 'what should I fix next', 'is that bug written down', 'file a bug for X' — a request to fix or find a bug starts here, not with a code search. ALSO invoke at the START of any request to build, change, fix, refactor or add anything in this project, even when the user never mentions the todo list and even when the request looks small — 'can you make X do Y', 'add a Z', 'this should really do W'. Whatever was asked for is very often already an entry, carrying a corrected premise, a rejected approach or a collision with another item, and it has to be closed out once the work lands. Check first, implement second."
 argument-hint: "[what you want to do]"
 disable-model-invocation: false
 ---
 
 **Work out what was meant from the request itself. There is no command syntax to parse.** The user talks to this skill in ordinary language, whether they typed `/todo` or just said something in passing, so route on intent:
 
-| What they want                             | Section                         |
-| ------------------------------------------ | ------------------------------- |
-| Consult the list, or you need its contents | Reading or answering a question |
-| Pick something to work on                  | What to work on next            |
-| Find a bug to fix, or see what is broken   | Reading or answering a question |
-| A quick overview                           | Showing the list                |
-| Something is finished                      | Marking done                    |
-| Do one of the items now                    | Implementing a task             |
-| Capture something new                      | Adding a new item               |
-| Move an item to Up Next                    | Promotion by request            |
-| Drop an item no longer wanted              | Removing an item                |
-| Reorganize, prune, fix the file            | Reorganizing                    |
+| What they want                                   | Section                         |
+| ------------------------------------------------ | ------------------------------- |
+| Build / change / fix something, todo unmentioned | Checking before you build       |
+| Consult the list, or you need its contents       | Reading or answering a question |
+| Pick something to work on                        | What to work on next            |
+| Find a bug to fix, or see what is broken         | Reading or answering a question |
+| A quick overview                                 | Showing the list                |
+| Something is finished                            | Marking done                    |
+| Do one of the items now                          | Implementing a task             |
+| Capture something new                            | Adding a new item               |
+| Move an item to Up Next                          | Promotion by request            |
+| Drop an item no longer wanted                    | Removing an item                |
+| Reorganize, prune, fix the file                  | Reorganizing                    |
 
 Keyword prefixes like "done" or "list" are a hint, never a rule: "the wishlist thing is done" is a completion, and "add a todo to list the systems on each shelf" is a new item despite both words appearing. When the request genuinely fits two sections, prefer the non-destructive one and say what you assumed. A bare invocation with nothing after it means show the list.
 
@@ -47,6 +48,20 @@ The drift to look for:
 4. **Prune stale framing** in section headers and open items — a note saying work is blocked on something that has since shipped is worse than no note.
 5. **Enforce the Up Next cap of 5.** Rank the excess by the admission test, move the weakest to **Bugs** if it is a defect and **Backlog / Ideas** otherwise. Say what moved and why; never demote silently. **Never auto-demote an item marked `Promoted by request`** — if every candidate is pinned, ask. **Demote, never delete**; only "Removing an item" deletes.
 6. **A confirmed defect in Backlog / Ideas belongs in Bugs**, unless it is in Up Next. Ideas about how something _could_ work are not defects. When genuinely ambiguous, leave it rather than churning the file.
+
+## Checking before you build
+
+**Any request to build, change or fix something in this project, whether or not the todo list is mentioned.** The user asks for a feature in ordinary language and does not think of it as a todo interaction; this section exists because it usually is one.
+
+**Do this before writing code, not after.**
+
+1. **Read `TODO.md` and look for an entry covering the ask**, across all three open sections. Match on subject, not wording: "make rating edits ask for a confirm" and "Editing a game should need a 'Confirm' press before the change takes effect" are the same item.
+2. **If one exists, read it and say so before starting.** Entries carry a corrected premise, an approach already rejected with reasons, and the other items the work collides with. That is why they are written long, and re-deriving it from the code throws that work away. An entry that names a decision ("decide whether Confirm covers the whole dialog or just the rating") is telling you what the user will be asked to weigh in on.
+3. **Implement, then mark it done in the same pass** — see "Marking done". An open entry describing shipped work is worse than no entry: it sends a later session to redo finished work, and its stale premise ("the rating writes on click") gets quoted as current by every item that cross-references it.
+4. **If the work only partly covers the entry, say which part is left** rather than closing it silently or leaving it wholly open. Record the deliberate non-goals in the completed entry, so a later session reads them as answers rather than oversights.
+5. **If nothing matches, just do the work.** Do not file an entry for something you are about to finish; "Adding a new item" is for work that is _not_ being done now.
+
+The cost is one file read on requests that turn out to be unrelated, which is the trade this rule accepts on purpose. Added 2026-08-15, after the rating-confirm work was implemented from scratch while a fully written-up entry for it sat in Backlog / Ideas, and stayed open afterwards.
 
 ## Reading or answering a question
 
