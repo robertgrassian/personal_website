@@ -38,6 +38,7 @@ GAME_KEYS = {
     "name",
     "system",
     "genres",
+    "platforms",
     "releaseDate",
     "imageUrl",
     "igdbId",
@@ -53,6 +54,7 @@ WISHLIST_KEYS = {
     "name",
     "system",
     "genres",
+    "platforms",
     "releaseDate",
     "imageUrl",
     "igdbId",
@@ -402,3 +404,24 @@ def test_health_includes_db_ok(client: TestClient) -> None:
     response = client.get("/api/py/health")
     assert response.status_code == 200
     assert response.json()["db"] == "ok"
+
+
+@requires_db
+def test_platforms_ride_on_the_read_from_the_catalog_row(client: TestClient) -> None:
+    """platforms is what the owner forms suggest systems from, so it has to
+    survive the trip rather than merely appear in the key set. Compared against
+    the catalog rows themselves: the seed populates the column, so pinning
+    literals here would break on the next backfill."""
+    stored = dict(
+        _rows(
+            """SELECT m.name, m.platforms FROM played_games p
+                 JOIN game_metadata m ON m.id = p.metadata_id
+                 JOIN profiles pr ON pr.id = p.user_id
+                WHERE pr.username = 'rgrassian'"""
+        )
+    )
+    populated = [n for n, p in stored.items() if p]
+    assert populated, "seed has no platforms; this test would prove nothing"
+
+    for game in client.get("/api/py/users/rgrassian/games").json():
+        assert game["platforms"] == stored[game["name"]], game["name"]

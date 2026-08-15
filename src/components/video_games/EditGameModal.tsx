@@ -61,6 +61,11 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
   // notes field uses.
   const [systemDraft, setSystemDraft] = useState(game.system);
 
+  // Same rule as the add form: the game's own platforms when we know them,
+  // every shelf system otherwise (hand-entered games, and anything added
+  // before the platforms column was backfilled).
+  const systemSuggestions = game.platforms.length > 0 ? game.platforms : existingSystems;
+
   const rate = (next: Rating | "") => {
     // Any rating write answers the "how was it?" prompt, including one made
     // with the picker at the top of the dialog — leaving it up would keep
@@ -171,7 +176,7 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
           <SuggestInput
             value={systemDraft}
             onChange={setSystemDraft}
-            options={existingSystems}
+            options={systemSuggestions}
             maxLength={100}
             placeholder="e.g. SNES, PS5"
           />

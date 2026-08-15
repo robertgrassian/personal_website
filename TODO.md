@@ -157,15 +157,19 @@ to keep that section at five._
       window and may be why nobody has hit it.
 
 - [ ] **Field suggestions (system, genre, …) should work on mobile, not just desktop.** The
-      add/promote forms use a native `<datalist>` (`AddGameModal.tsx`, `EditWishlistModal.tsx`),
-      which mobile Safari/Chrome either render poorly or ignore, so on a phone the system
-      field is a bare free-text input. Replace the datalist with a real combobox (controlled
-      input + filtered dropdown list, keyboard + touch friendly) so suggestions appear on
-      every device. The add form is already game-specific as of 2026-08-14 (`GameDraftForm`
-      suggests the pick's `draft.platforms`); the promote form in `EditWishlistModal` is not,
-      and cannot be cheaply, because a `WishlistGame` carries no platform list. Giving it one
-      means putting `game_metadata.platforms` on the read schema, the same widening the
-      catalog-variant item wants. Consider doing the same for genres.
+      suggestion fields use a native `<datalist>`, which mobile Safari/Chrome either render
+      poorly or ignore, so on a phone the system field is a bare free-text input. Replace it
+      with a real combobox (controlled input + filtered dropdown list, keyboard + touch
+      friendly) so suggestions appear on every device.<br>
+      _Now a one-file change, which it was not when this was written._ All three forms went
+      through `SuggestInput` on 2026-08-14 (`GameDraftForm`, `EditGameModal`,
+      `EditWishlistModal`), and it owns the input, the datalist, its `useId` id and the
+      first-click `showPicker()` call. Replace that component and every form follows.<br>
+      _The game-specific half is done and is no longer part of this item._ All three forms
+      suggest the game's own platforms, falling back to existing shelf systems when the list
+      is empty; `platforms` reached the read schema on 2026-08-14. What is left here is
+      purely the mobile control. Consider doing the same for genres, which have no
+      suggestions at all today.
 
 - [ ] **The add form's info popover can promise genres the add then fails to store.** Found in
       the code review of this branch (2026-08-14) and accepted as a known limit rather than
@@ -258,6 +262,30 @@ to keep that section at five._
       at their own library, who is about to interact with the page anyway.
 
 ## Backlog / Ideas
+
+- [ ] **There probably should not be two game modals. Merge `AddGameModal` and `EditGameModal`
+      into one.** Raised 2026-08-14 while fixing the system field in both: the same question
+      ("which console is this on?") had two different answers depending on which dialog you
+      opened, and fixing it meant the same change twice.<br>
+      _Why they diverged, which is the thing to design around._ They are not two views of one
+      form. `AddGameModal` owns a search step and a draft that does not exist yet, and
+      `GameDraftForm` splits its fields on `draft.igdbId` because an IGDB pick resolves to a
+      SHARED catalog row it must not pretend to edit. `EditGameModal` owns a row that already
+      exists and writes each field independently: the rating writes on click through
+      `useOptimistic`, the system buffers to a draft with its own Save, and sessions and
+      delete live there too. So a merge has to answer what a single dialog does about
+      per-field writes versus one submit, which is the same question the "editing should need
+      a Confirm press" item is circling from the other side.<br>
+      _What they now genuinely share, and it is only one thing:_ `SuggestInput` (2026-08-14),
+      which owns the input, its datalist and the first-click behaviour for all three forms.
+      Everything else is coincidental resemblance.<br>
+      _Sequence this with the three items that also want to reshape these dialogs_, or it
+      will be done twice: **"When adding a game, let me say I'm playing it now"** in Up Next
+      adds a play-history section to the add form, **"Make library and wishlist entries fully
+      editable"** wants one shared field form across both modals, and **"Make viewing a
+      game's details better"** floats hosting edit controls on the flipped card face, which
+      would delete `EditGameModal` rather than merge it. That last one is the real
+      counter-argument: if edit moves onto the card, there is no second modal left to merge.
 
 - [ ] **Audit the genre vocabulary, fix the wrong values in the database with a script, and stop
       them coming back.** Prompted by **Star Fox Adventures being the only game tagged
