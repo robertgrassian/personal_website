@@ -53,8 +53,8 @@ genres survive only as the fallback for a title Wikipedia cannot resolve. Wikida
 tried as a structured third source in 2026-07-30 and **rejected** as frequently thin or wrong
 (Kinect Sports as "association football video game", Minish Cap as "role-playing video game"); it
 survives only as a fallback for infoboxes with no genre field, so do not re-propose it as the clean
-machine-readable answer. The cheap experiment for a third is an LLM pass over name + Wikipedia lead
-+ IGDB genres run **offline inside the backfill's plan step**, where a human already reviews every
+machine-readable answer. The cheap experiment for a third is an LLM pass over name + Wikipedia
+lead + IGDB genres run **offline inside the backfill's plan step**, where a human already reviews every
 changing row: the review gate that makes a bad automated genre survivable exists only there, not in
 the live add path. Do not put a model in the write path first.
 
@@ -65,5 +65,5 @@ outright). Fine for one curator, re-think before strangers.
 Related: **"Take a pass at the catalog rows whose `igdb_id` points at a variant"** in Up Next -
 those eleven rows carry the _variant's_ genres, so some of what this audit turns up is that item's
 job rather than this one, and doing it first shrinks this list. And **"Make library and wishlist
-entries fully editable"** below would give genres a write path from the UI, at which point one-off
+entries fully editable"** would give genres a write path from the UI, at which point one-off
 corrections stop needing a script at all.

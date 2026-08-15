@@ -1,4 +1,4 @@
-# Make database migrations run automatically as part of CD
+# Make database migrations run automatically as part of CD.
 
 _Section: **Backlog / Ideas** &middot; index: [`TODO.md`](../../TODO.md)_
 

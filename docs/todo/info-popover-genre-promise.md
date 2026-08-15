@@ -18,4 +18,4 @@ _The cheaper answer, if it ever matters:_ let the client send the previewed genr
 have the server use them when present. Explicitly **declined 2026-08-14** on the grounds that it
 adds a second path through the write path and lets a crafted POST pick the genres every later owner
 inherits — the same trust question as **"Anyone can define a shared catalog row for everyone"**
-above. Re-decide the two together, not separately.
+Re-decide the two together, not separately.

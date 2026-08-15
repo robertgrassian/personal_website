@@ -7,21 +7,27 @@ disable-model-invocation: false
 
 **Work out what was meant from the request itself. There is no command syntax to parse.** The user talks to this skill in ordinary language, whether they typed `/todo` or just said something in passing, so route on intent:
 
-| What they want                                   | Section                         |
-| ------------------------------------------------ | ------------------------------- |
-| Build / change / fix something, todo unmentioned | Checking before you build       |
-| Consult the list, or you need its contents       | Reading or answering a question |
-| Pick something to work on                        | What to work on next            |
-| Find a bug to fix, or see what is broken         | Reading or answering a question |
-| A quick overview                                 | Showing the list                |
-| Something is finished                            | Marking done                    |
-| Do one of the items now                          | Implementing a task             |
-| Capture something new                            | Adding a new item               |
-| Move an item to Up Next                          | Promotion by request            |
-| Drop an item no longer wanted                    | Removing an item                |
-| Reorganize, prune, fix the file                  | Reorganizing                    |
+| What they want                                    | Section                         |
+| ------------------------------------------------- | ------------------------------- |
+| Build / change / fix something, todo unmentioned  | Checking before you build       |
+| Consult the list, or you need its contents        | Reading or answering a question |
+| Pick something to work on                         | What to work on next            |
+| See what is broken                                | Reading or answering a question |
+| Pick a bug to fix ("find me an easy one")         | What to work on next            |
+| A quick overview                                  | Showing the list                |
+| Something is finished                             | Marking done                    |
+| Do one of the items now                           | Implementing a task             |
+| Capture something new                             | Adding a new item               |
+| Move an item to Up Next                           | Promotion by request            |
+| Drop an item no longer wanted                     | Removing an item                |
+| Reword, reorder, or move an item between sections | Reorganizing                    |
+| Reorganize, prune, fix the file                   | Reorganizing                    |
 
 Keyword prefixes like "done" or "list" are a hint, never a rule: "the wishlist thing is done" is a completion, and "add a todo to list the systems on each shelf" is a new item despite both words appearing. When the request genuinely fits two sections, prefer the non-destructive one and say what you assumed. A bare invocation with nothing after it means show the list.
+
+**"Next" promotes, "now" implements.** "Let's do the user search one next" is Promotion by request; "let's build user search" is Implementing a task. Both are writes, so the non-destructive tie-break gives no traction. When it is still unclear, promote and offer to start.
+
+**In every mode, if more than one entry plausibly matches, ask rather than picking.** Genre work in particular spreads across three separate entries, and quietly folding a new request into the wrong one is how two items become one and a real distinction gets lost.
 
 **The three open sections**, since almost every decision below depends on them:
 
@@ -38,23 +44,25 @@ Bugs was split out from Up Next on 2026-08-07: the old rule admitted any "confir
 Split 2026-08-15, because `TODO.md` had reached 16k words and this skill reads it on nearly every turn — including every build request, per "Checking before you build". Three kinds of file:
 
 - **`TODO.md` is the index.** Every open item appears here exactly once, under its section heading. An index entry is its ask in bold, the corrected premise or the constraint that decides the approach, its cross-references by name, and, if it has one, a `[Details](docs/todo/<slug>.md)` link. **This is the only file most modes need.**
-- **`docs/todo/<slug>.md` is one open item's detail** — the diagnosis, the rejected alternatives, the design decisions. Uncapped in length. Items short enough to say in the index have no doc at all, and roughly half do not.
-- **`docs/todo/completed.md` is the archive**, newest first, capped at 20.
+- **`docs/todo/<slug>.md` is one open item's detail** — the diagnosis, the rejected alternatives, the design decisions. Uncapped in length. Roughly half of all items are short enough to need no doc at all.
+- **`docs/todo/completed.md` is the archive**, newest first, capped at 20. 37KB: never read it just to look around.
 
 **The invariant, which makes drift checkable:** `docs/todo/` holds exactly one file per doc-backed open item, plus `completed.md`. Every `[Details]` link resolves; every doc is linked from the index.
 
-**Read detail docs on demand, never by default.** Open one when you are about to work on that item, cross-reference it, or check whether a new request duplicates it. Reading them all rebuilds the problem this split exists to solve. The index carries the premise correction precisely so that routing, duplicate checks and "is X on my list?" can be answered without opening anything.
+**Read detail docs on demand, never by default** — each mode below says whether it may. Reading them all rebuilds the problem this split exists to solve.
 
 ## Check the file's structure
 
 Do this after deciding the mode, before acting. TODO.md gets edited outside this skill too, so this is where drift gets caught.
 
 - **Writing anyway** (marking done, implementing, adding, promoting, reorganizing): fix drift silently, mentioning only what moved non-obviously.
-- **Read-only** (answering a question, what to work on next, showing the list): **do not modify the file.** A read must not leave a diff in the working tree — the user may be mid-change on an unrelated branch. Mention what is out of place at the end and offer to fix it.
+- **Read-only** (answering a question, what to work on next, showing the list, **and checking before you build**): **do not modify anything.** A read must not leave a diff in the working tree — the user may be mid-change on an unrelated branch. Mention what is out of place at the end and offer to fix it. Checking before you build becomes a write mode only at its step 3, once you have actually implemented something; a build request that matches no entry must leave the backlog untouched.
+
+**Items 1-3 only apply when this turn archives something**, or when a stray `- [x]` is already visible in the index. Otherwise skip them, and in particular **do not open `docs/todo/completed.md` to check its length** — it is 37KB, larger than the index, and reading it on every turn re-imports the cost this split removed.
 
 The drift to look for:
 
-1. **Any `- [x]` item in `TODO.md`** moves to the top of `docs/todo/completed.md`. Compress while moving: keep what stays useful as reference (a debugging gotcha, an accepted trade-off, a follow-up someone will need), drop the planning detail that only mattered while it was pending. **Then delete its detail doc**, folding anything still useful into the completed entry first. The doc holds planning detail, which is exactly what this rule drops.
+1. **Any `- [x]` item in `TODO.md`** moves to the top of `docs/todo/completed.md`. **Write the archive entry from the detail doc, not from the index line** — the index line is already compressed to the cap, while real archive entries run 10 to 40 lines, so closing a doc-backed item means lifting from the doc rather than re-compressing a summary. Keep what stays useful as reference (a debugging gotcha, an accepted trade-off, a follow-up someone will need), drop the planning detail that only mattered while it was pending. **Then `rm` the detail doc.**
 2. **Fix cross-references broken by the move.** An open item saying "see the gotcha above" needs repointing once that text moves. Cross-references live in the index by item name, so this is a `TODO.md` edit; also grep `docs/todo/` for the moved item's name.
 3. **Trim `docs/todo/completed.md` to 20 entries**, oldest first. Before dropping one, check whether it carries reference material cited elsewhere; if so, fold that detail into the citing item.
 4. **Prune stale framing** in section headers and open items — a note saying work is blocked on something that has since shipped is worse than no note.
@@ -69,6 +77,16 @@ The drift to look for:
 
    A dead link means the doc was deleted but its index entry stayed: restore the doc from git history, or fold its content back into the index line. An orphan means an item was removed or completed and its doc was left behind: delete it. In a read-only mode, report both rather than fixing them.
 
+8. **Index entries over the cap** (write modes only). The cap is **700 characters**, about seven wrapped lines, which is where the index stops being scannable. Count it rather than eyeballing, because a single unwrapped line can be 950 characters and still look short:
+
+   ```
+   awk '/^- \[/{if(n)print c" "substr(t,1,60); t=$0;n=1;c=length($0);next} /^## /{if(n)print c" "substr(t,1,60);n=0;next} n&&NF{c+=length($0)} END{if(n)print c" "substr(t,1,60)}' TODO.md | sort -rn | awk '$1>700'
+   ```
+
+   **Six inline Backlog entries are over it today, deliberately** — they are carry-overs from before the cap existed, and they get a doc when someone next touches them, not in a sweep. So this item is a **watch, not a chore**: act on it when an entry you are already editing is over, and never split more than two per pass. Bulk-splitting low-priority backlog ideas is churn that costs more than the characters save.
+
+   **A cross-reference always beats the cap.** If naming the item this one blocks pushes it over, go over: routing and ranking are what the index is for, and an entry that fits but hides a dependency has failed at its job.
+
 ## Checking before you build
 
 **Any request to build, change or fix something in this project, whether or not the todo list is mentioned.** The user asks for a feature in ordinary language and does not think of it as a todo interaction; this section exists because it usually is one.
@@ -78,10 +96,10 @@ The drift to look for:
 1. **Read the `TODO.md` index and look for an entry covering the ask**, across all three open sections. Match on subject, not wording: "make rating edits ask for a confirm" and "Editing a game should need a 'Confirm' press before the change takes effect" are the same item. The index alone is enough to decide this.
 2. **If one exists, open its detail doc and say so before starting.** This is the mode docs exist for. They carry a corrected premise, an approach already rejected with reasons, and the other items the work collides with; re-deriving that from the code throws the work away. A doc that names a decision ("decide whether Confirm covers the whole dialog or just the rating") is telling you what the user will be asked to weigh in on. An entry with no `[Details]` link has nothing more to give: the index line is the whole item.
 3. **Implement, then mark it done in the same pass** — see "Marking done". An open entry describing shipped work is worse than no entry: it sends a later session to redo finished work, and its stale premise ("the rating writes on click") gets quoted as current by every item that cross-references it.
-4. **If the work only partly covers the entry, say which part is left** rather than closing it silently or leaving it wholly open. Record the deliberate non-goals in the completed entry, so a later session reads them as answers rather than oversights.
+4. **If the work only partly covers the entry, say which part is left.** Partial completion is an **edit, not an archive**: the item stays open, and you rewrite the index line and the detail doc to describe only what remains, recording what shipped and what was deliberately not done so a later session reads those as answers rather than oversights. **Nothing goes to `docs/todo/completed.md` until the whole entry is closed** — an item in both places at once is worse than either.
 5. **If nothing matches, just do the work.** Do not file an entry for something you are about to finish; "Adding a new item" is for work that is _not_ being done now.
 
-The cost is one index read on requests that turn out to be unrelated, which is the trade this rule accepts on purpose. It got a lot cheaper on 2026-08-15: the index is a fifth of what the file used to be, and the detail doc is only opened once an entry actually matches. Added 2026-08-15, after the rating-confirm work was implemented from scratch while a fully written-up entry for it sat in Backlog / Ideas, and stayed open afterwards.
+The cost is one index read on requests that turn out to be unrelated, which is the trade this rule accepts on purpose. Added 2026-08-15, after the rating-confirm work was implemented from scratch while a fully written-up entry for it sat in Backlog / Ideas, and stayed open afterwards.
 
 ## Reading or answering a question
 
@@ -100,6 +118,8 @@ Two things worth doing while you have it open, since the user cannot see them fr
 
 **Read Bugs too, but lead with Up Next.** Close with one line on the bug list ("three open bugs, worst is X") rather than merging the two into one ranked list. If a bug has become urgent enough to lead with, say so and offer to promote it rather than recommending it from where it sits.
 
+**When the ask is specifically for a bug** ("find me an easy one to fix", "what should I fix next"), rank Bugs instead and skip the Up Next summary. Cheapness is judged from the index line's constraint, not from the code: an entry whose premise is unverified or marked "not reproduced" is not low-hanging, however small the fix sounds.
+
 ## Showing the list
 
 Read the `TODO.md` index in full. No detail docs: this mode is a scan, not a study. Then give two short groups:
@@ -111,11 +131,15 @@ Then one line for **Bugs**: how many, and the worst. Keep it scannable; summariz
 
 ## Marking done
 
-Identify which task from what they said, matching on description across all sections of the index. Flip it to `- [x]`; the structure check then moves it to `docs/todo/completed.md`, compresses it, deletes its detail doc and caps the archive.
+Identify which task from what they said, matching on description across all sections of the index. **Do the whole move here; do not defer to the structure check, which has already run by this point:**
 
-**Read the detail doc before deleting it**, so anything still useful as reference survives into the compressed entry. This is the one write path that destroys information, and it is the only reason to open a doc in this mode.
+1. **Read the detail doc, if it has one**, before touching anything. It is the source for the archive entry and you are about to delete it.
+2. **Remove the index entry** from `TODO.md`.
+3. **Add it as `- [x]` at the top of `docs/todo/completed.md`**, written from the doc per structure-check item 1.
+4. **`rm docs/todo/<slug>.md`.**
+5. **Re-run structure-check items 2, 3 and 7**: repoint cross-references to it, trim the archive to 20, and confirm no dead link or orphan is left behind.
 
-If nothing matches, say so rather than guessing — it may never have been written down, in which case offer to add it as already-done.
+If nothing matches, say so rather than guessing — it may never have been written down, in which case offer to add it as already-done. If **more than one** plausibly matches, ask rather than picking.
 
 ## Implementing a task
 
@@ -123,7 +147,7 @@ Find the best-matching `- [ ]` item in the index. If no match, say so and stop.
 
 1. **Open its detail doc if it has one, before writing any code.** Same reason as "Checking before you build": the rejected alternatives are in there, and re-proposing one is the failure this costs a single file read to avoid.
 2. Implement it — read whatever files are needed, make the changes, explain what you did.
-3. Immediately after writing the changes, mark it done: remove the index entry, add it as `- [x]` at the top of `docs/todo/completed.md`, and delete the detail doc.
+3. Immediately after writing the changes, mark it done, following all five steps under "Marking done" — the archive entry comes from the doc, and cross-references, the 20-cap and the invariant greps all still apply.
 
 Do **not** ask whether the changes look good before marking done. Applying them is sufficient.
 
@@ -133,7 +157,7 @@ Do **not** ask whether the changes look good before marking done. Applying them 
 
 **"I want to do X next" puts X in Up Next, full stop.** No test applies and no justification is needed — wanting to build the fun thing on a Saturday is a complete reason. Covers "move X to up next", "bump X up", "X is what I'm doing next", from Bugs or Backlog, to the **top** of Up Next unless told otherwise.
 
-**Mark it on the index entry's first line: `(Promoted by request YYYY-MM-DD.)`** Without the marker the cap rule ranks it weakest by the objective test and evicts it on the next write, silently undoing the decision. It goes in the index, not the doc, because the cap rule never opens docs. Update the `_Section:_` line in the doc too, if it has one.
+**Mark it immediately after the bold ask: `(Promoted by request YYYY-MM-DD.)`** Without the marker the cap rule ranks it weakest by the objective test and evicts it on the next write, silently undoing the decision. It goes in the index, not the doc, because the cap rule never opens docs. Update the `_Section:_` line in the doc too, if it has one.
 
 Two things this does not override:
 
@@ -148,7 +172,7 @@ The pin clears when the item is completed or the user demotes it. If a pinned it
 
 Run the full structure check, since this is a write. Then do what was asked, usually one of:
 
-- **Items in the wrong section.**
+- **Items in the wrong section**, which is an index edit plus the doc's `_Section:_` line.
 - **A rule change.** If the user changes a rule in this file, edit this file too, not just `TODO.md`. A rule followed once and not written down will not survive the session.
 - **Entries that have gone stale.** Correct them rather than deleting, and say what changed.
 - **Index lines that have outgrown five lines**, which is the signal to give that item a doc. Move the overflow rather than trimming the meaning out of it.
@@ -163,7 +187,7 @@ Report what moved and why in two lines. This is the one mode where the user cann
 "Drop that", "we don't need that anymore". Deleting an entry decided against is normal, and distinct from correcting one that has gone stale.
 
 1. **Identify exactly one entry** and say which before removing it. If more than one plausibly matches, ask.
-2. **Delete its detail doc** with `rm docs/todo/<slug>.md`, if it has one. The filesystem bounds this: a file delete cannot reach a neighbouring entry.
+2. **Delete its detail doc** with `rm docs/todo/<slug>.md`, if it has one. The filesystem bounds this: a file delete cannot reach a neighbouring entry. **Skim it before deleting.** This destroys more than any other path in this skill, archiving nothing: if the doc carries a finding that outlives the item (a rejected approach, a measured cost, a "try the cheap thing first"), put one line of it in your report so it survives in the transcript.
 3. **Remove its index entry and nothing else.** An index entry is its `- [` line plus the indented continuation lines under it, ending at whichever comes **first**: the next line-initial `- [` (either `- [ ]` or `- [x]`), the next `##` heading, or EOF.
 
    **All three terminators matter.** Watching only for `- [ ]` skips over any run of `- [x]` entries and swallows everything up to the next open item, potentially in a different section. Anchoring on the next heading or entry _title_ does the same. The `##` and EOF terminators are what stop that, and why this rule does not care what order the sections are in.
@@ -176,7 +200,7 @@ This mode exists because it went wrong: a "remove one idea" edit anchored on the
 
 ## Adding a new item
 
-First, read the `TODO.md` index and check whether a similar item already exists in any section. The index carries each item's corrected premise for exactly this reason, so the scan is index-only; open a candidate's detail doc **only** when it looks like a real match and you need to know whether the new request is already covered. **If one does exist:** do not create a second. If the new request adds meaningful detail the existing item lacks, fold it in: into the doc if it has one, into the index line if it does not. Either way, tell the user what you found and what changed.
+First, read the `TODO.md` index and check whether a similar item already exists in any section. The index carries each item's corrected premise for exactly this reason, so the scan is index-only; open a candidate's detail doc **only** when it looks like a real match and you need to know whether the new request is already covered. **If one does exist:** do not create a second. If the new request adds meaningful detail the existing item lacks, fold it in: into the doc if it has one, into the index line if it does not. **If the folded detail changes the entry's premise or its deciding constraint, update the index line too** — the index is what every read-only mode sees, so a correction that lands only in the doc leaves routing reading the old, wrong premise. Either way, tell the user what you found and what changed.
 
 ### Picking the section
 
@@ -213,20 +237,30 @@ Keep the user's own words for the _want_, but never preserve a factual claim you
 
 ### Where the words go, and the only length rule that matters
 
-**The index line is capped at about five lines. The detail doc is not capped at all.** Before the split this cap did not exist and entries grew to sixty lines each, which is what made the file too expensive to read.
+**The index line is capped at 700 characters. The detail doc is not capped at all.** Before the split no cap existed and entries grew to sixty lines each, which is what made the file too expensive to read.
 
-- **If the item fits in five lines, it has no doc.** Roughly half do not. A `[Details]` link pointing at three sentences costs more than it saves.
-- **If it needs more, write the index line first**, at five lines: the ask, the corrected premise or the deciding constraint, the cross-references. Then put everything else in `docs/todo/<slug>.md` and link it. The index line is not a teaser, it is the item as a product engineer needs to route it; the doc is what an implementer needs to build it.
+- **If the item fits in the cap, it has no doc.** Roughly half do not. A `[Details]` link pointing at three sentences costs more than it saves.
+- **If it needs more, write the index line first**, inside the cap: the ask, the corrected premise or the deciding constraint, the cross-references. Then put everything else in the doc. The index line is not a teaser, it is the item as a product engineer needs to route it; the doc is what an implementer needs to build it.
 - **`<br>` separates sub-points in an index line.** In a doc, use real paragraphs and `_italic lead-ins_` for sub-points, matching the docs already there.
 - **Slugs are short and readable** (`genre-vocabulary-audit`, not the ask verbatim). The filename is read far more often than it is written.
 
-Growing an item past five index lines later is the signal to give it a doc, not to let the index line grow.
+**Creating a detail doc.** It opens with the ask as an H1 and a metadata line, both of which later rules depend on, then the body:
+
+```markdown
+# <the ask, verbatim from the index line>
+
+_Section: **<Up Next | Bugs | Backlog / Ideas>** &middot; index: [`TODO.md`](../../TODO.md)_
+```
+
+Then add `[Details](docs/todo/<slug>.md)` as the last element of the index line. The `_Section:_` line is what structure-check item 6 and "Promotion by request" keep in sync, so a doc without it silently opts out of both.
+
+An entry outgrowing the cap is the signal to give it a doc, not to let the index line grow.
 
 ### How much to research, and how to cite it
 
 Write for a **product engineer**: the entry owns the product decision, the implementer owns the implementation. What earns space is what an implementer would have to _decide_ rather than _look up_ — the product change hiding inside a bug fix, the choice with two defensible answers, the premise correction. Diagnosis alongside that is welcome; more information is not inherently bad. **Where to stop:** do not read a file to add a detail the implementer will have open anyway. A walkthrough of how existing code works does not go in.
 
-**Cite symbols, never line numbers.** Checked 2026-08-07: of 22 `file.ts:line` refs in the open sections, **12 were wrong** — one refactor branch invalidated eleven at once, on entries written the day before, while every prose diagnosis in those same entries was still correct. Only the anchors rot, and an implementer greps for the symbol anyway.
+**Cite symbols, never line numbers.** Measured 2026-08-07: 12 of 22 `file.ts:line` refs were already wrong, one refactor having invalidated eleven at once, while every prose diagnosis around them still held. Only the anchors rot, and an implementer greps for the symbol anyway.
 
 - Write `` `pipeline.ts`'s `passesBaseFilters` ``, not `` `pipeline.ts:27` ``.
 - Name the function, component, constant, CSS class, or column. With no symbol to name, quote the distinctive line of code — a greppable string outlives a number.

@@ -37,8 +37,10 @@ the old rule sent every bug straight here, so four of five slots were defects.)
 - [ ] **When adding a game, let me say I'm playing it now, or that I played it before: a play
       history section in the add-game form.** (Promoted by request 2026-08-09.) Two asks on one
       surface: a one-tap "playing it now" as the game is added, and the fuller past-playthrough
-      record. The one real blocker is not in the UI. Library target only, and it reuses the existing
-      date form rather than re-typing it. [Details](docs/todo/add-game-play-history.md)
+      record. Library target only, and it reuses the existing date form rather than re-typing it.
+      The section must disappear when the target is `wishlist`, which **collides directly with
+      "Fold + Add to wishlist into a single + Add game"**: sequence the two deliberately.
+      [Details](docs/todo/add-game-play-history.md)
 
 ## Bugs
 
@@ -59,13 +61,18 @@ to keep that section at five._
 
 - [ ] **The add form's info popover can promise genres the add then fails to store.** Accepted as a
       known limit rather than fixed. `CatalogInfo` and the add go through the same `_sourced_genres`
-      decision, so they cannot disagree about the rule, only about timing. The obvious fix does not
-      work; the reason is in the doc. [Details](docs/todo/info-popover-genre-promise.md)
+      decision, so they cannot disagree about the rule, only about timing. The cheaper fix was
+      **explicitly declined 2026-08-14**, and this must be re-decided together with **Anyone can
+      define a shared catalog row for everyone**, not separately.
+      [Details](docs/todo/info-popover-genre-promise.md)
 
 - [ ] **The genre lookup picks the wrong Wikipedia article for two titles, at a confidence score of
-      1.0.** Narrowed 2026-08-14 from seven cases to two: God of War and Bomberman Story DS. What is
-      left is two string-identical candidates, and detecting the infobox template beats any
-      title-based rule. [Details](docs/todo/genre-lookup-wrong-article.md)
+      1.0.** Narrowed 2026-08-14 from seven cases to two, and the two need different fixes.
+      `Call of Duty: Modern Warfare 3` is the bigger half: the right article is not among the
+      candidates at all, so no ranking change reaches it and `search_candidates` itself has to
+      change. `Bomberman DS` is a genuine tie between string-identical titles, where detecting the
+      infobox template beats any title-based rule.
+      [Details](docs/todo/genre-lookup-wrong-article.md)
 
 - [ ] **Owner edit affordances still pop in after hydration.** The pencils and "Add game" appear a
       beat after first paint because `useViewerRelationship` resolves in a `useEffect`. No free fix:
@@ -76,11 +83,14 @@ to keep that section at five._
 - [ ] **There probably should not be two game modals. Merge `AddGameModal` and `EditGameModal` into
       one.** Raised 2026-08-14 while fixing the system field in both: one question had two answers
       depending on the dialog, and fixing it meant the same change twice. They genuinely share only
-      one thing. Sequence this with the other items reshaping these dialogs.
-      [Details](docs/todo/merge-game-modals.md)
+      one thing. Sequence with **When adding a game, let me say I'm playing it now**, **Make library
+      and wishlist entries fully editable** and **Make viewing a game's details better**, the last of
+      which is the counter-argument: if edit moves onto the card, there is no second modal left to
+      merge. [Details](docs/todo/merge-game-modals.md)
 
 - [ ] **Audit the genre vocabulary, fix the wrong values in the database with a script, and stop
-      them coming back.** Premise unverified against prod, so start there. `THEME_VALUES` now bites
+      them coming back.** Prompted by **Star Fox Adventures being the only game tagged "Shooter"**.
+      Premise unverified against prod, so start there. `THEME_VALUES` now bites
       every IGDB add (narrowed 2026-08-14), leaving only hand-typed genres reaching `clean_genres`.
       Genres live on the **shared** `game_metadata` row, so one correction rewrites it for every
       owner. Related: **catalog rows whose `igdb_id` points at a variant**.
@@ -93,16 +103,21 @@ to keep that section at five._
 
 - [ ] **An audit log of important library actions, primarily so a change can be undone.** No such
       table exists; nothing in the write path records what changed, so rating, deleting and
-      promoting are all one-way. The design hangs on one decision: what a row holds.
+      promoting are all one-way. The design hangs on one decision: what a row holds. Undo-in-a-toast
+      wants **Show a confirmation toast after logging a session** built first.
       [Details](docs/todo/library-audit-log.md)
 
 - [ ] **Make database migrations run automatically as part of CD.** The premise correction is most of
-      the work. Ordering is the real design question, and there is a counter-argument worth keeping
-      before building it. [Details](docs/todo/migrations-in-cd.md)
+      the work: **there is no CD pipeline to add a step to.** `ci.yml` only tests, and deploys go
+      through Vercel's own GitHub integration, so this means creating a deploy workflow rather than
+      extending one. Ordering against the deploy is the real design question.
+      [Details](docs/todo/migrations-in-cd.md)
 
 - [ ] **The four _backend_ structural refactors left over from the game-library simplification
       review.** Was nine; the five frontend ones landed on `tier3/frontend-refactors` (2026-08-07).
-      One of the remaining four carries a real decision, the other three are mechanical.
+      The `rate_limit_writes` bypass among them was **decided 2026-08-07: leave it alone**, so
+      closing it means documenting why, not changing code. Of the rest, one carries a user-facing
+      copy cost worth deciding deliberately; the others are mechanical.
       [Details](docs/todo/backend-structural-refactors.md)
 
 - [ ] **Move the Following/Followers tabs to their own route.** The honest altitude answer that
@@ -117,15 +132,17 @@ to keep that section at five._
       become links rather than `setView` buttons.
 
 - [ ] **Show a confirmation toast after logging a session, so you know it worked.** Possibly with a
-      "view all sessions" link, per **An easy way to view a game's sessions** below. What makes it
-      more than a `<div>` is in the doc. [Details](docs/todo/session-log-confirmation-toast.md)
+      "view all sessions" link, per **An easy way to view a game's sessions**. There is **no toast
+      infrastructure and no `aria-live` region anywhere in `src/`**, so this is a site-wide primitive
+      decision, not a local one, and **An audit log of important library actions** wants it first.
+      [Details](docs/todo/session-log-confirmation-toast.md)
 
 - [ ] **An easy way to view a game's sessions, and ideally edit old ones.** Two-thirds of the
       backend already exists. Editing is the expensive half and the backend genuinely cannot do it
       today. Where this lives in the UI is still open.
       [Details](docs/todo/view-and-edit-sessions.md)
 
-- [ ] **Logging a past session should pick the whole range in one calendar popup** A constraint
+- [ ] **Logging a past session should pick the whole range in one calendar popup.** A constraint
       rules out a stock range picker, so this is not a library swap. The real cost is leaving native
       date inputs behind. [Details](docs/todo/past-session-date-range-picker.md)
 
@@ -138,8 +155,9 @@ to keep that section at five._
 
 - [ ] **Set up monitoring / alerting, specifically to get notified when a new user signs up for the
       game library.** Nothing exists today: no error tracking, no analytics, no webhook plumbing.
-      Hook the **profile insert**, not the auth user. The channel is still undecided.
-      [Details](docs/todo/signup-monitoring-alerts.md)
+      Hook the **profile insert**, not the auth user. The channel is still undecided. Related but
+      distinct from **Analytics on signups** below, and worth deciding together so they are not
+      built twice. [Details](docs/todo/signup-monitoring-alerts.md)
 
 - [ ] **Document the database restore procedure.** Supabase takes daily backups on the free
       tier, so the backup half is already handled and needs no work; what does not exist is any
@@ -172,8 +190,9 @@ to keep that section at five._
 
 - [ ] **User search, so you can find people to follow without knowing their username.** Almost no
       schema work left. Held back from Phase 5 (2026-07-30) to keep that MVP small, and the follow
-      graph already gives a working discovery path, so this is an enhancement. Two decisions to
-      make. [Details](docs/todo/user-search.md)
+      graph already gives a working discovery path, so this is an enhancement. Two decisions: its own
+      rate-limit bucket rather than the shared `writes` one, and whether results rank by trigram
+      similarity or just filter. [Details](docs/todo/user-search.md)
 
 - [ ] **Give library games a "notes" field, like wishlist entries already have, then grow it into a
       real play journal.** Notes exist only on the wishlist side (`wishlist_items.notes`, capped at
@@ -186,9 +205,10 @@ to keep that section at five._
       [Details](docs/todo/wishlist-promote-played.md)
 
 - [ ] **Make library and wishlist entries fully editable, and keep the two edit modals 1:1.**
-      **Changing which console an entry records is the urgent half** (2026-08-10). Since the catalog
-      migration a library entry is unique on `(user_id, metadata_id)`, so adding a game you already
-      own on a second console is a 409. [Details](docs/todo/fully-editable-entries.md)
+      The console-change half **shipped 2026-08-11**, so the `(user_id, metadata_id)` 409 has an
+      escape hatch and this is back to the broader "edit everything" want, at ordinary backlog
+      urgency. Genre editing here would also unblock **Audit the genre vocabulary**.
+      [Details](docs/todo/fully-editable-entries.md)
 
 - [ ] **Fold "+ Add to wishlist" into a single "+ Add game" that picks its destination.**
       `GameLibrary.tsx` swaps the button label by view, and `AddGameModal` already takes a

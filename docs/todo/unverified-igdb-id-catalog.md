@@ -11,7 +11,7 @@ who adds that game afterwards inherits it**. First-write-wins, with no repair pa
 UI edits a shared row, by design.
 
 _Why this is filed here and not in Up Next:_ it needs a second account acting badly, and there is
-one user. Ranked above the duplicate-add item below because the damage is silent, shared, and
+one user. Ranked over the duplicate-add item because the damage is silent, shared, and
 currently unrepairable from the app.
 
 _Narrowed to a crafted request 2026-08-14, but not fixed._ The add form now renders the catalog

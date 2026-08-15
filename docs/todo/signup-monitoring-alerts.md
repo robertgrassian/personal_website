@@ -27,7 +27,7 @@ transactional provider that does not exist yet; a webhook does not. Note the vol
 for: `max_users` is 100 (`api/app/core/config.py`), so this is a handful of notifications ever,
 which argues for the cheapest thing that works.
 
-Related but different: the **Analytics on signups** item below wants the funnel (how far people get
+Related but different: the **Analytics on signups** item wants the funnel (how far people get
 from landing to first game), where this one wants a ping when someone lands. Its privacy-policy
 caveat applies here only if the answer is a third-party script. Worth deciding together whether the
 same pass should also alert on errors, since "I want to know when something breaks" is the other

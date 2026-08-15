@@ -1,4 +1,4 @@
-# Logging a past session should pick the whole range in one calendar popup
+# Logging a past session should pick the whole range in one calendar popup.
 
 _Section: **Backlog / Ideas** &middot; index: [`TODO.md`](../../TODO.md)_
 
@@ -25,6 +25,6 @@ against a two-tap annoyance on a control the owner uses a handful of times a wee
 ground worth considering first: default "To" to the start date once "From" is set, so the common
 single-day session needs no second pick at all.
 
-Related: the "library-level create session button" item below plans to reuse this same past-dates
+Related: the "library-level create session button" item plans to reuse this same past-dates
 form, so whatever this becomes should be a shared component rather than more markup inside
 `EditGameModal`.

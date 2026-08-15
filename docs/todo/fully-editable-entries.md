@@ -30,5 +30,5 @@ in `video-games/actions.ts` doing the usual `revalidateTag(libraryCacheTag(...))
 must keep `validate_igdb_image_url` (`GameCreate` restricts `imageUrl` to IGDB CDN URLs so nobody
 uses their library as free image hosting) — an "edit image" field that accepts arbitrary URLs would
 reopen exactly that, and the argument is stronger now that the field writes a shared row. Genre
-editing here also unblocks **"Audit the genre vocabulary"** above, which currently needs a one-off
+editing here also unblocks **"Audit the genre vocabulary"**, which currently needs a one-off
 script for want of a write path.

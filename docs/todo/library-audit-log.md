@@ -21,13 +21,13 @@ edits.
 _Where it gets written:_ every owner write goes routers → services → repositories under
 `/api/py/me/*`, so the log belongs at the service layer, in the same transaction as the change — a
 log entry that can go missing is not one you can undo from. Note `rate_limit_writes` commits
-**separately** on purpose, for the opposite reason (see the Tier 3 refactor item above); do not copy
+**separately** on purpose, for the opposite reason (see the Tier 3 backend-refactors item); do not copy
 that shape here.
 
 _Two smaller things to settle:_ retention, since this is the one table with no natural cap
 (`max_games` on `Settings` in `api/app/core/config.py` — default 2000, env-overridable, enforced in
 `api/app/services/me.py` on both create paths with a dedicated 403 — bounds rows, but nothing bounds
 edits); and whether undo is an affordance with a time window (an "Undo" link in a toast, which wants
-the toast item below first) or a history view the owner browses. Either way decide what happens when
+the toast item first) or a history view the owner browses. Either way decide what happens when
 state moved on: undoing a rating edit after a later edit should probably refuse rather than silently
 overwrite.

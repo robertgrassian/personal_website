@@ -27,12 +27,12 @@ missing, so decide whether a failed session log rolls the add back, warns, or is
 
 _Library target only._ A wishlist entry is not in the library and has no game row to hang a session
 off, so this section must disappear when the target is `wishlist`. That collides directly with
-**"Fold '+ Add to wishlist' into a single '+ Add game'"** below, which adds a destination switcher
+**"Fold '+ Add to wishlist' into a single '+ Add game'"**, which adds a destination switcher
 inside this same modal: the switcher would have to show and hide this section, and decide what
 happens to dates already typed when you flip to wishlist. Sequence the two deliberately.
 
 _Reuse, do not re-type, the date form._ **"Logging a past session should pick the whole range in one
-calendar popup"** below already plans to pull that From/To control out of `EditGameModal`; building
+calendar popup"** already plans to pull that From/To control out of `EditGameModal`; building
 a second copy here is what that item is trying to prevent. Same for **"Library-level 'create
 session' button"**, whose stretch goal ("add a game I just started and open its session in one go")
 is this exact gap approached from the other direction — folding them together is reasonable.
@@ -40,5 +40,5 @@ is this exact gap approached from the other direction — folding them together 
 _This is the whole add-game screen's turn, per the ask._ Four other items touch this same form and
 are cheaper done in one pass than four: **"Remove genre keyword search when adding a game"**,
 **"Restrict the add-game 'system' suggestions to the platforms the game actually released on"**
-(both since done), and the destination-switcher item above. The mobile combobox is done too, so any
+(both since done), and the destination-switcher item. The mobile combobox is done too, so any
 redesign here inherits `SuggestInput` rather than a `<datalist>`.

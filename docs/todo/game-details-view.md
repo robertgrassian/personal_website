@@ -50,5 +50,5 @@ absolutely-positioned **sibling** of the flip button, not a child (there are two
 that pattern, or make the back face stop being a button. Whatever opens must also work on touch,
 where there is no hover.
 
-Related: the "notes / play journal" backlog item below wants a bigger reading surface for per-game
+Related: the "notes / play journal" backlog item wants a bigger reading surface for per-game
 data too, so a details view built here is likely where notes end up living.

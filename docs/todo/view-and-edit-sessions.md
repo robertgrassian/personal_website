@@ -2,7 +2,7 @@
 
 _Section: **Backlog / Ideas** &middot; index: [`TODO.md`](../../TODO.md)_
 
-Requested alongside the toast above as its own item, then re-asked 2026-08-07 with the editing half
+Requested alongside the confirmation-toast item as its own item, then re-asked 2026-08-07 with the editing half
 attached: today you can create sessions and close them, but nothing in the UI ever lists them, and
 nothing anywhere can change one after the fact.
 
@@ -35,8 +35,8 @@ and worth confirming in the UI rather than just doing.
 
 _Where it lives is open._ Options: a section in the edit modal (owner-only, closest to where
 sessions are created), or part of the richer game-details view that the "make viewing a game's
-details better" item below is already circling — that item wants a bigger reading surface, and so
+details better" item is already circling — that item wants a bigger reading surface, and so
 does this. Editing pushes it toward the bigger surface: a list of rows each with two dates and a
-delete is more than the edit modal comfortably holds. Related: the "notes / play journal" item below
+delete is more than the edit modal comfortably holds. Related: the "notes / play journal" item
 floats hanging dated entries off `play_sessions` rather than the game row, which would make this the
-same screen; and the audit-log/undo item above is the safety net for a mis-clicked session delete.
+same screen; and the audit-log/undo item is the safety net for a mis-clicked session delete.
