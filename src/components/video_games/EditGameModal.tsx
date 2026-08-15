@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useState } from "react";
+import { useState } from "react";
 import { localToday, systemLabel, type Game, type Rating } from "@/lib/games";
 import {
   deleteGame,
@@ -14,6 +14,7 @@ import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
 import { buttonClass, fieldClass, ghostButtonClass, labelClass } from "./formStyles";
+import { SaveButton } from "./SaveButton";
 import { SuggestInput } from "./SuggestInput";
 
 // Date inputs size to their content rather than filling the row, so they take
@@ -36,10 +37,6 @@ type EditGameModalProps = {
 // This component is mounted only while open, so the scroll-lock/Escape effect
 // runs on mount and cleans up on unmount — no isOpen plumbing needed.
 export function EditGameModal({ game, existingSystems, onClose }: EditGameModalProps) {
-  // Optimistic rating: shows the clicked value immediately, then converges on
-  // the prop once the action's revalidation delivers fresh data — including
-  // reverting automatically if the server call fails.
-  const [optimisticRating, setOptimisticRating] = useOptimistic<Rating | "">(game.rating);
   // isPending covers the whole write round-trip: it stays true until the
   // revalidated data lands, so session buttons stay disabled through the
   // moment the game's play state visibly updates.
@@ -53,12 +50,15 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
   const [logStart, setLogStart] = useState("");
   const [logEnd, setLogEnd] = useState("");
 
-  // Draft state, deliberately unlike the rating picker above: a rating is one
-  // click of five known values, so it writes immediately and reconciles
-  // optimistically. A system is free text you are halfway through typing, and
-  // writing on every keystroke would file the game under "S", then "SN", then
-  // "SNE". Hence a draft plus an explicit Save, the same shape the wishlist
-  // notes field uses.
+  // Draft state. Every field in this dialog buffers and commits on an explicit
+  // Save: the rating used to write on the click itself, which made a mis-tap on
+  // a five-target grid an immediate, silent overwrite of a real rating.
+  //
+  // A draft also replaces what useOptimistic was doing for the rating here. The
+  // draft already holds the value the picker should show while the write is in
+  // flight, and on failure it deliberately stays dirty so the Save button is
+  // still there to retry, rather than snapping back and losing the pick.
+  const [ratingDraft, setRatingDraft] = useState<Rating | "">(game.rating);
   const [systemDraft, setSystemDraft] = useState(game.system);
 
   // Same rule as the add form: the game's own platforms when we know them,
@@ -66,13 +66,13 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
   // before the platforms column was backfilled).
   const systemSuggestions = game.platforms.length > 0 ? game.platforms : existingSystems;
 
-  const rate = (next: Rating | "") => {
-    // Any rating write answers the "how was it?" prompt, including one made
-    // with the picker at the top of the dialog — leaving it up would keep
-    // asking a question that has just been answered.
-    setRatePrompt(false);
-    run(() => updateGameRating(game.id, next), {
-      optimistic: () => setOptimisticRating(next),
+  const saveRating = () => {
+    run(() => updateGameRating(game.id, ratingDraft), {
+      // A saved rating answers the "how was it?" prompt, including one picked
+      // with the grid at the top of the dialog — leaving it up would keep
+      // asking a question that has just been answered. Only on success: a
+      // failed write leaves the question genuinely unanswered.
+      onSuccess: () => setRatePrompt(false),
     });
   };
 
@@ -140,6 +140,7 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
   // Compared trimmed, so trailing whitespace alone does not offer a Save that
   // would write the value the row already holds.
   const systemDirty = systemDraft.trim() !== game.system && systemDraft.trim() !== "";
+  const ratingDirty = ratingDraft !== game.rating;
 
   return (
     <ModalShell
@@ -154,15 +155,43 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
           Rating
         </p>
         <div className="mt-2">
-          <RatingPicker variant="labeled" value={optimisticRating} onPick={rate} />
+          {/* onPick sets the draft only. The write is the Save below. */}
+          <RatingPicker
+            variant="labeled"
+            value={ratingDraft}
+            onPick={setRatingDraft}
+            disabled={isPending}
+          />
         </div>
 
-        {optimisticRating !== "" && (
-          <button type="button" onClick={() => rate("")} className={`mt-3 ${ghostButtonClass}`}>
+        {ratingDirty && (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <SaveButton onClick={saveRating} disabled={isPending}>
+              Save rating
+            </SaveButton>
+            <button
+              type="button"
+              onClick={() => setRatingDraft(game.rating)}
+              disabled={isPending}
+              className={ghostButtonClass}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+        {/* "Remove rating" clears the draft rather than writing, so removing is
+            the same two-step as changing one. */}
+        {!ratingDirty && ratingDraft !== "" && (
+          <button
+            type="button"
+            onClick={() => setRatingDraft("")}
+            disabled={isPending}
+            className={`mt-3 ${ghostButtonClass}`}
+          >
             Remove rating
           </button>
         )}
-        {optimisticRating === "" && (
+        {ratingDraft === "" && (
           <p className="mt-3 text-xs text-shelf-text-muted italic">
             Unrated games move to the Unrated shelf (visible only to you) until rated again.
           </p>
@@ -184,14 +213,9 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
           placeholder="e.g. SNES, PS5"
         />
         {systemDirty && (
-          <button
-            type="button"
-            onClick={saveSystem}
-            disabled={isPending}
-            className={`mt-2 ${buttonClass}`}
-          >
+          <SaveButton onClick={saveSystem} disabled={isPending} className="mt-2">
             Save system
-          </button>
+          </SaveButton>
         )}
         <p className="mt-1.5 text-[11px] text-shelf-text-muted">
           Moving a game to another console keeps its rating and play history.
@@ -233,28 +257,38 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
         {ratePrompt && (
           <div className="mt-3">
             <p className="text-xs text-shelf-text-muted">Finished: how was it?</p>
-            {/* clearable={false}: this is a prompt, so every click should set a
-                rating. Clicking the one that happens to be selected already
-                would otherwise clear it, which is not what answering a question
-                should do. `value` is passed so the prompt agrees with the
-                picker above it rather than showing an unrated game and a rated
-                one identically. */}
+            {/* Same draft as the picker at the top of the dialog, so this is a
+                shortcut to it rather than a second rating. clearable={false}:
+                this is a prompt, so every click should set a rating — clicking
+                the one already selected would otherwise clear it, which is not
+                what answering a question should do. */}
             <div className="mt-1.5">
               <RatingPicker
-                value={optimisticRating}
-                onPick={rate}
+                value={ratingDraft}
+                onPick={setRatingDraft}
                 disabled={isPending}
                 clearable={false}
                 describe={(name) => `Rate ${name}`}
               />
             </div>
-            <button
-              type="button"
-              onClick={() => setRatePrompt(false)}
-              className={`mt-2 ${ghostButtonClass}`}
-            >
-              Not now
-            </button>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              {/* The Save at the top of the dialog commits the same draft. This
+                  one is here because a confirm you have to scroll to find is
+                  the reason picks used to be written on the click. */}
+              {ratingDirty && (
+                <SaveButton onClick={saveRating} disabled={isPending}>
+                  Save rating
+                </SaveButton>
+              )}
+              <button
+                type="button"
+                onClick={() => setRatePrompt(false)}
+                disabled={isPending}
+                className={ghostButtonClass}
+              >
+                Not now
+              </button>
+            </div>
           </div>
         )}
 
@@ -289,14 +323,10 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
                 className={dateInputClass}
               />
             </label>
-            <button
-              type="button"
+            <SaveButton
               onClick={saveLoggedSession}
               disabled={isPending || logStart === "" || logDatesInvalid}
-              className={buttonClass}
-            >
-              Save
-            </button>
+            />
             <p className="w-full text-[11px] text-shelf-text-muted">
               Leave “To” empty if you’re still playing it.
             </p>

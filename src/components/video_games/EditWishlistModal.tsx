@@ -11,6 +11,7 @@ import { ModalShell } from "./ModalShell";
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { buttonClass, ghostButtonClass, inputClass, labelClass } from "./formStyles";
+import { SaveButton } from "./SaveButton";
 import { SuggestInput } from "./SuggestInput";
 import { systemLabel } from "@/lib/games";
 
@@ -103,14 +104,13 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
           />
         </label>
         {notesDirty && (
-          <button
-            type="button"
+          <SaveButton
             onClick={() => patch({ notes: notesDraft })}
             disabled={isPending}
-            className={`mt-2 ${buttonClass}`}
+            className="mt-2"
           >
             Save notes
-          </button>
+          </SaveButton>
         )}
 
         <div className="mt-5 border-t border-shelf-plank pt-3">

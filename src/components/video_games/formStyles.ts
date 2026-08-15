@@ -53,6 +53,20 @@ export const buttonClass =
   "hover:bg-shelf-input transition-colors cursor-pointer " +
   "disabled:opacity-50 disabled:cursor-default";
 
+// The commit half of a draft-then-save edit: rating, system, wishlist notes,
+// logged sessions. Filled rather than outlined, because it appears only once
+// there are unsaved changes and has to read as the thing to press — an outlined
+// button sitting under a field looks like more chrome belonging to the field.
+// Rendered through <SaveButton>, so call sites get the recipe by using it.
+//
+// Same `bg-link` / `text-background` pairing as accentButtonClass (both tokens
+// flip together, so neither scheme inverts wrongly), but at buttonClass's
+// padding and text size so it lines up with the neutral buttons beside it.
+export const saveButtonClass =
+  "rounded-md bg-link px-3 py-1.5 text-sm font-medium text-background " +
+  "transition-opacity hover:opacity-90 cursor-pointer " +
+  "disabled:opacity-50 disabled:cursor-default";
+
 // Text-only affordance for secondary actions inside a form ("Clear rating",
 // "Enter manually"). Underlined rather than bordered so it reads as a link-like
 // action without competing with the real buttons.
