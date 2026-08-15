@@ -96,7 +96,7 @@ to keep that section at five._
       promoting are all one-way. The design hangs on one decision: what a row holds.
       [Details](docs/todo/library-audit-log.md)
 
-- [ ] **Make database migrations run automatically as part of CD** The premise correction is most of
+- [ ] **Make database migrations run automatically as part of CD.** The premise correction is most of
       the work. Ordering is the real design question, and there is a counter-argument worth keeping
       before building it. [Details](docs/todo/migrations-in-cd.md)
 
@@ -106,15 +106,15 @@ to keep that section at five._
       [Details](docs/todo/backend-structural-refactors.md)
 
 - [ ] **Move the Following/Followers tabs to their own route.** The honest altitude answer that
-the `GameShelves` extraction deliberately did not take: the follow lists are a different
-_page_, not a different tab. `/video-games/u/[username]/followers` would match the "library
-owns the prefix" convention, let `PeopleList` stay a server component, and stop the follow
-graph crossing the client boundary on every library render (`LibraryPage` currently fetches
-`getFollowers`/`getFollowing` on every load and threads both through `GameLibrary`).<br>
-_Why it is not a cleanup:_ it is a routing change. Existing `?view=followers` and
-`?view=following` URLs need redirects, `LibraryPage`'s five-way `Promise.all` fan-out
-changes shape, and the tab strip in `GameLibrary` has to decide whether those two tabs
-become links rather than `setView` buttons.
+      the `GameShelves` extraction deliberately did not take: the follow lists are a different
+      _page_, not a different tab. `/video-games/u/[username]/followers` would match the "library
+      owns the prefix" convention, let `PeopleList` stay a server component, and stop the follow
+      graph crossing the client boundary on every library render (`LibraryPage` currently fetches
+      `getFollowers`/`getFollowing` on every load and threads both through `GameLibrary`).<br>
+      _Why it is not a cleanup:_ it is a routing change. Existing `?view=followers` and
+      `?view=following` URLs need redirects, `LibraryPage`'s five-way `Promise.all` fan-out
+      changes shape, and the tab strip in `GameLibrary` has to decide whether those two tabs
+      become links rather than `setView` buttons.
 
 - [ ] **Show a confirmation toast after logging a session, so you know it worked.** Possibly with a
       "view all sessions" link, per **An easy way to view a game's sessions** below. What makes it
@@ -142,33 +142,33 @@ become links rather than `setView` buttons.
       [Details](docs/todo/signup-monitoring-alerts.md)
 
 - [ ] **Document the database restore procedure.** Supabase takes daily backups on the free
-tier, so the backup half is already handled and needs no work; what does not exist is any
-written answer to "the data is gone, now what". Carried over from the spec's Phase 6
-when that document was deleted (2026-07-30). An untested restore is not a backup: the
-useful version of this is running one against a scratch project once and writing down
-what actually happened, in `docs/dev-setup.md` or beside it. Note the free tier's
-retention window is short (days, not months), which is the real limit worth knowing
-before it matters.
+      tier, so the backup half is already handled and needs no work; what does not exist is any
+      written answer to "the data is gone, now what". Carried over from the spec's Phase 6
+      when that document was deleted (2026-07-30). An untested restore is not a backup: the
+      useful version of this is running one against a scratch project once and writing down
+      what actually happened, in `docs/dev-setup.md` or beside it. Note the free tier's
+      retention window is short (days, not months), which is the real limit worth knowing
+      before it matters.
 
 - [ ] **Add public libraries to `sitemap.ts`.** Carried over from the spec's Phase 6
-(2026-07-30). Today the sitemap lists static routes only; `/video-games/u/[username]`
-pages are public and indexable but unlisted, so search engines reach them only by
-crawling follower lists. Deliberately skipped once already, when the route moved under
-`/video-games/u/` (2026-07-29): the sitemap already lists `/video-games`, which **is**
-Robert's library, so adding `/video-games/u/rgrassian` would have submitted two URLs for
-identical content, and a canonical link is the fix for that rather than a sitemap entry.
-With real signups that reasoning inverts: the entry becomes a generated list.
-Wants a decision on whether users can opt out of indexing, since spec decision #6 made
-every library public with no privacy setting, and "public" and "indexed by Google" are
-not the same promise.
+      (2026-07-30). Today the sitemap lists static routes only; `/video-games/u/[username]`
+      pages are public and indexable but unlisted, so search engines reach them only by
+      crawling follower lists. Deliberately skipped once already, when the route moved under
+      `/video-games/u/` (2026-07-29): the sitemap already lists `/video-games`, which **is**
+      Robert's library, so adding `/video-games/u/rgrassian` would have submitted two URLs for
+      identical content, and a canonical link is the fix for that rather than a sitemap entry.
+      With real signups that reasoning inverts: the entry becomes a generated list.
+      Wants a decision on whether users can opt out of indexing, since spec decision #6 made
+      every library public with no privacy setting, and "public" and "indexed by Google" are
+      not the same promise.
 
 - [ ] **Analytics on signups.** Carried over from the spec's Phase 6 (2026-07-30), and the
-only Phase 6 item with no groundwork at all. The narrow question worth answering is how
-far people get: land on `/video-games` → click sign in → complete OAuth → pick a username
-→ add a first game. The onboarding funnel is several hops and any of them can silently
-lose someone. Weigh against the privacy policy, which is currently short and honest
-partly because there is no third-party analytics to disclose: a self-hosted counter or
-Vercel's own analytics keeps it that way, a third-party script means updating `/privacy`.
+      only Phase 6 item with no groundwork at all. The narrow question worth answering is how
+      far people get: land on `/video-games` → click sign in → complete OAuth → pick a username
+      → add a first game. The onboarding funnel is several hops and any of them can silently
+      lose someone. Weigh against the privacy policy, which is currently short and honest
+      partly because there is no third-party analytics to disclose: a self-hosted counter or
+      Vercel's own analytics keeps it that way, a third-party script means updating `/privacy`.
 
 - [ ] **User search, so you can find people to follow without knowing their username.** Almost no
       schema work left. Held back from Phase 5 (2026-07-30) to keep that MVP small, and the follow
@@ -191,26 +191,26 @@ Vercel's own analytics keeps it that way, a third-party script means updating `/
       own on a second console is a 409. [Details](docs/todo/fully-editable-entries.md)
 
 - [ ] **Fold "+ Add to wishlist" into a single "+ Add game" that picks its destination.**
-`GameLibrary.tsx` swaps the button label by view, and `AddGameModal` already takes a
-`target: "library" | "wishlist"` prop (`AddGameModal.tsx`) that swaps the rating
-picker for a star checkbox and makes the system optional. So the modal can already do
-both: what is missing is a destination switcher (two tabs) inside it, defaulted to
-whichever view the button was clicked from.<br>
-_Watch:_ `target` currently changes required fields, so the switcher has to re-validate
-rather than just re-label — flipping from wishlist to library with an empty system must
-block submit, not silently post.
+      `GameLibrary.tsx` swaps the button label by view, and `AddGameModal` already takes a
+      `target: "library" | "wishlist"` prop (`AddGameModal.tsx`) that swaps the rating
+      picker for a star checkbox and makes the system optional. So the modal can already do
+      both: what is missing is a destination switcher (two tabs) inside it, defaulted to
+      whichever view the button was clicked from.<br>
+      _Watch:_ `target` currently changes required fields, so the switcher has to re-validate
+      rather than just re-label — flipping from wishlist to library with an empty system must
+      block submit, not silently post.
 
 - [ ] **Make the view tabs and the add button sticky, like the filter bar.** The
-"Played" / "Want to Play" strip and the "+ Add game" / "Stats" row
-(`GameLibrary.tsx`) scroll away, while `FilterBar` sticks at
-`top-[var(--nav-height)]` (`FilterBar.tsx`).<br>
-_Not just adding `sticky`:_ the filter bar's offset is `--nav-height` exactly, so a
-sticky tab strip above it either overlaps or has to be part of the same sticky block,
-with the filter bar's `top` becoming nav height plus strip height. `FilterBar` also
-snapshots its document-relative top once in a `useLayoutEffect`
-(`FilterBar.tsx`) to drive the mobile hide-on-scroll-down behavior, and that
-measurement assumes nothing sticky sits above it. Simplest shape is probably one sticky
-container holding both, so they hide and show as a unit on mobile.
+      "Played" / "Want to Play" strip and the "+ Add game" / "Stats" row
+      (`GameLibrary.tsx`) scroll away, while `FilterBar` sticks at
+      `top-[var(--nav-height)]` (`FilterBar.tsx`).<br>
+      _Not just adding `sticky`:_ the filter bar's offset is `--nav-height` exactly, so a
+      sticky tab strip above it either overlaps or has to be part of the same sticky block,
+      with the filter bar's `top` becoming nav height plus strip height. `FilterBar` also
+      snapshots its document-relative top once in a `useLayoutEffect`
+      (`FilterBar.tsx`) to drive the mobile hide-on-scroll-down behavior, and that
+      measurement assumes nothing sticky sits above it. Simplest shape is probably one sticky
+      container holding both, so they hide and show as a unit on mobile.
 
 - [ ] **A username rename feature must delete `usernameByUserId` (`src/lib/meApi.ts`).**
       `usernameByUserId` is a module-scope memo of user id → username, correct **only** because
@@ -227,10 +227,10 @@ container holding both, so they hide and show as a unit on mobile.
 - [ ] Staging environment (instanced game libraries follow-up — the project deliberately accepted a "no staging" caveat: previews are read-only against prod, so writes first run for real in prod; revisit with a second Supabase project or branching once the write path exists). **Promoted in priority 2026-07-28:** the preview `500 MIDDLEWARE_INVOCATION_FAILED` (since fixed — see Recently Completed) was this caveat biting for real. Pointing Preview at production's Supabase is the stopgap, but it means preview sign-ins are production accounts. A second Supabase project (own DB + own GoTrue + own Google OAuth client) would give previews a real identity system and finally let the write path be exercised somewhere that isn't prod
 
 - [ ] Decide the routing/namespace strategy as the site grows into multiple apps. **Half-settled
-2026-07-29:** nesting per-user libraries under `/video-games/u/` committed to per-app route
-prefixes on one domain, i.e. option (a) below, for the game library. What is still open is
-whether that holds when a _second_ app arrives, and auth is still top-level (`/onboarding`,
-`/auth/*`) because it is a site-wide identity system. Options once more apps exist: (a) keep everything on `rgrassian.com` with top-level auth + per-app route prefixes — simplest, one shared session across apps; (b) split an app onto a subdomain like `games.rgrassian.com` — cleaner isolation and independent deploys, but subdomains are separate cookie origins, so sharing the login session needs a `.rgrassian.com` cookie domain plus Supabase/Vercel redirect wiring, which works against cross-app SSO. Leaning toward (a) until an app genuinely needs isolation.
+      2026-07-29:** nesting per-user libraries under `/video-games/u/` committed to per-app route
+      prefixes on one domain, i.e. option (a) below, for the game library. What is still open is
+      whether that holds when a _second_ app arrives, and auth is still top-level (`/onboarding`,
+      `/auth/*`) because it is a site-wide identity system. Options once more apps exist: (a) keep everything on `rgrassian.com` with top-level auth + per-app route prefixes — simplest, one shared session across apps; (b) split an app onto a subdomain like `games.rgrassian.com` — cleaner isolation and independent deploys, but subdomains are separate cookie origins, so sharing the login session needs a `.rgrassian.com` cookie domain plus Supabase/Vercel redirect wiring, which works against cross-app SSO. Leaning toward (a) until an app genuinely needs isolation.
 
 - [ ] "Current Hobbies" section on `/about` — start with currently-playing games (reusing the CRT/session data from the game library), with room to extend to books currently being read and other hobbies later. Design not decided yet (what it looks like, whether it reuses `CrtTv` directly or needs its own compact treatment).
 
