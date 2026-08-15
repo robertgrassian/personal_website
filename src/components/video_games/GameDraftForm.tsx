@@ -142,14 +142,14 @@ export function GameDraftForm({
             </label>
           )}
 
-          <label className={labelClass}>
-            {target === "library" ? "System" : "System (optional)"}
-            <SuggestInput
-              value={draft.system}
-              onChange={(system) => setDraft({ ...draft, system })}
-              options={systemSuggestions}
-            />
-          </label>
+          {/* No wrapping <label> here: SuggestInput renders its own, because a
+              listbox inside a label breaks the input's accessible name. */}
+          <SuggestInput
+            label={target === "library" ? "System" : "System (optional)"}
+            value={draft.system}
+            onChange={(system) => setDraft({ ...draft, system })}
+            options={systemSuggestions}
+          />
 
           {/* Manual path only. Leave genres blank and the API tries Wikipedia
               on the typed name; whatever is typed here wins over that. */}

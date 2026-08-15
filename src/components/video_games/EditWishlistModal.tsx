@@ -125,15 +125,13 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
             </button>
           ) : (
             <div>
-              <label className={labelClass}>
-                System
-                <SuggestInput
-                  value={promoteSystem}
-                  onChange={setPromoteSystem}
-                  options={item.platforms.length > 0 ? item.platforms : existingSystems}
-                  placeholder="e.g. SNES, PS5"
-                />
-              </label>
+              <SuggestInput
+                label="System"
+                value={promoteSystem}
+                onChange={setPromoteSystem}
+                options={item.platforms.length > 0 ? item.platforms : existingSystems}
+                placeholder="e.g. SNES, PS5"
+              />
               <p className="mt-1.5 text-[11px] text-shelf-text-muted">
                 It lands on the Unrated shelf. Rate it once you&rsquo;ve played.
               </p>

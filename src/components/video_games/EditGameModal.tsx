@@ -22,7 +22,7 @@ const dateInputClass = `${fieldClass} px-2 py-1`;
 
 type EditGameModalProps = {
   game: Game;
-  // Every system already on a shelf, for the datalist below. Same prop
+  // Every system already on a shelf, for the suggestions below. Same prop
   // AddGameModal and EditWishlistModal take, from the same place.
   existingSystems: string[];
   onClose: () => void;
@@ -171,16 +171,18 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
         <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
           System
         </p>
-        <label className={`mt-2 ${labelClass}`}>
-          <span className="sr-only">Console this game is filed under</span>
-          <SuggestInput
-            value={systemDraft}
-            onChange={setSystemDraft}
-            options={systemSuggestions}
-            maxLength={100}
-            placeholder="e.g. SNES, PS5"
-          />
-        </label>
+        {/* labelHidden: the "System" heading above is the visible label, but
+            the field still needs a programmatic one. */}
+        <SuggestInput
+          className="mt-2"
+          label="Console this game is filed under"
+          labelHidden
+          value={systemDraft}
+          onChange={setSystemDraft}
+          options={systemSuggestions}
+          maxLength={100}
+          placeholder="e.g. SNES, PS5"
+        />
         {systemDirty && (
           <button
             type="button"
