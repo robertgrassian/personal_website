@@ -24,9 +24,9 @@ type RatingPickerProps = {
   disabled?: boolean;
   /** When false, clicking the selected rating re-picks it instead of clearing. */
   clearable?: boolean;
-  /** Overrides the title/aria-label text. Used by the "stop playing" grid,
-   *  where picking a rating also closes the session, so "Rate A" would
-   *  understate what the button does. */
+  /** Overrides the title/aria-label text. Used by the "how was it?" prompt,
+   *  which is `clearable={false}`: the default would label the selected tile
+   *  "Remove rating" in a grid where clicking it cannot remove anything. */
   describe?: (ratingName: string, active: boolean) => string;
 };
 

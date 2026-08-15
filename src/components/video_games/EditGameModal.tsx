@@ -13,8 +13,13 @@ import { ModalShell } from "./ModalShell";
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
-import { buttonClass, fieldClass, ghostButtonClass, labelClass } from "./formStyles";
-import { SaveButton } from "./SaveButton";
+import {
+  buttonClass,
+  fieldClass,
+  ghostButtonClass,
+  labelClass,
+  saveButtonClass,
+} from "./formStyles";
 import { SuggestInput } from "./SuggestInput";
 
 // Date inputs size to their content rather than filling the row, so they take
@@ -50,16 +55,18 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
   const [logStart, setLogStart] = useState("");
   const [logEnd, setLogEnd] = useState("");
 
-  // Draft state. Every field in this dialog buffers and commits on an explicit
-  // Save: the rating used to write on the click itself, which made a mis-tap on
-  // a five-target grid an immediate, silent overwrite of a real rating.
-  //
-  // A draft also replaces what useOptimistic was doing for the rating here. The
-  // draft already holds the value the picker should show while the write is in
-  // flight, and on failure it deliberately stays dirty so the Save button is
-  // still there to retry, rather than snapping back and losing the pick.
+  // Both fields buffer and commit on an explicit Save. The rating used to write
+  // on the click, which made a mis-tap on a five-target grid a silent overwrite;
+  // the system field would otherwise file the game under "S", then "SN", then
+  // "SNE". The rating draft also replaced useOptimistic here: on failure it stays
+  // dirty, so the Save is still there to retry rather than snapping back.
   const [ratingDraft, setRatingDraft] = useState<Rating | "">(game.rating);
   const [systemDraft, setSystemDraft] = useState(game.system);
+
+  const ratingDirty = ratingDraft !== game.rating;
+  // Compared trimmed, so trailing whitespace alone does not offer a Save that
+  // would write the value the row already holds.
+  const systemDirty = systemDraft.trim() !== game.system && systemDraft.trim() !== "";
 
   // Same rule as the add form: the game's own platforms when we know them,
   // every shelf system otherwise (hand-entered games, and anything added
@@ -67,11 +74,17 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
   const systemSuggestions = game.platforms.length > 0 ? game.platforms : existingSystems;
 
   const saveRating = () => {
+    // Confirming the rating the game already has is a valid answer to the
+    // "how was it?" prompt below, and there is nothing to write. Without this
+    // the prompt's Save would be a dead button for exactly one of its five
+    // choices, which is the rating most likely to be re-picked.
+    if (!ratingDirty) {
+      setRatePrompt(false);
+      return;
+    }
     run(() => updateGameRating(game.id, ratingDraft), {
-      // A saved rating answers the "how was it?" prompt, including one picked
-      // with the grid at the top of the dialog — leaving it up would keep
-      // asking a question that has just been answered. Only on success: a
-      // failed write leaves the question genuinely unanswered.
+      // A saved rating answers the prompt too, wherever it was picked. Only on
+      // success: a failed write leaves the question genuinely unanswered.
       onSuccess: () => setRatePrompt(false),
     });
   };
@@ -137,10 +150,6 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
   const playing = game.currentlyPlaying && game.openSessionId !== null;
   const logDatesInvalid = logEnd !== "" && logStart !== "" && logEnd < logStart;
   const sessionCount = game.sessionCount;
-  // Compared trimmed, so trailing whitespace alone does not offer a Save that
-  // would write the value the row already holds.
-  const systemDirty = systemDraft.trim() !== game.system && systemDraft.trim() !== "";
-  const ratingDirty = ratingDraft !== game.rating;
 
   return (
     <ModalShell
@@ -164,11 +173,19 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
           />
         </div>
 
-        {ratingDirty && (
+        {/* A ternary rather than two `&&` blocks, because these two never show
+            together: "Remove rating" clears the draft rather than writing, so it
+            is only reachable while there is nothing pending. */}
+        {ratingDirty ? (
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <SaveButton onClick={saveRating} disabled={isPending}>
+            <button
+              type="button"
+              onClick={saveRating}
+              disabled={isPending}
+              className={saveButtonClass}
+            >
               Save rating
-            </SaveButton>
+            </button>
             <button
               type="button"
               onClick={() => setRatingDraft(game.rating)}
@@ -178,18 +195,17 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
               Cancel
             </button>
           </div>
-        )}
-        {/* "Remove rating" clears the draft rather than writing, so removing is
-            the same two-step as changing one. */}
-        {!ratingDirty && ratingDraft !== "" && (
-          <button
-            type="button"
-            onClick={() => setRatingDraft("")}
-            disabled={isPending}
-            className={`mt-3 ${ghostButtonClass}`}
-          >
-            Remove rating
-          </button>
+        ) : (
+          ratingDraft !== "" && (
+            <button
+              type="button"
+              onClick={() => setRatingDraft("")}
+              disabled={isPending}
+              className={`mt-3 ${ghostButtonClass}`}
+            >
+              Remove rating
+            </button>
+          )
         )}
         {ratingDraft === "" && (
           <p className="mt-3 text-xs text-shelf-text-muted italic">
@@ -213,9 +229,14 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
           placeholder="e.g. SNES, PS5"
         />
         {systemDirty && (
-          <SaveButton onClick={saveSystem} disabled={isPending} className="mt-2">
+          <button
+            type="button"
+            onClick={saveSystem}
+            disabled={isPending}
+            className={`mt-2 ${saveButtonClass}`}
+          >
             Save system
-          </SaveButton>
+          </button>
         )}
         <p className="mt-1.5 text-[11px] text-shelf-text-muted">
           Moving a game to another console keeps its rating and play history.
@@ -272,13 +293,22 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
               />
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              {/* The Save at the top of the dialog commits the same draft. This
-                  one is here because a confirm you have to scroll to find is
-                  the reason picks used to be written on the click. */}
-              {ratingDirty && (
-                <SaveButton onClick={saveRating} disabled={isPending}>
+              {/* Gated on a value being picked, NOT on the draft being dirty:
+                  re-picking the rating the game already has is a valid answer
+                  here (clearable={false} guarantees a click always sets one),
+                  and saveRating dismisses without a write in that case. The Save
+                  at the top of the dialog commits the same draft; this one is
+                  here because a confirm you have to scroll to find is the reason
+                  picks used to be written on the click. */}
+              {ratingDraft !== "" && (
+                <button
+                  type="button"
+                  onClick={saveRating}
+                  disabled={isPending}
+                  className={saveButtonClass}
+                >
                   Save rating
-                </SaveButton>
+                </button>
               )}
               <button
                 type="button"
@@ -323,10 +353,14 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
                 className={dateInputClass}
               />
             </label>
-            <SaveButton
+            <button
+              type="button"
               onClick={saveLoggedSession}
               disabled={isPending || logStart === "" || logDatesInvalid}
-            />
+              className={saveButtonClass}
+            >
+              Save
+            </button>
             <p className="w-full text-[11px] text-shelf-text-muted">
               Leave “To” empty if you’re still playing it.
             </p>

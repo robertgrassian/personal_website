@@ -835,14 +835,25 @@ _Newest first, capped at 20 — drop the oldest when adding past that._
       five-target grid this was about, and `stopSession` applies its rating **atomically with
       closing the session** server-side, which a per-field confirm would split into two writes.
       That was the open question the old entry named; this is the answer, not an oversight.<br>
-      _The shared button:_ `SaveButton` + `saveButtonClass` (`formStyles.ts`), filled with the
-      `bg-link` / `text-background` pairing instead of outlined, used by Save rating, Save
-      system, the past-session Save and `EditWishlistModal`'s Save notes. `buttonClass` stays
-      neutral on everything else, which is what makes the filled one carry meaning.<br>
-      _One known rough edge, kept rather than fixed:_ while the "Finished: how was it?" prompt
-      is open, both it and the rating section render a Save for the same pending draft. The
-      alternative is dropping the prompt's picker and moving its question up into the rating
-      section.
+      _The shared button is a class recipe, not a component._ `saveButtonClass` in
+      `formStyles.ts`, used by Save rating, Save system, the past-session Save and
+      `EditWishlistModal`'s Save notes. A `SaveButton` component was written first and deleted
+      in review: it held no state and enforced no invariant, and every other button in that file
+      is a composed class string. `filledBaseClass` now feeds both it and `accentButtonClass`,
+      which had been duplicating the `bg-link` / `text-background` pairing verbatim.<br>
+      _The rule the filled treatment encodes,_ since it is not self-evident: filled means
+      "commit a pending draft", outlined means an action with nothing pending ("Move to
+      library", "Add to library"). Keeping the dialog-level actions on `buttonClass` is what
+      stops two filled buttons competing in the same dialog.<br>
+      _The bug review caught, worth remembering because the draft rewrite created it:_ the
+      "Finished: how was it?" prompt is `clearable={false}`, so clicking the rating the game
+      already has left the draft clean, rendered no Save, and did nothing at all. Its Save is
+      therefore gated on a value being **picked**, not on the draft being dirty, and
+      `saveRating` dismisses without a write when nothing changed. Any future confirm derived
+      from dirtiness has the same hole.<br>
+      _One rough edge kept:_ while that prompt is open, both it and the rating section render a
+      Save for the same draft. The alternative is dropping the prompt's picker and moving its
+      question up into the rating section.
 
 - [x] **Field suggestions work on mobile: `SuggestInput` is a real combobox** (2026-08-15).
       The `<datalist>` is gone, so the system field suggests shelves and platforms on a phone
