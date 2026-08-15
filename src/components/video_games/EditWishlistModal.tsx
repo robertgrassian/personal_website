@@ -130,7 +130,7 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
                 <SuggestInput
                   value={promoteSystem}
                   onChange={setPromoteSystem}
-                  options={existingSystems}
+                  options={item.platforms.length > 0 ? item.platforms : existingSystems}
                   placeholder="e.g. SNES, PS5"
                 />
               </label>

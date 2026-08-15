@@ -40,6 +40,10 @@ class BaseGameRead(CamelModel):
     name: str
     system: str  # "" when NULL (wishlist entries may have no system yet)
     genres: list[str]
+    # The platforms the game released on, for the owner forms' system
+    # suggestions. Empty for a hand-entered game, or one added before the
+    # column was backfilled, so callers must have a fallback.
+    platforms: list[str]
     release_date: str  # ISO date or "" if unknown
     image_url: str  # "" = FE renders its fallback art
     # Catalog identity: the IGDB id of the game, or null for a hand-entered

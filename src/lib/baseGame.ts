@@ -5,6 +5,10 @@ export interface BaseGame {
   name: string;
   system: string;
   genres: string[]; // e.g. ["Action-Adventure", "Puzzle"]; [] if none known
+  // Platforms the game released on, IGDB's own names. Drives the system
+  // suggestions in the owner forms. [] for a hand-entered game, so every
+  // caller needs a fallback.
+  platforms: string[];
   releaseDate: string; // ISO date, e.g. "2023-05-12" ("" if unknown)
   imageUrl: string; // IGDB cover URL; "" = fallback art
   // IGDB's id for the game, or null when it was entered by hand. This is the
