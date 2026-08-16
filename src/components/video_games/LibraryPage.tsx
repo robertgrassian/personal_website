@@ -116,9 +116,14 @@ export async function LibraryPage({
           {/* The sign-in/out control lives here rather than the global nav: the
               portfolio has no accounts, the library is the only app that does.
               items-start keeps it aligned to the heading's first line when a
-              long display name wraps. */}
-          <div className="flex items-start justify-between gap-4">
-            <div>
+              long display name wraps.
+              Column on phones: the controls are nowrap links, so side by side
+              with a long owner name they overflowed the viewport instead of
+              shrinking. From sm up there is room for one row. */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            {/* min-w-0 lets this shrink below its longest word once it is a
+                flex item again, so the heading wraps instead of pushing. */}
+            <div className="min-w-0">
               {/* Same wording on both routes, since both show the same library.
                 The display name comes from the profile rather than the URL
                 segment so the casing is canonical (usernames are citext, so
@@ -128,7 +133,7 @@ export async function LibraryPage({
                   heading names. flex-wrap so a long display name pushes the
                   button to its own line instead of squeezing the title. */}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <h1 className="text-4xl font-bold text-shelf-text">
+                <h1 className="text-3xl sm:text-4xl font-bold text-shelf-text break-words">
                   {profile.displayName}&apos;s Video Game Library
                 </h1>
                 <FollowButton />
@@ -172,8 +177,11 @@ export async function LibraryPage({
             {/* Viewer/navigation controls, as opposed to the Follow button,
                 which acts on the library's owner and so sits with the heading.
                 AuthButton is driven by the pre-paint flag; BackToMyLibrary
-                resolves after hydration from the same context. */}
-            <div className="flex items-center gap-3">
+                resolves after hydration from the same context.
+                order-first on phones so the stacked column reads as a nav
+                strip above the heading rather than a stray row between the
+                heading and the game count. */}
+            <div className="order-first flex flex-wrap items-center gap-x-3 gap-y-1 sm:order-none sm:flex-nowrap">
               <BackToMyLibrary />
               {/* Always rendered, hidden from signed-out visitors by CSS on the
                   pre-paint flag — the same mechanism AuthButton uses, so the
