@@ -34,7 +34,7 @@ const GAP_PX = 8;
  *  typist. */
 export function useKeepResultsInView(
   resultsRef: RefObject<HTMLElement | null>,
-  barRef: RefObject<HTMLElement | null>,
+  chromeRef: RefObject<HTMLElement | null>,
   signature: string
 ) {
   // What we last acted on. Null until the first run, so a freshly mounted
@@ -53,16 +53,18 @@ export function useKeepResultsInView(
     // scroll position the browser is about to overrule.
     const frame = requestAnimationFrame(() => {
       const results = resultsRef.current;
-      const bar = barRef.current;
-      if (!results || !bar) return;
+      const chrome = chromeRef.current;
+      if (!results || !chrome) return;
 
-      // The bar's own sticky offset resolves --nav-height to pixels for us, so
-      // the two halves of the chrome are measured rather than restated here.
-      // Deliberately NOT getBoundingClientRect(): that includes the bar's
-      // hide-on-scroll-down transform, and the space to clear is where the bar
-      // sits when shown, which is where it will be a moment after we scroll up.
-      const stickyTop = parseFloat(getComputedStyle(bar).top) || 0;
-      const chromeBottom = stickyTop + bar.offsetHeight;
+      // The chrome's own sticky offset resolves --nav-height to pixels for us,
+      // so the nav and the header are measured rather than restated here. The
+      // header is one element holding the tab strip, the filter status and the
+      // filter bar, so offsetHeight already covers all of it.
+      // Deliberately NOT getBoundingClientRect(): that includes the header's
+      // hide-on-scroll-down transform, and the space to clear is where it sits
+      // when shown, which is where it will be a moment after we scroll up.
+      const stickyTop = parseFloat(getComputedStyle(chrome).top) || 0;
+      const chromeBottom = stickyTop + chrome.offsetHeight;
 
       // With a software keyboard open the visual viewport is a band inside the
       // layout viewport, and `position: sticky` resolves against the LAYOUT one
@@ -93,5 +95,5 @@ export function useKeepResultsInView(
       window.scrollTo({ top: window.scrollY + top - safeTop, behavior: "auto" });
     });
     return () => cancelAnimationFrame(frame);
-  }, [signature, resultsRef, barRef]);
+  }, [signature, resultsRef, chromeRef]);
 }

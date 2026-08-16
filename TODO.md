@@ -220,18 +220,6 @@ to keep that section at five._
       rather than just re-label — flipping from wishlist to library with an empty system must
       block submit, not silently post.
 
-- [ ] **Make the view tabs and the add button sticky, like the filter bar.** The
-      "Played" / "Want to Play" strip and the "+ Add game" / "Stats" row
-      (`GameLibrary.tsx`) scroll away, while `FilterBar` sticks at
-      `top-[var(--nav-height)]` (`FilterBar.tsx`).<br>
-      _Not just adding `sticky`:_ the filter bar's offset is `--nav-height` exactly, so a
-      sticky tab strip above it either overlaps or has to be part of the same sticky block,
-      with the filter bar's `top` becoming nav height plus strip height. `FilterBar` also
-      snapshots its document-relative top once in a `useLayoutEffect`
-      (`FilterBar.tsx`) to drive the mobile hide-on-scroll-down behavior, and that
-      measurement assumes nothing sticky sits above it. Simplest shape is probably one sticky
-      container holding both, so they hide and show as a unit on mobile.
-
 - [ ] **A username rename feature must delete `usernameByUserId` (`src/lib/meApi.ts`).**
       `usernameByUserId` is a module-scope memo of user id → username, correct **only** because
       usernames are assigned once at onboarding and no rename endpoint exists. Adding renaming

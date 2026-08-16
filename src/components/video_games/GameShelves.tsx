@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import type { Game } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
@@ -17,6 +17,7 @@ import {
 } from "./pipeline";
 import { useFilterOptions } from "./useFilterOptions";
 import { useKeepResultsInView } from "./useKeepResultsInView";
+import { useHideOnScrollDown } from "./useHideOnScrollDown";
 import type { UrlState } from "./useGameLibraryUrlState";
 import { accentButtonClass } from "./formStyles";
 import { systemLabel } from "@/lib/games";
@@ -43,6 +44,17 @@ type GameShelvesProps = {
   // because only the caller's `isGameView` check can do the narrowing. Read
   // this one, never `urlState.view`, so the two cannot be seen to disagree.
   view: GameView;
+  // The view tab strip and its "+ Add game" / "Stats" buttons, built by
+  // GameLibrary and rendered here as the first row of the sticky header.
+  //
+  // Passed as a node rather than moved into this component because the strip
+  // switches between the shelf views and the people views, which is GameLibrary's
+  // job, not this one's. Passing it down is what puts both halves of the chrome
+  // in ONE sticky element — the alternative, two stacked sticky elements, needs
+  // the strip's height to offset the filter bar's `top`, and that height changes
+  // (the add button appears only for the owner, the tabs wrap on narrow screens).
+  // A single container makes the height irrelevant.
+  tabs: ReactNode;
   // Still needed here for the copy ("Your library" vs "This library") and the
   // empty-library call to action. Whether a *card* shows a pencil is no longer
   // this component's business: GameCase reads that from LibraryEditingContext.
@@ -63,6 +75,7 @@ export function GameShelves({
   wishlist,
   currentlyPlayingGames,
   view,
+  tabs,
   canEdit,
   urlState,
   onAddGame,
@@ -168,10 +181,16 @@ export function GameShelves({
 
   // Filtering collapses the document, the browser clamps the scroll position,
   // and the surviving shelves can land under the sticky chrome. These two refs
-  // are what lets that be corrected: the bar knows how much room to clear, the
-  // results are what has to clear it.
-  const barRef = useRef<HTMLDivElement>(null);
+  // are what lets that be corrected: the header knows how much room to clear,
+  // the results are what has to clear it.
+  const headerRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  // Mobile only: the whole header slides away on scroll down and returns on
+  // scroll up. Reading the ref that is actually sticky matters — the hook
+  // snapshots that element's document position to decide where the behavior
+  // starts.
+  const headerVisible = useHideOnScrollDown(headerRef);
 
   // What the visitor narrowed the library BY, not what came back.
   //
@@ -203,7 +222,7 @@ export function GameShelves({
           deferredWishlistFilters.system,
           deferredWishlistFilters.genre,
         ].join(" ");
-  useKeepResultsInView(resultsRef, barRef, filterSignature);
+  useKeepResultsInView(resultsRef, headerRef, filterSignature);
 
   // The props both views pass identically. Spread rather than repeated,
   // so a new shared prop cannot land on one view and not the other.
@@ -212,7 +231,6 @@ export function GameShelves({
   // discriminated union on it, and that is what still narrows onRatingChange to
   // the played view only.
   const filterBarCommon = {
-    barRef,
     onSharedFilterChange: setSharedFilter,
     groupBy,
     sortOrder,
@@ -238,34 +256,56 @@ export function GameShelves({
 
   return (
     <>
-      {/* Filter status — rendered only while filters are active, so the row
-          contributes no height (whitespace) the rest of the time. */}
-      {hasActiveFilters && (
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-shelf-text-muted text-sm">
-            {filteredCount} of {activeTotal} games
-          </span>
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="text-shelf-text-muted text-sm underline underline-offset-2 cursor-pointer hover:text-shelf-text transition-colors"
-          >
-            Clear filters
-          </button>
-        </div>
-      )}
+      {/* One sticky block for all the library chrome: the view tabs and their
+          add/stats buttons, the filter status, and the filter bar. Everything a
+          visitor navigates WITH stays reachable however far down the shelves
+          they are.
+          top-[var(--nav-height)] parks it directly under the site nav.
+          z-20 sits above the shelves and below the nav (z-50) and stats panel (z-40).
+          rounded-b-lg + shelf-filter-bar separate it from the shelf content
+          (shadow in light mode, bottom border in dark).
+          px-4 is the block's own inset, so the tab strip lines up with the
+          search input beneath it rather than with the shelves behind it.
+          transition-transform + the conditional translate animate the mobile
+          hide/show; pointer-events-none stops the hidden block swallowing taps. */}
+      <div
+        ref={headerRef}
+        className={`sticky top-[var(--nav-height)] z-20 bg-shelf-bg/95 backdrop-blur-sm px-4 rounded-b-lg shelf-filter-bar transition-transform duration-300 ${headerVisible ? "translate-y-0" : "-translate-y-full pointer-events-none"}`}
+      >
+        {tabs}
 
-      {view === "played" ? (
-        <FilterBar
-          {...filterBarCommon}
-          view="played"
-          filters={activeFilters}
-          onRatingChange={setRating}
-          availableRatings={availableRatings}
-        />
-      ) : (
-        <FilterBar {...filterBarCommon} view="wishlist" filters={activeWishlistFilters} />
-      )}
+        {/* Filter status — rendered only while filters are active, so the row
+            contributes no height (whitespace) the rest of the time. Inside the
+            sticky block so "Clear filters" is reachable from anywhere in a long
+            result set; a fixed header height was never a constraint here,
+            because one sticky container re-measures itself. */}
+        {hasActiveFilters && (
+          <div className="flex items-center gap-3 pt-3">
+            <span className="text-shelf-text-muted text-sm">
+              {filteredCount} of {activeTotal} games
+            </span>
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-shelf-text-muted text-sm underline underline-offset-2 cursor-pointer hover:text-shelf-text transition-colors"
+            >
+              Clear filters
+            </button>
+          </div>
+        )}
+
+        {view === "played" ? (
+          <FilterBar
+            {...filterBarCommon}
+            view="played"
+            filters={activeFilters}
+            onRatingChange={setRating}
+            availableRatings={availableRatings}
+          />
+        ) : (
+          <FilterBar {...filterBarCommon} view="wishlist" filters={activeWishlistFilters} />
+        )}
+      </div>
 
       {/* pb-24 keeps the last shelf clear of the viewport bottom.
 

@@ -5,6 +5,41 @@ backlog index stays cheap to read. Newest first, capped at 20: drop the oldest w
 that. Entries are kept for the reference material they carry (a debugging gotcha, an accepted
 trade-off, a follow-up someone will need), not as a changelog.
 
+- [x] **The view tabs, "+ Add game" and "Stats" are sticky now, in one block with the filter
+      bar** (2026-08-16, branch `claude/sticky-game-stats-filter-de3m6d`). Closes "Make the view
+      tabs and the add button sticky, like the filter bar".<br>
+      _One sticky container, not two stacked ones,_ which was the entry's open question. Two
+      stickies would need the tab strip's height to offset the filter bar's `top`, and that
+      height is not a constant: the add button renders only for the owner (and only after
+      `useIsOwner` resolves), the "N of M games / Clear filters" row appears only while filters
+      are active, and the strip wraps on narrow screens. A single container makes the height
+      irrelevant, so nothing measures it.<br>
+      _How the two halves got into one DOM element:_ `GameLibrary` still builds the tab strip
+      (it owns the shelf/people view routing) but passes it to `GameShelves` as a `tabs`
+      ReactNode prop, and `GameShelves` renders it as the first row of the sticky div. Hoisting
+      `FilterBar` up into `GameLibrary` instead would have undone the `GameShelves` extraction,
+      since the bar needs the whole filter/group/sort state. The people views (`?view=followers`)
+      render the same strip inline, unsticky, wrapped in `mb-4`.<br>
+      _The mobile hide-on-scroll-down moved out of `FilterBar` into `useHideOnScrollDown`,_
+      taking a ref. This was load-bearing, not tidying: the hook snapshots its element's
+      document-relative top in a `useLayoutEffect` to decide where the behavior starts, and that
+      snapshot has to be of the element that is actually sticky. Left on `FilterBar` it would
+      have measured a child of a sticky ancestor. The whole header now hides and returns as a
+      unit, which is what makes the add/stats buttons reachable from deep in the shelves.<br>
+      _`useKeepResultsInView`'s `barRef` became `chromeRef`_ and now points at the container. It
+      reads `getComputedStyle(ref).top` plus `offsetHeight`, so it automatically clears the full
+      header (measured 140px on desktop vs ~64px for the bar alone) instead of scrolling results
+      under the tab strip. Verified: after filtering 60 games to 1 from the bottom of the page,
+      the first shelf landed at 296px against a chrome bottom of 204px.<br>
+      _Padding moved up:_ `px-4` is on the container, `FilterBar` keeps only `py-3 sm:py-4`.
+      Side effect worth knowing: the tab strip is now inset 1rem, so it lines up with the search
+      input below it rather than with the shelves behind it, and its `border-b` no longer spans
+      the full width.<br>
+      _No frontend test suite exists,_ so this was verified by mounting `GameLibrary` with 60
+      fake games on a throwaway route and driving it with Playwright at 1280px and 390px, light
+      and dark. Worth repeating for any layout change here: the real page needs a database, and
+      a fixture route sidesteps that in about ten minutes.
+
 - [x] **Rating edits need a Save press, and every draft-then-save commit shares one filled
       button** (2026-08-15, branch `claude/game-rating-edit-confirm-x7u80j`). Closes "Editing a
       game should need a Confirm press". `RatingPicker`'s `onPick` in `EditGameModal` now sets
@@ -437,21 +472,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       _Also corrected in the same pass:_ the flip button's cursor special-case was
       `cursor-pointer sm:cursor-default`, a breakpoint test standing in for a capability one, so
       a desktop window dragged under 640px got a hand cursor. Now `pointer-fine:`.
-
-- [x] **The add-game genre field stopped rewriting itself in front of you** (2026-08-09).
-      Picking an IGDB result used to paint IGDB's genres immediately, then swap them for the
-      Wikipedia/Wikidata answer a second later, sometimes captioned "Wikipedia had no match,
-      showing IGDB's genres" even when the match had plainly worked. `GameDraftForm` now holds
-      the field on a "finding genres..." placeholder until the lookup settles, and both status
-      captions are gone: which source won is an implementation detail.<br>
-      _Two things worth keeping._ The bogus caption came from reading a `let applied` that the
-      `setDraft` updater assigns — React only runs that updater eagerly when the target fiber
-      has no pending work, so the flag was read before it was written on some renders and not
-      others. Never derive a second piece of state from inside an updater; that whole class of
-      race went away with the caption. And the loading state is initialized from
-      `lookupGenresFor` rather than to `false`, because effects run after paint and a `false`
-      start paints one frame of exactly the flash it exists to prevent.<br>
-      _An accepted trade-off:_ the field is `disabled` while loading, which is what lets the
-      response be applied unconditionally instead of guarding on whether the user has typed
-      since. The draft still carries IGDB's genres the whole time, so saving mid-lookup submits
-      them rather than nothing.
