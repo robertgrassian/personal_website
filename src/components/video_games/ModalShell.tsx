@@ -53,7 +53,14 @@ export function ModalShell({
 
   return (
     // z-50: above StatsPanel's backdrop/panel (z-30/z-40 range).
-    <div className="fixed inset-0 z-50 grid place-items-center p-4">
+    //
+    // Height stays inset-0 rather than measured from visualViewport: that was
+    // tried and reverted, because a pixel height goes stale between viewport
+    // events and the panel then centers in a stale, taller box. Mobile browsers
+    // already shrink the layout viewport for the keyboard.
+    //
+    // p-3 on a phone, where the gutter competes with the keyboard for pixels.
+    <div className="fixed inset-0 z-50 grid place-items-center p-3 sm:p-4">
       {/* Backdrop — clicking it closes the dialog */}
       <div
         aria-hidden="true"
@@ -61,11 +68,15 @@ export function ModalShell({
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
       />
 
+      {/* min-w-0 is load-bearing: a grid item's automatic minimum size is
+          min-content, so without it the centering track cannot go narrower than
+          the search results' untruncated nowrap lines, and the panel's right
+          edge overflowed off screen on a phone. */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className={`relative rounded-lg border border-shelf-plank bg-shelf-bg p-5 shadow-2xl ${panelClassName}`}
+        className={`relative min-w-0 rounded-lg border border-shelf-plank bg-shelf-bg p-4 sm:p-5 shadow-2xl ${panelClassName}`}
       >
         {/* shrink-0 matters only for the flex-column panel, where the header
             must not compress as the scrolling middle section grows. It is inert
