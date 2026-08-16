@@ -133,12 +133,15 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
       title={heading}
       onClose={onClose}
       error={error}
-      // A flex column capped at 80% of the viewport, with only the middle
-      // section scrolling: the heading, the search box and the buttons under
-      // it stay put however many results come back. dvh rather than vh so
-      // mobile browser chrome is excluded from the 80%. The cap is a max, so
-      // a two-result search still renders a short dialog.
-      panelClassName="flex max-h-[80dvh] w-full max-w-md flex-col"
+      // A flex column with only the middle section scrolling: the heading, the
+      // search box and the buttons under it stay put however many results come
+      // back. The cap is a max, so a two-result search renders a short dialog.
+      //
+      // Full height minus the shell's p-3 gutter on a phone, where the dialog
+      // splits a sub-400px band with the keyboard and every pixel recovered is
+      // another visible result; 80% from `sm` up, where a full-height dialog
+      // reads as a page instead. dvh, not vh, to exclude mobile browser chrome.
+      panelClassName="flex max-h-[calc(100dvh-1.5rem)] sm:max-h-[80dvh] w-full max-w-md flex-col"
       // The search box, not the close button: this dialog opens ready to type.
       initialFocusRef={searchInputRef}
     >
