@@ -116,6 +116,7 @@ production uses Google. Full setup, resets and troubleshooting are in
 ## Claude Skills
 
 Skills in `.claude/skills/` for use with [Claude Code](https://claude.com/claude-code):
-`proj-todo` (owns `TODO.md`, the backlog and bug list), `explain` (walk through
+`proj-todo` (owns the backlog and bug list: `TODO.md` as the index, with
+per-item detail in `docs/todo/`), `explain` (walk through
 code step by step), and `teach` (the concepts behind it). Project instructions
 live in [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
