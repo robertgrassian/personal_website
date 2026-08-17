@@ -1,5 +1,7 @@
 # Local Supabase stack for the instanced game libraries backend.
-# See docs/plans/instanced-game-libraries.md §7.5 (environments & local dev).
+# See docs/dev-setup.md for local setup, and README.md for why Supabase is used
+# this way. (This pointed at docs/plans/instanced-game-libraries.md, deleted
+# 2026-07-30; see README.md for where that spec's contents went.)
 #
 # Deliberate differences from production:
 #   - Email/magic-link auth is enabled here for local login via Mailpit

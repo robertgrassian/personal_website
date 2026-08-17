@@ -6,8 +6,8 @@ The pencils and "Add game" appear a beat after first paint on your own library, 
 resolves in a `useEffect` — `useViewerRelationship`
 (`src/components/video_games/useViewerRelationship.ts`), read through `useIsOwner()` in
 `FollowControls.tsx`. **Premise updated 2026-08-07:** this used to name `useIsLibraryOwner` and a
-`/me/profile` fetch; that hook is deleted and the two per-viewer requests are now one (see Recently
-Completed). That halved the work but did not fix this — one round trip after hydration still lands
+`/me/profile` fetch; that hook is deleted and the two per-viewer requests are now one.
+That halved the work but did not fix this — one round trip after hydration still lands
 after first paint. The symptom list also lost the Unrated shelf on 2026-08-07: unrated games are no
 longer `canEdit`-gated at all.
 

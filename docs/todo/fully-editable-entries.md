@@ -5,7 +5,7 @@ _Section: **Backlog / Ideas** &middot; index: [`TODO.md`](../../TODO.md)_
 **Changing which console an entry records is now the urgent half of this** (2026-08-10). Since the
 catalog migration a library entry is unique on `(user_id, metadata_id)`, so adding a game you
 already own on a second console is a 409 — and with `GameUpdate` still rating-only there is **no way
-out of that 409 at all**. **That half shipped 2026-08-11** — see Recently Completed — so the 409 now
+out of that 409 at all**. **That half shipped 2026-08-11**, so the 409 now
 has an escape hatch and this item is back to being the broader "edit everything" want.
 
 `GameUpdate` (`api/app/schemas/me.py`) now carries rating and system, and nothing else;

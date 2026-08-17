@@ -10,7 +10,7 @@ _Why they diverged, which is the thing to design around._ They are not two views
 `AddGameModal` owns a search step and a draft that does not exist yet, and `GameDraftForm` splits
 its fields on `draft.igdbId` because an IGDB pick resolves to a SHARED catalog row it must not
 pretend to edit. `EditGameModal` owns a row that already exists and writes each field independently:
-rating and system each buffer to a draft with their own Save (2026-08-15, see Recently Completed),
+rating and system each buffer to a draft with their own Save (2026-08-15),
 while sessions and delete still write on click. So a merge has to answer what a single dialog does
 about per-field writes versus one submit — half-answered now that two fields confirm and the rest do
 not.
