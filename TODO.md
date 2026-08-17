@@ -80,15 +80,6 @@ to keep that section at five._
 
 ## Backlog / Ideas
 
-- [ ] **Consider condensing the mobile nav: a one-line brand so `--nav-height` can drop below
-      `sm`.** Raised 2026-08-17, after deciding the nav should **not** hide on scroll like the
-      library header. Measured: the nav is 65px where a mobile shelf row is 156px, so hiding it
-      buys 0.4 of a row against the 1.2 the header already recovers, and needs a shared "chrome
-      hidden" signal, since `GameShelves`'s sticky header offsets by `--nav-height` and would
-      otherwise strand a gap. Condensing recovers ~17px with none of that.<br>
-      _Counter:_ 2.2% of the screen against the two-line Caveat signature, so only worth it if the
-      nav grows. **Dark mode toggle** would.
-
 - [ ] **There probably should not be two game modals. Merge `AddGameModal` and `EditGameModal` into
       one.** Raised 2026-08-14 while fixing the system field in both: one question had two answers
       depending on the dialog, and fixing it meant the same change twice. They genuinely share only
