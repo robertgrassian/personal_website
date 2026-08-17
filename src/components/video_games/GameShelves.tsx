@@ -1,11 +1,20 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import dynamic from "next/dynamic";
 import type { Game } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
 import { ShelfSection } from "./ShelfSection";
 import { FilterBar } from "./FilterBar";
+import { FilterSheet } from "./FilterSheet";
 import type { GameView } from "./libraryConfig";
 import {
   filterGames,
@@ -95,6 +104,37 @@ export function GameShelves({
     setRating,
     clearFilters,
   } = urlState;
+
+  // The mobile filter sheet. Owned here rather than in FilterBar, which holds
+  // the button that opens it: the bar lives inside the sticky header, and that
+  // header's hide-on-scroll `translate` would become the containing block for
+  // the sheet's `position: fixed`, positioning it against the header instead of
+  // the viewport. Same reason StatsPanel is rendered here while its button
+  // lives up in GameLibrary's tab strip.
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const openFilterSheet = useCallback(() => setFilterSheetOpen(true), []);
+  const closeFilterSheet = useCallback(() => setFilterSheetOpen(false), []);
+
+  // The sheet is hidden above `sm` by CSS, not by state, so crossing that
+  // breakpoint while it is open leaves `filterSheetOpen` true with nothing on
+  // screen and no reachable dismiss control (the opener is `sm:hidden` too).
+  // Rotating a phone to landscape is enough to reach it. Consequences of the
+  // leak: useModalChrome holds its body scroll lock, focus sits on a
+  // display:none close button, and rotating back re-opens the sheet unasked.
+  // Closing on the crossing is what keeps state and CSS agreeing about
+  // whether this thing is open.
+  //
+  // 640px is Tailwind's `sm`, matching the variants on the sheet and the
+  // opener, and the same query useHideOnScrollDown keys off.
+  useEffect(() => {
+    const mql = window.matchMedia("(min-width: 640px)");
+    const closeAboveSm = () => {
+      if (mql.matches) setFilterSheetOpen(false);
+    };
+    mql.addEventListener("change", closeAboveSm);
+    closeAboveSm(); // in case the first render was already desktop
+    return () => mql.removeEventListener("change", closeAboveSm);
+  }, []);
 
   // The panel used to mount for every visitor and merely slide out of view on
   // a CSS transform, so its aggregation passes ran and its DOM was hydrated for
@@ -224,13 +264,15 @@ export function GameShelves({
         ].join(" ");
   useKeepResultsInView(resultsRef, headerRef, filterSignature);
 
-  // The props both views pass identically. Spread rather than repeated,
-  // so a new shared prop cannot land on one view and not the other.
+  // The props both views pass identically, and now also the props the desktop
+  // bar and the mobile sheet pass identically: they render the same choices in
+  // two shapes. Spread rather than repeated, so a new shared prop cannot land
+  // on one view, or one shape, and not the others.
   //
-  // `view` stays a literal at each call site on purpose: FilterBarProps is a
-  // discriminated union on it, and that is what still narrows onRatingChange to
-  // the played view only.
-  const filterBarCommon = {
+  // `view` stays a literal at each call site on purpose: FilterControlProps is
+  // a discriminated union on it, and that is what still narrows onRatingChange
+  // to the played view only.
+  const filterControlsCommon = {
     onSharedFilterChange: setSharedFilter,
     groupBy,
     sortOrder,
@@ -307,16 +349,51 @@ export function GameShelves({
 
         {view === "played" ? (
           <FilterBar
-            {...filterBarCommon}
+            {...filterControlsCommon}
+            onOpenFilterSheet={openFilterSheet}
+            filterSheetOpen={filterSheetOpen}
             view="played"
             filters={activeFilters}
             onRatingChange={setRating}
             availableRatings={availableRatings}
           />
         ) : (
-          <FilterBar {...filterBarCommon} view="wishlist" filters={activeWishlistFilters} />
+          <FilterBar
+            {...filterControlsCommon}
+            onOpenFilterSheet={openFilterSheet}
+            filterSheetOpen={filterSheetOpen}
+            view="wishlist"
+            filters={activeWishlistFilters}
+          />
         )}
       </div>
+
+      {/* Outside the sticky block on purpose: that div carries a `translate`
+          for its hide-on-scroll, which would make it the containing block for
+          the sheet's `position: fixed`. See the state declaration above. */}
+      {view === "played" ? (
+        <FilterSheet
+          {...filterControlsCommon}
+          view="played"
+          filters={activeFilters}
+          onRatingChange={setRating}
+          availableRatings={availableRatings}
+          isOpen={filterSheetOpen}
+          onClose={closeFilterSheet}
+          resultCount={filteredCount}
+          onClearFilters={clearFilters}
+        />
+      ) : (
+        <FilterSheet
+          {...filterControlsCommon}
+          view="wishlist"
+          filters={activeWishlistFilters}
+          isOpen={filterSheetOpen}
+          onClose={closeFilterSheet}
+          resultCount={filteredCount}
+          onClearFilters={clearFilters}
+        />
+      )}
 
       {/* pb-24 keeps the last shelf clear of the viewport bottom.
 
@@ -363,9 +440,10 @@ export function GameShelves({
             </p>
           )
         ) : (
-          // ShelfSection brings its own mt-10, so this only needs to offset
-          // the group from the filter bar above it.
-          <div className="mt-6">
+          // ShelfSection brings its own top margin, so this only needs to
+          // offset the group from the filter bar above it. Both halve on
+          // phones.
+          <div className="mt-3 sm:mt-6">
             {activeShelves.map((shelf) => (
               <ShelfSection
                 key={shelf.label}

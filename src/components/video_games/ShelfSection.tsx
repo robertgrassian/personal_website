@@ -12,7 +12,9 @@ type ShelfSectionProps = {
 // longer carries an editing concern through on its behalf.
 export function ShelfSection({ label, games }: ShelfSectionProps) {
   return (
-    <section className="mt-10">
+    // Halved on phones. This gap repeats between every shelf, not just above
+    // the first, so it is the one trim here that keeps paying as you scroll.
+    <section className="mt-5 sm:mt-10">
       {/* Shelf label — omitted when label is empty (e.g. "group by none") */}
       {label && (
         <h2 className="text-shelf-label text-xs font-semibold uppercase tracking-widest mb-3 px-1">

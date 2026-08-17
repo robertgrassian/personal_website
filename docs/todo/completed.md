@@ -5,6 +5,100 @@ backlog index stays cheap to read. Newest first, capped at 20: drop the oldest w
 that. Entries are kept for the reference material they carry (a debugging gotcha, an accepted
 trade-off, a follow-up someone will need), not as a changelog.
 
+- [x] **The mobile library got ~258px of vertical space back** (2026-08-17, branch
+      `claude/game-library-mobile-space-f7xndq`). A density pass across the whole page, then
+      the filter bar down to two rows: search plus a "Filter" button opening a bottom sheet of
+      the three narrowing filters, with group and sort staying on the bar. 144px of bar became
+      107px. Closes "Collapse the mobile filter bar to one row".<br>
+      _Group and sort are on the bar on purpose, and the sheet got to 62px without them._ They
+      rearrange what is on screen rather than removing anything, and nothing else on the page
+      hints that regrouping a shelf is possible, so behind a control captioned "Filter" they
+      were discoverable only by opening the wrong thing. The extra 45px row is the price of that
+      affordance and was paid deliberately. Do not move them back into the sheet to reclaim it.<br>
+      _Four UX shapes were tried, and the three rejected are why the fourth is right._ An inline
+      disclosure (tap "Filter", three `<select>`s unfold in place) was built and rejected on
+      sight: dropdowns revealing dropdowns. A scrollable rail of all five controls was costed
+      and not built. A sheet of **chips** was built, and rejected for the reason that decides
+      this design: chips show every option at once, so the sheet grew with the vocabulary. Judged
+      against a 7-system, 8-genre fixture it looked fine; re-measured against 18 systems and 24
+      genres it hit the 85vh cap and had to scroll, which meant the cost of adding a genre was
+      paid by everyone looking for Sort. Five dropdowns are 534px and scroll-free at that same
+      vocabulary, and stay five dropdowns however large it grows. **Fixtures must be sized to
+      the real vocabulary, not to a comfortable one.**<br>
+      _Why a sheet at all, when the answer turned out to be dropdowns:_ width. An inline
+      `<select>` on a 390px phone gets ~117px and truncates its own value; full-width in the
+      sheet it renders "Super Nintendo Entertainment System" whole. The sheet buys horizontal
+      room, not a different control.<br>
+      _The measurement is the finding._ At 390px the first row of cover art sat at ~765px
+      against ~740px of visible viewport, and the space was spread evenly across four blocks
+      (identity header ~240, CRT ~175, sticky chrome ~185, shelf preamble ~110) rather than
+      concentrated in one. That is why the first pass trimmed all four instead of cutting a
+      feature. Anyone proposing to reclaim more should re-measure first rather than assuming a
+      single villain.<br>
+      _Measured in Chromium, not estimated, and two estimates were wrong._ The `h1` at
+      `text-3xl` needs ~430px against 342px of content width, so it silently cost every phone
+      viewer a second 36px line; `text-xl` fits on one. And **"three boxes fit on one row" is
+      false**: a "Filter" button is 106px, which squashed Group and Sort to 26-55px and
+      overflowed outright at 320px. That killed an intermediate layout pairing Filter with
+      search and leaving Group + Sort beside it; the sheet then took Group and Sort off the bar
+      entirely, so only search and the button remain. Related finding, since it looked like the
+      blocker and was not: the three filter `<select>`s **already** clip at every phone width
+      today ("All Ratings" wants 123px, gets 98px) and read fine anyway, because their
+      distinguishing word starts at character five. Clipping is never the test; where the
+      distinguishing word sits is.<br>
+      _The one thing that will bite whoever touches this next:_ `FilterSheet` is rendered by
+      `GameShelves`, **not** by `FilterBar`, which owns the button that opens it. The sticky
+      header carries a `translate` for its hide-on-scroll, and a non-`none` transform makes an
+      element the containing block for its `position: fixed` descendants — a sheet rendered from
+      the bar positions itself against the header instead of the viewport. `StatsPanel` is
+      arranged the same way for the same reason. Moving the sheet "next to its button" is the
+      obvious-looking refactor that breaks it.<br>
+      _Desktop keeps the inline row, so the controls exist in two shapes_ (inline in `FilterBar`,
+      full-width in `FilterSheet`), which is the duplication the earlier disclosure version was
+      designed to avoid. It is acceptable only because `hidden sm:contents` / `sm:hidden` means
+      exactly one is ever in the layout, and `display: none` removes the other from the
+      accessibility tree; two _live_ copies would announce every filter twice. What keeps them
+      honest is shared code, not discipline: both read `FilterControlProps` (one exported union)
+      and both render the same exported `FilterSelect`, so the enabled/disabled split and its
+      divider have one implementation rather than two that drift.<br>
+      _Deliberately not done:_ the sheet does not trap focus, so Tab can still reach the page
+      behind it. That matches `StatsPanel` and the three owner dialogs, which all rely on
+      `useModalChrome` (Escape, scroll lock, focus restore) without a trap: fix it for all of
+      them or none. "Clear filters" now exists twice while the sheet is open, once in the
+      sticky status row and once in the sheet footer; the bar's copy is unreachable under the
+      backdrop, so the duplicate is deliberate rather than an oversight. The logged-out
+      `/video-games` demo is still ~180px worse than these numbers because of `SignupCta`,
+      which was left alone.<br>
+      _Verified by re-running the fixture-route trick this archive already recommended:_ a
+      throwaway `src/app/zz-fixture/page.tsx` mounting `GameLibrary` with 60 fake games, driven
+      with Playwright, then deleted. It caught what static reasoning would not have: the bar
+      measures 62px on a 390px phone, choices apply live (`?system=Nintendo+64`, "Show 120 games"
+      to "Show 7 games"), Escape closes, dead-end options still dim, the wishlist sheet correctly
+      has no Rating group, and the desktop bar is 112px both before and after the change. That
+      last one nearly went out as a reported regression: the bar does wrap to two lines with long
+      system names, and only measuring stashed `HEAD` against the same fixture showed the wrap is
+      pre-existing and content-driven, with `max-w-7xl` capping the row at 1200px so a wider
+      viewport changes nothing. Ten minutes, and it is the only way to check this without a
+      database.<br>
+      _Every sort label was front-loaded in the same pass, and it fixed a live bug rather than
+      just tidying copy._ The sort `<select>` renders 117px on a 390px phone, roughly nine
+      characters of visible text, and a native select truncates with no ellipsis. Under the old
+      "Noun: Modifier" wording that clipped "Release: Newest" and "Release: Oldest" to the
+      identical "Release: ", and both Last Played options to "Last Play": the direction, which is
+      the entire choice the option makes, was the part that fell off. Leading with the
+      discriminator ("Newest release", "Least recently played") keeps all eight played options and
+      all six wishlist options distinct when clipped, verified in Chromium. **Any new sort label
+      must differ from its opposite within the first ~9 characters.** "Recently played" and
+      "Recently added" do collide, which is harmless only because `played-*` is played-only and
+      `added-*` is wishlist-only, so they never share a dropdown.<br>
+      _The name sorts went further, to plain "A→Z" / "Z→A"._ A `<select>` sizes to its **widest**
+      option, so with "Least recently played" in the list the sort control is 113px on a phone
+      and its selected label gets ~73px: "Name A→Z" needs ~74px and lost the Z, on the default
+      value every visitor sees. The caption SORT sits immediately to its left, so the noun was
+      redundant anyway. Worth remembering as a rule of its own: **a select's rendered width is
+      set by its longest option, not by the current one**, so adding one long option silently
+      re-truncates every short one.
+
 - [x] **The view tabs, "+ Add game" and "Stats" are sticky now, in one block with the filter
       bar** (2026-08-16, branch `claude/sticky-game-stats-filter-de3m6d`). Closes "Make the view
       tabs and the add button sticky, like the filter bar".<br>
@@ -312,7 +406,9 @@ trade-off, a follow-up someone will need), not as a changelog.
       test tightened from `== null` to `=== null` now that `undefined` is off the table.
 
 - [x] **Sort by rating** (2026-08-11). `rating-best` / `rating-worst` on the played view only,
-      rendered as "Rating: Best" / "Rating: Worst". Grouping by rating withdraws both options,
+      rendered as "Rating: Best" / "Rating: Worst" at the time (relabelled "Best rated" /
+      "Worst rated" on 2026-08-17, when every sort label was front-loaded so it survives
+      truncation on a phone). Grouping by rating withdraws both options,
       which is what the entry asked for, and it is worth knowing that **`groupBy: "rating"` is the
       played view's default** — so the new sorts are invisible until you group by something
       else.<br>
@@ -447,28 +543,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       _Deliberately not done:_ punctuation folding ("resident evil 4" matching "Resident Evil 4:
       Remake") and any edit-distance matching. The entry's "stay strict" constraint still holds,
       and the option is written up in the comment on `foldForSearch` if it is ever wanted.
-
-- [x] **The mobile game-case flip no longer lags** (2026-08-09, branch
-      `claude/mobile-flip-lag`, PR #98). **Confirmed fixed on a device by the owner**, which is
-      what closes it: nothing here was reproducible in development.<br>
-      _The fix that mattered was almost certainly the compositing head start._
-      `will-change: transform` under `.game-case-scene:active .game-case-inner` promotes the case
-      to its own layer during the press, before the click handler adds `.is-flipped` and the
-      first `rotateY` would otherwise have to pay for the promotion mid-animation. Scoped to the
-      pressed case: setting it on all ~155 at once is how you make the whole page slower. It
-      covers the flip OUT only, since `:active` ends at release, so if the flip BACK ever feels
-      slow that is why, and it needs a different mechanism rather than a wider selector.
-      Promoting the flipped case instead was tried and dropped (holds a layer while nothing
-      animates; de-promoting faces carrying `backface-visibility: hidden` as a transition starts
-      is a known one-frame-flash source in WebKit).<br>
-      _Two dead ends worth not re-deriving._ Hover emulation was the original prime suspect: iOS
-      playing `.game-case-inner`'s `group-hover:` lift on first touch before the click fires,
-      fixed by gating the lift behind `@media (hover: hover)`. **Tailwind v4 already emits every
-      `hover:` and `group-hover:` utility inside that media query** (verified by compiling
-      `group-hover:-translate-y-2` against the pinned version), so on a touch-only device the
-      declarations do not exist and there is nothing to gate. Any future fix starting "wrap the
-      hover styles in a media query" is a no-op. The 300ms tap delay was the other: Next's
-      default viewport meta already drops it, and `touch-manipulation` shipped as a hedge.<br>
-      _Also corrected in the same pass:_ the flip button's cursor special-case was
-      `cursor-pointer sm:cursor-default`, a breakpoint test standing in for a capability one, so
-      a desktop window dragged under 640px got a hand cursor. Now `pointer-fine:`.

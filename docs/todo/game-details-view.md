@@ -24,9 +24,17 @@ and the travel animation have to be one continuous motion or it will read as two
 happening. `.game-case-inner` currently owns both the `preserve-3d` flip and the `group-hover` lift
 (`src/app/video-games/video-games.css`), so whichever element animates position cannot be that same
 element without fighting its transform. The mobile flip-lag bug was about this exact element and
-**shipped 2026-08-08** (see Recently Completed), so this no longer has to wait on it — but read that
-entry first, because the fix that worked was a `will-change: transform` compositing head start
-scoped to the pressed case, and a new animation on the same element can undo it.
+**shipped 2026-08-08**, so this no longer has to wait on it. Its finding, folded in here because
+that archive entry has since aged past the 20-entry cap: the fix that worked was
+`will-change: transform` under `.game-case-scene:active .game-case-inner`, promoting the pressed
+case to its own layer _before_ the click handler adds `.is-flipped`, so the first `rotateY` does
+not pay for the promotion mid-animation. It is scoped to the pressed case on purpose (promoting
+all ~155 at once is how you make the whole page slower) and covers the flip OUT only, since
+`:active` ends at release. **A new animation on the same element can undo that head start**, so
+any travel animation here has to be checked against it. Two dead ends from the same investigation,
+so they are not re-derived: wrapping the hover styles in `@media (hover: hover)` is a no-op
+(Tailwind v4 already emits every `hover:` and `group-hover:` utility inside that query), and the
+300ms tap delay was never in play (Next's default viewport meta drops it).
 
 _If edit moves onto the back face, decide what happens to `EditGameModal`._ It is not just a rating
 picker — it holds start/stop session, log a past session, remove from library, and the drafted
