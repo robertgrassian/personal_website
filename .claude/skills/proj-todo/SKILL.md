@@ -1,6 +1,6 @@
 ---
 name: proj-todo
-description: "Owns the project backlog AND the tracked bug list, both in TODO.md at the repo root — NOT the in-session task tracker (TaskCreate/TaskUpdate), which is unrelated. Invoke for every interaction with that file, reads included: 'add to my todos', 'what should I work on next', 'mark X done', 'is X on my list?', 'drop that item', 'clean up the todo list', and any time you would otherwise read or edit TODO.md yourself. Bugs live in that file too, so invoke it before hunting for defects in the codebase: 'what bugs are open', 'find me a low-hanging-fruit bug to fix', 'what should I fix next', 'is that bug written down', 'file a bug for X' — a request to fix or find a bug starts here, not with a code search. ALSO invoke at the START of any request to build, change, fix, refactor or add anything in this project, even when the user never mentions the todo list and even when the request looks small — 'can you make X do Y', 'add a Z', 'this should really do W'. Whatever was asked for is very often already an entry, carrying a corrected premise, a rejected approach or a collision with another item, and it has to be closed out once the work lands. Check first, implement second."
+description: "Owns the project backlog and bug list in TODO.md (NOT the in-session TaskCreate/TaskUpdate tracker). Invoke for every interaction with that file, reads included: add an item, what should I work on next, mark X done, is X on my list, drop that item, clean up the list. Open bugs live there too, so a request to find or fix a bug starts here, not with a code search. ALSO invoke at the START of any request to build, change, fix or add anything in this project, even when the todo list is never mentioned and the request looks small: it is very often already an entry carrying a corrected premise or a rejected approach, and it has to be closed out once the work lands. Check first, implement second."
 argument-hint: "[what you want to do]"
 disable-model-invocation: false
 ---
@@ -24,6 +24,13 @@ disable-model-invocation: false
 | Reorganize, prune, fix the file                   | **read `modes/reorganizing.md`** |
 
 Paths are relative to this file. **Read exactly the one mode file the request routes to, and only after routing** — they are split out so a turn pays for the mode it uses, not for all of them.
+
+**Delegate the mechanical write modes to the `todo-clerk` subagent** (`modes/removing.md`,
+`modes/promoting.md`, `modes/reorganizing.md`, and a structure-check sweep): decide which entry is
+meant and what should happen to it, then hand the clerk that decision. It reads the skill itself, so
+the mode file never enters this context. Do the rest here. **`modes/adding.md` is never delegated**
+— writing an entry means checking its premise against the codebase and choosing its section, which
+is the judgment the clerk is explicitly told not to exercise.
 
 Keyword prefixes like "done" or "list" are a hint, never a rule: "the wishlist thing is done" is a completion, and "add a todo to list the systems on each shelf" is a new item despite both words appearing. When the request genuinely fits two sections, prefer the non-destructive one and say what you assumed. A bare invocation with nothing after it means show the list.
 
