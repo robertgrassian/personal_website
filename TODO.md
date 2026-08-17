@@ -1,20 +1,12 @@
 # Project TODO
 
-**This file is the index, not the whole backlog.** Each entry is one line: its ask, plus the
-cross-references that decide what it collides with. Anything longer lives in
-`docs/todo/<slug>.md`, linked as `[Details]`, which holds the diagnosis, the corrected premise,
-the rejected alternatives and the design decisions. Read a detail doc when you are about to work
-on that item, cross-reference it, or check whether a new request duplicates it. Do not read them
-all by default: that is the cost this split exists to avoid. Completed work is not tracked here;
-`git log` is the record.
+One line per item; the detail is in `docs/todo/<slug>.md` behind each `[Details]` link. The rules
+that govern this file (sections, caps, what goes where) live in the `proj-todo` skill, not here.
 
 ## Up Next
 
-**The instanced game libraries project is done** (Phases 0-6, finished 2026-07-30 with PR #77).
-Nothing is mid-flight, so from here this file is the only plan.
-
 The organizing goal is **sharing the site with people**, so Up Next holds what should be true
-before that happens. Capped at 5; being a bug is not what gets you in here.
+before that happens.
 
 - [ ] **Take a pass at the catalog rows whose `igdb_id` points at a variant, not the base game.**
       (Promoted by request 2026-08-10.) Related: **Audit the genre vocabulary**.
