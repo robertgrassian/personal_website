@@ -22,10 +22,12 @@ Private catalog rows (igdb_id IS NULL, hand-entered games) are left alone.
 There is no canonical platform list for a game IGDB has never heard of, so
 "every row has platforms" is not a reachable or desirable end state.
 
-Usage (from api/, with DATABASE_URL and the Twitch credentials set):
+Usage, from api/. Credentials come from the repo-root .env; --database-url
+points the run at a database other than that one, and every run prints which:
 
-    uv run python scripts/backfill_platforms.py            # preview
+    uv run python scripts/backfill_platforms.py            # preview, local
     uv run python scripts/backfill_platforms.py --apply
+    uv run python scripts/backfill_platforms.py --database-url "$PROD_URL" --apply
 
 Preview is the default and prints every row it would change, so a production
 run is always a select before an update.
@@ -50,6 +52,7 @@ from app.core.config import get_settings
 from app.core.db import get_sessionmaker
 from app.models import GameMetadata
 from app.services.igdb import _IGDB_GAMES_URL, _run_query
+from scripts.db_target import add_database_url_arg, apply_database_url
 
 # IGDB caps a response at 500 rows; chunk so this keeps working on a library
 # larger than one person's.
@@ -176,7 +179,10 @@ def run(apply_changes: bool) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true", help="write (default is preview)")
-    run(parser.parse_args().apply)
+    add_database_url_arg(parser)
+    args = parser.parse_args()
+    print(f"Target: {apply_database_url(args.database_url)}\n")
+    run(args.apply)
 
 
 if __name__ == "__main__":
