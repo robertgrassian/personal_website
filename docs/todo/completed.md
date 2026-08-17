@@ -27,9 +27,13 @@ trade-off, a follow-up someone will need), not as a changelog.
       `text-3xl` needs ~430px against 342px of content width, so it silently cost every phone
       viewer a second 36px line; `text-xl` fits on one. And **"three boxes fit on one row" is
       false**: a "Filter" button is 106px, which squashed Group and Sort to 26-55px and
-      overflowed outright at 320px. The shipped layout pairs Filter with search on row one and
-      leaves Group + Sort on row two, which is 103px closed against 144px before, with no
-      overflow down to 320px.<br>
+      overflowed outright at 320px. That killed an intermediate layout pairing Filter with
+      search and leaving Group + Sort beside it; the sheet then took Group and Sort off the bar
+      entirely, so only search and the button remain. Related finding, since it looked like the
+      blocker and was not: the three filter `<select>`s **already** clip at every phone width
+      today ("All Ratings" wants 123px, gets 98px) and read fine anyway, because their
+      distinguishing word starts at character five. Clipping is never the test; where the
+      distinguishing word sits is.<br>
       _The one thing that will bite whoever touches this next:_ `FilterSheet` is rendered by
       `GameShelves`, **not** by `FilterBar`, which owns the button that opens it. The sticky
       header carries a `translate` for its hide-on-scroll, and a non-`none` transform makes an
