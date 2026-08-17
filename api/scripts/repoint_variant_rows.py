@@ -423,7 +423,11 @@ def run(apply_changes: bool) -> None:
                 for note in plan.review:
                     print(f"      {note}")
 
-        genre_sourced = [p.row.name for p in plans]
+        # The name each row will have AFTER the fix, not before: this list is
+        # handed to the genre audit, which looks rows up by what is in the
+        # database by then. On a merge the variant row is gone and the surviving
+        # row's name is the one to quote.
+        genre_sourced = [p.target_row.name if p.is_merge else p.new_name for p in plans]
         if genre_sourced:
             print(
                 "\nGenres are deliberately NOT touched, on any of these rows: they came"
