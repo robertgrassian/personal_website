@@ -306,10 +306,11 @@ export function GameShelves({
           z-20 sits above the shelves and below the nav (z-50) and stats panel (z-40).
           rounded-b-lg + shelf-filter-bar separate it from the shelf content
           (shadow in light mode, bottom border in dark).
-          No horizontal padding of its own: the rows inside pad themselves, so
-          the tab strip keeps the full content width. Insetting the whole block
-          by px-4 instead cost the strip 32px and wrapped "Add game" onto two
-          lines on every phone from 414px down.
+          No horizontal padding of its own: each row inside pads itself, so the
+          tab strip can inset less than px-4 on the narrowest phones (see it in
+          GameLibrary). Insetting the whole block by px-4 instead cost the strip
+          32px and wrapped "Add game" onto two lines on every phone from 414px
+          down.
           The conditional translate drives the mobile hide/show.
           `invisible` is what keeps the hidden block out of the TAB ORDER:
           -translate-y-full only moves it off screen and pointer-events-none

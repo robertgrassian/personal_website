@@ -167,8 +167,16 @@ export function GameLibrary({
     // on a narrow phone is smaller type (text-xs under 375px) and tighter
     // spacing under sm, never a second row: the row costs ~36px of a screen
     // that the shelves want more than the chrome does.
-    <div className="flex items-center justify-between border-b border-shelf-plank">
-      <div className="flex">
+    // Inset to line the first tab up with "X of Y games" and the search box
+    // below, which pad themselves by px-4. Measured in Chromium: at 320px the
+    // row has only ~1px of spare width, so the full 16px is affordable from
+    // 375px up and the smallest phones get 8px instead of a wrapped row. The
+    // right pad is 16px MINUS the trailing button's own px, so the Stats label
+    // (not its padding box) lands on the same 16px margin.
+    <div className="flex items-center justify-between border-b border-shelf-plank pl-2 min-[375px]:pl-4 min-[375px]:pr-2.5 sm:pr-1.5">
+      {/* gap, not a margin per tab: a trailing mr on the last tab spent 8px of
+          the width this inset needed. */}
+      <div className="flex gap-2 sm:gap-4">
         {VALID_GAME_VIEW.map((v) => (
           <button
             key={v}
@@ -176,8 +184,8 @@ export function GameLibrary({
             onClick={() => setView(v)}
             // Measured: text-sm with this spacing needs 375px to fit the two
             // tabs plus both buttons on one row, so text-xs takes over below
-            // that. Desktop keeps the original mr-4 and text-sm.
-            className={`py-2.5 mr-2 sm:mr-4 whitespace-nowrap text-xs min-[375px]:text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
+            // that. Desktop keeps text-sm.
+            className={`py-2.5 whitespace-nowrap text-xs min-[375px]:text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
               view === v
                 ? "border-link text-link"
                 : "border-transparent text-shelf-text-muted hover:text-link hover:border-shelf-plank"
