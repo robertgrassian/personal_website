@@ -2,8 +2,8 @@
 // ?search, ?rating, ?system, ?genre. Custom hooks must start with "use" so
 // React's rules-of-hooks lint/runtime checks apply.
 
-import { useState, useEffect, useRef, useTransition, useMemo, useCallback } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { Filters, RatingFilter } from "@/lib/games";
 import { RATINGS, UNRATED_LABEL } from "@/lib/games";
 import type { WishlistFilters } from "@/lib/wishlist";
@@ -48,10 +48,34 @@ export type UrlState = {
 };
 
 export function useGameLibraryUrlState(): UrlState {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
+
+  /** Write the query string to the URL without navigating.
+   *
+   *  Native History API rather than `router.replace`. Next patches
+   *  pushState/replaceState so `usePathname` and `useSearchParams` still see the
+   *  change, but it is not a navigation, so no RSC payload is fetched.
+   *
+   *  `router.replace` was one round trip per filter interaction: the Router
+   *  Cache keys on the full URL, so every distinct `?system=…` was a miss and
+   *  refetched the route. Measured at ~100KB carrying all 157 games, for a page
+   *  byte-identical to the one already on screen — no route here declares a
+   *  `searchParams` prop, so the server render cannot depend on the query
+   *  string. Worse, it was on the critical path: `system`/`genre`/`rating` are
+   *  read back out of `useSearchParams`, which only updates once the navigation
+   *  commits, so a dropdown could not move a card until the server answered.
+   *  Search felt faster than the dropdowns only because it reads `searchInput`
+   *  directly.
+   *
+   *  No `{ scroll: false }` equivalent needed: replaceState never scrolls. */
+  const replaceUrl = useCallback(
+    (params: URLSearchParams) => {
+      const qs = params.toString();
+      window.history.replaceState(null, "", qs ? `${pathname}?${qs}` : pathname);
+    },
+    [pathname]
+  );
 
   // Input responds instantly; URL update is debounced 300ms below.
   const [searchInput, setSearchInput] = useState(() => searchParams.get("search") ?? "");
@@ -70,19 +94,18 @@ export function useGameLibraryUrlState(): UrlState {
 
   // Every ?search value this hook has written and not yet seen echoed back.
   //
-  // A single slot was not enough, and the way it failed is worth keeping.
-  // `router.replace` runs inside a transition with a server round trip, so with
-  // one slot a second push could be registered before the first one's echo
-  // arrived; the older echo then failed the match, was read as an external
-  // navigation, and was applied to the input. While typing that silently put
-  // back a shorter string. While DELETING it put back a longer one, which is
-  // visible: a character you just erased reappearing on its own. Same bug, and
-  // deleting is simply the direction that shows it.
+  // Still needed after the move to replaceState, but for a much narrower
+  // window. The write itself is now synchronous; the echo is not, because it
+  // arrives as a re-render and is consumed in an effect. A keystroke landing in
+  // that gap leaves `searchInput` newer than the URL, and applying the echo
+  // would put the older string back. The gap used to be 300ms plus a server
+  // round trip, and this component's renders are heavy enough (deferred
+  // filter/group/sort over the whole library) that it is not zero now.
   //
   // Values rather than a count, because a count assumes every push produces
-  // exactly one echo, and a coalesced transition that never echoes would drain
-  // it wrong and start swallowing real navigations forever. Matching on value
-  // is self-correcting: at worst a stale entry means one genuine navigation to
+  // exactly one echo, and a render React coalesces away would drain it wrong
+  // and start swallowing real navigations forever. Matching on value is
+  // self-correcting: at worst a stale entry means one genuine navigation to
   // that exact string is ignored, which leaves the box holding what was typed.
   const pushedSearchValues = useRef<Set<string>>(new Set());
 
@@ -91,8 +114,8 @@ export function useGameLibraryUrlState(): UrlState {
   //
   // The guard is what stops this from eating keystrokes, and it took a real
   // report to find. This hook's own debounced write lands here as an ordinary
-  // searchParams change, carrying the value as it stood 300ms plus a transition
-  // ago. Applying it unconditionally overwrote everything typed in the
+  // searchParams change, carrying the value as it stood one debounce ago.
+  // Applying it unconditionally overwrote everything typed in the
   // meantime, so a fast typist would watch a character vanish a beat after
   // pressing it -- and the faster the typing, the more often the window was
   // open. So: recognize our own echo, consume it, and leave the input alone,
@@ -117,13 +140,10 @@ export function useGameLibraryUrlState(): UrlState {
         params.set("search", searchInput);
       }
       pushedSearchValues.current.add(searchInput);
-      const qs = params.toString();
-      startTransition(() => {
-        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-      });
+      replaceUrl(params);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchInput, pathname, router]);
+  }, [searchInput, replaceUrl]);
 
   // --- Derived URL values ---
 
@@ -202,7 +222,7 @@ export function useGameLibraryUrlState(): UrlState {
     return params;
   }, [searchParams]);
 
-  // router.replace: no history entry. startTransition: keeps UI responsive.
+  // replaceState, so filter changes leave no history entry to Back through.
   const updateParam = useCallback(
     (key: string, value: string) => {
       const params = paramsWithLiveSearch();
@@ -219,12 +239,9 @@ export function useGameLibraryUrlState(): UrlState {
       } else {
         params.set(key, value);
       }
-      const qs = params.toString();
-      startTransition(() => {
-        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-      });
+      replaceUrl(params);
     },
-    [paramsWithLiveSearch, pathname, router]
+    [paramsWithLiveSearch, replaceUrl]
   );
 
   // setView also strips groupBy/sortOrder values the new view doesn't support,
@@ -251,12 +268,9 @@ export function useGameLibraryUrlState(): UrlState {
       if (currentSortOrder && !newConfig.validSortOrder.includes(currentSortOrder as SortOrder)) {
         params.delete("sortOrder");
       }
-      const qs = params.toString();
-      startTransition(() => {
-        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-      });
+      replaceUrl(params);
     },
-    [paramsWithLiveSearch, pathname, router]
+    [paramsWithLiveSearch, replaceUrl]
   );
   // Not updateParam, because changing the grouping can invalidate the sort:
   // grouping by rating withdraws the rating sorts. Left in the URL, the stale
@@ -277,12 +291,9 @@ export function useGameLibraryUrlState(): UrlState {
       if (currentSortOrder && !stillValid.includes(currentSortOrder as SortOrder)) {
         params.delete("sortOrder");
       }
-      const qs = params.toString();
-      startTransition(() => {
-        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-      });
+      replaceUrl(params);
     },
-    [paramsWithLiveSearch, pathname, router]
+    [paramsWithLiveSearch, replaceUrl]
   );
   const setSortOrder = useCallback(
     (value: SortOrder) => updateParam("sortOrder", value),
@@ -316,11 +327,8 @@ export function useGameLibraryUrlState(): UrlState {
     params.delete("rating");
     params.delete("system");
     params.delete("genre");
-    const qs = params.toString();
-    startTransition(() => {
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-    });
-  }, [searchParams, pathname, router]);
+    replaceUrl(params);
+  }, [searchParams, replaceUrl]);
 
   return {
     view,
