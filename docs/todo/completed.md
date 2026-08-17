@@ -5,6 +5,35 @@ backlog index stays cheap to read. Newest first, capped at 20: drop the oldest w
 that. Entries are kept for the reference material they carry (a debugging gotcha, an accepted
 trade-off, a follow-up someone will need), not as a changelog.
 
+- [x] **The mobile library got ~215px of vertical space back** (2026-08-17, branch
+      `claude/game-library-mobile-space-f7xndq`). Two passes: a density pass across the whole
+      page, then collapsing the filter bar's three narrowing filters behind one "Filter"
+      button. Closes "Collapse the mobile filter bar to one row".<br>
+      _The measurement is the finding._ At 390px the first row of cover art sat at ~765px
+      against ~740px of visible viewport, and the space was spread evenly across four blocks
+      (identity header ~240, CRT ~175, sticky chrome ~185, shelf preamble ~110) rather than
+      concentrated in one. That is why the first pass trimmed all four instead of cutting a
+      feature. Anyone proposing to reclaim more should re-measure first rather than assuming a
+      single villain.<br>
+      _Measured in Chromium, not estimated, and two estimates were wrong._ The `h1` at
+      `text-3xl` needs ~430px against 342px of content width, so it silently cost every phone
+      viewer a second 36px line; `text-xl` fits on one. And **"three boxes fit on one row" is
+      false**: a "Filter" button is 106px, which squashed Group and Sort to 26-55px and
+      overflowed outright at 320px. The shipped layout pairs Filter with search on row one and
+      leaves Group + Sort on row two, which is 103px closed against 144px before, with no
+      overflow down to 320px.<br>
+      _How one DOM serves both layouts._ Every wrapper in `FilterBar` is `sm:contents`, so on
+      desktop the wrappers dissolve and DOM order alone produces the original inline row —
+      no `order` classes, and `filtersOpen` never reaches a CSS rule above `sm`. The
+      alternative, a mobile copy and a desktop copy, would put two controlled `<select>`s with
+      the same value and the same accessible name on the page. Worth reusing if another
+      control ever needs a two-shape layout.<br>
+      _Deliberately not done:_ the panel starts closed even when the URL arrives with filters
+      applied (a shared `?genre=` link), because the button's count badge and the existing
+      "N of M games / Clear filters" row already say something is filtering. Revisit if that
+      turns out to be too quiet. The logged-out `/video-games` demo is still ~180px worse than
+      these numbers because of `SignupCta`, which was left alone.
+
 - [x] **The view tabs, "+ Add game" and "Stats" are sticky now, in one block with the filter
       bar** (2026-08-16, branch `claude/sticky-game-stats-filter-de3m6d`). Closes "Make the view
       tabs and the add button sticky, like the filter bar".<br>
@@ -447,28 +476,3 @@ overscroll-contain`, and `labelClass` carries `min-w-0` so `input[type="date"]`'
       _Deliberately not done:_ punctuation folding ("resident evil 4" matching "Resident Evil 4:
       Remake") and any edit-distance matching. The entry's "stay strict" constraint still holds,
       and the option is written up in the comment on `foldForSearch` if it is ever wanted.
-
-- [x] **The mobile game-case flip no longer lags** (2026-08-09, branch
-      `claude/mobile-flip-lag`, PR #98). **Confirmed fixed on a device by the owner**, which is
-      what closes it: nothing here was reproducible in development.<br>
-      _The fix that mattered was almost certainly the compositing head start._
-      `will-change: transform` under `.game-case-scene:active .game-case-inner` promotes the case
-      to its own layer during the press, before the click handler adds `.is-flipped` and the
-      first `rotateY` would otherwise have to pay for the promotion mid-animation. Scoped to the
-      pressed case: setting it on all ~155 at once is how you make the whole page slower. It
-      covers the flip OUT only, since `:active` ends at release, so if the flip BACK ever feels
-      slow that is why, and it needs a different mechanism rather than a wider selector.
-      Promoting the flipped case instead was tried and dropped (holds a layer while nothing
-      animates; de-promoting faces carrying `backface-visibility: hidden` as a transition starts
-      is a known one-frame-flash source in WebKit).<br>
-      _Two dead ends worth not re-deriving._ Hover emulation was the original prime suspect: iOS
-      playing `.game-case-inner`'s `group-hover:` lift on first touch before the click fires,
-      fixed by gating the lift behind `@media (hover: hover)`. **Tailwind v4 already emits every
-      `hover:` and `group-hover:` utility inside that media query** (verified by compiling
-      `group-hover:-translate-y-2` against the pinned version), so on a touch-only device the
-      declarations do not exist and there is nothing to gate. Any future fix starting "wrap the
-      hover styles in a media query" is a no-op. The 300ms tap delay was the other: Next's
-      default viewport meta already drops it, and `touch-manipulation` shipped as a hedge.<br>
-      _Also corrected in the same pass:_ the flip button's cursor special-case was
-      `cursor-pointer sm:cursor-default`, a breakpoint test standing in for a capability one, so
-      a desktop window dragged under 640px got a hand cursor. Now `pointer-fine:`.

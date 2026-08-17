@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+import { ChevronDownIcon } from "@/components/Icon";
 import type { Filters, RatingFilter } from "@/lib/games";
 import { RATINGS, UNRATED_LABEL, systemLabel } from "@/lib/games";
 import type { WishlistFilters } from "@/lib/wishlist";
@@ -140,6 +144,28 @@ export function FilterBar(props: FilterBarProps) {
   const groupByOptions = validGroupBy.map((value) => ({ value, label: GROUP_BY_LABELS[value] }));
   const sortOptions = validSortOrder.map((value) => ({ value, label: SORT_LABELS[value] }));
 
+  // Phones only: the three narrowing filters collapse behind one button, so the
+  // bar is two rows instead of three. Desktop ignores this entirely — the panel
+  // is `sm:contents` there, so it is always laid out inline and this state
+  // never reaches a CSS rule.
+  //
+  // Starts closed even when the URL arrives with filters applied (a shared
+  // ?genre= link). The button's count and the "N of M games / Clear filters"
+  // row above both say that something is filtering, which is the part that
+  // must not be silent; opening the panel unasked would spend the height this
+  // change exists to save.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // Read off `props`, not the destructured `view`: narrowing the union needs
+  // the discriminant checked on the object it discriminates.
+  //
+  // Search is deliberately not counted. It has its own always-visible box, so
+  // including it would badge the button for a filter the button does not hold.
+  const activeFilterCount =
+    (filters.system === "" ? 0 : 1) +
+    (filters.genre === "" ? 0 : 1) +
+    (props.view === "played" && props.filters.rating !== "" ? 1 : 0);
+
   return (
     // The frosted background and sticky positioning belong to the container in
     // GameShelves; the padding stays here so the container can span the full
@@ -148,20 +174,71 @@ export function FilterBar(props: FilterBarProps) {
     // everything into one line.
     <div className="px-4 py-3 sm:py-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3 sm:items-center">
-        {/* Text search — full-width on mobile so it anchors the top of the bar */}
-        <input
-          type="search"
-          aria-label="Search games"
-          placeholder="Search games…"
-          value={filters.search}
-          onChange={(e) => onSharedFilterChange("search", e.target.value)}
-          className={`${inputBaseClass} placeholder:text-shelf-input-placeholder w-full sm:w-auto sm:min-w-44`}
-        />
+        {/* Row one on a phone: search, then the button that discloses the
+            filters below it. Both narrow the library, so they belong together;
+            Group and Sort arrange what survives and share the row underneath.
+            sm:contents dissolves this into the parent flex row on desktop,
+            where the button is hidden and the search box sizes as before. */}
+        <div className="flex items-center gap-2 sm:contents">
+          <input
+            type="search"
+            aria-label="Search games"
+            placeholder="Search games…"
+            value={filters.search}
+            onChange={(e) => onSharedFilterChange("search", e.target.value)}
+            // sm:flex-initial, not sm:flex-none: it restores the default
+            // `flex: 0 1 auto` this input had before it gained flex-1, so the
+            // desktop row keeps its old shrink behavior exactly.
+            className={`${inputBaseClass} placeholder:text-shelf-input-placeholder min-w-0 flex-1 sm:w-auto sm:flex-initial sm:min-w-44`}
+          />
 
-        {/* Mobile: 3-col when rating shows (played), 2-col otherwise.
-            sm:contents dissolves the wrapper into the parent flex row on desktop. */}
+          {/* Hidden from sm up, where the filters are laid out inline and there
+              is nothing to disclose.
+              shrink-0 so the search box gives up width first: a truncated
+              "Filter (2)" would hide the count, while a narrower search box
+              still works. */}
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            aria-controls="library-filter-panel"
+            className={`${selectClass} sm:hidden shrink-0 flex items-center gap-1.5`}
+          >
+            <span>Filter</span>
+            {activeFilterCount > 0 && (
+              // The count is the only thing on screen naming how many filters
+              // are hiding in there while the panel is shut.
+              <span className="rounded-full bg-link px-1.5 text-xs font-semibold text-background">
+                {activeFilterCount}
+              </span>
+            )}
+            <ChevronDownIcon
+              aria-hidden
+              className={`w-3.5 h-3.5 shrink-0 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+        </div>
+
+        {/* The narrowing filters. Three states in one element:
+
+            mobile closed   hidden, costing no height (the default)
+            mobile open     a grid directly under the row above, which is where
+                            it already sits in DOM order
+            desktop         sm:contents, so the selects become direct children
+                            of the parent flex row exactly as before and
+                            `filtersOpen` has no effect at all
+
+            One DOM node for both layouts, rather than a mobile copy and a
+            desktop copy: duplicating them would put two controlled <select>s
+            with the same value and the same accessible name on the page.
+            Because every wrapper in this bar is sm:contents, DOM order alone
+            decides the desktop line, so no `order` classes are needed to keep
+            the two layouts from fighting. */}
         <div
-          className={`grid gap-2 sm:contents ${view === "played" ? "grid-cols-3" : "grid-cols-2"}`}
+          id="library-filter-panel"
+          className={`${filtersOpen ? "grid" : "hidden"} gap-2 sm:contents ${
+            view === "played" ? "grid-cols-3" : "grid-cols-2"
+          }`}
         >
           {view === "played" && (
             <FilterSelect
