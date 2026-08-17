@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { ChevronDownIcon } from "@/components/Icon";
 import type { Filters, RatingFilter } from "@/lib/games";
 import { RATINGS, UNRATED_LABEL, systemLabel } from "@/lib/games";
@@ -16,7 +15,9 @@ import type { SharedFilterKey } from "./useGameLibraryUrlState";
 import { filterFieldClass as inputBaseClass, filterSelectClass as selectClass } from "./formStyles";
 
 // Full label maps; parent passes `validGroupBy`/`validSortOrder` to pick the subset.
-const GROUP_BY_LABELS: Record<GroupBy, string> = {
+// Exported for FilterSheet, which renders the same options as chips on mobile:
+// two copies of these strings would be two places for a rename to miss.
+export const GROUP_BY_LABELS: Record<GroupBy, string> = {
   none: "None",
   system: "System",
   rating: "Rating",
@@ -33,7 +34,7 @@ const GROUP_BY_LABELS: Record<GroupBy, string> = {
 // to "Last Play" — the direction, the only thing the option chose, was the
 // part that fell off. Keep new labels differing within their first ~9
 // characters.
-const SORT_LABELS: Record<SortOrder, string> = {
+export const SORT_LABELS: Record<SortOrder, string> = {
   "name-asc": "Name A→Z",
   "name-desc": "Name Z→A",
   "rating-best": "Best rated",
@@ -77,7 +78,20 @@ type WishlistProps = SharedProps & {
   filters: WishlistFilters;
 };
 
-type FilterBarProps = PlayedProps | WishlistProps;
+// The filter/group/sort surface, independent of how it is presented. FilterBar
+// renders it as an inline row on desktop, FilterSheet as chips in a bottom
+// sheet on mobile; both need exactly this set, so they share the type rather
+// than each declaring a near-copy that can drift.
+export type FilterControlProps = PlayedProps | WishlistProps;
+
+type FilterBarProps = FilterControlProps & {
+  // Opens the mobile bottom sheet. The sheet itself is rendered by GameShelves,
+  // not here: this bar lives inside the sticky header, and that header carries a
+  // `translate` for its hide-on-scroll, which makes it the containing block for
+  // any `position: fixed` descendant. A sheet rendered from here would be
+  // positioned against the header instead of the viewport.
+  onOpenFilterSheet: () => void;
+};
 
 type FilterSelectProps = {
   value: string;
@@ -150,22 +164,11 @@ export function FilterBar(props: FilterBarProps) {
     onSharedFilterChange,
     onGroupByChange,
     onSortOrderChange,
+    onOpenFilterSheet,
   } = props;
 
   const groupByOptions = validGroupBy.map((value) => ({ value, label: GROUP_BY_LABELS[value] }));
   const sortOptions = validSortOrder.map((value) => ({ value, label: SORT_LABELS[value] }));
-
-  // Phones only: the three narrowing filters collapse behind one button, so the
-  // bar is two rows instead of three. Desktop ignores this entirely — the panel
-  // is `sm:contents` there, so it is always laid out inline and this state
-  // never reaches a CSS rule.
-  //
-  // Starts closed even when the URL arrives with filters applied (a shared
-  // ?genre= link). The button's count and the "N of M games / Clear filters"
-  // row above both say that something is filtering, which is the part that
-  // must not be silent; opening the panel unasked would spend the height this
-  // change exists to save.
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Read off `props`, not the destructured `view`: narrowing the union needs
   // the discriminant checked on the object it discriminates.
@@ -203,54 +206,40 @@ export function FilterBar(props: FilterBarProps) {
             className={`${inputBaseClass} placeholder:text-shelf-input-placeholder min-w-0 flex-1 sm:w-auto sm:flex-initial sm:min-w-44`}
           />
 
-          {/* Hidden from sm up, where the filters are laid out inline and there
-              is nothing to disclose.
+          {/* Opens the bottom sheet, which holds every filter plus group and
+              sort. Hidden from sm up, where all of it is laid out inline and
+              there is nothing to open.
               shrink-0 so the search box gives up width first: a truncated
-              "Filter (2)" would hide the count, while a narrower search box
-              still works. */}
+              label would lose the count, while a narrower search box still
+              works. */}
           <button
             type="button"
-            onClick={() => setFiltersOpen((open) => !open)}
-            aria-expanded={filtersOpen}
-            aria-controls="library-filter-panel"
+            onClick={onOpenFilterSheet}
+            aria-haspopup="dialog"
             className={`${selectClass} sm:hidden shrink-0 flex items-center gap-1.5`}
           >
             <span>Filter</span>
             {activeFilterCount > 0 && (
-              // The count is the only thing on screen naming how many filters
-              // are hiding in there while the panel is shut.
+              // The only thing on screen naming how many filters are applied,
+              // now that the controls themselves live in the sheet.
               <span className="rounded-full bg-link px-1.5 text-xs font-semibold text-background">
                 {activeFilterCount}
               </span>
             )}
-            <ChevronDownIcon
-              aria-hidden
-              className={`w-3.5 h-3.5 shrink-0 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
-            />
+            <ChevronDownIcon aria-hidden className="w-3.5 h-3.5 shrink-0" />
           </button>
         </div>
 
-        {/* The narrowing filters. Three states in one element:
-
-            mobile closed   hidden, costing no height (the default)
-            mobile open     a grid directly under the row above, which is where
-                            it already sits in DOM order
-            desktop         sm:contents, so the selects become direct children
-                            of the parent flex row exactly as before and
-                            `filtersOpen` has no effect at all
-
-            One DOM node for both layouts, rather than a mobile copy and a
-            desktop copy: duplicating them would put two controlled <select>s
-            with the same value and the same accessible name on the page.
-            Because every wrapper in this bar is sm:contents, DOM order alone
-            decides the desktop line, so no `order` classes are needed to keep
-            the two layouts from fighting. */}
-        <div
-          id="library-filter-panel"
-          className={`${filtersOpen ? "grid" : "hidden"} gap-2 sm:contents ${
-            view === "played" ? "grid-cols-3" : "grid-cols-2"
-          }`}
-        >
+        {/* Desktop-only from here down. On a phone these same choices are
+            rendered as chips by FilterSheet, so `hidden` is doing real work:
+            it keeps one set of controls perceivable at a time. Two live copies
+            would put two controlled <select>s with the same value and the same
+            accessible name on the page, which is what a screen reader would
+            then announce twice.
+            `hidden sm:contents` rather than `hidden sm:flex`: at sm the wrapper
+            dissolves and its children become direct items of the parent flex
+            row, which is the layout this bar has always had. */}
+        <div className="hidden sm:contents">
           {view === "played" && (
             <FilterSelect
               value={props.filters.rating}
@@ -289,9 +278,9 @@ export function FilterBar(props: FilterBarProps) {
         {/* Visual divider — desktop only */}
         <div className="hidden sm:block w-px h-6 bg-shelf-divider" />
 
-        {/* Group + Sort — 2-column grid on mobile, inline on desktop.
-            sm:contents dissolves the wrapper into the parent flex row on desktop. */}
-        <div className="grid grid-cols-2 gap-2 sm:contents">
+        {/* Group + Sort, desktop-only for the same reason as the filters above.
+            The sheet renders them as chips on a phone. */}
+        <div className="hidden sm:contents">
           {/* Group by */}
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-shelf-control-label text-xs uppercase tracking-wide whitespace-nowrap">

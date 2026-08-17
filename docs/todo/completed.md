@@ -5,10 +5,18 @@ backlog index stays cheap to read. Newest first, capped at 20: drop the oldest w
 that. Entries are kept for the reference material they carry (a debugging gotcha, an accepted
 trade-off, a follow-up someone will need), not as a changelog.
 
-- [x] **The mobile library got ~215px of vertical space back** (2026-08-17, branch
-      `claude/game-library-mobile-space-f7xndq`). Two passes: a density pass across the whole
-      page, then collapsing the filter bar's three narrowing filters behind one "Filter"
-      button. Closes "Collapse the mobile filter bar to one row".<br>
+- [x] **The mobile library got ~258px of vertical space back** (2026-08-17, branch
+      `claude/game-library-mobile-space-f7xndq`). A density pass across the whole page, then
+      the filter bar down to a single row: search plus a "Filter" button opening a bottom sheet
+      that holds every filter, group and sort as chips. 144px of bar became 62px. Closes
+      "Collapse the mobile filter bar to one row".<br>
+      _Three UX shapes were tried in order, and the rejected two are why the third is right._
+      An inline disclosure (tap "Filter", three `<select>`s unfold in place) was built and
+      rejected on sight: dropdowns revealing dropdowns. A single scrollable rail of all five
+      controls was costed and not built. The sheet won because it is the only one that gets the
+      bar to one row **and** gives each option a touch-sized target: `<select>` on a phone shows
+      one dimension at a time in 117px, the sheet shows every option of every dimension at once.
+      Do not "simplify" it back into the bar.<br>
       _The measurement is the finding._ At 390px the first row of cover art sat at ~765px
       against ~740px of visible viewport, and the space was spread evenly across four blocks
       (identity header ~240, CRT ~175, sticky chrome ~185, shelf preamble ~110) rather than
@@ -22,17 +30,35 @@ trade-off, a follow-up someone will need), not as a changelog.
       overflowed outright at 320px. The shipped layout pairs Filter with search on row one and
       leaves Group + Sort on row two, which is 103px closed against 144px before, with no
       overflow down to 320px.<br>
-      _How one DOM serves both layouts._ Every wrapper in `FilterBar` is `sm:contents`, so on
-      desktop the wrappers dissolve and DOM order alone produces the original inline row —
-      no `order` classes, and `filtersOpen` never reaches a CSS rule above `sm`. The
-      alternative, a mobile copy and a desktop copy, would put two controlled `<select>`s with
-      the same value and the same accessible name on the page. Worth reusing if another
-      control ever needs a two-shape layout.<br>
-      _Deliberately not done:_ the panel starts closed even when the URL arrives with filters
-      applied (a shared `?genre=` link), because the button's count badge and the existing
-      "N of M games / Clear filters" row already say something is filtering. Revisit if that
-      turns out to be too quiet. The logged-out `/video-games` demo is still ~180px worse than
-      these numbers because of `SignupCta`, which was left alone.<br>
+      _The one thing that will bite whoever touches this next:_ `FilterSheet` is rendered by
+      `GameShelves`, **not** by `FilterBar`, which owns the button that opens it. The sticky
+      header carries a `translate` for its hide-on-scroll, and a non-`none` transform makes an
+      element the containing block for its `position: fixed` descendants — a sheet rendered from
+      the bar positions itself against the header instead of the viewport. `StatsPanel` is
+      arranged the same way for the same reason. Moving the sheet "next to its button" is the
+      obvious-looking refactor that breaks it.<br>
+      _Desktop keeps the inline row, so the controls genuinely exist twice_ (selects in
+      `FilterBar`, chips in `FilterSheet`), which is the duplication the earlier disclosure
+      version was designed to avoid. It is acceptable only because `hidden sm:contents` /
+      `sm:hidden` means exactly one is ever in the layout, and `display: none` removes the other
+      from the accessibility tree; two _live_ copies would announce every filter twice. Both
+      read `FilterControlProps`, one exported union, so a new control cannot land on one shape
+      and not the other.<br>
+      _Deliberately not done:_ the sheet does not trap focus, so Tab can still reach the page
+      behind it. That matches `StatsPanel` and the three owner dialogs, which all rely on
+      `useModalChrome` (Escape, scroll lock, focus restore) without a trap: fix it for all of
+      them or none. "Clear filters" now exists twice while the sheet is open, once in the
+      sticky status row and once in the sheet footer; the bar's copy is unreachable under the
+      backdrop, so the duplicate is deliberate rather than an oversight. The logged-out
+      `/video-games` demo is still ~180px worse than these numbers because of `SignupCta`,
+      which was left alone.<br>
+      _Verified by re-running the fixture-route trick this archive already recommended:_ a
+      throwaway `src/app/zz-fixture/page.tsx` mounting `GameLibrary` with 60 fake games, driven
+      with Playwright, then deleted. It caught what static reasoning would not have: the bar
+      measures 62px on a 390px phone, chips apply live (`?system=Nintendo+64`, "Show 60 games"
+      to "Show 9 games"), Escape closes, dead-end chips dim, the wishlist sheet correctly has no
+      Rating group, and the desktop bar is 112px both before and after the change. Ten minutes,
+      and it is the only way to check this without a database.<br>
       _Every sort label was front-loaded in the same pass, and it fixed a live bug rather than
       just tidying copy._ The sort `<select>` renders 117px on a 390px phone, roughly nine
       characters of visible text, and a native select truncates with no ellipsis. Under the old
