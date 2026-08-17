@@ -4,7 +4,7 @@
 # Prints one line per problem and nothing at all when the backlog is clean.
 set -uo pipefail
 
-CAP="${1:-700}"
+CAP="${1:-350}"
 
 # An index entry links to a doc that no longer exists.
 grep -o 'docs/todo/[a-z0-9-]*\.md' TODO.md | sort -u | while read -r p; do

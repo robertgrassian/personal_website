@@ -37,9 +37,11 @@ Keep the user's own words for the _want_, but never preserve a factual claim you
 
 ### Where the words go, and the only length rule that matters
 
-**The index line is capped at 700 characters. The detail doc is not capped at all.**
+**Aim for one line, roughly 150 characters. The hard cap is 350, and the detail doc is not capped at all.**
 
-- **If the item fits in the cap, it has no doc.** Roughly half do not. A `[Details]` link pointing at three sentences costs more than it saves.
+The index is read on every routing turn and the docs are not, so an entry earns its length by being unroutable without it. Cross-references are the usual reason to run long, and they are worth it.
+
+- **If the item fits in the cap, it has no doc.** Some items genuinely are one line ("Dark mode toggle"); a `[Details]` link pointing at three sentences costs more than it saves.
 - **If it needs more, write the index line first**, inside the cap: the ask, the corrected premise or the deciding constraint, the cross-references. Then put everything else in the doc. The index line is not a teaser, it is the item as a product engineer needs to route it; the doc is what an implementer needs to build it.
 - **`<br>` separates sub-points in an index line.** In a doc, use real paragraphs and `_italic lead-ins_` for sub-points, matching the docs already there.
 - **Slugs are short and readable** (`genre-vocabulary-audit`, not the ask verbatim). The filename is read far more often than it is written.

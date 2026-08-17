@@ -18,6 +18,6 @@ The drift to look for:
    ./.claude/skills/proj-todo/check.sh
    ```
 
-   Silence means clean. `DEAD LINK` means the doc was deleted but its index entry stayed: restore the doc from git history, or fold its content back into the index line. `ORPHAN` means an item was removed and its doc was left behind: delete it. `OVER CAP` is a **watch, not a chore** (write modes only): act on it when an entry you are already editing is over, and never split more than two per pass. In a read-only mode, report all three rather than fixing them.
+   Silence means clean. `DEAD LINK` means the doc was deleted but its index entry stayed: restore the doc from git history, or fold its content back into the index line. `ORPHAN` means an item was removed and its doc was left behind: delete it. `OVER CAP` (350 characters, write modes only) means that entry has outgrown the index and wants a doc: act on it when it is an entry you are already editing, and never split more than two per pass. In a read-only mode, report all three rather than fixing them.
 
    **A cross-reference always beats the cap.** If naming the item this one blocks pushes it over, go over: routing and ranking are what the index is for, and an entry that fits but hides a dependency has failed at its job.
