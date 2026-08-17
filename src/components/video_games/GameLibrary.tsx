@@ -148,66 +148,81 @@ export function GameLibrary({
     return byGame;
   }, [addTarget, games, wishlist]);
 
+  // Built here but rendered by whichever branch below owns the layout, because
+  // on a shelf view it belongs INSIDE GameShelves' sticky header (see the `tabs`
+  // prop there) and on a people view there is no sticky header to join. Held as
+  // a variable rather than duplicated so the two branches cannot drift.
+  //
+  // Carrying JSX in a variable is ordinary React: elements are values, so this
+  // is no different from any other expression assigned before the return.
+  //
+  // No vertical margin of its own — the branch that renders it decides the
+  // spacing, since the sticky block wants none and the people list wants some.
+  const tabs = (
+    // View tab strip — underline pattern shared with StatsPanel.
+    // justify-between puts the Stats button on the same baseline row as the
+    // tabs (played-only), keeping the strip a single compact line.
+    <div className="flex items-center justify-between border-b border-shelf-plank">
+      <div className="flex">
+        {VALID_GAME_VIEW.map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setView(v)}
+            className={`py-2.5 mr-4 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
+              view === v
+                ? "border-link text-link"
+                : "border-transparent text-shelf-text-muted hover:text-link hover:border-shelf-plank"
+            }`}
+          >
+            {VIEW_LABEL[v]}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-1">
+        {canEdit && isGameView(view) && (
+          <button
+            type="button"
+            onClick={handleAddGame}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
+          >
+            <span aria-hidden="true" className="text-base leading-none">
+              +
+            </span>
+            <span>{view === "played" ? "Add game" : "Add to wishlist"}</span>
+          </button>
+        )}
+        {view === "played" && (
+          <button
+            type="button"
+            onClick={handleStatsOpen}
+            aria-label="Open library stats"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
+          >
+            <ChartBarIcon className="w-4 h-4" aria-hidden />
+            <span>Stats</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     // Wraps the whole body, not just the shelves, so every card surface reads
     // one answer however the views are rearranged later.
     <LibraryEditingProvider openEditor={openEditor}>
       <div className="mt-8">
-        {/* View tab strip — underline pattern shared with StatsPanel.
-          justify-between puts the Stats button on the same baseline row as the
-          tabs (played-only), keeping the strip a single compact line. */}
-        <div className="flex items-center justify-between border-b border-shelf-plank mb-4">
-          <div className="flex">
-            {VALID_GAME_VIEW.map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setView(v)}
-                className={`py-2.5 mr-4 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
-                  view === v
-                    ? "border-link text-link"
-                    : "border-transparent text-shelf-text-muted hover:text-link hover:border-shelf-plank"
-                }`}
-              >
-                {VIEW_LABEL[v]}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-1">
-            {canEdit && isGameView(view) && (
-              <button
-                type="button"
-                onClick={handleAddGame}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
-              >
-                <span aria-hidden="true" className="text-base leading-none">
-                  +
-                </span>
-                <span>{view === "played" ? "Add game" : "Add to wishlist"}</span>
-              </button>
-            )}
-            {view === "played" && (
-              <button
-                type="button"
-                onClick={handleStatsOpen}
-                aria-label="Open library stats"
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
-              >
-                <ChartBarIcon className="w-4 h-4" aria-hidden />
-                <span>Stats</span>
-              </button>
-            )}
-          </div>
-        </div>
-
         {/* One branch for the whole body: game tabs render the shelves and their
-          filter chrome, people tabs render a list of users. */}
+          filter chrome, people tabs render a list of users. The tab strip goes
+          down into GameShelves on the first branch so it can be part of the
+          sticky header, and is rendered here on the second. */}
         {isGameView(view) ? (
           <GameShelves
             games={games}
             wishlist={wishlist}
             currentlyPlayingGames={currentlyPlayingGames}
             view={view}
+            tabs={tabs}
             canEdit={canEdit}
             urlState={urlState}
             onAddGame={handleAddGame}
@@ -215,11 +230,16 @@ export function GameLibrary({
             onStatsClose={handleStatsClose}
           />
         ) : (
-          <PeopleList
-            view={view}
-            users={view === "following" ? following : followers}
-            isOwner={canEdit}
-          />
+          <>
+            {/* The people lists are short and their headings sit right under
+                the strip, so nothing here is worth sticking. */}
+            <div className="mb-4">{tabs}</div>
+            <PeopleList
+              view={view}
+              users={view === "following" ? following : followers}
+              isOwner={canEdit}
+            />
+          </>
         )}
 
         {editingGame && (

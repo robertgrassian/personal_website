@@ -1,4 +1,3 @@
-import { useState, useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import type { Filters, RatingFilter } from "@/lib/games";
 import { RATINGS, UNRATED_LABEL, systemLabel } from "@/lib/games";
 import type { WishlistFilters } from "@/lib/wishlist";
@@ -34,19 +33,10 @@ const SORT_LABELS: Record<SortOrder, string> = {
   "added-oldest": "Added: Oldest",
 };
 
-// Minimum scroll distance (px) before toggling filter bar visibility.
-// Filters out micro-reversals from slow or momentum scrolling.
-const MIN_SCROLL_DELTA = 10;
-
 // Props are a discriminated union on `view` — rating-specific props only
 // exist in PlayedProps, and TS narrows to them inside `view === "played"`.
 
 type SharedProps = {
-  // Owned by GameShelves rather than declared here, because the height of this
-  // bar is what the results below it have to clear when a filter changes (see
-  // useKeepResultsInView). The bar is still the only thing that measures it for
-  // its own hide-on-scroll threshold; the ref just lives one level up now.
-  barRef: RefObject<HTMLDivElement | null>;
   groupBy: GroupBy;
   sortOrder: SortOrder;
   validGroupBy: readonly GroupBy[];
@@ -126,11 +116,14 @@ function FilterSelect({
 // FilterBar owns no state — it receives current values and change-handler callbacks
 // from GameLibrary. This is the "controlled component" pattern: the parent owns state,
 // the child only renders and reports events.
+//
+// Positioning is not its business either: it renders as a plain block, and the
+// sticky container in GameShelves holds it alongside the tab strip so the two
+// stick, hide and reappear as one unit.
 export function FilterBar(props: FilterBarProps) {
   const {
     view,
     filters,
-    barRef,
     groupBy,
     sortOrder,
     validGroupBy,
@@ -144,133 +137,15 @@ export function FilterBar(props: FilterBarProps) {
     onSortOrderChange,
   } = props;
 
-  // Track whether the bar should be visible. Starts true so it's shown on initial render.
-  const [visible, setVisible] = useState(true);
-  // Mirror of `visible` as a ref so the scroll handler can always read the current value
-  // without capturing a stale closure.
-  const visibleRef = useRef(true);
-  // Tracks scroll position at the last visibility toggle, not at every scroll event.
-  // This lets us measure "how far has the user scrolled since the bar last changed state"
-  // rather than "how far since the last pixel of movement", which prevents flip-flopping
-  // on slow or jittery scrolls.
-  const scrollYAtLastToggle = useRef(0);
-  // Cached document-relative top of the bar, measured once at mount before sticky kicks in.
-  // Reading offsetTop during scroll is unreliable: once `position: sticky` is active,
-  // some browsers (notably Firefox) report offsetTop as 0 (the visual position) rather
-  // than the element's natural layout position. getBoundingClientRect().top + scrollY
-  // always gives the absolute document position, so we snapshot it once before any scroll.
-  const stickyThresholdRef = useRef(0);
-
-  // Keep the ref in sync with the state value on every render.
-  visibleRef.current = visible;
-
-  // useLayoutEffect runs synchronously after DOM mutations but before the browser paints,
-  // so the measurement happens while the element is still in its natural flow position
-  // (before any scroll could trigger sticky). This is the correct hook for DOM measurements.
-  useLayoutEffect(() => {
-    if (barRef.current) {
-      // Snapshot the bar's document-relative top position before any scroll happens.
-      // This is the exact point where `position: sticky` kicks in, so it's also the
-      // point where direction-based hide/show logic should start.
-      stickyThresholdRef.current = barRef.current.getBoundingClientRect().top + window.scrollY;
-    }
-  }, [barRef]);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      const stickyThreshold = stickyThresholdRef.current;
-
-      // Near the top of the page: always show regardless of scroll direction.
-      // Also keep scrollYAtLastToggle current so the delta starts fresh from
-      // wherever the user is when they cross back into the sticky zone.
-      if (currentScrollY < stickyThreshold) {
-        if (!visibleRef.current) {
-          setVisible(true);
-        }
-        scrollYAtLastToggle.current = currentScrollY;
-        return;
-      }
-
-      const delta = currentScrollY - scrollYAtLastToggle.current;
-
-      if (delta > MIN_SCROLL_DELTA) {
-        // Scrolled down far enough → hide the bar to reclaim screen space.
-        setVisible(false);
-        scrollYAtLastToggle.current = currentScrollY;
-      } else if (delta < -MIN_SCROLL_DELTA) {
-        // Scrolled up far enough → user is looking for controls, show the bar.
-        setVisible(true);
-        scrollYAtLastToggle.current = currentScrollY;
-      }
-    };
-
-    // MediaQueryList created once, reused across breakpoint changes — never re-allocated
-    // on scroll. Its `change` event fires only when the viewport crosses 640px, not on
-    // every scroll tick.
-    const mql = window.matchMedia("(min-width: 640px)");
-
-    // attachScroll / detachScroll: conditionally wire the scroll listener only on mobile.
-    // On desktop the listener is never registered, so there is zero JS overhead per scroll.
-    // This also avoids calling setVisible(true) repeatedly when it's already true.
-    let scrollAttached = false;
-
-    const attachScroll = () => {
-      if (!scrollAttached) {
-        // Reset the anchor so the delta is measured from the current position,
-        // not a stale value from a previous mobile session.
-        scrollYAtLastToggle.current = window.scrollY;
-        // Ensure the bar is visible when entering mobile — it may have been hidden
-        // during a previous mobile session before the user resized to desktop.
-        setVisible(true);
-        // { passive: true } tells the browser this handler never calls preventDefault(),
-        // allowing it to optimize scroll performance (no need to wait for JS before scrolling).
-        window.addEventListener("scroll", handleScroll, { passive: true });
-        scrollAttached = true;
-      }
-    };
-
-    const detachScroll = () => {
-      if (scrollAttached) {
-        window.removeEventListener("scroll", handleScroll);
-        scrollAttached = false;
-      }
-    };
-
-    // Called immediately and on every viewport-width breakpoint change.
-    const onBreakpointChange = () => {
-      if (mql.matches) {
-        // Switched to desktop: tear down the scroll listener and restore the bar.
-        detachScroll();
-        setVisible(true);
-      } else {
-        // Switched to mobile: wire up the scroll listener.
-        attachScroll();
-      }
-    };
-
-    mql.addEventListener("change", onBreakpointChange);
-    onBreakpointChange(); // run once for the initial viewport width
-
-    return () => {
-      mql.removeEventListener("change", onBreakpointChange);
-      detachScroll();
-    };
-  }, []);
-
   const groupByOptions = validGroupBy.map((value) => ({ value, label: GROUP_BY_LABELS[value] }));
   const sortOptions = validSortOrder.map((value) => ({ value, label: SORT_LABELS[value] }));
 
   return (
-    // sticky: bar stays at the top of the viewport while scrolling through shelves.
-    // backdrop-blur-sm: frosted glass effect so content scrolling behind it doesn't clash.
-    // rounded-b-lg + shelf-filter-bar: visually separates the bar from shelf content (shadow in light, border in dark).
-    // Mobile: flex-col stacks rows cleanly. Desktop (sm+): flex-row wraps everything into one line.
-    // transition-transform + conditional translate: animates the bar sliding off/on screen on mobile.
-    <div
-      ref={barRef}
-      className={`sticky top-[var(--nav-height)] z-20 bg-shelf-bg/95 backdrop-blur-sm px-4 py-3 sm:py-4 rounded-b-lg shelf-filter-bar transition-transform duration-300 ${visible ? "translate-y-0" : "-translate-y-full pointer-events-none"}`}
-    >
+    // Horizontal padding and the frosted background belong to the sticky
+    // container in GameShelves; this only owns the vertical rhythm of its own
+    // row. Mobile: flex-col stacks rows cleanly. Desktop (sm+): flex-row wraps
+    // everything into one line.
+    <div className="py-3 sm:py-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3 sm:items-center">
         {/* Text search — full-width on mobile so it anchors the top of the bar */}
         <input
