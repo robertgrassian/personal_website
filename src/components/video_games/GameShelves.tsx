@@ -266,11 +266,20 @@ export function GameShelves({
           (shadow in light mode, bottom border in dark).
           px-4 is the block's own inset, so the tab strip lines up with the
           search input beneath it rather than with the shelves behind it.
-          transition-transform + the conditional translate animate the mobile
-          hide/show; pointer-events-none stops the hidden block swallowing taps. */}
+          The conditional translate drives the mobile hide/show.
+          `invisible` is what keeps the hidden block out of the TAB ORDER:
+          -translate-y-full only moves it off screen and pointer-events-none
+          only stops the mouse, so without it a keyboard user tabs onto the
+          view tabs and Stats while they sit behind the nav, and the browser's
+          scroll-into-view then yanks the page to the top.
+          The transition names `translate`, not `transform`: Tailwind v4 sets
+          the standalone `translate` property, so a list without it kills the
+          slide. `visibility` transitions discretely, holding `visible` for the
+          whole slide-out and flipping the instant it slides back in, so the
+          controls stay hidden from the tab order exactly while off screen. */}
       <div
         ref={headerRef}
-        className={`sticky top-[var(--nav-height)] z-20 bg-shelf-bg/95 backdrop-blur-sm px-4 rounded-b-lg shelf-filter-bar transition-transform duration-300 ${headerVisible ? "translate-y-0" : "-translate-y-full pointer-events-none"}`}
+        className={`sticky top-[var(--nav-height)] z-20 bg-shelf-bg/95 backdrop-blur-sm px-4 rounded-b-lg shelf-filter-bar transition-[translate,visibility] duration-300 ${headerVisible ? "translate-y-0" : "-translate-y-full invisible pointer-events-none"}`}
       >
         {tabs}
 

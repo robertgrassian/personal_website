@@ -37,7 +37,7 @@ export function Nav() {
           still lived here and pushed the row past a phone's width. Kept after
           it moved into the library: the smaller phone type reads fine and
           leaves room for a fourth link later. The bar's height is fixed by
-          --nav-height, so type size changes nothing for FilterBar/StatsPanel,
+          --nav-height, so type size changes nothing for GameShelves/StatsPanel,
           which offset their sticky position by that same token. */}
       <div className="px-4 sm:px-6 h-[var(--nav-height)] flex items-center justify-between gap-3">
         {/* Site name — two-line display with Caveat, links back to home */}
