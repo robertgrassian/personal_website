@@ -35,7 +35,7 @@ Keyword prefixes like "done" or "list" are a hint, never a rule: "the wishlist t
 - **Bugs** — every confirmed defect that has not cleared the Up Next bar. Roughly severity-ordered, uncapped.
 - **Backlog / Ideas** — everything else. Newest first, no other ordering guarantee.
 
-Bugs was split out from Up Next on 2026-08-07: the old rule admitted any "confirmed bug", so four of five slots were defects and nothing was ever demoted. Do not merge them back.
+Do not merge Bugs back into Up Next: every confirmed bug then lands in the queue and nothing gets demoted.
 
 **Index order is Up Next, Bugs, Backlog / Ideas.** Do not reorder them. Every rule below finds its section by heading name, never by position.
 
@@ -43,7 +43,7 @@ Bugs was split out from Up Next on 2026-08-07: the old rule admitted any "confir
 
 ## How the backlog is laid out
 
-Split 2026-08-15, because `TODO.md` had reached 16k words and this skill reads it on nearly every turn — including every build request, per "Checking before you build". Three kinds of file:
+The index is read on nearly every turn, including every build request, so it stays small and the detail lives elsewhere. Two kinds of file:
 
 - **`TODO.md` is the index.** Every open item appears here exactly once, under its section heading. An index entry is its ask in bold, the corrected premise or the constraint that decides the approach, its cross-references by name, and, if it has one, a `[Details](docs/todo/<slug>.md)` link. **This is the only file most modes need.**
 - **`docs/todo/<slug>.md` is one open item's detail** — the diagnosis, the rejected alternatives, the design decisions. Uncapped in length. Roughly half of all items are short enough to need no doc at all.
@@ -66,22 +66,13 @@ The drift to look for:
 3. **Prune stale framing** in section headers and open items — a note saying work is blocked on something that has since shipped is worse than no note.
 4. **Enforce the Up Next cap of 5.** Rank the excess by the admission test, move the weakest to **Bugs** if it is a defect and **Backlog / Ideas** otherwise. Say what moved and why; never demote silently. **Never auto-demote an item marked `Promoted by request`** — if every candidate is pinned, ask. **Demote, never delete**; only "Removing an item" deletes.
 5. **A confirmed defect in Backlog / Ideas belongs in Bugs**, unless it is in Up Next. Ideas about how something _could_ work are not defects. When genuinely ambiguous, leave it rather than churning the file. Moving an item between sections is an index edit; its doc does not move, but the `_Section:_` line at the top of the doc needs updating.
-6. **Check the index/doc invariant**, which is two greps and catches an edit that touched one file and not the other:
+6. **Run the structure check script**, which catches an edit that touched one file and not the other, plus entries over the cap:
 
    ```
-   grep -o 'docs/todo/[a-z0-9-]*\.md' TODO.md | sort -u | while read p; do [ -f "$p" ] || echo "DEAD LINK: $p"; done
-   for f in docs/todo/*.md; do grep -q "docs/todo/$(basename "$f")" TODO.md || echo "ORPHAN: $f"; done
+   ./.claude/skills/proj-todo/check.sh
    ```
 
-   A dead link means the doc was deleted but its index entry stayed: restore the doc from git history, or fold its content back into the index line. An orphan means an item was removed or finished and its doc was left behind: delete it. In a read-only mode, report both rather than fixing them.
-
-7. **Index entries over the cap** (write modes only). The cap is **700 characters**, about seven wrapped lines, which is where the index stops being scannable. Count it rather than eyeballing, because a single unwrapped line can be 950 characters and still look short:
-
-   ```
-   awk '/^- \[/{if(n)print c" "substr(t,1,60); t=$0;n=1;c=length($0);next} /^## /{if(n)print c" "substr(t,1,60);n=0;next} n&&NF{c+=length($0)} END{if(n)print c" "substr(t,1,60)}' TODO.md | sort -rn | awk '$1>700'
-   ```
-
-   **Six inline Backlog entries are over it today, deliberately** — they are carry-overs from before the cap existed, and they get a doc when someone next touches them, not in a sweep. So this item is a **watch, not a chore**: act on it when an entry you are already editing is over, and never split more than two per pass. Bulk-splitting low-priority backlog ideas is churn that costs more than the characters save.
+   Silence means clean. `DEAD LINK` means the doc was deleted but its index entry stayed: restore the doc from git history, or fold its content back into the index line. `ORPHAN` means an item was removed and its doc was left behind: delete it. `OVER CAP` is a **watch, not a chore** (write modes only): act on it when an entry you are already editing is over, and never split more than two per pass. In a read-only mode, report all three rather than fixing them.
 
    **A cross-reference always beats the cap.** If naming the item this one blocks pushes it over, go over: routing and ranking are what the index is for, and an entry that fits but hides a dependency has failed at its job.
 
@@ -97,7 +88,7 @@ The drift to look for:
 4. **If the work only partly covers the entry, say which part is left.** Partial completion is an **edit, not a removal**: the item stays open, and you rewrite the index line and the detail doc to describe only what remains, recording what shipped and what was deliberately not done so a later session reads those as answers rather than oversights.
 5. **If nothing matches, just do the work.** Do not file an entry for something you are about to finish; "Adding a new item" is for work that is _not_ being done now.
 
-The cost is one index read on requests that turn out to be unrelated, which is the trade this rule accepts on purpose. Added 2026-08-15, after the rating-confirm work was implemented from scratch while a fully written-up entry for it sat in Backlog / Ideas, and stayed open afterwards.
+The cost is one index read on requests that turn out to be unrelated, which is the trade this rule accepts on purpose.
 
 ## Reading or answering a question
 
@@ -182,7 +173,7 @@ Report what moved and why in two lines. This is the one mode where the user cann
 "Drop that", "we don't need that anymore". Deleting an entry decided against is normal, and distinct from correcting one that has gone stale.
 
 1. **Identify exactly one entry** and say which before removing it. If more than one plausibly matches, ask.
-2. **Delete its detail doc** with `rm docs/todo/<slug>.md`, if it has one. The filesystem bounds this: a file delete cannot reach a neighbouring entry. **Skim it before deleting.** This destroys more than any other path in this skill, archiving nothing: if the doc carries a finding that outlives the item (a rejected approach, a measured cost, a "try the cheap thing first"), put one line of it in your report so it survives in the transcript.
+2. **Delete its detail doc** with `rm docs/todo/<slug>.md`, if it has one. The filesystem bounds this: a file delete cannot reach a neighbouring entry.
 3. **Remove its index entry and nothing else.** An index entry is its `- [` line plus the indented continuation lines under it, ending at whichever comes **first**: the next line-initial `- [` (either `- [ ]` or `- [x]`), the next `##` heading, or EOF.
 
    **All three terminators matter.** Watching only for `- [ ]` skips over any run of `- [x]` entries and swallows everything up to the next open item, potentially in a different section. Anchoring on the next heading or entry _title_ does the same. The `##` and EOF terminators are what stop that, and why this rule does not care what order the sections are in.
@@ -191,7 +182,7 @@ Report what moved and why in two lines. This is the one mode where the user cann
 5. **Repoint anything that referenced it** — cross-references by name in the index, "see the item above" inside other docs, and comments in the codebase pointing at a tracked item. `grep -rn "<name>" TODO.md docs/todo/ src/ api/` finds all four.
 6. **Say what was dropped and why**, so it can be reinstated from the transcript.
 
-This mode exists because it went wrong: a "remove one idea" edit anchored on the following entry's title and deleted four unrelated entries with it, including one that a comment in `src/app/privacy/page.tsx` still pointed at. **The index/doc split shrinks that blast radius but does not close it** — the detail is now behind a `rm`, which cannot over-delete, while the index line is still a range edit in a shared file. Step 4 is what catches it, so do not skip it on the grounds that the docs made things safer.
+**Do not skip step 4.** The doc is behind a `rm`, which cannot over-delete, but the index line is still a range edit in a shared file, and an over-broad one has taken four unrelated entries with it before.
 
 ## Adding a new item
 
@@ -232,7 +223,7 @@ Keep the user's own words for the _want_, but never preserve a factual claim you
 
 ### Where the words go, and the only length rule that matters
 
-**The index line is capped at 700 characters. The detail doc is not capped at all.** Before the split no cap existed and entries grew to sixty lines each, which is what made the file too expensive to read.
+**The index line is capped at 700 characters. The detail doc is not capped at all.**
 
 - **If the item fits in the cap, it has no doc.** Roughly half do not. A `[Details]` link pointing at three sentences costs more than it saves.
 - **If it needs more, write the index line first**, inside the cap: the ask, the corrected premise or the deciding constraint, the cross-references. Then put everything else in the doc. The index line is not a teaser, it is the item as a product engineer needs to route it; the doc is what an implementer needs to build it.
@@ -255,7 +246,7 @@ An entry outgrowing the cap is the signal to give it a doc, not to let the index
 
 Write for a **product engineer**: the entry owns the product decision, the implementer owns the implementation. What earns space is what an implementer would have to _decide_ rather than _look up_ — the product change hiding inside a bug fix, the choice with two defensible answers, the premise correction. Diagnosis alongside that is welcome; more information is not inherently bad. **Where to stop:** do not read a file to add a detail the implementer will have open anyway. A walkthrough of how existing code works does not go in.
 
-**Cite symbols, never line numbers.** Measured 2026-08-07: 12 of 22 `file.ts:line` refs were already wrong, one refactor having invalidated eleven at once, while every prose diagnosis around them still held. Only the anchors rot, and an implementer greps for the symbol anyway.
+**Cite symbols, never line numbers.** A single refactor invalidates every `file.ts:27` in the backlog while the prose around them still holds. Only the anchors rot, and an implementer greps for the symbol anyway.
 
 - Write `` `pipeline.ts`'s `passesBaseFilters` ``, not `` `pipeline.ts:27` ``.
 - Name the function, component, constant, CSS class, or column. With no symbol to name, quote the distinctive line of code — a greppable string outlives a number.
