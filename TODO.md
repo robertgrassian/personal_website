@@ -9,7 +9,8 @@ The organizing goal is **sharing the site with people**, so Up Next holds what s
 before that happens.
 
 - [ ] **Take a pass at the catalog rows whose `igdb_id` points at a variant, not the base game.**
-      (Promoted by request 2026-08-10.) Related: **Audit the genre vocabulary**.
+      (Promoted by request 2026-08-10.) `scripts/repoint_variant_rows.py` is written; **all that
+      is left is running it against prod**. Related: **Audit the genre vocabulary**.
       [Details](docs/todo/igdb-variant-catalog-rows.md)
 
 - [ ] **When adding a game, let me say I'm playing it now, or that I played it before: a play

@@ -2,31 +2,66 @@
 
 _Section: **Up Next** &middot; Promoted by request 2026-08-10. &middot; index: [`TODO.md`](../../TODO.md)_
 
-Eleven on prod, surfaced by `backfill_platforms.py`'s guard: it skips any row where a console
-someone actually owns the game on is absent from IGDB's platform list, which is strong evidence the
-row was identified as the wrong IGDB entry. `Dead Cells` resolves to IGDB's **Dead Cells+** (Apple
-Arcade, iOS only), `Super Mario 64` to the 3D All-Stars entry, `Luigi's Mansion` to the 3DS remake,
-`Super Smash Bros. Brawl` to a Web browser entry, `Metroid Dread` to a PC one. The rest: Call of
-Duty: Black Ops III, Disco Elysium, Grim Fandango, Hollow Knight, Pac-Man World 2, SpongeBob
-SquarePants: Lights, Camera, Pants!.
+**Applied to local 2026-08-17; what is left is prod.** `api/scripts/repoint_variant_rows.py`
+carries a hand-audited candidate id per title and fixed all eleven rows locally, after which
+`backfill_platforms.py`'s skip list went from eleven to zero. Remaining steps, in order:
 
-_It is not only platforms, which is the part that is easy to miss._ The whole `game_metadata` row is
-the variant's, so its genres, cover art and release date come from there too. Only the **name** was
-protected: `KEEP_STORED` in the since-deleted `backfill_igdb_ids.py` stopped those titles being
-renamed to the variant's, and left the id underneath alone.
+1. `uv run python scripts/repoint_variant_rows.py --database-url "$PROD_URL"`. Twitch
+   credentials come from the repo-root `.env` in every environment; the run prints which database
+   it is pointed at. Read the preview: old id, new id, IGDB's name for it, the new platforms.
+2. Re-run with `--apply`.
+3. Delete the Persona 5 wishlist entry through the site, per the note below.
+4. `backfill_platforms.py`, preview then `--apply`; the skip list should reach zero.
+5. Redeploy, or the site keeps serving the old covers: `libraryApi.ts` fetches `force-cache` with
+   tags and only a Server Action's `revalidateTag` clears them, which a direct DB write bypasses.
 
-_The latent multi-user problem, which is the real reason to fix it._ Another user adding one of
-these through IGDB search resolves the **base game's** id, which is a different `game_metadata` row,
-so one game ends up with two catalog rows and the sharing the catalog exists for silently stops
-happening for exactly these titles.
+Prod was never touched from a session, so the preview may differ from the local run below. The
+preview ends with a "WANT A LOOK" section listing only the rows where the script chose rather than
+looked up: locally that was two of eleven.
 
-_Read each one; some are IGDB being wrong rather than the id._ Pac-Man World 2 really did release on
-GameCube and IGDB lists only PlayStation 2, so its id is right and there is nothing to repoint. The
-guard cannot tell those two cases apart, which is why it skips rather than guesses.
+_What the eleven were._ Verified against the local DB, whose ids match the ones prod's guard
+flagged. Every pick is confirmed by the recorded console appearing in the new id's platform list:
 
-_Fix shape:_ find the base game's `igdb_id`, then **repoint the link rows' `metadata_id`** at the
-correct catalog row rather than editing `igdb_id` in place. Editing in place can collide with
-`uq_game_metadata_igdb_id` if a row for the correct id already exists, and repointing is the merge
-operation the catalog was designed for: it touches no play session, because `play_sessions.game_id`
-points at the user's row. Re-run `backfill_platforms.py` afterwards and the skip list should shrink
-to the genuine IGDB gaps.
+| Game                      | was                    | now                              |
+| ------------------------- | ---------------------- | -------------------------------- |
+| Dead Cells                | 351296 Dead Cells+ iOS | 26855                            |
+| Super Mario 64            | 229245 Switch port     | 1074                             |
+| Luigi's Mansion           | 90109 3DS remake       | 2485                             |
+| Super Smash Bros. Brawl   | 328674 Web browser     | 1628                             |
+| Metroid Dread             | 323061 PC entry        | 15698                            |
+| Hollow Knight             | 365702 Vita mod        | 14593                            |
+| CoD: Black Ops III        | 136212 PS3/360 port    | 9509 (recorded on PS4)           |
+| SpongeBob: Lights, Camera | 320418 PC port         | 2768                             |
+| Pac-Man World 2           | 305269 PS2-only        | 4063 (the row that lists the GC) |
+| Disco Elysium             | 26472 PC/Mac           | 141540 The Final Cut (PS5)       |
+| Grim Fandango             | 181 the 1998 PC game   | 8682 Remastered (Switch)         |
+
+The last three are judgement calls worth a second look in the preview. Pac-Man World 2 was written
+up here as "IGDB being wrong, nothing to repoint"; it is not, there is simply a second IGDB row
+covering the GameCube release. Disco Elysium and Grim Fandango are wishlisted on consoles the
+original release never reached, so the only row that can honestly carry them is the
+remaster/Final Cut, and both were renamed accordingly: "Disco Elysium: The Final Cut" and
+"Grim Fandango Remastered".
+
+_Names follow the verified id (decided 2026-08-17)._ Once an id has been hand-picked from the table
+and confirmed against the recorded consoles, IGDB's name for it is the canonical name of that exact
+game, so the row takes it. An earlier "adopt only when it extends ours" rule was string-matching
+around a trust problem the id no longer has, and it also refused improvements like
+"Halo CE" -> "Halo: Combat Evolved", which are wanted. Nine of the eleven were unaffected: their
+name was already right and only the id was wrong.
+
+_Persona 5 was a separate wart, now fixed on local._ Catalog row 74 (igdb 9927, correct) was
+wishlisted on PlayStation 5, which the 2016 release never came to, so the guard flagged it and
+refused to replace its seeded `['PlayStation 5']` platform list. The wishlist entry was deleted
+(2026-08-17): Persona 5 Royal on Switch is the only one wanted, and it is a different catalog row
+(109). `backfill_platforms.py` then corrected row 74 to PS3/PS4 on its own, and the skip list is
+now empty. **Do the same on prod** by deleting the wishlist entry through the site rather than in
+SQL, which revalidates the cache tag as a side effect.
+
+_What the script deliberately does not do._ Genres are left alone on every row, even though they
+came from the variant: replacing them with IGDB's would work against **Audit the genre vocabulary**,
+which sources from Wikipedia. The script prints the affected titles as a list to feed that item.
+
+_Verified_ on the local DB inside a rolled-back transaction: the in-place repoint
+of all eleven, a forced merge (link rows moved, duplicate folded, its play sessions moved, emptied
+catalog row deleted), and the refusal when one user has both rows open as "currently playing".
