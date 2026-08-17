@@ -71,6 +71,11 @@
   .pcrt-stage--compact {
     flex-wrap: nowrap;
     gap: 0.875rem;
+    /* .pcrt-stage's 2.5rem is tuned for the full-size hero on
+       /currently-playing, where the TV is the page. Here it is one block among
+       several above the shelves, and the header it follows already ends in
+       whitespace. */
+    margin-top: 1rem;
   }
   .pcrt-tv-frame--compact {
     --pcrt-compact-scale: 0.3;

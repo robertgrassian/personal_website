@@ -219,7 +219,9 @@ export function GameLibrary({
     // Wraps the whole body, not just the shelves, so every card surface reads
     // one answer however the views are rearranged later.
     <LibraryEditingProvider openEditor={openEditor}>
-      <div className="mt-8">
+      {/* Half the gap on phones: this sits between the CRT and the sticky
+          chrome, both of which already carry their own breathing room. */}
+      <div className="mt-4 sm:mt-8">
         {/* One branch for the whole body: game tabs render the shelves and their
           filter chrome, people tabs render a list of users. The tab strip goes
           down into GameShelves on the first branch so it can be part of the

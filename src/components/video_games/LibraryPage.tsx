@@ -10,7 +10,7 @@ import "@/components/crt/crt.css";
 import { getFollowers, getFollowing, getGames, getProfile, getWishlist } from "@/lib/libraryApi";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { CrtTv } from "@/components/crt/CrtTv";
-import { LibraryCount } from "@/components/video_games/LibraryCount";
+import { LibraryCount, LibraryCountFallback } from "@/components/video_games/LibraryCount";
 import { AuthButton } from "@/components/AuthButton";
 import {
   FollowStateProvider,
@@ -112,7 +112,10 @@ export async function LibraryPage({
           React re-renders only the provider, since this server parent created
           the child elements. */}
       <FollowStateProvider ownerUsername={profile.username}>
-        <div className="max-w-7xl mx-auto px-6 py-12">
+        {/* py-6 on phones, the full py-12 from sm up. The library's first row
+            of covers was landing just below the fold on a 390px viewport, and
+            this is the cheapest 24px of the ~170 that came back. */}
+        <div className="max-w-7xl mx-auto px-6 py-6 sm:py-12">
           {/* The sign-in/out control lives here rather than the global nav: the
               portfolio has no accounts, the library is the only app that does.
               items-start keeps it aligned to the heading's first line when a
@@ -120,7 +123,7 @@ export async function LibraryPage({
               Column on phones: the controls are nowrap links, so side by side
               with a long owner name they overflowed the viewport instead of
               shrinking. From sm up there is room for one row. */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             {/* min-w-0 lets this shrink below its longest word once it is a
                 flex item again, so the heading wraps instead of pushing. */}
             <div className="min-w-0">
@@ -133,7 +136,11 @@ export async function LibraryPage({
                   heading names. flex-wrap so a long display name pushes the
                   button to its own line instead of squeezing the title. */}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <h1 className="text-3xl sm:text-4xl font-bold text-shelf-text break-words">
+                {/* text-xl on phones so a typical display name fits on ONE
+                    line: at text-3xl "Robert's Video Game Library" needs ~430px
+                    and had 342px, so every viewer paid for a second 36px line.
+                    Desktop keeps text-4xl, where there was never a wrap. */}
+                <h1 className="text-xl sm:text-4xl font-bold text-shelf-text break-words">
                   {profile.displayName}&apos;s Video Game Library
                 </h1>
                 <FollowButton />
@@ -142,9 +149,21 @@ export async function LibraryPage({
                 already carries the display name, so the handle is what adds
                 information; on /video-games the heading is generic and this is
                 the only thing naming the owner. Rendered from the profile, so
-                the casing is the stored one rather than whatever the URL used. */}
+                the casing is the stored one rather than whatever the URL used.
+
+                One line for the whole identity block: handle, size, follow
+                links. The game count used to be its own <p> below this row,
+                costing a 24px line plus its mt-2 to say four words. Both
+                children are inline fragments with their own separators, so
+                either can render nothing without leaving a stray dot. */}
               <p className="mt-1 text-sm text-shelf-text-muted">
                 @{profile.username}
+                {/* useSearchParams (inside LibraryCount) requires a Suspense
+                    boundary. The fallback shows the default-view count so
+                    there is no flash. */}
+                <Suspense fallback={<LibraryCountFallback playedCount={playedCount} />}>
+                  <LibraryCount playedCount={playedCount} wishlistCount={wishlistCount} />
+                </Suspense>
                 {/* The counts are also the way into the Following/Followers
                     lists, which is why they are not tabs: those list people,
                     while the tab strip slices this library's games. Suspense
@@ -179,8 +198,8 @@ export async function LibraryPage({
                 AuthButton is driven by the pre-paint flag; BackToMyLibrary
                 resolves after hydration from the same context.
                 order-first on phones so the stacked column reads as a nav
-                strip above the heading rather than a stray row between the
-                heading and the game count. */}
+                strip above the heading rather than a stray row wedged into
+                the identity block. */}
             <div className="order-first flex flex-wrap items-center gap-x-3 gap-y-1 sm:order-none sm:flex-nowrap">
               <BackToMyLibrary />
               {/* Always rendered, hidden from signed-out visitors by CSS on the
@@ -193,12 +212,6 @@ export async function LibraryPage({
               <AuthButton />
             </div>
           </div>
-          {/* useSearchParams (inside LibraryCount) requires a Suspense boundary.
-              The fallback shows the default-view count so there's no flash. */}
-          <Suspense fallback={<p className="mt-2 text-shelf-text-muted">{playedCount} games</p>}>
-            <LibraryCount playedCount={playedCount} wishlistCount={wishlistCount} />
-          </Suspense>
-
           {showSignupCta && <SignupCta />}
 
           {currentlyPlayingGames.length > 0 && <CrtTv games={currentlyPlayingGames} compact />}

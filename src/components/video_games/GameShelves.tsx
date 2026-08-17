@@ -363,9 +363,10 @@ export function GameShelves({
             </p>
           )
         ) : (
-          // ShelfSection brings its own mt-10, so this only needs to offset
-          // the group from the filter bar above it.
-          <div className="mt-6">
+          // ShelfSection brings its own top margin, so this only needs to
+          // offset the group from the filter bar above it. Both halve on
+          // phones.
+          <div className="mt-3 sm:mt-6">
             {activeShelves.map((shelf) => (
               <ShelfSection
                 key={shelf.label}

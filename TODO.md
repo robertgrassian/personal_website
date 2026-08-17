@@ -80,6 +80,15 @@ to keep that section at five._
 
 ## Backlog / Ideas
 
+- [ ] **Collapse the mobile filter bar to one row: "Filter by", "Group by", "Sort by", plus search.**
+      Raised 2026-08-17 beside the mobile density pass, which shipped. `FilterBar` stacks three rows
+      on phones (~145px) inside the sticky header, so it costs that height every time the header
+      slides back on scroll up, not just at the top of the page. **"Filter by" is not one control
+      today but three independent ones** (rating, system, genre; rating is played-only, so the
+      wishlist shows two), and `useFilterOptions` marks each option disabled when it would yield
+      nothing. So this wants a popover holding all three, not a single `<select>`: a select cannot
+      express three simultaneously active filters, nor per-option availability.
+
 - [ ] **There probably should not be two game modals. Merge `AddGameModal` and `EditGameModal` into
       one.** Raised 2026-08-14 while fixing the system field in both: one question had two answers
       depending on the dialog, and fixing it meant the same change twice. They genuinely share only
