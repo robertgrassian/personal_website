@@ -24,14 +24,29 @@ type EditWishlistModalProps = {
   item: WishlistGame;
   // Shelf-system suggestions for the promote step's system picker.
   existingSystems: string[];
+  // The systems this game is already in the library on, or null if it isn't.
+  // A wishlist entry for a game you own is legitimate (you want to replay it),
+  // so this hides the promote flow rather than warning about it: the server
+  // refuses that promote with a 409 whatever system is picked.
+  ownedSystems: string[] | null;
+  // Close this dialog and open the library one for the same game, where the
+  // session controls live. Both wishlist exits end here: a game already owned,
+  // and one just promoted.
+  onTrackSession: () => void;
   onClose: () => void;
 };
 
 // Owner-only wishlist edit dialog (the wishlist-view counterpart of
 // EditGameModal): star toggle, notes, and the two exits — promote to the
-// library ("I bought it") or remove. Same mount-only lifecycle: scroll lock
-// and Escape bind on mount, focus returns to the opener on unmount.
-export function EditWishlistModal({ item, existingSystems, onClose }: EditWishlistModalProps) {
+// library or remove. Same mount-only lifecycle: scroll lock and Escape bind
+// on mount, focus returns to the opener on unmount.
+export function EditWishlistModal({
+  item,
+  existingSystems,
+  ownedSystems,
+  onTrackSession,
+  onClose,
+}: EditWishlistModalProps) {
   const { isPending, error, run } = useServerAction();
 
   // Optimistic star: the checkbox flips on click instead of after the
@@ -44,7 +59,7 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
   // per keystroke would be miserable. Starred toggles write immediately.
   const [notesDraft, setNotesDraft] = useState(item.notes);
 
-  // promoteStep = the "I bought it" confirm (with system picker) is showing.
+  // promoteStep = the promote confirm (with system picker) is showing.
   // The remove confirm's own step state lives inside ConfirmStep.
   const [promoteStep, setPromoteStep] = useState(false);
   const [promoteSystem, setPromoteSystem] = useState(item.system);
@@ -63,9 +78,12 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
   };
 
   const promote = () => {
-    // The item moved to the library — the wishlist row (and this dialog's
-    // subject) is gone, so close.
-    run(() => promoteWishlistItem(item.id, promoteSystem), { onSuccess: onClose });
+    // The item moved to the library, so the wishlist row this dialog is about
+    // no longer exists. Rather than just closing, hand off to the library
+    // dialog for the game that now holds it: a promote means you played it,
+    // and the session and rating controls are all over there. onSuccess only,
+    // so a refused promote leaves you here with the error.
+    run(() => promoteWishlistItem(item.id, promoteSystem), { onSuccess: onTrackSession });
   };
 
   const remove = () => {
@@ -121,14 +139,29 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
         )}
 
         <div className="mt-5 border-t border-shelf-plank pt-3">
-          {!promoteStep ? (
+          {ownedSystems !== null ? (
+            <div>
+              <p className="text-xs text-shelf-text-muted">
+                Already in your library on {ownedSystems.map(systemLabel).join(", ")}, so there is
+                nothing to move. Keep it here as a replay you still want to get to.
+              </p>
+              <button
+                type="button"
+                onClick={onTrackSession}
+                disabled={isPending}
+                className={`mt-2 ${buttonClass}`}
+              >
+                Track a play session
+              </button>
+            </div>
+          ) : !promoteStep ? (
             <button
               type="button"
               onClick={() => setPromoteStep(true)}
               disabled={isPending}
               className={buttonClass}
             >
-              I bought it, move to library
+              Played it, move to library
             </button>
           ) : (
             <div>
@@ -140,7 +173,8 @@ export function EditWishlistModal({ item, existingSystems, onClose }: EditWishli
                 placeholder="e.g. SNES, PS5"
               />
               <p className="mt-1.5 text-[11px] text-shelf-text-muted">
-                It lands on the Unrated shelf. Rate it once you&rsquo;ve played.
+                It lands on the Unrated shelf, and this opens its library entry so you can rate it
+                and log the session.
               </p>
               <div className="mt-2 flex gap-2">
                 <button

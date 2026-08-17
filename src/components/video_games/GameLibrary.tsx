@@ -66,6 +66,12 @@ export function GameLibrary({
   // Wishlist edits tracked separately — the pencil is shared, but the two
   // views open different dialogs (EditGameModal vs EditWishlistModal).
   const [editingWishlistId, setEditingWishlistId] = useState<number | null>(null);
+  // The other way into EditGameModal: the wishlist dialog's session handoff,
+  // which names the game by `ownedKey` rather than by id. It has to, in the
+  // promote case — the id does not exist client-side until the promote's
+  // revalidation delivers the new row, and the promote action returns a bare
+  // ok/message with no id in it.
+  const [editingGameKey, setEditingGameKey] = useState<string | null>(null);
 
   // Bail on the id before scanning. These ran an array scan each on every
   // render, including every keystroke in the search box, to look up a dialog
@@ -73,10 +79,16 @@ export function GameLibrary({
   //
   // Looking up by id rather than by position keeps the dialog open and
   // consistent when a rating change moves the game to a different shelf.
-  const editingGame = useMemo(
-    () => (editingGameId === null ? undefined : games.find((g) => g.id === editingGameId)),
-    [editingGameId, games]
-  );
+  // Resolving the key during render rather than converting it to an id in an
+  // effect is what makes the promote handoff safe: if the new row is not in
+  // `games` yet, this is undefined and the dialog simply opens on the render
+  // that delivers it. A promote whose row never arrives degrades to no dialog,
+  // never to a dialog pointing at nothing.
+  const editingGame = useMemo(() => {
+    if (editingGameId !== null) return games.find((g) => g.id === editingGameId);
+    if (editingGameKey !== null) return games.find((g) => ownedKey(g) === editingGameKey);
+    return undefined;
+  }, [editingGameId, editingGameKey, games]);
   const editingWishlistItem = useMemo(
     () =>
       editingWishlistId === null ? undefined : wishlist.find((w) => w.id === editingWishlistId),
@@ -92,6 +104,17 @@ export function GameLibrary({
     },
     [view]
   );
+  // Hand the wishlist dialog off to the library dialog for the same game, which
+  // is where every session control already lives. Serves both wishlist exits:
+  // a game you already own, and one you have just promoted. Identifying the
+  // target by key covers both, since a promote preserves the catalog row and
+  // therefore the key.
+  const handleTrackSession = useCallback(() => {
+    if (editingWishlistItem === undefined) return;
+    setEditingWishlistId(null);
+    setEditingGameKey(ownedKey(editingWishlistItem));
+  }, [editingWishlistItem]);
+
   // null for a visitor — GameCase gates the pencil on exactly this.
   const openEditor = canEdit ? handleEditGame : null;
   const handleAddGame = useCallback(() => setAddOpen(true), []);
@@ -147,6 +170,20 @@ export function GameLibrary({
     }
     return byGame;
   }, [addTarget, games, wishlist]);
+
+  // Library-only version of the same identity map, for the wishlist edit
+  // dialog's "already own this?" question. Separate from `ownedNames` on
+  // purpose: that one follows `addTarget` and so points at the wishlist while
+  // the wishlist tab is showing, which is exactly when this lookup is needed.
+  const librarySystemsByKey = useMemo(() => {
+    const byGame = new Map<string, string[]>();
+    for (const game of games) {
+      const systems = byGame.get(ownedKey(game));
+      if (systems === undefined) byGame.set(ownedKey(game), [game.system]);
+      else if (!systems.includes(game.system)) systems.push(game.system);
+    }
+    return byGame;
+  }, [games]);
 
   // Built here but rendered by whichever branch below owns the layout, because
   // on a shelf view it belongs INSIDE GameShelves' sticky header (see the `tabs`
@@ -264,13 +301,18 @@ export function GameLibrary({
           <EditGameModal
             game={editingGame}
             existingSystems={existingSystems}
-            onClose={() => setEditingGameId(null)}
+            onClose={() => {
+              setEditingGameId(null);
+              setEditingGameKey(null);
+            }}
           />
         )}
         {editingWishlistItem && (
           <EditWishlistModal
             item={editingWishlistItem}
             existingSystems={existingSystems}
+            ownedSystems={librarySystemsByKey.get(ownedKey(editingWishlistItem)) ?? null}
+            onTrackSession={handleTrackSession}
             onClose={() => setEditingWishlistId(null)}
           />
         )}

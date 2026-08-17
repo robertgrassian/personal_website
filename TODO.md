@@ -101,9 +101,6 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 - [ ] **Give library games a "notes" field, like wishlist entries already have, then grow it into a
       real play journal.** [Details](docs/todo/game-notes-play-journal.md)
 
-- [ ] **Overhaul the wishlist promote flow: it is "played", not "bought".**
-      [Details](docs/todo/wishlist-promote-played.md)
-
 - [ ] **Make library and wishlist entries fully editable, and keep the two edit modals 1:1.** Would
       unblock **Audit the genre vocabulary**. [Details](docs/todo/fully-editable-entries.md)
 
