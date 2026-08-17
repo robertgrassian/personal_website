@@ -108,7 +108,11 @@ type FilterSelectProps = {
 
 // Renders a <select> with available options at the top and unavailable (disabled) ones below,
 // separated by a divider when both groups are present.
-function FilterSelect({
+//
+// Exported for FilterSheet, which renders the same three filters full-width on
+// mobile: the enabled/disabled split and its divider are the rule for what is a
+// dead end, and two implementations of that rule would eventually disagree.
+export function FilterSelect({
   value,
   onChange,
   allLabel,

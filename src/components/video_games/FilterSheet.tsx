@@ -1,14 +1,20 @@
 "use client";
 
-// The mobile filter surface: a bottom sheet holding every filter plus group and
-// sort, as tappable chips rather than dropdowns.
+// The mobile filter surface: a bottom sheet with one labelled, full-width
+// dropdown per dimension.
 //
 // Why a sheet and not more of the bar. The bar is inside the sticky header, so
-// anything it shows costs that height on every scroll-up, and a phone gives a
-// <select> about 117px, which is not enough to show a list of systems. A sheet
-// costs nothing until opened and then has the whole screen: every option of
-// every dimension visible at once, at a touch-sized target, instead of one
-// native dropdown at a time.
+// anything it shows costs that height on every scroll-up, and a phone gives an
+// inline <select> about 117px, which truncates its own label. Here each select
+// gets the full width of the screen, so "Role-playing (RPG)" and
+// "Super Nintendo Entertainment System" render whole.
+//
+// Why dropdowns and not chips. Chips were built first and replaced: they show
+// every option at once, which is exactly what does not scale. A library with 25
+// genres and 20 systems becomes a wall to scroll past, while five dropdowns
+// stay five dropdowns no matter how large the vocabulary grows. The chip
+// version also put the options in the sheet's own scroll, so the real cost of
+// adding a genre was paid by everyone looking for Sort.
 //
 // Rendered by GameShelves as a sibling of the sticky header, never from inside
 // FilterBar. The header carries a `translate` for its hide-on-scroll behavior,
@@ -16,13 +22,13 @@
 // `position: fixed` descendants — a sheet rendered from the bar would position
 // itself against the header rather than the viewport.
 
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import { RATINGS, UNRATED_LABEL, systemLabel, type RatingFilter } from "@/lib/games";
 import { CloseIcon } from "@/components/Icon";
 import { useModalChrome } from "./useModalChrome";
-import { GROUP_BY_LABELS, SORT_LABELS, type FilterControlProps } from "./FilterBar";
+import { FilterSelect, GROUP_BY_LABELS, SORT_LABELS, type FilterControlProps } from "./FilterBar";
 import type { GroupBy, SortOrder } from "./libraryConfig";
-import { accentButtonClass } from "./formStyles";
+import { accentButtonClass, filterSelectClass } from "./formStyles";
 
 type FilterSheetProps = FilterControlProps & {
   isOpen: boolean;
@@ -34,93 +40,22 @@ type FilterSheetProps = FilterControlProps & {
   onClearFilters: () => void;
 };
 
-type ChipProps = {
-  selected: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-};
-
-// text-sm rather than the 16px the filter fields use: that rule exists because
-// mobile Safari zooms when a control you can type into takes focus, and a
-// button is not one. Smaller type fits more chips per row.
-function Chip({ selected, disabled = false, onClick, children }: ChipProps) {
+// A <label> wrapping its control, so the caption is associated with the select
+// without an id/htmlFor pair to keep unique.
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      // aria-pressed rather than role="radio": these read as toggles, and a
-      // radiogroup would owe the user arrow-key roving focus that plain
-      // buttons do not.
-      aria-pressed={selected}
-      className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
-        selected
-          ? "border-link bg-link font-medium text-background"
-          : "border-shelf-input-border bg-shelf-input text-shelf-input-text"
-      } ${disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
-    >
-      {children}
-    </button>
-  );
-}
-
-type ChipGroupProps = {
-  label: string;
-  // Omit for group/sort, which always have a value and so have no "all" state.
-  allLabel?: string;
-  value: string;
-  options: readonly string[];
-  // Options that would still yield results. Omit when every option always
-  // applies. Same rule the desktop <select> uses, so the two agree on which
-  // choices are dead ends.
-  available?: Set<string>;
-  onChange: (value: string) => void;
-  formatLabel?: (option: string) => string;
-};
-
-function ChipGroup({
-  label,
-  allLabel,
-  value,
-  options,
-  available,
-  onChange,
-  formatLabel = (option) => option,
-}: ChipGroupProps) {
-  // Dead-end options sort below the live ones, matching FilterSelect. A chip
-  // that is currently selected stays enabled even if it has become
-  // unavailable, or there would be no way to switch off the filter you are
-  // looking at.
-  const isDisabled = (option: string) =>
-    available !== undefined && !available.has(option) && option !== value;
-  const ordered = [...options].sort((a, b) => Number(isDisabled(a)) - Number(isDisabled(b)));
-
-  return (
-    <section>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-shelf-label">
+    <label className="flex flex-col gap-1.5">
+      <span className="text-xs font-semibold uppercase tracking-wide text-shelf-label">
         {label}
-      </h3>
-      <div className="flex flex-wrap gap-2">
-        {allLabel !== undefined && (
-          <Chip selected={value === ""} onClick={() => onChange("")}>
-            {allLabel}
-          </Chip>
-        )}
-        {ordered.map((option) => (
-          <Chip
-            key={option}
-            selected={value === option}
-            disabled={isDisabled(option)}
-            onClick={() => onChange(option)}
-          >
-            {formatLabel(option)}
-          </Chip>
-        ))}
-      </div>
-    </section>
+      </span>
+      {children}
+    </label>
   );
 }
+
+// Full width, so the value is never the thing that gets truncated. This is the
+// whole reason the sheet can afford dropdowns where the bar could not.
+const sheetSelectClass = `${filterSelectClass} w-full`;
 
 export function FilterSheet(props: FilterSheetProps) {
   // `view` is deliberately not destructured: every branch below narrows on
@@ -195,56 +130,78 @@ export function FilterSheet(props: FilterSheetProps) {
           </button>
         </div>
 
-        {/* Scrolls when the library has enough systems or genres to overflow,
-            which is the case a fixed-height panel could not have handled. */}
-        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-5">
+        {/* min-h-0 rather than flex-1: the sheet is sized by its content and
+            only capped at 85vh, so the body must be free to shrink and scroll
+            when a very long option list pushes it past the cap, without being
+            stretched when it does not. Five dropdowns rarely reach it. */}
+        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-5 py-5">
           {props.view === "played" && (
-            <ChipGroup
-              label="Rating"
-              allLabel="All ratings"
-              value={props.filters.rating}
-              // Unrated last, matching where its shelf lands under
-              // groupBy="rating" so the chips read in shelf order.
-              options={[...RATINGS.map((r) => r.name), UNRATED_LABEL]}
-              available={props.availableRatings}
-              onChange={(v) => props.onRatingChange(v as RatingFilter)}
-            />
+            <Field label="Rating">
+              <FilterSelect
+                value={props.filters.rating}
+                onChange={(v) => props.onRatingChange(v as RatingFilter)}
+                allLabel="All ratings"
+                // Unrated last, matching where its shelf lands under
+                // groupBy="rating" so the list reads in shelf order.
+                options={[...RATINGS.map((r) => r.name), UNRATED_LABEL]}
+                available={props.availableRatings}
+                className={sheetSelectClass}
+              />
+            </Field>
           )}
 
-          <ChipGroup
-            label="System"
-            allLabel="All systems"
-            value={filters.system}
-            options={allSystems}
-            available={availableSystems}
-            formatLabel={systemLabel}
-            onChange={(v) => onSharedFilterChange("system", v)}
-          />
+          <Field label="System">
+            <FilterSelect
+              value={filters.system}
+              onChange={(v) => onSharedFilterChange("system", v)}
+              allLabel="All systems"
+              options={allSystems}
+              available={availableSystems}
+              formatLabel={systemLabel}
+              className={sheetSelectClass}
+            />
+          </Field>
 
-          <ChipGroup
-            label="Genre"
-            allLabel="All genres"
-            value={filters.genre}
-            options={allGenres}
-            available={availableGenres}
-            onChange={(v) => onSharedFilterChange("genre", v)}
-          />
+          <Field label="Genre">
+            <FilterSelect
+              value={filters.genre}
+              onChange={(v) => onSharedFilterChange("genre", v)}
+              allLabel="All genres"
+              options={allGenres}
+              available={availableGenres}
+              className={sheetSelectClass}
+            />
+          </Field>
 
-          <ChipGroup
-            label="Group by"
-            value={groupBy}
-            options={validGroupBy}
-            formatLabel={(o) => GROUP_BY_LABELS[o as GroupBy]}
-            onChange={(v) => onGroupByChange(v as GroupBy)}
-          />
+          {/* Group and sort are plain selects: every option always applies, so
+              there is no available/unavailable split for FilterSelect to make. */}
+          <Field label="Group by">
+            <select
+              value={groupBy}
+              onChange={(e) => onGroupByChange(e.target.value as GroupBy)}
+              className={sheetSelectClass}
+            >
+              {validGroupBy.map((value) => (
+                <option key={value} value={value}>
+                  {GROUP_BY_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </Field>
 
-          <ChipGroup
-            label="Sort by"
-            value={sortOrder}
-            options={validSortOrder}
-            formatLabel={(o) => SORT_LABELS[o as SortOrder]}
-            onChange={(v) => onSortOrderChange(v as SortOrder)}
-          />
+          <Field label="Sort by">
+            <select
+              value={sortOrder}
+              onChange={(e) => onSortOrderChange(e.target.value as SortOrder)}
+              className={sheetSelectClass}
+            >
+              {validSortOrder.map((value) => (
+                <option key={value} value={value}>
+                  {SORT_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </Field>
         </div>
 
         {/* pb picks whichever is larger, the padding or the iPhone home
