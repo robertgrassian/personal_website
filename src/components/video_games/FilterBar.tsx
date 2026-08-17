@@ -15,9 +15,8 @@ import type { SharedFilterKey } from "./useGameLibraryUrlState";
 import { filterFieldClass as inputBaseClass, filterSelectClass as selectClass } from "./formStyles";
 
 // Full label maps; parent passes `validGroupBy`/`validSortOrder` to pick the subset.
-// Exported for FilterSheet, which renders the same options as chips on mobile:
-// two copies of these strings would be two places for a rename to miss.
-export const GROUP_BY_LABELS: Record<GroupBy, string> = {
+// Not exported: group and sort render only here, on the bar, at every width.
+const GROUP_BY_LABELS: Record<GroupBy, string> = {
   none: "None",
   system: "System",
   rating: "Rating",
@@ -34,9 +33,12 @@ export const GROUP_BY_LABELS: Record<GroupBy, string> = {
 // to "Last Play" — the direction, the only thing the option chose, was the
 // part that fell off. Keep new labels differing within their first ~9
 // characters.
-export const SORT_LABELS: Record<SortOrder, string> = {
-  "name-asc": "Name A→Z",
-  "name-desc": "Name Z→A",
+const SORT_LABELS: Record<SortOrder, string> = {
+  // "A→Z", not "Name A→Z": the control is captioned SORT right beside it, so
+  // the noun is redundant, and at 113px on a phone "Name A→Z" needs ~74px of a
+  // ~73px text area, clipping the Z off the DEFAULT value every visitor sees.
+  "name-asc": "A→Z",
+  "name-desc": "Z→A",
   "rating-best": "Best rated",
   "rating-worst": "Worst rated",
   "release-newest": "Newest release",
@@ -79,9 +81,10 @@ type WishlistProps = SharedProps & {
 };
 
 // The filter/group/sort surface, independent of how it is presented. FilterBar
-// renders it as an inline row on desktop, FilterSheet as chips in a bottom
-// sheet on mobile; both need exactly this set, so they share the type rather
-// than each declaring a near-copy that can drift.
+// renders the filters inline on desktop; FilterSheet renders those same filters
+// full-width in the mobile sheet and ignores the group/sort members, which stay
+// on the bar at every width. Shared rather than split in two so that adding a
+// FILTER cannot land on one shape and not the other.
 export type FilterControlProps = PlayedProps | WishlistProps;
 
 type FilterBarProps = FilterControlProps & {
@@ -282,9 +285,16 @@ export function FilterBar(props: FilterBarProps) {
         {/* Visual divider — desktop only */}
         <div className="hidden sm:block w-px h-6 bg-shelf-divider" />
 
-        {/* Group + Sort, desktop-only for the same reason as the filters above.
-            The sheet renders them as chips on a phone. */}
-        <div className="hidden sm:contents">
+        {/* Group + Sort stay on the bar at EVERY width, unlike the filters
+            above. They are a different kind of choice: a filter removes games,
+            while these two rearrange the ones already on screen, and nothing
+            else on the page hints that regrouping is possible. Behind the
+            sheet's tap they were discoverable only by opening something
+            labelled "Filter", which is not where anyone looks for sorting.
+            Costs one 38px row on a phone, deliberately.
+            2-column grid on mobile; sm:contents dissolves the wrapper into the
+            parent flex row on desktop. */}
+        <div className="grid grid-cols-2 gap-2 sm:contents">
           {/* Group by */}
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-shelf-control-label text-xs uppercase tracking-wide whitespace-nowrap">

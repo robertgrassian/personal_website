@@ -1,7 +1,13 @@
 "use client";
 
 // The mobile filter surface: a bottom sheet with one labelled, full-width
-// dropdown per dimension.
+// dropdown per narrowing filter.
+//
+// Filters ONLY. Group and sort deliberately stay on the bar at every width
+// (see FilterBar): they rearrange what is on screen rather than removing
+// anything, and burying them behind a control labelled "Filter" is not where
+// anyone looks for sorting. This sheet holds the dimensions that answer
+// "show me fewer games", and nothing else.
 //
 // Why a sheet and not more of the bar. The bar is inside the sticky header, so
 // anything it shows costs that height on every scroll-up, and a phone gives an
@@ -11,10 +17,8 @@
 //
 // Why dropdowns and not chips. Chips were built first and replaced: they show
 // every option at once, which is exactly what does not scale. A library with 25
-// genres and 20 systems becomes a wall to scroll past, while five dropdowns
-// stay five dropdowns no matter how large the vocabulary grows. The chip
-// version also put the options in the sheet's own scroll, so the real cost of
-// adding a genre was paid by everyone looking for Sort.
+// genres and 20 systems becomes a wall to scroll past, while three dropdowns
+// stay three dropdowns no matter how large the vocabulary grows.
 //
 // Rendered by GameShelves as a sibling of the sticky header, never from inside
 // FilterBar. The header carries a `translate` for its hide-on-scroll behavior,
@@ -26,10 +30,13 @@ import { useRef, type ReactNode } from "react";
 import { RATINGS, UNRATED_LABEL, systemLabel, type RatingFilter } from "@/lib/games";
 import { CloseIcon } from "@/components/Icon";
 import { useModalChrome } from "./useModalChrome";
-import { FilterSelect, GROUP_BY_LABELS, SORT_LABELS, type FilterControlProps } from "./FilterBar";
-import type { GroupBy, SortOrder } from "./libraryConfig";
+import { FilterSelect, type FilterControlProps } from "./FilterBar";
 import { accentButtonClass, filterSelectClass } from "./formStyles";
 
+// The full control union, group/sort members included, even though this
+// component renders only the filters. GameShelves spreads one object into both
+// shapes, so sharing the type is what stops a NEW FILTER landing on the desktop
+// bar and not here. The group/sort props simply go unread.
 type FilterSheetProps = FilterControlProps & {
   isOpen: boolean;
   onClose: () => void;
@@ -63,17 +70,11 @@ export function FilterSheet(props: FilterSheetProps) {
   // narrow `props`, and `props.filters.rating` needs it to.
   const {
     filters,
-    groupBy,
-    sortOrder,
-    validGroupBy,
-    validSortOrder,
     allSystems,
     allGenres,
     availableSystems,
     availableGenres,
     onSharedFilterChange,
-    onGroupByChange,
-    onSortOrderChange,
     isOpen,
     onClose,
     resultCount,
@@ -108,7 +109,7 @@ export function FilterSheet(props: FilterSheetProps) {
       <aside
         role="dialog"
         aria-modal="true"
-        aria-label="Filter and sort"
+        aria-label="Filters"
         aria-hidden={!isOpen}
         inert={!isOpen}
         // max-h-[85vh] leaves the shelves visible above the sheet, so it reads
@@ -118,12 +119,12 @@ export function FilterSheet(props: FilterSheetProps) {
         }`}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-divider px-5 py-4">
-          <h2 className="text-base font-bold text-emphasis">Filter &amp; sort</h2>
+          <h2 className="text-base font-bold text-emphasis">Filters</h2>
           <button
             ref={closeButtonRef}
             type="button"
             onClick={onClose}
-            aria-label="Close filter and sort"
+            aria-label="Close filters"
             className="rounded-md p-1.5 text-muted transition-colors hover:bg-divider hover:text-foreground"
           >
             <CloseIcon className="h-5 w-5 cursor-pointer" aria-hidden />
@@ -133,7 +134,7 @@ export function FilterSheet(props: FilterSheetProps) {
         {/* min-h-0 rather than flex-1: the sheet is sized by its content and
             only capped at 85vh, so the body must be free to shrink and scroll
             when a very long option list pushes it past the cap, without being
-            stretched when it does not. Five dropdowns rarely reach it. */}
+            stretched when it does not. Three dropdowns rarely reach it. */}
         <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-5 py-5">
           {props.view === "played" && (
             <Field label="Rating">
@@ -171,36 +172,6 @@ export function FilterSheet(props: FilterSheetProps) {
               available={availableGenres}
               className={sheetSelectClass}
             />
-          </Field>
-
-          {/* Group and sort are plain selects: every option always applies, so
-              there is no available/unavailable split for FilterSelect to make. */}
-          <Field label="Group by">
-            <select
-              value={groupBy}
-              onChange={(e) => onGroupByChange(e.target.value as GroupBy)}
-              className={sheetSelectClass}
-            >
-              {validGroupBy.map((value) => (
-                <option key={value} value={value}>
-                  {GROUP_BY_LABELS[value]}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Sort by">
-            <select
-              value={sortOrder}
-              onChange={(e) => onSortOrderChange(e.target.value as SortOrder)}
-              className={sheetSelectClass}
-            >
-              {validSortOrder.map((value) => (
-                <option key={value} value={value}>
-                  {SORT_LABELS[value]}
-                </option>
-              ))}
-            </select>
           </Field>
         </div>
 

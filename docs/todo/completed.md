@@ -7,9 +7,14 @@ trade-off, a follow-up someone will need), not as a changelog.
 
 - [x] **The mobile library got ~258px of vertical space back** (2026-08-17, branch
       `claude/game-library-mobile-space-f7xndq`). A density pass across the whole page, then
-      the filter bar down to a single row: search plus a "Filter" button opening a bottom sheet
-      holding one labelled, full-width dropdown per dimension. 144px of bar became 62px. Closes
-      "Collapse the mobile filter bar to one row".<br>
+      the filter bar down to two rows: search plus a "Filter" button opening a bottom sheet of
+      the three narrowing filters, with group and sort staying on the bar. 144px of bar became
+      107px. Closes "Collapse the mobile filter bar to one row".<br>
+      _Group and sort are on the bar on purpose, and the sheet got to 62px without them._ They
+      rearrange what is on screen rather than removing anything, and nothing else on the page
+      hints that regrouping a shelf is possible, so behind a control captioned "Filter" they
+      were discoverable only by opening the wrong thing. The extra 45px row is the price of that
+      affordance and was paid deliberately. Do not move them back into the sheet to reclaim it.<br>
       _Four UX shapes were tried, and the three rejected are why the fourth is right._ An inline
       disclosure (tap "Filter", three `<select>`s unfold in place) was built and rejected on
       sight: dropdowns revealing dropdowns. A scrollable rail of all five controls was costed
@@ -85,7 +90,14 @@ trade-off, a follow-up someone will need), not as a changelog.
       all six wishlist options distinct when clipped, verified in Chromium. **Any new sort label
       must differ from its opposite within the first ~9 characters.** "Recently played" and
       "Recently added" do collide, which is harmless only because `played-*` is played-only and
-      `added-*` is wishlist-only, so they never share a dropdown.
+      `added-*` is wishlist-only, so they never share a dropdown.<br>
+      _The name sorts went further, to plain "A→Z" / "Z→A"._ A `<select>` sizes to its **widest**
+      option, so with "Least recently played" in the list the sort control is 113px on a phone
+      and its selected label gets ~73px: "Name A→Z" needs ~74px and lost the Z, on the default
+      value every visitor sees. The caption SORT sits immediately to its left, so the noun was
+      redundant anyway. Worth remembering as a rule of its own: **a select's rendered width is
+      set by its longest option, not by the current one**, so adding one long option silently
+      re-truncates every short one.
 
 - [x] **The view tabs, "+ Add game" and "Stats" are sticky now, in one block with the filter
       bar** (2026-08-16, branch `claude/sticky-game-stats-filter-de3m6d`). Closes "Make the view
