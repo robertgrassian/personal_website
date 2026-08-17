@@ -37,7 +37,9 @@ Keyword prefixes like "done" or "list" are a hint, never a rule: "the wishlist t
 
 Bugs was split out from Up Next on 2026-08-07: the old rule admitted any "confirmed bug", so four of five slots were defects and nothing was ever demoted. Do not merge them back.
 
-**Index order is Up Next, Bugs, Backlog / Ideas, then Recently Completed** — open work first, the archive last. Set 2026-07-30; do not "fix" it back. Recently Completed is now a one-line pointer to `docs/todo/completed.md`; keep the heading so the order still reads. Every rule below finds its section by heading name, never by position.
+**Index order is Up Next, Bugs, Backlog / Ideas.** Do not reorder them. Every rule below finds its section by heading name, never by position.
+
+**Completed work is not tracked.** There is no archive file and no `- [x]` state: finishing an item deletes its index line and its doc. `git log` is the record of what shipped.
 
 ## How the backlog is laid out
 
@@ -45,9 +47,8 @@ Split 2026-08-15, because `TODO.md` had reached 16k words and this skill reads i
 
 - **`TODO.md` is the index.** Every open item appears here exactly once, under its section heading. An index entry is its ask in bold, the corrected premise or the constraint that decides the approach, its cross-references by name, and, if it has one, a `[Details](docs/todo/<slug>.md)` link. **This is the only file most modes need.**
 - **`docs/todo/<slug>.md` is one open item's detail** — the diagnosis, the rejected alternatives, the design decisions. Uncapped in length. Roughly half of all items are short enough to need no doc at all.
-- **`docs/todo/completed.md` is the archive**, newest first, capped at 20. 37KB: never read it just to look around.
 
-**The invariant, which makes drift checkable:** `docs/todo/` holds exactly one file per doc-backed open item, plus `completed.md`. Every `[Details]` link resolves; every doc is linked from the index.
+**The invariant, which makes drift checkable:** `docs/todo/` holds exactly one file per doc-backed open item, and nothing else. Every `[Details]` link resolves; every doc is linked from the index.
 
 **Read detail docs on demand, never by default** — each mode below says whether it may. Reading them all rebuilds the problem this split exists to solve.
 
@@ -58,26 +59,23 @@ Do this after deciding the mode, before acting. TODO.md gets edited outside this
 - **Writing anyway** (marking done, implementing, adding, promoting, reorganizing): fix drift silently, mentioning only what moved non-obviously.
 - **Read-only** (answering a question, what to work on next, showing the list, **and checking before you build**): **do not modify anything.** A read must not leave a diff in the working tree — the user may be mid-change on an unrelated branch. Mention what is out of place at the end and offer to fix it. Checking before you build becomes a write mode only at its step 3, once you have actually implemented something; a build request that matches no entry must leave the backlog untouched.
 
-**Items 1-3 only apply when this turn archives something**, or when a stray `- [x]` is already visible in the index. Otherwise skip them, and in particular **do not open `docs/todo/completed.md` to check its length** — it is 37KB, larger than the index, and reading it on every turn re-imports the cost this split removed.
-
 The drift to look for:
 
-1. **Any `- [x]` item in `TODO.md`** moves to the top of `docs/todo/completed.md`. **Write the archive entry from the detail doc, not from the index line** — the index line is already compressed to the cap, while real archive entries run 10 to 40 lines, so closing a doc-backed item means lifting from the doc rather than re-compressing a summary. Keep what stays useful as reference (a debugging gotcha, an accepted trade-off, a follow-up someone will need), drop the planning detail that only mattered while it was pending. **Then `rm` the detail doc.**
-2. **Fix cross-references broken by the move.** An open item saying "see the gotcha above" needs repointing once that text moves. Cross-references live in the index by item name, so this is a `TODO.md` edit; also grep `docs/todo/` for the moved item's name.
-3. **Trim `docs/todo/completed.md` to 20 entries**, oldest first. Before dropping one, check whether it carries reference material cited elsewhere; if so, fold that detail into the citing item.
-4. **Prune stale framing** in section headers and open items — a note saying work is blocked on something that has since shipped is worse than no note.
-5. **Enforce the Up Next cap of 5.** Rank the excess by the admission test, move the weakest to **Bugs** if it is a defect and **Backlog / Ideas** otherwise. Say what moved and why; never demote silently. **Never auto-demote an item marked `Promoted by request`** — if every candidate is pinned, ask. **Demote, never delete**; only "Removing an item" deletes.
-6. **A confirmed defect in Backlog / Ideas belongs in Bugs**, unless it is in Up Next. Ideas about how something _could_ work are not defects. When genuinely ambiguous, leave it rather than churning the file. Moving an item between sections is an index edit; its doc does not move, but the `_Section:_` line at the top of the doc needs updating.
-7. **Check the index/doc invariant**, which is two greps and catches an edit that touched one file and not the other:
+1. **A stray `- [x]` item in `TODO.md`** means someone marked something done instead of deleting it. Confirm it shipped, then remove the line and `rm` its doc.
+2. **Fix cross-references broken by a removal.** An open item naming an item that is gone needs repointing. Cross-references live in the index by item name, so this is a `TODO.md` edit; also grep `docs/todo/` for the removed item's name.
+3. **Prune stale framing** in section headers and open items — a note saying work is blocked on something that has since shipped is worse than no note.
+4. **Enforce the Up Next cap of 5.** Rank the excess by the admission test, move the weakest to **Bugs** if it is a defect and **Backlog / Ideas** otherwise. Say what moved and why; never demote silently. **Never auto-demote an item marked `Promoted by request`** — if every candidate is pinned, ask. **Demote, never delete**; only "Removing an item" deletes.
+5. **A confirmed defect in Backlog / Ideas belongs in Bugs**, unless it is in Up Next. Ideas about how something _could_ work are not defects. When genuinely ambiguous, leave it rather than churning the file. Moving an item between sections is an index edit; its doc does not move, but the `_Section:_` line at the top of the doc needs updating.
+6. **Check the index/doc invariant**, which is two greps and catches an edit that touched one file and not the other:
 
    ```
    grep -o 'docs/todo/[a-z0-9-]*\.md' TODO.md | sort -u | while read p; do [ -f "$p" ] || echo "DEAD LINK: $p"; done
-   for f in docs/todo/*.md; do b=$(basename "$f"); [ "$b" = completed.md ] && continue; grep -q "docs/todo/$b" TODO.md || echo "ORPHAN: $f"; done
+   for f in docs/todo/*.md; do grep -q "docs/todo/$(basename "$f")" TODO.md || echo "ORPHAN: $f"; done
    ```
 
-   A dead link means the doc was deleted but its index entry stayed: restore the doc from git history, or fold its content back into the index line. An orphan means an item was removed or completed and its doc was left behind: delete it. In a read-only mode, report both rather than fixing them.
+   A dead link means the doc was deleted but its index entry stayed: restore the doc from git history, or fold its content back into the index line. An orphan means an item was removed or finished and its doc was left behind: delete it. In a read-only mode, report both rather than fixing them.
 
-8. **Index entries over the cap** (write modes only). The cap is **700 characters**, about seven wrapped lines, which is where the index stops being scannable. Count it rather than eyeballing, because a single unwrapped line can be 950 characters and still look short:
+7. **Index entries over the cap** (write modes only). The cap is **700 characters**, about seven wrapped lines, which is where the index stops being scannable. Count it rather than eyeballing, because a single unwrapped line can be 950 characters and still look short:
 
    ```
    awk '/^- \[/{if(n)print c" "substr(t,1,60); t=$0;n=1;c=length($0);next} /^## /{if(n)print c" "substr(t,1,60);n=0;next} n&&NF{c+=length($0)} END{if(n)print c" "substr(t,1,60)}' TODO.md | sort -rn | awk '$1>700'
@@ -96,7 +94,7 @@ The drift to look for:
 1. **Read the `TODO.md` index and look for an entry covering the ask**, across all three open sections. Match on subject, not wording: "make rating edits ask for a confirm" and "Editing a game should need a 'Confirm' press before the change takes effect" are the same item. The index alone is enough to decide this.
 2. **If one exists, open its detail doc and say so before starting.** This is the mode docs exist for. They carry a corrected premise, an approach already rejected with reasons, and the other items the work collides with; re-deriving that from the code throws the work away. A doc that names a decision ("decide whether Confirm covers the whole dialog or just the rating") is telling you what the user will be asked to weigh in on. An entry with no `[Details]` link has nothing more to give: the index line is the whole item.
 3. **Implement, then mark it done in the same pass** — see "Marking done". An open entry describing shipped work is worse than no entry: it sends a later session to redo finished work, and its stale premise ("the rating writes on click") gets quoted as current by every item that cross-references it.
-4. **If the work only partly covers the entry, say which part is left.** Partial completion is an **edit, not an archive**: the item stays open, and you rewrite the index line and the detail doc to describe only what remains, recording what shipped and what was deliberately not done so a later session reads those as answers rather than oversights. **Nothing goes to `docs/todo/completed.md` until the whole entry is closed** — an item in both places at once is worse than either.
+4. **If the work only partly covers the entry, say which part is left.** Partial completion is an **edit, not a removal**: the item stays open, and you rewrite the index line and the detail doc to describe only what remains, recording what shipped and what was deliberately not done so a later session reads those as answers rather than oversights.
 5. **If nothing matches, just do the work.** Do not file an entry for something you are about to finish; "Adding a new item" is for work that is _not_ being done now.
 
 The cost is one index read on requests that turn out to be unrelated, which is the trade this rule accepts on purpose. Added 2026-08-15, after the rating-confirm work was implemented from scratch while a fully written-up entry for it sat in Backlog / Ideas, and stayed open afterwards.
@@ -131,13 +129,10 @@ Then one line for **Bugs**: how many, and the worst. Keep it scannable; summariz
 
 ## Marking done
 
-Identify which task from what they said, matching on description across all sections of the index. **Do the whole move here; do not defer to the structure check, which has already run by this point:**
+Identify which task from what they said, matching on description across all sections of the index. **Do the whole thing here; do not defer to the structure check, which has already run by this point:**
 
-1. **Read the detail doc, if it has one**, before touching anything. It is the source for the archive entry and you are about to delete it.
-2. **Remove the index entry** from `TODO.md`.
-3. **Add it as `- [x]` at the top of `docs/todo/completed.md`**, written from the doc per structure-check item 1.
-4. **`rm docs/todo/<slug>.md`.**
-5. **Re-run structure-check items 2, 3 and 7**: repoint cross-references to it, trim the archive to 20, and confirm no dead link or orphan is left behind.
+1. **Remove the index entry** from `TODO.md`, and **`rm docs/todo/<slug>.md`** if it has one. Nothing is archived; `git log` is the record.
+2. **Re-run structure-check items 2 and 6**: repoint cross-references to it, and confirm no dead link or orphan is left behind.
 
 If nothing matches, say so rather than guessing — it may never have been written down, in which case offer to add it as already-done. If **more than one** plausibly matches, ask rather than picking.
 
@@ -147,7 +142,7 @@ Find the best-matching `- [ ]` item in the index. If no match, say so and stop.
 
 1. **Open its detail doc if it has one, before writing any code.** Same reason as "Checking before you build": the rejected alternatives are in there, and re-proposing one is the failure this costs a single file read to avoid.
 2. Implement it — read whatever files are needed, make the changes, explain what you did.
-3. Immediately after writing the changes, mark it done, following all five steps under "Marking done" — the archive entry comes from the doc, and cross-references, the 20-cap and the invariant greps all still apply.
+3. Immediately after writing the changes, mark it done per "Marking done": remove the index line, `rm` the doc, then repoint cross-references and run the invariant greps.
 
 Do **not** ask whether the changes look good before marking done. Applying them is sufficient.
 

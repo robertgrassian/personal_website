@@ -6,7 +6,7 @@ is the one you want without opening anything. Items carrying more than that link
 `docs/todo/<slug>.md`, which holds the diagnosis, the rejected alternatives and the design
 decisions. Read a detail doc when you are about to work on that item, cross-referencing it, or
 checking whether a new request duplicates it. Do not read them all by default: that is the cost
-this split exists to avoid. Completed work is in [`docs/todo/completed.md`](docs/todo/completed.md).
+this split exists to avoid. Completed work is not tracked here; `git log` is the record.
 
 ## Up Next
 
@@ -271,8 +271,3 @@ to keep that section at five._
 - [ ] Movie library want to watch list, maybe a whole movie's seen section too...
 
 - [ ] similar to the movie library idea, book library would be cool too. I wonder, if i had that many, maybe the route would just become "Library" and then i have my 3 sub libraries (games, movies, books) as sub routes of it. If I did, I would have to think how that library landing page would look like. would i: default to game library, have a page that has a card for all 3 (but then the user needs to make an extra click to start seeing, which i think is an issue), something else?
-
-## Recently Completed
-
-Archived to [`docs/todo/completed.md`](docs/todo/completed.md) so this file stays cheap to read.
-Completed entries move there, newest first, capped at 20.
