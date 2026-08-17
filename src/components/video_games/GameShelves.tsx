@@ -264,8 +264,10 @@ export function GameShelves({
           z-20 sits above the shelves and below the nav (z-50) and stats panel (z-40).
           rounded-b-lg + shelf-filter-bar separate it from the shelf content
           (shadow in light mode, bottom border in dark).
-          px-4 is the block's own inset, so the tab strip lines up with the
-          search input beneath it rather than with the shelves behind it.
+          No horizontal padding of its own: the rows inside pad themselves, so
+          the tab strip keeps the full content width. Insetting the whole block
+          by px-4 instead cost the strip 32px and wrapped "Add game" onto two
+          lines on every phone from 414px down.
           The conditional translate drives the mobile hide/show.
           `invisible` is what keeps the hidden block out of the TAB ORDER:
           -translate-y-full only moves it off screen and pointer-events-none
@@ -279,7 +281,7 @@ export function GameShelves({
           controls stay hidden from the tab order exactly while off screen. */}
       <div
         ref={headerRef}
-        className={`sticky top-[var(--nav-height)] z-20 bg-shelf-bg/95 backdrop-blur-sm px-4 rounded-b-lg shelf-filter-bar transition-[translate,visibility] duration-300 ${headerVisible ? "translate-y-0" : "-translate-y-full invisible pointer-events-none"}`}
+        className={`sticky top-[var(--nav-height)] z-20 bg-shelf-bg/95 backdrop-blur-sm rounded-b-lg shelf-filter-bar transition-[translate,visibility] duration-300 ${headerVisible ? "translate-y-0" : "-translate-y-full invisible pointer-events-none"}`}
       >
         {tabs}
 
@@ -289,7 +291,7 @@ export function GameShelves({
             result set; a fixed header height was never a constraint here,
             because one sticky container re-measures itself. */}
         {hasActiveFilters && (
-          <div className="flex items-center gap-3 pt-3">
+          <div className="flex items-center gap-3 px-4 pt-3">
             <span className="text-shelf-text-muted text-sm">
               {filteredCount} of {activeTotal} games
             </span>

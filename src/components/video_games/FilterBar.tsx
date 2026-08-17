@@ -141,11 +141,12 @@ export function FilterBar(props: FilterBarProps) {
   const sortOptions = validSortOrder.map((value) => ({ value, label: SORT_LABELS[value] }));
 
   return (
-    // Horizontal padding and the frosted background belong to the sticky
-    // container in GameShelves; this only owns the vertical rhythm of its own
-    // row. Mobile: flex-col stacks rows cleanly. Desktop (sm+): flex-row wraps
+    // The frosted background and sticky positioning belong to the container in
+    // GameShelves; the padding stays here so the container can span the full
+    // content width and let the tab strip use all of it.
+    // Mobile: flex-col stacks rows cleanly. Desktop (sm+): flex-row wraps
     // everything into one line.
-    <div className="py-3 sm:py-4">
+    <div className="px-4 py-3 sm:py-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3 sm:items-center">
         {/* Text search — full-width on mobile so it anchors the top of the bar */}
         <input
