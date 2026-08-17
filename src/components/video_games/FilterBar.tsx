@@ -24,17 +24,28 @@ const GROUP_BY_LABELS: Record<GroupBy, string> = {
   decade: "Decade",
 };
 
+// Every label leads with the word that distinguishes it from its opposite,
+// which is a legibility constraint rather than a style preference: the sort
+// <select> renders 117px wide on a 390px phone, about nine characters of
+// visible text, and a native select truncates without an ellipsis. Under the
+// old "Noun: Modifier" form that clipped "Release: Newest" and
+// "Release: Oldest" to the identical "Release: ", and both Last Played options
+// to "Last Play" — the direction, the only thing the option chose, was the
+// part that fell off. Keep new labels differing within their first ~9
+// characters.
 const SORT_LABELS: Record<SortOrder, string> = {
   "name-asc": "Name A→Z",
   "name-desc": "Name Z→A",
-  "rating-best": "Rating: Best",
-  "rating-worst": "Rating: Worst",
-  "release-newest": "Release: Newest",
-  "release-oldest": "Release: Oldest",
-  "played-newest": "Last Played: Recent",
-  "played-oldest": "Last Played: Oldest",
-  "added-newest": "Added: Recent",
-  "added-oldest": "Added: Oldest",
+  "rating-best": "Best rated",
+  "rating-worst": "Worst rated",
+  "release-newest": "Newest release",
+  "release-oldest": "Oldest release",
+  "played-newest": "Recently played",
+  // "Least recently played", not "Oldest played", which reads as a property of
+  // the game rather than of when it was last touched.
+  "played-oldest": "Least recently played",
+  "added-newest": "Recently added",
+  "added-oldest": "First added",
 };
 
 // Props are a discriminated union on `view` — rating-specific props only

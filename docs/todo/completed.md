@@ -32,7 +32,18 @@ trade-off, a follow-up someone will need), not as a changelog.
       applied (a shared `?genre=` link), because the button's count badge and the existing
       "N of M games / Clear filters" row already say something is filtering. Revisit if that
       turns out to be too quiet. The logged-out `/video-games` demo is still ~180px worse than
-      these numbers because of `SignupCta`, which was left alone.
+      these numbers because of `SignupCta`, which was left alone.<br>
+      _Every sort label was front-loaded in the same pass, and it fixed a live bug rather than
+      just tidying copy._ The sort `<select>` renders 117px on a 390px phone, roughly nine
+      characters of visible text, and a native select truncates with no ellipsis. Under the old
+      "Noun: Modifier" wording that clipped "Release: Newest" and "Release: Oldest" to the
+      identical "Release: ", and both Last Played options to "Last Play": the direction, which is
+      the entire choice the option makes, was the part that fell off. Leading with the
+      discriminator ("Newest release", "Least recently played") keeps all eight played options and
+      all six wishlist options distinct when clipped, verified in Chromium. **Any new sort label
+      must differ from its opposite within the first ~9 characters.** "Recently played" and
+      "Recently added" do collide, which is harmless only because `played-*` is played-only and
+      `added-*` is wishlist-only, so they never share a dropdown.
 
 - [x] **The view tabs, "+ Add game" and "Stats" are sticky now, in one block with the filter
       bar** (2026-08-16, branch `claude/sticky-game-stats-filter-de3m6d`). Closes "Make the view
@@ -341,7 +352,9 @@ trade-off, a follow-up someone will need), not as a changelog.
       test tightened from `== null` to `=== null` now that `undefined` is off the table.
 
 - [x] **Sort by rating** (2026-08-11). `rating-best` / `rating-worst` on the played view only,
-      rendered as "Rating: Best" / "Rating: Worst". Grouping by rating withdraws both options,
+      rendered as "Rating: Best" / "Rating: Worst" at the time (relabelled "Best rated" /
+      "Worst rated" on 2026-08-17, when every sort label was front-loaded so it survives
+      truncation on a phone). Grouping by rating withdraws both options,
       which is what the entry asked for, and it is worth knowing that **`groupBy: "rating"` is the
       played view's default** — so the new sorts are invisible until you group by something
       else.<br>
