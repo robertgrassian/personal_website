@@ -162,6 +162,11 @@ export function GameLibrary({
     // View tab strip — underline pattern shared with StatsPanel.
     // justify-between puts the Stats button on the same baseline row as the
     // tabs (played-only), keeping the strip a single compact line.
+    // Stays one row at every width, down to 320px. Every label is
+    // whitespace-nowrap and the strip does not wrap, so the way it makes room
+    // on a narrow phone is smaller type (text-xs under 375px) and tighter
+    // spacing under sm, never a second row: the row costs ~36px of a screen
+    // that the shelves want more than the chrome does.
     <div className="flex items-center justify-between border-b border-shelf-plank">
       <div className="flex">
         {VALID_GAME_VIEW.map((v) => (
@@ -169,7 +174,10 @@ export function GameLibrary({
             key={v}
             type="button"
             onClick={() => setView(v)}
-            className={`py-2.5 mr-4 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
+            // Measured: text-sm with this spacing needs 375px to fit the two
+            // tabs plus both buttons on one row, so text-xs takes over below
+            // that. Desktop keeps the original mr-4 and text-sm.
+            className={`py-2.5 mr-2 sm:mr-4 whitespace-nowrap text-xs min-[375px]:text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
               view === v
                 ? "border-link text-link"
                 : "border-transparent text-shelf-text-muted hover:text-link hover:border-shelf-plank"
@@ -179,12 +187,12 @@ export function GameLibrary({
           </button>
         ))}
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0 sm:gap-1">
         {canEdit && isGameView(view) && (
           <button
             type="button"
             onClick={handleAddGame}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
+            className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 rounded-md text-shelf-text-muted text-xs min-[375px]:text-sm whitespace-nowrap hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
           >
             <span aria-hidden="true" className="text-base leading-none">
               +
@@ -197,9 +205,9 @@ export function GameLibrary({
             type="button"
             onClick={handleStatsOpen}
             aria-label="Open library stats"
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-shelf-text-muted text-sm hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
+            className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 rounded-md text-shelf-text-muted text-xs min-[375px]:text-sm whitespace-nowrap hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
           >
-            <ChartBarIcon className="w-4 h-4" aria-hidden />
+            <ChartBarIcon className="w-4 h-4 shrink-0" aria-hidden />
             <span>Stats</span>
           </button>
         )}
