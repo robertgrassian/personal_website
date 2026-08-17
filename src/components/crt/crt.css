@@ -577,6 +577,50 @@
   outline-offset: 2px;
 }
 
+/* ── Marquee metadata line ──────────────────────────────────────────────────
+   One line of text that crawls there and back when it overflows, and is clipped
+   with an ellipsis when it fits. MarqueeText.tsx measures the overflow and sets
+   the custom properties; `.is-scrolling` is absent entirely when the text fits,
+   so the idle rules below are the whole story in that case. */
+.pcrt-marquee {
+  overflow: hidden;
+  /* Load-bearing, not a micro-optimization. The track's `white-space: nowrap`
+     makes this box's min-content width the whole unwrapped string, and the
+     metadata column is a flex item, so without containment that minimum pushed
+     the column out to its 20rem max-width and scrolled the phone sideways
+     (measured: a 390px viewport got a 500px page). Size containment makes the
+     box's intrinsic width ignore its contents, so the column shrinks to the
+     space the TV leaves it, exactly as it did when this line wrapped and was
+     clamped. The old `line-clamp-1` never hit this: clamping still permits
+     wrapping, so min-content was only the longest word. */
+  contain: inline-size;
+}
+.pcrt-marquee-track {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pcrt-marquee-track.is-scrolling {
+  /* Lets the track grow past the viewport, which clips it, so there is
+     something to slide. */
+  width: max-content;
+  will-change: transform;
+  animation: pcrt-marquee var(--pcrt-marquee-duration) infinite alternate;
+  animation-delay: var(--pcrt-marquee-delay);
+  /* Deliberately outside the shorthand: if a browser rejects linear(), only the
+     easing falls back to the default and the text still scrolls. */
+  animation-timing-function: var(--pcrt-marquee-ease);
+}
+@keyframes pcrt-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-1 * var(--pcrt-marquee-distance)));
+  }
+}
+
 /* ── Reduced motion ─────────────────────────────────────────────────────────
    Freeze the moving parts. NO SIGNAL keeps a still snow texture so the screen
    still reads as dead; a frozen roll bar would just look like a smudge, so hide
@@ -597,5 +641,12 @@
   .pcrt-screen.is-no-signal .pcrt-static {
     animation: none;
     opacity: 1;
+  }
+  /* Back to a still line clipped with an ellipsis. Dropping the animation alone
+     would leave the text cut off with no ellipsis, since the track is still
+     wider than its container. */
+  .pcrt-marquee-track.is-scrolling {
+    width: auto;
+    animation: none;
   }
 }

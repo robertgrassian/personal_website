@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import type { Game } from "@/lib/games";
 import { systemLabel } from "@/lib/games";
+import { MarqueeText } from "./MarqueeText";
 
 // How long each channel stays on screen before auto-advancing (ms).
 const CHANNEL_INTERVAL_MS = 7000;
@@ -374,12 +375,17 @@ export function CrtTv({ games, compact = false }: CrtTvProps) {
             <h2 className="mt-1 line-clamp-2 min-h-[2lh] text-2xl font-bold text-foreground">
               {active!.name}
             </h2>
-            {/* One line, clamped — genre lists are open-ended, and this is
-                secondary metadata, so an ellipsis costs little. */}
-            <p className="mt-0.5 line-clamp-1 text-sm text-muted">
-              {systemLabel(active!.system)}
-              {active!.genres.length > 0 && ` · ${active!.genres.join(", ")}`}
-            </p>
+            {/* One line, because a second one would break the height lock
+                above. Genre lists are open-ended, so on a narrow screen this
+                line overflows; MarqueeText scrolls it instead of leaving the
+                tail unreadable behind an ellipsis. */}
+            <MarqueeText
+              className="mt-0.5 text-sm text-muted"
+              text={
+                systemLabel(active!.system) +
+                (active!.genres.length > 0 ? ` · ${active!.genres.join(", ")}` : "")
+              }
+            />
             {/* Always rendered, empty when there's no date, so the line's
                 height is reserved either way. */}
             <p className="mt-1.5 min-h-[1lh] text-xs italic text-subtle">
