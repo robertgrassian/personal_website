@@ -8,10 +8,6 @@ that govern this file (sections, caps, what goes where) live in the `proj-todo` 
 The organizing goal is **sharing the site with people**, so Up Next holds what should be true
 before that happens.
 
-- [ ] **Take a pass at the catalog rows whose `igdb_id` points at a variant, not the base game.**
-      (Promoted by request 2026-08-10.) Related: **Audit the genre vocabulary**.
-      [Details](docs/todo/igdb-variant-catalog-rows.md)
-
 - [ ] **When adding a game, let me say I'm playing it now, or that I played it before: a play
       history section in the add-game form.** (Promoted by request 2026-08-09.) Collides with
       **Fold "+ Add to wishlist" into a single "+ Add game"**.
@@ -48,8 +44,8 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       [Details](docs/todo/merge-game-modals.md)
 
 - [ ] **Audit the genre vocabulary, fix the wrong values in the database with a script, and stop
-      them coming back.** Premise unverified against prod. Related: **catalog rows whose `igdb_id`
-      points at a variant**. [Details](docs/todo/genre-vocabulary-audit.md)
+      them coming back.** Premise unverified against prod; the eleven variant-id rows named inside
+      were fixed 2026-08-17. [Details](docs/todo/genre-vocabulary-audit.md)
 
 - [ ] **Detect where the title sits on a game cover, and crop the CRT picture so it is not cut
       off.** [Details](docs/todo/cover-title-crop-crt.md)

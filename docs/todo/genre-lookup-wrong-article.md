@@ -47,5 +47,5 @@ and after. Recording the candidate lists as well as the pick lets any ranking ru
 offline, which is much faster than a second network run.
 
 Related: **"Audit the genre vocabulary"** in Backlog / Ideas is the other half of genre quality.
-**"Take a pass at the catalog rows whose `igdb_id` points at a variant"** in Up Next is the same
-class of problem one identifier over.
+The same class of problem one identifier over was the eleven catalog rows whose `igdb_id` pointed at
+an IGDB variant, fixed 2026-08-17.
