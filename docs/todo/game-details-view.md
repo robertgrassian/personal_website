@@ -24,8 +24,7 @@ and the travel animation have to be one continuous motion or it will read as two
 happening. `.game-case-inner` currently owns both the `preserve-3d` flip and the `group-hover` lift
 (`src/app/video-games/video-games.css`), so whichever element animates position cannot be that same
 element without fighting its transform. The mobile flip-lag bug was about this exact element and
-**shipped 2026-08-08**, so this no longer has to wait on it. Its finding, folded in here because
-that archive entry has since aged past the 20-entry cap: the fix that worked was
+**shipped 2026-08-08**, so this no longer has to wait on it. Its finding, folded in here so it is not lost: the fix that worked was
 `will-change: transform` under `.game-case-scene:active .game-case-inner`, promoting the pressed
 case to its own layer _before_ the click handler adds `.is-flipped`, so the first `rotateY` does
 not pay for the promotion mid-animation. It is scoped to the pressed case on purpose (promoting

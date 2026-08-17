@@ -69,7 +69,8 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 - [ ] **Show a confirmation toast after logging a session, so you know it worked.** A site-wide
       primitive decision, not a local one. Wanted first by **An audit log of important library
-      actions**. [Details](docs/todo/session-log-confirmation-toast.md)
+      actions**; possibly with a link, per **An easy way to view a game's sessions**.
+      [Details](docs/todo/session-log-confirmation-toast.md)
 
 - [ ] **An easy way to view a game's sessions, and ideally edit old ones.**
       [Details](docs/todo/view-and-edit-sessions.md)
@@ -158,4 +159,5 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 - [ ] Movie library want to watch list, maybe a whole movie's seen section too...
 
 - [ ] Book library, similar to the movie library idea. Raises whether the route becomes `/library`
-      with games, movies and books as sub-routes. [Details](docs/todo/book-library.md)
+      with games, movies and books as sub-routes, so it touches **Decide the routing/namespace
+      strategy**. [Details](docs/todo/book-library.md)

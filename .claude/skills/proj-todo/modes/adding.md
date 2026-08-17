@@ -46,7 +46,7 @@ The index is read on every routing turn and the docs are not, so an entry earns 
 - **`<br>` separates sub-points in an index line.** In a doc, use real paragraphs and `_italic lead-ins_` for sub-points, matching the docs already there.
 - **Slugs are short and readable** (`genre-vocabulary-audit`, not the ask verbatim). The filename is read far more often than it is written.
 
-**Creating a detail doc.** It opens with the ask as an H1 and a metadata line, both of which later rules depend on, then the body:
+**Creating a detail doc.** It opens with the ask as an H1 and a `_Section:_` metadata line, then the body:
 
 ```markdown
 # <the ask, verbatim from the index line>
@@ -54,7 +54,7 @@ The index is read on every routing turn and the docs are not, so an entry earns 
 _Section: **<Up Next | Bugs | Backlog / Ideas>** &middot; index: [`TODO.md`](../../TODO.md)_
 ```
 
-Then add `[Details](docs/todo/<slug>.md)` as the last element of the index line. The `_Section:_` line is what the structure check and `modes/promoting.md` keep in sync, so a doc without it silently opts out of both.
+Then add `[Details](docs/todo/<slug>.md)` as the last element of the index line. The `_Section:_` line is what the structure check and `.claude/skills/proj-todo/modes/promoting.md` keep in sync, so a doc without it silently opts out of both.
 
 An entry outgrowing the cap is the signal to give it a doc, not to let the index line grow.
 

@@ -1,6 +1,6 @@
 ---
 name: proj-todo
-description: "Owns the project backlog and bug list in TODO.md (NOT the in-session TaskCreate/TaskUpdate tracker). Invoke for every interaction with that file, reads included: add an item, what should I work on next, mark X done, is X on my list, drop that item, clean up the list. Open bugs live there too, so a request to find or fix a bug starts here, not with a code search. ALSO invoke at the START of any request to build, change, fix or add anything in this project, even when the todo list is never mentioned and the request looks small: it is very often already an entry carrying a corrected premise or a rejected approach, and it has to be closed out once the work lands. Check first, implement second."
+description: "Owns the project backlog and bug list in TODO.md (NOT the in-session TaskCreate/TaskUpdate tracker). Invoke for every interaction with that file, reads included, and any time you would otherwise read or edit TODO.md yourself: 'add to my todos', 'what should I work on next', 'mark X done', 'is X on my list?', 'drop that item', 'clean up the todo list'. Open bugs live there too, so a request to find or fix one starts here, not with a code search: 'what bugs are open', 'find me a low-hanging-fruit bug to fix', 'what should I fix next', 'is that bug written down', 'file a bug for X'. ALSO invoke at the START of any request to build, change, fix, refactor or add anything in this project, even when the todo list is never mentioned and the request looks small: 'can you make X do Y', 'add a Z', 'this should really do W'. Whatever was asked for is very often already an entry carrying a corrected premise or a rejected approach, and it has to be closed out once the work lands. Check first, implement second."
 argument-hint: "[what you want to do]"
 disable-model-invocation: false
 ---
@@ -25,12 +25,15 @@ disable-model-invocation: false
 
 Paths are relative to this file. **Read exactly the one mode file the request routes to, and only after routing** — they are split out so a turn pays for the mode it uses, not for all of them.
 
-**Delegate the mechanical write modes to the `todo-clerk` subagent** (`modes/removing.md`,
-`modes/promoting.md`, `modes/reorganizing.md`, and a structure-check sweep): decide which entry is
-meant and what should happen to it, then hand the clerk that decision. It reads the skill itself, so
-the mode file never enters this context. Do the rest here. **`modes/adding.md` is never delegated**
-— writing an entry means checking its premise against the codebase and choosing its section, which
-is the judgment the clerk is explicitly told not to exercise.
+**Delegate two modes to the `todo-clerk` subagent**: `modes/removing.md` and
+`modes/promoting.md`. Decide which entry is meant and what should happen to it, then hand the clerk
+that decision. It reads the skill and the mode file in its own context, so neither enters this one.
+It reports back `src/` and `api/` hits rather than editing code, so repoint those yourself.
+
+**Everything else stays here.** `modes/adding.md` needs a premise checked against the codebase and a
+section decision; `modes/reorganizing.md` and the structure check rank items by the admission test
+and re-classify defects. All of that is judgment the clerk is told not to exercise, and handing it
+over gets a stall or a wrong call.
 
 Keyword prefixes like "done" or "list" are a hint, never a rule: "the wishlist thing is done" is a completion, and "add a todo to list the systems on each shelf" is a new item despite both words appearing. When the request genuinely fits two sections, prefer the non-destructive one and say what you assumed. A bare invocation with nothing after it means show the list.
 
@@ -40,9 +43,11 @@ Keyword prefixes like "done" or "list" are a hint, never a rule: "the wishlist t
 
 **The three open sections**, since almost every decision below depends on them:
 
-- **Up Next** — the queue, admission rules in `modes/adding.md`. **Hard cap of 5**, enforced on every write. An uncapped queue is just a backlog with a better name.
+- **Up Next** — the queue. **Hard cap of 5**, enforced on every write. An uncapped queue is just a backlog with a better name.
 - **Bugs** — every confirmed defect that has not cleared the Up Next bar. Roughly severity-ordered, uncapped.
 - **Backlog / Ideas** — everything else. Newest first, no other ordering guarantee.
+
+**The Up Next admission test**, which ranking and demotion both need, so it lives here rather than in one mode file. Only three things get in on merit: it is **already in flight** or someone is waiting on it; it **blocks the organizing goal** named in bold in `TODO.md`'s Up Next preamble; or it is a **promise the site already makes** in user-facing copy but cannot honor, which is the most urgent of the three. A fourth route, an explicit request, needs no reason and is marked `(Promoted by request YYYY-MM-DD.)`. **Being a bug is not one of them.** A **confirmed defect** is broken, not merely improvable: a missing feature is not one, and neither is a design since decided against. `modes/adding.md` expands on all of this; these two sentences are enough to rank and demote.
 
 Do not merge Bugs back into Up Next: every confirmed bug then lands in the queue and nothing gets demoted.
 
@@ -65,8 +70,8 @@ The index is read on nearly every turn, including every build request, so it sta
 
 After deciding the mode, before acting. TODO.md gets edited outside this skill too, so this is where drift gets caught.
 
-- **Read-only modes** (answering a question, what to work on next, showing the list, **and checking before you build**): **skip the check entirely and do not modify anything.** A read must not leave a diff in the working tree — the user may be mid-change on an unrelated branch. If drift is obvious from what you already read, mention it at the end and offer to fix it. Do not read `modes/structure-check.md` and do not run the script.
-- **Write modes** (marking done, implementing, adding, promoting, reorganizing): **read `modes/structure-check.md`** and fix what it lists, mentioning only what moved non-obviously.
+- **Read-only modes** (answering a question, what to work on next, showing the list, and **checking before you build up to the point where nothing matched**): **skip the check entirely and do not modify anything.** A read must not leave a diff in the working tree — the user may be mid-change on an unrelated branch. If drift is obvious from what you already read, mention it at the end and offer to fix it. Do not read `.claude/skills/proj-todo/modes/structure-check.md` and do not run the script.
+- **Write modes** (marking done, implementing, adding, promoting, reorganizing, **and checking before you build once you have implemented something**): **read `.claude/skills/proj-todo/modes/structure-check.md`** and fix what it lists, mentioning only what moved non-obviously. A build request that matches no entry stays read-only and leaves the backlog untouched.
 
 ## Checking before you build
 
@@ -76,7 +81,7 @@ After deciding the mode, before acting. TODO.md gets edited outside this skill t
 
 1. **Read the `TODO.md` index and look for an entry covering the ask**, across all three open sections. Match on subject, not wording: "make rating edits ask for a confirm" and "Editing a game should need a 'Confirm' press before the change takes effect" are the same item. The index alone is enough to decide this.
 2. **If one exists, open its detail doc and say so before starting.** This is the mode docs exist for. They carry a corrected premise, an approach already rejected with reasons, and the other items the work collides with; re-deriving that from the code throws the work away. A doc that names a decision ("decide whether Confirm covers the whole dialog or just the rating") is telling you what the user will be asked to weigh in on. An entry with no `[Details]` link has nothing more to give: the index line is the whole item.
-3. **Implement, then mark it done in the same pass** — see "Marking done". An open entry describing shipped work is worse than no entry: it sends a later session to redo finished work, and its stale premise ("the rating writes on click") gets quoted as current by every item that cross-references it.
+3. **Implement, then mark it done in the same pass** — see "Marking done". Implementing turns this into a write mode, so the structure check applies from here. An open entry describing shipped work is worse than no entry: it sends a later session to redo finished work, and its stale premise ("the rating writes on click") gets quoted as current by every item that cross-references it.
 4. **If the work only partly covers the entry, say which part is left.** Partial completion is an **edit, not a removal**: the item stays open, and you rewrite the index line and the detail doc to describe only what remains, recording what shipped and what was deliberately not done so a later session reads those as answers rather than oversights.
 5. **If nothing matches, just do the work.** Do not file an entry for something you are about to finish; `modes/adding.md` is for work that is _not_ being done now.
 
@@ -125,7 +130,7 @@ Find the best-matching `- [ ]` item in the index. If no match, say so and stop.
 
 1. **Open its detail doc if it has one, before writing any code.** Same reason as "Checking before you build": the rejected alternatives are in there, and re-proposing one is the failure this costs a single file read to avoid.
 2. Implement it — read whatever files are needed, make the changes, explain what you did.
-3. Immediately after writing the changes, mark it done per "Marking done": remove the index line, `rm` the doc, then repoint cross-references and run the invariant greps.
+3. Immediately after writing the changes, mark it done per "Marking done": remove the index line, `rm` the doc, then repoint cross-references and run `./.claude/skills/proj-todo/check.sh`.
 
 Do **not** ask whether the changes look good before marking done. Applying them is sufficient.
 

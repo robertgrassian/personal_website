@@ -57,6 +57,12 @@ Docs are split so the same fact is not written in four places:
 [`docs/supabase-primer.md`](docs/supabase-primer.md) why Supabase is not used as
 a backend-as-a-service.
 
+The instanced game libraries spec, `docs/plans/instanced-game-libraries.md`, was
+deleted on 2026-07-30 once every part of it had shipped: the auth model and the
+design decisions that still explain the code moved into this file, the data model
+and its rationale into `api/README.md`, and its Supabase argument survives as
+`docs/supabase-primer.md`. Anything still outstanding from it is in `TODO.md`.
+
 ## Tech Stack
 
 - [Next.js 15](https://nextjs.org) (App Router, React 19, Turbopack), [TypeScript](https://www.typescriptlang.org) (strict), [Tailwind CSS 4](https://tailwindcss.com)

@@ -34,5 +34,5 @@ pure, unit-tested function (`tests/test_play_state.py`), and moving it into SQL 
 can test for SQL you cannot, for six session rows across 155 games. If you touch it at all, take
 only the cheap half — select the four columns instead of whole ORM objects.
 
-_The non-optional `Game.id` / `sessionCount` / `openSessionId` follow-up shipped 2026-08-11_ and is
-in Recently Completed; only the four backend items above are left here.
+_The non-optional `Game.id` / `sessionCount` / `openSessionId` follow-up shipped 2026-08-11_; only
+the four backend items above are left here.
