@@ -115,6 +115,27 @@ export function GameShelves({
   const openFilterSheet = useCallback(() => setFilterSheetOpen(true), []);
   const closeFilterSheet = useCallback(() => setFilterSheetOpen(false), []);
 
+  // The sheet is hidden above `sm` by CSS, not by state, so crossing that
+  // breakpoint while it is open leaves `filterSheetOpen` true with nothing on
+  // screen and no reachable dismiss control (the opener is `sm:hidden` too).
+  // Rotating a phone to landscape is enough to reach it. Consequences of the
+  // leak: useModalChrome holds its body scroll lock, focus sits on a
+  // display:none close button, and rotating back re-opens the sheet unasked.
+  // Closing on the crossing is what keeps state and CSS agreeing about
+  // whether this thing is open.
+  //
+  // 640px is Tailwind's `sm`, matching the variants on the sheet and the
+  // opener, and the same query useHideOnScrollDown keys off.
+  useEffect(() => {
+    const mql = window.matchMedia("(min-width: 640px)");
+    const closeAboveSm = () => {
+      if (mql.matches) setFilterSheetOpen(false);
+    };
+    mql.addEventListener("change", closeAboveSm);
+    closeAboveSm(); // in case the first render was already desktop
+    return () => mql.removeEventListener("change", closeAboveSm);
+  }, []);
+
   // The panel used to mount for every visitor and merely slide out of view on
   // a CSS transform, so its aggregation passes ran and its DOM was hydrated for
   // everyone. Two pieces of state rather than one:
@@ -330,6 +351,7 @@ export function GameShelves({
           <FilterBar
             {...filterControlsCommon}
             onOpenFilterSheet={openFilterSheet}
+            filterSheetOpen={filterSheetOpen}
             view="played"
             filters={activeFilters}
             onRatingChange={setRating}
@@ -339,6 +361,7 @@ export function GameShelves({
           <FilterBar
             {...filterControlsCommon}
             onOpenFilterSheet={openFilterSheet}
+            filterSheetOpen={filterSheetOpen}
             view="wishlist"
             filters={activeWishlistFilters}
           />

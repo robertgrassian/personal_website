@@ -94,6 +94,9 @@ type FilterBarProps = FilterControlProps & {
   // any `position: fixed` descendant. A sheet rendered from here would be
   // positioned against the header instead of the viewport.
   onOpenFilterSheet: () => void;
+  // Only so the opener can carry aria-expanded. Whether the sheet is actually
+  // on screen stays GameShelves' business, not this bar's.
+  filterSheetOpen: boolean;
 };
 
 type FilterSelectProps = {
@@ -172,6 +175,7 @@ export function FilterBar(props: FilterBarProps) {
     onGroupByChange,
     onSortOrderChange,
     onOpenFilterSheet,
+    filterSheetOpen,
   } = props;
 
   const groupByOptions = validGroupBy.map((value) => ({ value, label: GROUP_BY_LABELS[value] }));
@@ -213,9 +217,10 @@ export function FilterBar(props: FilterBarProps) {
             className={`${inputBaseClass} placeholder:text-shelf-input-placeholder min-w-0 flex-1 sm:w-auto sm:flex-initial sm:min-w-44`}
           />
 
-          {/* Opens the bottom sheet, which holds every filter plus group and
-              sort. Hidden from sm up, where all of it is laid out inline and
-              there is nothing to open.
+          {/* Opens the bottom sheet, which holds the three narrowing filters
+              and nothing else: group and sort stay on the bar below (see the
+              comment on their row). Hidden from sm up, where the filters are
+              laid out inline and there is nothing to open.
               shrink-0 so the search box gives up width first: a truncated
               label would lose the count, while a narrower search box still
               works. */}
@@ -223,6 +228,9 @@ export function FilterBar(props: FilterBarProps) {
             type="button"
             onClick={onOpenFilterSheet}
             aria-haspopup="dialog"
+            // Without this the button announces identically open or closed, so
+            // nothing confirms the tap worked.
+            aria-expanded={filterSheetOpen}
             className={`${selectClass} sm:hidden shrink-0 flex items-center gap-1.5`}
           >
             <span>Filter</span>
@@ -237,8 +245,8 @@ export function FilterBar(props: FilterBarProps) {
           </button>
         </div>
 
-        {/* Desktop-only from here down. On a phone these same choices are
-            rendered as chips by FilterSheet, so `hidden` is doing real work:
+        {/* Desktop-only. On a phone these same three filters are rendered
+            full-width by FilterSheet, so `hidden` is doing real work:
             it keeps one set of controls perceivable at a time. Two live copies
             would put two controlled <select>s with the same value and the same
             accessible name on the page, which is what a screen reader would

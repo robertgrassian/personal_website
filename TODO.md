@@ -74,6 +74,14 @@ to keep that section at five._
       infobox template beats any title-based rule.
       [Details](docs/todo/genre-lookup-wrong-article.md)
 
+- [ ] **The modal scroll lock does not actually stop the page scrolling.** `useModalChrome` sets
+      `document.body.style.overflow = "hidden"`, which looks correct and is why this went
+      unnoticed, but **verified in Chromium 2026-08-17**: with `StatsPanel` open,
+      `window.scrollBy(0, 500)` still moves the page. `html` is the scrolling element here and
+      stays `overflow: visible`, so the body value never reaches the viewport. Affects all five
+      surfaces sharing the hook (`StatsPanel`, `FilterSheet`, and the three owner modals), so a fix
+      changes five at once and must restore the scroll position rather than jumping to the top.
+
 - [ ] **Owner edit affordances still pop in after hydration.** The pencils and "Add game" appear a
       beat after first paint because `useViewerRelationship` resolves in a `useEffect`. No free fix:
       the options all cost something. [Details](docs/todo/owner-affordance-hydration-pop.md)

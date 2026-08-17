@@ -182,8 +182,10 @@ export function FilterSheet(props: FilterSheetProps) {
             type="button"
             onClick={onClearFilters}
             disabled={!hasActiveFilters}
-            // "Clear filters", not "Clear all": it leaves group and sort alone,
-            // and those are in this sheet too.
+            // "Clear filters", not "Clear all": `clearFilters` deletes search,
+            // rating, system and genre only, deliberately leaving groupBy and
+            // sortOrder in the URL. Those are not in this sheet, but they are
+            // still state a visitor would expect "all" to have covered.
             className="shrink-0 text-sm text-muted underline underline-offset-4 transition-colors hover:text-foreground disabled:cursor-default disabled:no-underline disabled:opacity-40"
           >
             Clear filters
