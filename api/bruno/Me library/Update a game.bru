@@ -1,0 +1,44 @@
+meta {
+  name: Update a game
+  type: http
+  seq: 2
+}
+
+patch {
+  url: {{baseUrl}}{{apiPrefix}}/me/games/{{gameId}}
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "rating": "Perfect"
+  }
+}
+
+docs {
+  True PATCH semantics: the service reads `model_fields_set`, so an omitted field
+  means "leave unchanged" and never "reset". Unknown keys are a 422 rather than a
+  silent no-op, which is what makes that distinction safe.
+
+  Two editable fields today, `rating` and `system`, both per-user. `rating: ""` or
+  `null` clears back to unrated; `system` has no cleared state, so a blank value is
+  a 422 and `null` is rejected explicitly (omit the key instead).
+
+  Note what is absent: name, genres, cover and release date live on the SHARED
+  catalog row, so editing one would change the game for everyone who owns it. That
+  question is still open.
+
+  404 covers both a nonexistent id and someone else's game: the caller's library is
+  the whole namespace, so the API never confirms that a row it will not show you
+  exists.
+
+  - 200 the updated game
+  - 404 no such game in the caller's library
+  - 422 unknown rating, blank system, unknown key
+  - 429 over the write budget
+}

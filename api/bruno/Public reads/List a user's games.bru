@@ -1,0 +1,27 @@
+meta {
+  name: List a user's games
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}{{apiPrefix}}/users/{{username}}/games
+  body: none
+  auth: none
+}
+
+docs {
+  The whole library, unpaginated by design: the browser filters, groups and sorts
+  it client-side in `pipeline.ts`, so the API hands over the full array and the
+  page narrows it.
+
+  Play state (`currentlyPlaying`, `lastPlayed`, `playingSince`, `openSessionId`,
+  `sessionCount`) is derived from `play_sessions` in the service layer, never
+  stored, so it cannot disagree with the sessions themselves.
+
+  Row `id`s are exposed on a public read on purpose. They grant nothing: every
+  mutation re-checks ownership against the caller's token and 404s otherwise.
+
+  - 200 a list of games (empty for a user with none)
+  - 404 no such username
+}

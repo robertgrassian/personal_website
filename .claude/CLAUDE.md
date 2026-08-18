@@ -48,6 +48,7 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                       |
 | Library styles                         | `src/app/video-games/video-games.css`; site tokens in `src/app/globals.css`        |
 | API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)           |
+| API endpoint reference, runnable       | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)      |
 | Migrations                             | `api/alembic/versions/`                                                            |
 | Tests                                  | `api/tests/` (pytest). No frontend test suite exists yet                           |
 

@@ -1,0 +1,39 @@
+meta {
+  name: Search IGDB
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}{{apiPrefix}}/igdb/search?q=hollow knight&page=1
+  body: none
+  auth: inherit
+}
+
+params:query {
+  q: hollow knight
+  page: 1
+}
+
+docs {
+  The add-game picker's search. A server-side proxy rather than a browser call
+  because IGDB authenticates through Twitch OAuth and those credentials must never
+  reach a client.
+
+  Authenticated but not owner-scoped: searching costs IGDB quota, not library
+  state, so any signed-in user may do it. Rate-limited on its own bucket, and
+  `page` is capped so paging cannot be used to grind the quota.
+
+  `hasMore` is the server's answer rather than something the picker infers from
+  page length, because only this side knows the cap and knows when a page came
+  from a fallback query that cannot be paged at all.
+
+  A GET that WRITES (the Twitch token cache and the rate-limit counters), which is
+  why it is blocked on preview deploys.
+
+  - 200 `{"results": [...], "hasMore": bool}`
+  - 401 not logged in
+  - 429 over the per-minute search budget
+  - 502 Twitch or IGDB upstream failure
+  - 503 credentials not configured in this environment
+}

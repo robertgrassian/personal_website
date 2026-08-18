@@ -1,0 +1,26 @@
+meta {
+  name: Follow a user
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}{{apiPrefix}}/me/following/{{otherUsername}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Idempotent: following someone you already follow is 204, not a conflict, so a
+  double-fired toggle needs no special handling. A composite PK on `follows` makes
+  duplicate edges impossible at the database level too.
+
+  Being idempotent, this is arguably a PUT rather than a POST. It is on the review
+  list.
+
+  - 204 following
+  - 403 not onboarded
+  - 404 no such username
+  - 422 following yourself (a CHECK constraint backs this up)
+  - 429 over the write budget
+}

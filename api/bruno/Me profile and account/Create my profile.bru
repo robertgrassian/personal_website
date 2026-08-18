@@ -1,0 +1,38 @@
+meta {
+  name: Create my profile
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}{{apiPrefix}}/me/profile
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "username": "brunotester",
+    "displayName": "Bruno Tester"
+  }
+}
+
+docs {
+  Completes onboarding. One-time: there is no rename endpoint yet.
+
+  The username must be URL-safe, 3 to 30 characters, and not on the reserved list.
+  That list has to include API-colliding tokens (`me`, `search`), which would
+  otherwise shadow `GET /users/{username}`.
+
+  Creating the profile also inserts both founder follow edges in the same
+  transaction, so a new account never lands on empty lists.
+
+  - 201 created
+  - 403 signup cap reached (MAX_USERS)
+  - 409 already has a profile, or the username is taken
+  - 422 bad format or reserved
+}

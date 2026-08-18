@@ -1,0 +1,21 @@
+meta {
+  name: List who a user follows
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}{{apiPrefix}}/users/{{username}}/following
+  body: none
+  auth: none
+}
+
+docs {
+  The other direction of the same edge table.
+
+  Every new signup auto-follows the founder and is auto-followed back, so nobody's
+  lists start empty. Those are ordinary rows and can be unfollowed like any other.
+
+  - 200 a list of user summaries
+  - 404 no such username
+}
