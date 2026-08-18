@@ -9,6 +9,7 @@ generated, so the check costs nothing to keep true.
 import re
 from pathlib import Path
 
+from app.core.config import API_PREFIX
 from app.main import create_app
 
 BRUNO_DIR = Path(__file__).resolve().parents[1] / "bruno"
@@ -46,7 +47,7 @@ def _collection_endpoints() -> set[tuple[str, str]]:
             # helpers) are not ours to cover.
             if "{{apiPrefix}}" not in url:
                 continue
-            url = url.replace("{{baseUrl}}{{apiPrefix}}", "/api/py").split("?")[0]
+            url = url.replace("{{baseUrl}}{{apiPrefix}}", API_PREFIX).split("?")[0]
             for placeholder, param in _PLACEHOLDERS.items():
                 url = url.replace(placeholder, param)
             found.add((method.upper(), url))
@@ -87,3 +88,17 @@ def test_every_request_carries_docs():
         and not re.search(r"^docs\s*\{", path.read_text(encoding="utf-8"), re.MULTILINE)
     ]
     assert not undocumented, f"requests with no docs block: {', '.join(sorted(undocumented))}"
+
+
+def test_environments_agree_on_the_api_prefix():
+    """Every URL in the collection is built from `{{apiPrefix}}`, so an
+    environment carrying a stale prefix silently points the whole collection at
+    routes that no longer exist."""
+    for env in (BRUNO_DIR / "environments").glob("*.bru"):
+        declared = re.search(
+            r"^\s*apiPrefix:\s*(\S+)", env.read_text(encoding="utf-8"), re.MULTILINE
+        )
+        assert declared, f"{env.name} declares no apiPrefix"
+        assert declared.group(1) == API_PREFIX, (
+            f"{env.name} has apiPrefix {declared.group(1)}, expected {API_PREFIX}"
+        )

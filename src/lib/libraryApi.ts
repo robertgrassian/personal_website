@@ -1,6 +1,7 @@
 // Importing "server-only" causes a build error if this module is ever bundled
 // into a client component — catches the mistake at build time, not runtime.
 import "server-only";
+import { API_PREFIX } from "./apiPrefix";
 import type { Game } from "./games";
 import type { WishlistGame } from "./wishlist";
 import type { LibraryProfile } from "./profile";
@@ -132,7 +133,7 @@ function wrapFetchError(err: unknown, what: string, url: string): Error {
 
 // Every library read is "one resource belonging to one user", so this helper
 // owns all four things that never vary between them: the origin, the
-// /api/py/users/{username} prefix, the escaping of that user-supplied segment,
+// {API_PREFIX}/users/{username} prefix, the escaping of that user-supplied segment,
 // and the cache tagging. Callers below supply only what actually differs.
 //
 // `resourceTag` is the narrow tag for this specific resource; the umbrella tag
@@ -165,7 +166,7 @@ async function fetchUserResource<T>(
 ): Promise<T | null> {
   // encodeURIComponent because /video-games/u/[username] puts user-shaped input
   // into these URLs: the segment is escaped rather than trusted.
-  const url = `${requireLibraryApiOrigin()}/api/py/users/${encodeURIComponent(username)}${subpath}`;
+  const url = `${requireLibraryApiOrigin()}${API_PREFIX}/users/${encodeURIComponent(username)}${subpath}`;
   const tags = [libraryCacheTag(username), resourceTag(username)];
   let res: Response;
   try {

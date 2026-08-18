@@ -62,13 +62,30 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        // FastAPI backend (api/index.py), served under /api/py.
+        // FastAPI backend (api/index.py), served under /api/library.
         // Dev: `next dev` proxies to the uvicorn process on :8000 (started by
-        // `npm run dev:api` / `dev:full`), preserving the full /api/py path —
-        // FastAPI routes on that literal prefix.
+        // `npm run dev:api` / `dev:full`), preserving the full path — FastAPI
+        // routes on that literal prefix (API_PREFIX in api/app/core/config.py,
+        // mirrored in src/lib/apiPrefix.ts).
         // Prod: Vercel has no local uvicorn; "/api/" targets the Python
         // serverless function, which receives the original request path.
-        // Pattern taken from Vercel's official nextjs-fastapi template.
+        //
+        // A second segment is needed at all because /api is contested: Vercel
+        // routes it to the Python function and Next.js claims it for its own
+        // Route Handlers, so rewriting "/api/:path*" would swallow every route
+        // handler this app ever adds (and be self-referential besides).
+        source: "/api/library/:path*",
+        destination:
+          process.env.NODE_ENV === "development"
+            ? "http://127.0.0.1:8000/api/library/:path*"
+            : "/api/",
+      },
+      {
+        // The pre-2026-08-18 prefix. A rewrite rather than a redirect: these are
+        // API calls, and a 308 would turn a POST into a re-issued request the
+        // caller did not audit. FastAPI mounts the same routers under it
+        // (LEGACY_API_PREFIX), so a page loaded before the rename keeps working
+        // until its tab closes. Remove both halves together.
         source: "/api/py/:path*",
         destination:
           process.env.NODE_ENV === "development" ? "http://127.0.0.1:8000/api/py/:path*" : "/api/",

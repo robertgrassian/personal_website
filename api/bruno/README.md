@@ -17,7 +17,7 @@ only want to read the API, read those; you do not have to run anything.
    - **local** talks straight to uvicorn on `:8000` (`npm run dev:api`). Use this
      one by default: it takes Next.js out of the picture, so a failure is the
      API's.
-   - **local via next** goes through `next dev` on `:3000` and its `/api/py`
+   - **local via next** goes through `next dev` on `:3000` and its `/api/library`
      rewrite. Use it to prove the rewrite itself works.
    - **production** points at the live site. Reads are safe; the writes are real.
 4. Run `Setup / Sign in and capture token` to fill `accessToken`. Everything
@@ -36,8 +36,16 @@ past onboarding.
 ## Conventions worth knowing before you read the requests
 
 - **`{{apiPrefix}}` is a variable** because the prefix is one literal string in
-  `api/app/core/config.py` (`API_PREFIX = "/api/py"`). Changing it is meant to be
-  a two-line change, there and in each environment here.
+  `api/app/core/config.py` (`API_PREFIX = "/api/library"`). Changing it is meant to
+  be a two-line change, there and in each environment here.
+  `tests/test_bruno_collection.py` asserts the two agree, so a stale environment
+  fails the suite rather than quietly pointing every request at nothing.
+- **The prefix names the app, not the runtime.** It was `/api/py` until
+  2026-08-18. A second segment is needed at all because `/api` is contested:
+  Vercel routes it to the Python function and Next.js claims it for its own Route
+  Handlers, so one subtree has to be spelled out as this API's. `/api/py` is still
+  served as a hidden alias for pages loaded before the rename, and is not in the
+  OpenAPI document or this collection.
 - **camelCase on the wire, snake_case in Python.** The DTOs generate the aliases;
   bare query parameters do not get them automatically and have to declare them by
   hand (see `Preview a catalog entry`).

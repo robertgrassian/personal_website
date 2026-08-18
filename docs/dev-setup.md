@@ -28,10 +28,13 @@ npm run dev:full   # Next (:3000) + FastAPI via uvicorn (:8000), one command
 
 Or individually: `npm run dev` (Next only) / `npm run dev:api` (API only).
 
-The Next dev server proxies `/api/py/*` to uvicorn, so the API is reachable both
-directly (http://127.0.0.1:8000/api/py/health) and through Next
-(http://localhost:3000/api/py/health). Interactive API docs (dev only):
-http://127.0.0.1:8000/api/py/docs
+The Next dev server proxies `/api/library/*` to uvicorn, so the API is reachable
+both directly (http://127.0.0.1:8000/api/library/health) and through Next
+(http://localhost:3000/api/library/health). Interactive API docs (dev only):
+http://127.0.0.1:8000/api/library/docs
+
+Every endpoint is also a runnable request in [`api/bruno/`](../api/bruno/README.md),
+which is where the reference documentation lives.
 
 ## Lint & test
 

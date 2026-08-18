@@ -24,8 +24,8 @@ Personal website built with **Next.js 15, React 19, TypeScript, and Tailwind CSS
 
 **The diagram is [`docs/architecture.md`](../docs/architecture.md)** — read it before changing how data moves. The two paths in one line each:
 
-- **Read** (public, cached): Server Component `LibraryPage.tsx` → `src/lib/libraryApi.ts` (this file imports `server-only` and is the server boundary; there is no `gamesServer.ts`) → `GET /api/py/users/{username}/*` → routers → services → repositories → Postgres.
-- **Write** (owner-only, BFF): browser → Server Action `src/app/video-games/actions.ts` → `src/lib/meApi.ts` (session cookie → Bearer JWT) → `/api/py/me/*` → same layers → on success `revalidateTag(libraryCacheTag(...))`.
+- **Read** (public, cached): Server Component `LibraryPage.tsx` → `src/lib/libraryApi.ts` (this file imports `server-only` and is the server boundary; there is no `gamesServer.ts`) → `GET /api/library/users/{username}/*` → routers → services → repositories → Postgres.
+- **Write** (owner-only, BFF): browser → Server Action `src/app/video-games/actions.ts` → `src/lib/meApi.ts` (session cookie → Bearer JWT) → `/api/library/me/*` → same layers → on success `revalidateTag(libraryCacheTag(...))`.
 
 Filter, group and sort are **client-side**, in `pipeline.ts` — pure functions over the fetched array, no React. The API returns a whole library; the browser narrows it.
 
@@ -48,7 +48,7 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                       |
 | Library styles                         | `src/app/video-games/video-games.css`; site tokens in `src/app/globals.css`        |
 | API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)           |
-| API endpoint reference, runnable       | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)      |
+| API endpoint reference, runnable       | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)       |
 | Migrations                             | `api/alembic/versions/`                                                            |
 | Tests                                  | `api/tests/` (pytest). No frontend test suite exists yet                           |
 

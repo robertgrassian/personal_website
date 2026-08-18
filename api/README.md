@@ -2,7 +2,7 @@
 
 Python backend for the instanced game libraries feature, deployed as a Vercel
 serverless function. `index.py` exposes the ASGI `app`; everything else lives in
-the `app` package. All routes are served under the literal `/api/py` prefix
+the `app` package. All routes are served under the literal `/api/library` prefix
 (`API_PREFIX` in `app/core/config.py`) — Vercel and the dev rewrite both deliver
 the full original path to FastAPI.
 
@@ -175,7 +175,7 @@ and why the route is shaped the way it is. Setup and conventions are in
 
 `tests/test_bruno_collection.py` diffs it against the app's generated OpenAPI
 document, so it cannot silently fall behind the routers. FastAPI also serves the
-raw OpenAPI at `/api/py/openapi.json` and Swagger UI at `/api/py/docs` when
+raw OpenAPI at `/api/library/openapi.json` and Swagger UI at `/api/library/docs` when
 `APP_ENV=dev`; those are the generated truth about shapes, the collection is the
 curated version with the reasoning attached.
 

@@ -25,7 +25,7 @@ from app.services import igdb as igdb_service
 
 requires_db = pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
 
-SEARCH_URL = "/api/py/igdb/search"
+SEARCH_URL = "/api/library/game-catalog"
 
 # A fully populated IGDB row and the DTO it should become.
 FULL_IGDB_ROW = {

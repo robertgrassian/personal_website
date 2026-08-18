@@ -13,13 +13,19 @@ export const config = {
   // first two matching Supabase's recommended matcher. Excluding them avoids
   // pointless refresh work on every asset request.
   //
-  // `api/py` is our own addition, and worth keeping excluded. next.config.ts
-  // rewrites that prefix to FastAPI, and those calls authenticate with an
-  // explicit `Authorization: Bearer` header verified against Supabase's JWKS —
-  // they never read the session cookie, so refreshing it does nothing for them.
-  // Matching them would put a network round trip to Supabase Auth
-  // (updateSession -> getUser) in front of every browser call to the API.
+  // `api/library` (and `api/py`, its pre-2026-08-18 spelling) are our own
+  // addition, and worth keeping excluded. next.config.ts rewrites those
+  // prefixes to FastAPI, and those calls authenticate with an explicit
+  // `Authorization: Bearer` header verified against Supabase's JWKS — they never
+  // read the session cookie, so refreshing it does nothing for them. Matching
+  // them would put a network round trip to Supabase Auth (updateSession ->
+  // getUser) in front of every browser call to the API.
+  //
+  // This list has to be kept in step with API_PREFIX by hand: the matcher is
+  // read at build time and cannot reference a runtime import. Getting it wrong
+  // fails SILENTLY — the API keeps working, every call just pays for a session
+  // refresh it never uses.
   matcher: [
-    "/((?!api/py|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!api/library|api/py|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

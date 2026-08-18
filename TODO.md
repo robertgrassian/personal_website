@@ -38,6 +38,11 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 ## Backlog / Ideas
 
+- [ ] **Remove the `/api/py` alias left by the `/api/library` rename (2026-08-18).** Three halves:
+      `LEGACY_API_PREFIX` (`api/app/core/config.py`), the second rewrite in `next.config.ts`, and
+      `api/py` in `src/middleware.ts`'s matcher. Safe once no pre-rename tab can be open. Part of
+      **Decide the routing/namespace strategy**.
+
 - [ ] **There probably should not be two game modals. Merge `AddGameModal` and `EditGameModal` into
       one.** Sequence with **When adding a game, let me say I'm playing it now**, **Make library and
       wishlist entries fully editable** and **Make viewing a game's details better**.

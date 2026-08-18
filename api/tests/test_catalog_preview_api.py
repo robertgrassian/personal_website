@@ -1,4 +1,4 @@
-"""Wire-contract tests for GET /me/catalog-preview.
+"""Wire-contract tests for GET /game-catalog/preview.
 
 No database and no network: the DB dependency and the service function are both
 overridden, because what is under test is the HTTP layer itself — which query
@@ -23,7 +23,7 @@ from app.main import create_app
 from app.routers import me as me_router
 from app.schemas.me import CatalogPreview
 
-PREVIEW_URL = "/api/py/me/catalog-preview"
+PREVIEW_URL = "/api/library/game-catalog/preview"
 
 
 @pytest.fixture

@@ -5,7 +5,7 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}{{apiPrefix}}/me/catalog-preview?name=Hollow Knight&igdbId=2932&releaseDate=2017-02-24
+  url: {{baseUrl}}{{apiPrefix}}/game-catalog/preview?name=Hollow Knight&igdbId=2932&releaseDate=2017-02-24
   body: none
   auth: inherit
 }
@@ -24,6 +24,16 @@ docs {
   A GET rather than part of the add response, because the add form shows these
   before anything is created. It exists because those values belong to the catalog,
   not the adder, so the form can display them but not set them.
+
+  A sub-resource of `game-catalog` rather than a `/me` route. It was
+  `GET /me/catalog-preview` until 2026-08-18, which put it under `/me` for an
+  authorization reason: it needs auth and burns rate-limit budget. But it describes
+  a catalog fact shared by everyone who owns the game, not a fact about the caller,
+  so it belongs next to the search instead.
+
+  The SERVICE function stays in `services/me.py` even though the route moved. It
+  shares its genre-resolution helpers with the add path deliberately, so the
+  preview and the write cannot disagree about the rule.
 
   Pass the `genres` and `releaseDate` the client already has from IGDB. They are
   the same fallbacks the write path would use, so passing them makes this answer

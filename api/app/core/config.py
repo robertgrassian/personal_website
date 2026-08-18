@@ -13,10 +13,22 @@ from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Every route is registered under this literal prefix. In production Vercel
-# invokes the function with the original request path (/api/py/...), and in
-# dev the Next.js rewrite proxies the same path to uvicorn — so FastAPI must
+# invokes the function with the original request path (/api/library/...), and
+# in dev the Next.js rewrite proxies the same path to uvicorn — so FastAPI must
 # route on the full path rather than being mounted behind a stripped prefix.
-API_PREFIX = "/api/py"
+#
+# The second segment exists because /api is contested: Vercel routes it to the
+# Python function, and Next.js claims it for its own Route Handlers, so one
+# subtree has to be spelled out as ours. It names the app rather than the
+# runtime (it was "py" until 2026-08-18) — a URL that says "python" becomes a
+# lie the day the backend is rewritten, and clients cannot be made to forget it.
+API_PREFIX = "/api/library"
+
+# The old prefix, still served so a browser tab loaded before the rename keeps
+# working. A PREFIX alias only: it serves today's routes, not the paths that
+# were renamed underneath it in the same change. Nothing should be added under
+# it, and it comes out once no client can plausibly still be holding it.
+LEGACY_API_PREFIX = "/api/py"
 
 # The founder's handle. New signups auto-follow this account and it auto-follows
 # them back, so nobody's lists start empty and every new user has somewhere to
@@ -81,7 +93,7 @@ class Settings(BaseSettings):
 
     # --- IGDB proxy ------------------------------------------------------------
     # Twitch application credentials (IGDB authenticates via Twitch OAuth).
-    # Server-side only, never exposed to clients; unset → /igdb/search
+    # Server-side only, never exposed to clients; unset → /game-catalog
     # answers 503. A Twitch application's client id/secret (dev.twitch.tv).
     twitch_client_id: str | None = None
     twitch_client_secret: str | None = None

@@ -31,7 +31,7 @@ def test_health_without_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "")
     get_settings.cache_clear()
     client = TestClient(create_app())
-    response = client.get("/api/py/health")
+    response = client.get("/api/library/health")
     assert response.status_code == 200
     # The db field is omitted entirely — the endpoint must keep working
     # without a configured database.
@@ -44,7 +44,7 @@ def test_health_unreachable_database_returns_503(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("DATABASE_URL", "postgresql://nobody:nope@127.0.0.1:9/nope")
     get_settings.cache_clear()
     client = TestClient(create_app())
-    response = client.get("/api/py/health")
+    response = client.get("/api/library/health")
     assert response.status_code == 503
     assert "Database health check failed" in response.json()["detail"]
 
@@ -54,5 +54,5 @@ def test_docs_disabled_outside_dev(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("APP_ENV", "prod")
     get_settings.cache_clear()
     client = TestClient(create_app())
-    assert client.get("/api/py/docs").status_code == 404
-    assert client.get("/api/py/openapi.json").status_code == 404
+    assert client.get("/api/library/docs").status_code == 404
+    assert client.get("/api/library/openapi.json").status_code == 404
