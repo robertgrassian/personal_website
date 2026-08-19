@@ -35,7 +35,10 @@ _Option B, look them up server-side from the `igdb_id`._ `fetch_platforms` in
 (...)`) through `_run_query`, so it is a lift into a service rather than new code. It puts a
 network call in the write path, but that path already makes one: `genre_service.lookup_one` hits
 Wikipedia when an add creates a row. Follow that precedent's safety rule if this goes the same way
-— run only when the row is new, and never raise, so a third-party outage cannot fail a write.
+— run only when the row is new, and never raise, so a third-party outage cannot fail a write. The
+"is it new?" plumbing already exists and is already called on this path: `find_metadata` in
+`repositories/me.py` exists so the add can tell whether the genres it is about to send will be used
+at all, and the same answer gates a platforms lookup for free.
 
 _Preferred: B_, because it is authoritative and the genre lookup has already paid and justified the
 cost of an outbound call on create. Worth confirming against the shared-catalog bug before
