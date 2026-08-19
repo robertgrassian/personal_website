@@ -3,15 +3,17 @@ import { useEffect, useRef, type RefObject } from "react";
 // The dimming/blurring layer behind a modal surface, shared by the five that
 // use this hook. Callers add only z-index and transitions.
 //
-// The 25vh bleed above and below is the fix for Firefox Android, where
-// retracting the URL bar reveals a strip the layout viewport never grows to
-// include: `inset-0` ends at the old edge and the strip stays unblurred.
-// Viewport *units* cannot express that strip there (lvh and dvh resolve to the
-// same height vh does, which is why sizing with them changed nothing), so the
-// backdrop overshoots by a relative amount instead — far more than any browser
-// chrome, on both edges since the bar can be top or bottom. The excess sits
-// off screen or behind that chrome, and a fixed box adds no scrollable
-// overflow, so over-covering costs nothing.
+// The 25vh bleed above and below covers the strip a mobile browser reveals
+// when its URL bar retracts. WebKit anchors `position: fixed` to a layout
+// viewport that does not grow when that happens — reported for iOS 26 as
+// bottom-anchored elements stopping where the toolbar was — so `inset-0` ends
+// at the old edge and the strip stays unblurred and undimmed.
+//
+// Sizing the box to the large viewport with min-h-lvh was tried first and
+// changed nothing on the device, so this overshoots by a relative amount
+// instead: far more than any browser chrome, and on both edges since the bar
+// can be top or bottom. The excess sits off screen or behind that chrome, and
+// a fixed box adds no scrollable overflow, so over-covering costs nothing.
 export const modalBackdropClass =
   "fixed inset-x-0 top-[-25vh] bottom-[-25vh] bg-black/40 backdrop-blur-sm";
 
