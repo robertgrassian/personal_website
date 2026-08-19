@@ -35,10 +35,6 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 ## Backlog / Ideas
 
-- [ ] **Check whether the modal scroll lock holds on iOS Safari; on desktop it does.** Filed as a
-      defect on a bad test: `window.scrollBy` moves an `overflow: hidden` viewport by spec. Wheel and
-      keyboard are locked. [Details](docs/todo/modal-scroll-lock.md)
-
 - [ ] **There probably should not be two game modals. Merge `AddGameModal` and `EditGameModal` into
       one.** Sequence with **When adding a game, let me say I'm playing it now**, **Make library and
       wishlist entries fully editable** and **Make viewing a game's details better**.
