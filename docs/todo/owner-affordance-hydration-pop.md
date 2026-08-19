@@ -11,14 +11,32 @@ That halved the work but did not fix this — one round trip after hydration sti
 after first paint. The symptom list also lost the Unrated shelf on 2026-08-07: unrated games are no
 longer `canEdit`-gated at all.
 
-The pre-paint `data-authed` flag that fixed the CTA banner and `AuthButton` (2026-07-29; an inline
-script in `src/app/layout.tsx` stamps it from the session cookie, logic in `src/lib/authFlag.ts`)
-**cannot** be extended to cover this: the cookie proves a session exists but not whose it is, and
-the JWT's `sub` claim is a user id, not a username, so answering "is this viewer the owner of THIS
-library?" needs the `/me/relationship` round trip either way.
+**Narrowed 2026-08-19: the network wait is gone; the first-paint gap is not.**
+`src/lib/ownedLibrary.ts` caches the confirmed "this library is mine" answer in localStorage, and
+`useViewerRelationship` now seeds `"me"` from it before awaiting anything, so on a repeat visit the
+affordances render at hydration instead of one round trip later. Measured against a stub API with a
+600ms `/me/relationship`: cold cache +1045ms, warm cache +426ms, the difference being the whole
+round trip. The remaining delay is hydration itself.
 
-_Options, none free:_ have the API return the username in a separate readable cookie at sign-in
-(cheap, but adds a second source of truth for identity that can go stale after a rename); or accept
-the pop-in and make it less jarring by reserving space so nothing shifts. Lower priority than the
-two already fixed: this one only affects a viewer looking at their own library, who is about to
-interact with the page anyway.
+_What is left, and the one thing that would close it._ First paint is server HTML, so nothing
+client-side can reach it — only the pre-paint inline script in `src/app/layout.tsx` can. Extending
+it needs the page to carry something the script can compare the viewer against, and the viewer's
+username is not in the session cookie: the JWT's `sub` is a user id. Two ways in, both a real
+decision rather than a tweak:
+
+- **Put the owner's auth user id in the public profile payload** and have the script compare it to
+  `sub`. Exact and never stale (ids do not change), but it publishes a user id on a cached page for
+  every viewer, and it means parsing Supabase's cookie _value_ format in the inline script — a
+  deeper coupling than the key derivation `authFlag.ts` already flags as one, though it fails closed.
+- **Stamp `data-owner` from the localStorage entry above**, comparing against the owner username the
+  route already carries. No new public data, but the affordances would have to ship in the HTML for
+  every viewer and be hidden in CSS (the `data-hide-authed` pattern), which puts a pencil button in
+  the DOM of every card for visitors who will never use one.
+
+_Known cost of the cache, accepted._ A stale entry (rename, or a second account on the same browser
+without a sign-out event) shows the controls for the length of one round trip before the API takes
+them away, verified: they appear at hydration, disappear when `isMe: false` lands, and the entry is
+cleared. Cosmetic only — every write re-checks ownership server-side.
+
+_Still true._ This only affects a viewer looking at their own library, who is about to interact with
+the page anyway.

@@ -44,7 +44,7 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | Library page shell (both routes)       | `src/components/video_games/LibraryPage.tsx`                                       |
 | Owner modals                           | `AddGameModal.tsx`, `EditGameModal.tsx`, `EditWishlistModal.tsx`, `ModalShell.tsx` |
 | "Currently playing" CRT                | `src/components/crt/CrtTv.tsx` + `crt.css`                                         |
-| Can this viewer edit?                  | `LibraryEditingContext.tsx`, `useViewerRelationship.ts`                            |
+| Can this viewer edit?                  | `LibraryEditingContext.tsx`, `useViewerRelationship.ts`, `src/lib/ownedLibrary.ts` |
 | Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                       |
 | Library styles                         | `src/app/video-games/video-games.css`; site tokens in `src/app/globals.css`        |
 | API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)           |

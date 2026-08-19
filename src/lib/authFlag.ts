@@ -21,7 +21,8 @@
 //
 // It also cannot answer "is this viewer the owner of THIS library?" — the JWT's
 // `sub` is a user id, not a username, so useViewerRelationship still needs its
-// /me/relationship round trip and still resolves after hydration.
+// /me/relationship round trip and still resolves after hydration. ownedLibrary.ts
+// caches that answer to cut the round trip; nothing yet answers it before paint.
 
 // Presence-style, so CSS matches html[data-authed] regardless of value.
 //

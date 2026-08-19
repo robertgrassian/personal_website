@@ -30,8 +30,9 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 - [ ] **The genre lookup picks the wrong Wikipedia article for two titles, at a confidence score of
       1.0.** [Details](docs/todo/genre-lookup-wrong-article.md)
 
-- [ ] **Owner edit affordances still pop in after hydration.**
-      [Details](docs/todo/owner-affordance-hydration-pop.md)
+- [ ] **Owner edit affordances still pop in, now at hydration rather than a round trip later.** The
+      localStorage cache landed 2026-08-19; closing the last gap means reaching first paint, which is
+      a decision, not a tweak. [Details](docs/todo/owner-affordance-hydration-pop.md)
 
 ## Backlog / Ideas
 
