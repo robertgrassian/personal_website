@@ -1,15 +1,19 @@
 import { useEffect, useRef, type RefObject } from "react";
 
 // The dimming/blurring layer behind a modal surface, shared by the five that
-// use this hook. Callers supply their own positioning (`absolute` inside
-// ModalShell's fixed frame, `fixed` for the two stays-mounted panels), z-index
-// and transition.
+// use this hook. Callers add only z-index and transitions.
 //
-// min-h-lvh, not `inset-0` alone: a mobile browser's retracting URL bar grows
-// the visual viewport without growing the layout viewport that `inset-0`
-// resolves against, so the revealed strip stayed unblurred. `inset-0` remains
-// as the fallback height where lvh is unsupported.
-export const modalBackdropClass = "inset-0 min-h-lvh bg-black/40 backdrop-blur-sm";
+// The 25vh bleed above and below is the fix for Firefox Android, where
+// retracting the URL bar reveals a strip the layout viewport never grows to
+// include: `inset-0` ends at the old edge and the strip stays unblurred.
+// Viewport *units* cannot express that strip there (lvh and dvh resolve to the
+// same height vh does, which is why sizing with them changed nothing), so the
+// backdrop overshoots by a relative amount instead — far more than any browser
+// chrome, on both edges since the bar can be top or bottom. The excess sits
+// off screen or behind that chrome, and a fixed box adds no scrollable
+// overflow, so over-covering costs nothing.
+export const modalBackdropClass =
+  "fixed inset-x-0 top-[-25vh] bottom-[-25vh] bg-black/40 backdrop-blur-sm";
 
 // Shared chrome for the owner dialogs. Locks body scroll, moves focus into the
 // dialog (to initialFocusRef), closes on Escape, and restores focus to whatever

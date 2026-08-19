@@ -101,7 +101,7 @@ export function FilterSheet(props: FilterSheetProps) {
       <div
         aria-hidden="true"
         onClick={onClose}
-        className={`fixed z-30 ${modalBackdropClass} transition-opacity duration-300 sm:hidden ${
+        className={`${modalBackdropClass} z-30 transition-opacity duration-300 sm:hidden ${
           isOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       />

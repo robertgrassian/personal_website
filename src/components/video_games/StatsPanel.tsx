@@ -39,7 +39,7 @@ export function StatsPanel({ games, currentlyPlayingGames, isOpen, onClose }: St
       <div
         aria-hidden="true"
         onClick={onClose}
-        className={`fixed z-30 ${modalBackdropClass} transition-opacity duration-300 ${
+        className={`${modalBackdropClass} z-30 transition-opacity duration-300 ${
           isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         }`}
       />
