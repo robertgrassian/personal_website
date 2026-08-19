@@ -247,6 +247,9 @@ export function GameShelves({
   // every game on screen and must not move the page. So is `groupBy`, which
   // reshuffles shelves without narrowing anything, so it cannot strand the
   // results the way a filter that collapses the document can.
+  // Joined on \u0000, written as an escape rather than a literal NUL byte, which
+  // makes git and grep treat this file as binary. No input can contain it, so
+  // two different filter sets cannot produce the same signature.
   const filterSignature =
     view === "played"
       ? [
@@ -255,13 +258,13 @@ export function GameShelves({
           deferredFilters.system,
           deferredFilters.genre,
           deferredFilters.rating,
-        ].join(" ")
+        ].join("\u0000")
       : [
           "wishlist",
           deferredWishlistFilters.search,
           deferredWishlistFilters.system,
           deferredWishlistFilters.genre,
-        ].join(" ");
+        ].join("\u0000");
   useKeepResultsInView(resultsRef, headerRef, filterSignature);
 
   // The props both views pass identically, and now also the props the desktop
