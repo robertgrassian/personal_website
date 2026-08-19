@@ -192,7 +192,10 @@ async function fetchUserResource<T>(
   // yet. Failing there fails the build, which stops the new API deploying, which
   // makes the next build fail identically. Costs one extra request per resource
   // on a build against a genuinely missing user, and nothing at request time.
-  // Delete this with the alias (see TODO.md).
+  //
+  // TEMPORARY, and the only thing left over from the rename: dead as soon as the
+  // rename is live in production, since nothing serves LEGACY_API_PREFIX any
+  // more. Delete this block and that constant.
   if (res.status === 404 && IS_PRERENDER) {
     const legacyUrl = url.replace(API_PREFIX, LEGACY_API_PREFIX);
     try {

@@ -80,16 +80,6 @@ const nextConfig: NextConfig = {
             ? "http://127.0.0.1:8000/api/library/:path*"
             : "/api/",
       },
-      {
-        // The pre-2026-08-18 prefix. A rewrite rather than a redirect: these are
-        // API calls, and a 308 would turn a POST into a re-issued request the
-        // caller did not audit. FastAPI mounts the same routers under it
-        // (LEGACY_API_PREFIX), so a page loaded before the rename keeps working
-        // until its tab closes. Remove both halves together.
-        source: "/api/py/:path*",
-        destination:
-          process.env.NODE_ENV === "development" ? "http://127.0.0.1:8000/api/py/:path*" : "/api/",
-      },
     ];
   },
   webpack(config) {

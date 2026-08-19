@@ -110,5 +110,8 @@ dev` proxies it to uvicorn on :8000; in production Vercel routes it to the
   subtree has to be named as this API's. It names the app, not the runtime: it
   was `/api/py` until 2026-08-18, which leaked an implementation choice clients
   have no business knowing and would have become a lie the day the backend was
-  rewritten. The old prefix is still mounted as a hidden alias
-  (`LEGACY_API_PREFIX`) so a page loaded before the rename keeps working.
+  rewritten. Nothing serves the old prefix now. The one trace of the rename left
+  is a prerender-only retry in `libraryApi.ts`: a build fetches from the API that
+  is currently DEPLOYED, so the build shipping a prefix rename asks a production
+  that has not got the new one yet, and failing there fails the build, which
+  stops the new API deploying, which fails the next build the same way.

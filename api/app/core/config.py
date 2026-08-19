@@ -24,12 +24,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # lie the day the backend is rewritten, and clients cannot be made to forget it.
 API_PREFIX = "/api/library"
 
-# The old prefix, still served so a browser tab loaded before the rename keeps
-# working. A PREFIX alias only: it serves today's routes, not the paths that
-# were renamed underneath it in the same change. Nothing should be added under
-# it, and it comes out once no client can plausibly still be holding it.
-LEGACY_API_PREFIX = "/api/py"
-
 # The founder's handle. New signups auto-follow this account and it auto-follows
 # them back, so nobody's lists start empty and every new user has somewhere to
 # navigate from day one.

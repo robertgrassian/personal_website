@@ -43,9 +43,8 @@ past onboarding.
 - **The prefix names the app, not the runtime.** It was `/api/py` until
   2026-08-18. A second segment is needed at all because `/api` is contested:
   Vercel routes it to the Python function and Next.js claims it for its own Route
-  Handlers, so one subtree has to be spelled out as this API's. `/api/py` is still
-  served as a hidden alias for pages loaded before the rename, and is not in the
-  OpenAPI document or this collection.
+  Handlers, so one subtree has to be spelled out as this API's. Nothing serves
+  `/api/py` any more.
 - **camelCase on the wire, snake_case in Python.** The DTOs generate the aliases;
   bare query parameters do not get them automatically and have to declare them by
   hand (see `Preview a catalog entry`).

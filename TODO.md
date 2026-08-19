@@ -38,9 +38,10 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 ## Backlog / Ideas
 
-- [ ] **Remove the `/api/py` alias left by the `/api/library` rename (2026-08-18).** Four pieces,
-      and the prerender-only 404 fallback in `libraryApi.ts` can go as soon as the rename is live
-      in prod, well before the rest. [Details](docs/todo/remove-legacy-api-prefix.md)
+- [ ] **Delete the prerender-only `/api/py` retry in `libraryApi.ts`'s `fetchUserResource`, and
+      `LEGACY_API_PREFIX` with it.** All that survives the 2026-08-18 prefix rename, and dead the
+      moment that rename is live in prod: it exists so the deploy shipping it can build against a
+      production still on the old prefix.
 
 - [ ] **There probably should not be two game modals. Merge `AddGameModal` and `EditGameModal` into
       one.** Sequence with **When adding a game, let me say I'm playing it now**, **Make library and

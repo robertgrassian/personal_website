@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from app.core.config import API_PREFIX, LEGACY_API_PREFIX, get_settings
+from app.core.config import API_PREFIX, get_settings
 from app.core.errors import register_error_handlers
 from app.routers import catalog, health, me, users
 
@@ -29,9 +29,4 @@ def create_app() -> FastAPI:
     # four APIRouter() calls that have to agree.
     for router in (health.router, users.router, me.router, catalog.router):
         app.include_router(router, prefix=API_PREFIX)
-        # The pre-2026-08-18 prefix, mounted again so a page loaded before the
-        # rename keeps working until its tab is closed. Hidden from the schema:
-        # it is a transitional alias, not a second supported surface, and the
-        # OpenAPI document is what the Bruno collection is checked against.
-        app.include_router(router, prefix=LEGACY_API_PREFIX, include_in_schema=False)
     return app

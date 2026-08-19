@@ -5,12 +5,10 @@ runtime, which is an implementation detail clients cannot be made to forget once
 they have cached it. These tests pin the parts of that move that fail quietly.
 """
 
-import re
-
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.config import API_PREFIX, LEGACY_API_PREFIX, get_settings
+from app.core.config import API_PREFIX, get_settings
 from app.main import create_app
 
 
@@ -19,47 +17,6 @@ def _fresh_settings():
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
-
-
-def test_every_route_is_reachable_under_the_legacy_prefix() -> None:
-    """The alias is a whole second mount, not a hand-listed subset.
-
-    It exists for the deploy window: a page loaded before the rename keeps
-    calling the old prefix until its tab closes, and the build container
-    prerenders against whichever API version is currently live.
-
-    Probed by request rather than by reading app.routes, because FastAPI defers
-    included routers and their paths are not populated on the app object.
-    A 404 is the only failing answer here: unauthenticated calls stop at 401,
-    which still proves the route is mounted.
-    """
-    app = create_app()
-    # raise_server_exceptions=False so a handler that reaches the database and
-    # fails (no DATABASE_URL in a bare checkout) comes back as a 500 instead of
-    # propagating. Reaching the handler at all is what this test is asking about.
-    client = TestClient(app, raise_server_exceptions=False)
-    for path, operations in app.openapi()["paths"].items():
-        legacy = path.replace(API_PREFIX, LEGACY_API_PREFIX, 1)
-        # Path params are irrelevant to whether the route exists.
-        legacy = re.sub(r"\{[^}]+\}", "placeholder", legacy)
-        for method in operations:
-            response = client.request(method.upper(), legacy)
-            assert response.status_code != 404, f"{method.upper()} {legacy} is not mounted"
-
-
-def test_legacy_prefix_is_absent_from_the_openapi_document() -> None:
-    """It is a transitional alias, not a second supported surface. Publishing it
-    would also break the Bruno collection check, which reads this document."""
-    spec = create_app().openapi()
-    assert not [p for p in spec["paths"] if p.startswith(LEGACY_API_PREFIX)]
-
-
-def test_legacy_prefix_serves_the_same_response() -> None:
-    client = TestClient(create_app())
-    canonical = client.get(f"{API_PREFIX}/health")
-    legacy = client.get(f"{LEGACY_API_PREFIX}/health")
-    assert canonical.status_code == legacy.status_code == 200
-    assert canonical.json() == legacy.json()
 
 
 def test_routers_do_not_hardcode_the_prefix() -> None:
