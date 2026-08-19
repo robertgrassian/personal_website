@@ -8,6 +8,11 @@ that govern this file (sections, caps, what goes where) live in the `proj-todo` 
 The organizing goal is **sharing the site with people**, so Up Next holds what should be true
 before that happens.
 
+- [ ] **Every newly created catalog row stores `platforms: []`: neither add path passes it to
+      `find_or_create_metadata`.** (Promoted by request 2026-08-19.) Code fix plus a one-time prod
+      backfill. Decide with **Anyone can define a shared catalog row for everyone**.
+      [Details](docs/todo/new-games-empty-platforms.md)
+
 - [ ] **When adding a game, let me say I'm playing it now, or that I played it before: a play
       history section in the add-game form.** (Promoted by request 2026-08-09.) Collides with
       **Fold "+ Add to wishlist" into a single "+ Add game"**.
