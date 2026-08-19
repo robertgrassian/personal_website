@@ -1,0 +1,45 @@
+meta {
+  name: Sign in and capture token
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{supabaseUrl}}/auth/v1/token?grant_type=password
+  body: json
+  auth: none
+}
+
+params:query {
+  grant_type: password
+}
+
+headers {
+  Content-Type: application/json
+  apikey: {{serviceRoleKey}}
+}
+
+body:json {
+  {
+    "email": "{{testEmail}}",
+    "password": "{{testPassword}}"
+  }
+}
+
+vars:post-response {
+  accessToken: res.body.access_token
+}
+
+docs {
+  Exchanges the test user's password for a Supabase access token and writes it
+  into the `accessToken` runtime variable, which the collection-level bearer auth
+  reads. Run this once per session and every authenticated request below works.
+
+  The token is the same ES256 JWT the browser gets; the API verifies it against
+  Supabase's JWKS and trusts only the `sub` claim. Tokens expire in an hour, so
+  re-run this when requests start coming back 401.
+
+  Against a deployed environment there is no password grant to use. Copy a token
+  out of the browser instead: DevTools, Application, Cookies, the `sb-*-auth-token`
+  entry, and paste it into the environment's `accessToken`.
+}

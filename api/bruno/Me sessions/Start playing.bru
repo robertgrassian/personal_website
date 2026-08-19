@@ -1,0 +1,40 @@
+meta {
+  name: Start playing
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}{{apiPrefix}}/me/games/{{gameId}}/sessions
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "startDate": "2026-08-18"
+  }
+}
+
+docs {
+  Opens a play session. No `endDate` means an OPEN session, which is what makes the
+  game "currently playing"; there is no boolean column that could disagree.
+
+  Returns the GAME with fresh play state, not the created session. The session is
+  not a resource any client reads on its own: every consumer wants the five derived
+  fields that hang off the game. That saves a refetch at the cost of a 201 whose
+  body is not the thing that was created.
+
+  Dates default to the server clock (UTC in production), so the web UI always sends
+  the browser-local date.
+
+  - 201 the game, now currently playing
+  - 404 game nonexistent or someone else's
+  - 409 the game already has an open session
+  - 422 endDate before startDate
+  - 429 over the write budget
+}

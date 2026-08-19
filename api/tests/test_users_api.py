@@ -119,7 +119,7 @@ def client() -> TestClient:
 
 @requires_db
 def test_games_returns_full_library_with_camel_case_keys(client: TestClient) -> None:
-    response = client.get("/api/py/users/rgrassian/games")
+    response = client.get("/api/library/users/rgrassian/games")
     assert response.status_code == 200
     games = response.json()
     assert games, "seeded library is empty; the assertions below would be vacuous"
@@ -134,7 +134,7 @@ def test_open_session_games_are_currently_playing(client: TestClient) -> None:
     open_names = session_names("rgrassian", open_only=True)
     if not open_names:
         pytest.skip("no open session in the library")
-    games = client.get("/api/py/users/rgrassian/games").json()
+    games = client.get("/api/library/users/rgrassian/games").json()
     by_name = {g["name"]: g for g in games}
     for name in open_names:
         game = by_name[name]
@@ -154,7 +154,7 @@ def test_closed_session_games_have_last_played(client: TestClient) -> None:
     closed_names = session_names("rgrassian", open_only=False)
     if not closed_names:
         pytest.skip("no closed session in the library")
-    games = client.get("/api/py/users/rgrassian/games").json()
+    games = client.get("/api/library/users/rgrassian/games").json()
     by_name = {g["name"]: g for g in games}
     for name in closed_names:
         assert by_name[name]["lastPlayed"] != "", name
@@ -175,7 +175,7 @@ def test_game_without_sessions_has_empty_play_state(client: TestClient) -> None:
         pytest.skip("every game in the library has a session")
     name, rating, genres, release_date = row[0]
 
-    games = client.get("/api/py/users/rgrassian/games").json()
+    games = client.get("/api/library/users/rgrassian/games").json()
     game = next(g for g in games if g["name"] == name)
     assert game["currentlyPlaying"] is False
     assert game["lastPlayed"] == ""
@@ -190,17 +190,17 @@ def test_game_without_sessions_has_empty_play_state(client: TestClient) -> None:
 def test_username_lookup_is_case_insensitive(client: TestClient) -> None:
     # citext username: /users/Rgrassian resolves to the same profile, so it
     # must return the same library the lowercase spelling does.
-    response = client.get("/api/py/users/Rgrassian/games")
+    response = client.get("/api/library/users/Rgrassian/games")
     assert response.status_code == 200
     # Pinned to the library itself, not just to the lowercase response, so this
     # still bites if both spellings resolve to the same WRONG profile.
     assert [g["name"] for g in response.json()] == library_names("rgrassian")
-    assert response.json() == client.get("/api/py/users/rgrassian/games").json()
+    assert response.json() == client.get("/api/library/users/rgrassian/games").json()
 
 
 @requires_db
 def test_wishlist_returns_all_items_with_camel_case_keys(client: TestClient) -> None:
-    response = client.get("/api/py/users/rgrassian/wishlist")
+    response = client.get("/api/library/users/rgrassian/wishlist")
     assert response.status_code == 200
     items = response.json()
     assert items, "seeded wishlist is empty; the assertions below would be vacuous"
@@ -223,7 +223,7 @@ def test_wishlist_returns_all_items_with_camel_case_keys(client: TestClient) -> 
 
 @requires_db
 def test_profile_returns_public_fields_and_counts(client: TestClient) -> None:
-    response = client.get("/api/py/users/rgrassian")
+    response = client.get("/api/library/users/rgrassian")
     assert response.status_code == 200
     body = response.json()
     # Exact key set, which is the actual contract here: public data only, no
@@ -243,11 +243,11 @@ def test_profile_returns_public_fields_and_counts(client: TestClient) -> None:
 @pytest.mark.parametrize(
     "path",
     [
-        "/api/py/users/nobody",
-        "/api/py/users/nobody/games",
-        "/api/py/users/nobody/wishlist",
-        "/api/py/users/nobody/followers",
-        "/api/py/users/nobody/following",
+        "/api/library/users/nobody",
+        "/api/library/users/nobody/games",
+        "/api/library/users/nobody/wishlist",
+        "/api/library/users/nobody/followers",
+        "/api/library/users/nobody/following",
     ],
 )
 def test_unknown_username_returns_404(client: TestClient, path: str) -> None:
@@ -297,12 +297,12 @@ def other_user():
     api = TestClient(app)
     try:
         created = api.post(
-            "/api/py/me/profile", json={"username": username, "displayName": "Other Person"}
+            "/api/library/me/profile", json={"username": username, "displayName": "Other Person"}
         )
         assert created.status_code == 201, created.text
-        game = api.post("/api/py/me/games", json={"name": "Solo Quest", "system": "Dreamcast"})
+        game = api.post("/api/library/me/games", json={"name": "Solo Quest", "system": "Dreamcast"})
         assert game.status_code == 201, game.text
-        wish = api.post("/api/py/me/wishlist", json={"name": "Solo Wish"})
+        wish = api.post("/api/library/me/wishlist", json={"name": "Solo Wish"})
         assert wish.status_code == 201, wish.text
         yield username
     finally:
@@ -326,7 +326,7 @@ def onboarded_user_with_nothing():
     app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(
         id=user_id, email=f"{username}@example.com"
     )
-    created = TestClient(app).post("/api/py/me/profile", json={"username": username})
+    created = TestClient(app).post("/api/library/me/profile", json={"username": username})
     assert created.status_code == 201, created.text
     try:
         yield username
@@ -344,9 +344,9 @@ def test_empty_library_is_empty_lists_not_404(
     # real, empty library (render "add your first game"), not a missing one
     # (render a 404 page). Only an unknown username 404s.
     username = onboarded_user_with_nothing
-    assert client.get(f"/api/py/users/{username}").status_code == 200
-    games = client.get(f"/api/py/users/{username}/games")
-    wishlist = client.get(f"/api/py/users/{username}/wishlist")
+    assert client.get(f"/api/library/users/{username}").status_code == 200
+    games = client.get(f"/api/library/users/{username}/games")
+    wishlist = client.get(f"/api/library/users/{username}/wishlist")
     assert games.status_code == 200
     assert wishlist.status_code == 200
     assert games.json() == []
@@ -355,19 +355,19 @@ def test_empty_library_is_empty_lists_not_404(
 
 @requires_db
 def test_second_users_games_are_their_own(client: TestClient, other_user: str) -> None:
-    games = client.get(f"/api/py/users/{other_user}/games").json()
+    games = client.get(f"/api/library/users/{other_user}/games").json()
     assert [g["name"] for g in games] == ["Solo Quest"]
 
 
 @requires_db
 def test_second_users_wishlist_is_their_own(client: TestClient, other_user: str) -> None:
-    items = client.get(f"/api/py/users/{other_user}/wishlist").json()
+    items = client.get(f"/api/library/users/{other_user}/wishlist").json()
     assert [i["name"] for i in items] == ["Solo Wish"]
 
 
 @requires_db
 def test_second_users_profile_is_their_own(client: TestClient, other_user: str) -> None:
-    profile = client.get(f"/api/py/users/{other_user}").json()
+    profile = client.get(f"/api/library/users/{other_user}").json()
     assert profile["username"] == other_user
     assert profile["displayName"] == "Other Person"
 
@@ -378,12 +378,12 @@ def test_one_users_rows_never_appear_in_anothers_library(
 ) -> None:
     # The failure this guards against is a dropped user_id filter, which would
     # show up as each library containing the other's rows.
-    robert_games = client.get("/api/py/users/rgrassian/games").json()
-    robert_wishlist = client.get("/api/py/users/rgrassian/wishlist").json()
+    robert_games = client.get("/api/library/users/rgrassian/games").json()
+    robert_wishlist = client.get("/api/library/users/rgrassian/wishlist").json()
     assert "Solo Quest" not in {g["name"] for g in robert_games}
     assert "Solo Wish" not in {i["name"] for i in robert_wishlist}
     # And Robert's library is entirely absent from theirs.
-    other_games = client.get(f"/api/py/users/{other_user}/games").json()
+    other_games = client.get(f"/api/library/users/{other_user}/games").json()
     assert len(other_games) == 1
     assert len(robert_games) == len(library_names("rgrassian"))
 
@@ -394,14 +394,14 @@ def test_second_users_username_lookup_is_case_insensitive(
 ) -> None:
     # citext applies to every user, not just the seeded one — /u/Other… and
     # /u/other… must resolve to the same library.
-    response = client.get(f"/api/py/users/{other_user.upper()}/games")
+    response = client.get(f"/api/library/users/{other_user.upper()}/games")
     assert response.status_code == 200
     assert [g["name"] for g in response.json()] == ["Solo Quest"]
 
 
 @requires_db
 def test_health_includes_db_ok(client: TestClient) -> None:
-    response = client.get("/api/py/health")
+    response = client.get("/api/library/health")
     assert response.status_code == 200
     assert response.json()["db"] == "ok"
 
@@ -423,5 +423,5 @@ def test_platforms_ride_on_the_read_from_the_catalog_row(client: TestClient) -> 
     populated = [n for n, p in stored.items() if p]
     assert populated, "seed has no platforms; this test would prove nothing"
 
-    for game in client.get("/api/py/users/rgrassian/games").json():
+    for game in client.get("/api/library/users/rgrassian/games").json():
         assert game["platforms"] == stored[game["name"]], game["name"]

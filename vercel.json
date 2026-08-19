@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/py/health",
+      "path": "/api/library/health",
       "schedule": "0 6 * * *"
     }
   ]

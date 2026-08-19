@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.core.config import API_PREFIX, Settings, get_settings
+from app.core.config import Settings, get_settings
 
-router = APIRouter(prefix=API_PREFIX, tags=["health"])
+router = APIRouter(tags=["health"])
 
 
 @router.get("/health")

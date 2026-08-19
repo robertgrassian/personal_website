@@ -17,7 +17,7 @@ private row, is restricted to private rows, or genuinely changes the game for ev
 now owns that question outright** (2026-08-14): the add form stopped offering catalog fields on IGDB
 picks, so there is no write path to a shared row's name, genres or release date anywhere in the UI,
 and a wrong genre can only be fixed by `scripts/backfill_genres.py`. `EditWishlistModal` supports
-starred/notes/system plus promote and delete (`PATCH /api/py/me/wishlist/{id}`), and the promote
+starred/notes/system plus promote and delete (`PATCH /api/library/me/wishlist/{id}`), and the promote
 step is still the only place a wishlist item's system gets set.
 
 _Want:_ edit essentially every field from either modal, with the same form in both. Keep only the

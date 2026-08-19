@@ -1,0 +1,23 @@
+meta {
+  name: Get my profile
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}{{apiPrefix}}/me/profile
+  body: none
+  auth: inherit
+}
+
+docs {
+  The caller's own profile, and the site's onboarding check.
+
+  The two failure codes mean different things and the frontend routes on the
+  difference: 401 is "not logged in at all", 404 is "logged in but no profile yet,
+  go to onboarding".
+
+  - 200 the profile
+  - 401 missing or invalid token
+  - 404 authenticated but not onboarded
+}

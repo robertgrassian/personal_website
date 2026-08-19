@@ -1,0 +1,42 @@
+meta {
+  name: Stop playing
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}{{apiPrefix}}/me/sessions/{{sessionId}}
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "endDate": "2026-08-18",
+    "rating": "Perfect"
+  }
+}
+
+docs {
+  Closes an open session, optionally rating the game in the same transaction so a
+  rate-on-stop can never half-land.
+
+  The session id comes from `openSessionId` on the game, which rides along in the
+  public read payload precisely so the owner UI can close a session without an
+  extra fetch.
+
+  `rating` follows the same PATCH rules as everywhere: omitted leaves it unchanged,
+  `""` or `null` clears it.
+
+  Like the two above, this returns the GAME rather than the session.
+
+  - 200 the game, no longer currently playing
+  - 404 session nonexistent or under someone else's game
+  - 409 session already closed
+  - 422 endDate before the session's start date
+  - 429 over the write budget
+}

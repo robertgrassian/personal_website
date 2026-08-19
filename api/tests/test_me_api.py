@@ -140,7 +140,7 @@ def fresh_user_with_game(fresh_auth_user):
     purge_suite_catalog_rows fixture in conftest collects it."""
     user_id, _ = fresh_auth_user
     username = f"gamer-{str(user_id)[:8]}"
-    created = client_as(user_id).post("/api/py/me/profile", json={"username": username})
+    created = client_as(user_id).post("/api/library/me/profile", json={"username": username})
     assert created.status_code == 201
 
     sm = get_sessionmaker()
@@ -164,7 +164,7 @@ def fresh_user_with_game(fresh_auth_user):
 
 @requires_db
 def test_get_my_profile_returns_seeded_owner() -> None:
-    response = client_as(ROBERT_PROFILE_ID).get("/api/py/me/profile")
+    response = client_as(ROBERT_PROFILE_ID).get("/api/library/me/profile")
     assert response.status_code == 200
     assert response.json() == {"username": "rgrassian", "displayName": "Robert"}
 
@@ -172,14 +172,14 @@ def test_get_my_profile_returns_seeded_owner() -> None:
 @requires_db
 def test_get_my_profile_404_when_not_onboarded() -> None:
     # A valid auth user with no profile row → the "complete onboarding" state.
-    response = client_as(uuid.uuid4()).get("/api/py/me/profile")
+    response = client_as(uuid.uuid4()).get("/api/library/me/profile")
     assert response.status_code == 404
 
 
 @requires_db
 def test_missing_token_is_401() -> None:
     # No dependency override here — the real auth dependency runs and rejects.
-    response = TestClient(create_app()).get("/api/py/me/profile")
+    response = TestClient(create_app()).get("/api/library/me/profile")
     assert response.status_code == 401
 
 
@@ -188,20 +188,20 @@ def test_create_profile_completes_onboarding(fresh_auth_user) -> None:
     user_id, _ = fresh_auth_user
     client = client_as(user_id)
     response = client.post(
-        "/api/py/me/profile",
+        "/api/library/me/profile",
         json={"username": "NewPlayer", "displayName": "New Player"},
     )
     assert response.status_code == 201
     # Username is normalized to lowercase on the way in.
     assert response.json() == {"username": "newplayer", "displayName": "New Player"}
     # And now GET finds it.
-    assert client.get("/api/py/me/profile").status_code == 200
+    assert client.get("/api/library/me/profile").status_code == 200
 
 
 @requires_db
 def test_create_profile_defaults_display_name_to_username(fresh_auth_user) -> None:
     user_id, _ = fresh_auth_user
-    response = client_as(user_id).post("/api/py/me/profile", json={"username": "solohandle"})
+    response = client_as(user_id).post("/api/library/me/profile", json={"username": "solohandle"})
     assert response.status_code == 201
     assert response.json() == {"username": "solohandle", "displayName": "solohandle"}
 
@@ -210,8 +210,8 @@ def test_create_profile_defaults_display_name_to_username(fresh_auth_user) -> No
 def test_create_profile_second_time_is_409(fresh_auth_user) -> None:
     user_id, _ = fresh_auth_user
     client = client_as(user_id)
-    assert client.post("/api/py/me/profile", json={"username": "onceonly"}).status_code == 201
-    again = client.post("/api/py/me/profile", json={"username": "oncemore"})
+    assert client.post("/api/library/me/profile", json={"username": "onceonly"}).status_code == 201
+    again = client.post("/api/library/me/profile", json={"username": "oncemore"})
     assert again.status_code == 409
 
 
@@ -219,11 +219,13 @@ def test_create_profile_second_time_is_409(fresh_auth_user) -> None:
 def test_create_profile_taken_username_is_409(fresh_auth_user) -> None:
     # First user claims a (non-reserved) handle; a second user can't reuse it.
     first_id, _ = fresh_auth_user
-    created = client_as(first_id).post("/api/py/me/profile", json={"username": "sharedname"})
+    created = client_as(first_id).post("/api/library/me/profile", json={"username": "sharedname"})
     assert created.status_code == 201
     second_id = _make_auth_user()
     try:
-        response = client_as(second_id).post("/api/py/me/profile", json={"username": "SharedName"})
+        response = client_as(second_id).post(
+            "/api/library/me/profile", json={"username": "SharedName"}
+        )
         # citext: case-insensitive collision is still a conflict.
         assert response.status_code == 409
     finally:
@@ -233,14 +235,14 @@ def test_create_profile_taken_username_is_409(fresh_auth_user) -> None:
 @requires_db
 def test_create_profile_reserved_username_is_422(fresh_auth_user) -> None:
     user_id, _ = fresh_auth_user
-    response = client_as(user_id).post("/api/py/me/profile", json={"username": "search"})
+    response = client_as(user_id).post("/api/library/me/profile", json={"username": "search"})
     assert response.status_code == 422
 
 
 @requires_db
 def test_create_profile_bad_format_is_422(fresh_auth_user) -> None:
     user_id, _ = fresh_auth_user
-    response = client_as(user_id).post("/api/py/me/profile", json={"username": "no"})
+    response = client_as(user_id).post("/api/library/me/profile", json={"username": "no"})
     assert response.status_code == 422
 
 
@@ -251,7 +253,7 @@ def test_create_profile_over_cap_is_403(fresh_auth_user, monkeypatch: pytest.Mon
     get_settings.cache_clear()
     try:
         user_id, _ = fresh_auth_user
-        response = client_as(user_id).post("/api/py/me/profile", json={"username": "toolate"})
+        response = client_as(user_id).post("/api/library/me/profile", json={"username": "toolate"})
         assert response.status_code == 403
         assert "capacity" in response.json()["detail"].lower()
     finally:
@@ -268,7 +270,9 @@ def test_create_profile_forbidden_in_preview(
     get_settings.cache_clear()
     try:
         user_id, _ = fresh_auth_user
-        response = client_as(user_id).post("/api/py/me/profile", json={"username": "previewuser"})
+        response = client_as(user_id).post(
+            "/api/library/me/profile", json={"username": "previewuser"}
+        )
         assert response.status_code == 503
     finally:
         get_settings.cache_clear()
@@ -283,13 +287,13 @@ def test_username_race_returns_409_not_500(
     # IntegrityError. Simulate the race by forcing the pre-check to miss, so
     # the DB unique index is what rejects the insert.
     first_id, _ = fresh_auth_user
-    created = client_as(first_id).post("/api/py/me/profile", json={"username": "raced"})
+    created = client_as(first_id).post("/api/library/me/profile", json={"username": "raced"})
     assert created.status_code == 201
 
     second_id = _make_auth_user()
     monkeypatch.setattr("app.repositories.me.username_exists", lambda *a, **k: False)
     try:
-        response = client_as(second_id).post("/api/py/me/profile", json={"username": "raced"})
+        response = client_as(second_id).post("/api/library/me/profile", json={"username": "raced"})
         assert response.status_code == 409
     finally:
         _delete_auth_user(second_id)
@@ -300,14 +304,16 @@ def test_username_race_returns_409_not_500(
 
 @requires_db
 def test_patch_game_requires_token() -> None:
-    response = TestClient(create_app()).patch("/api/py/me/games/1", json={"rating": "Good"})
+    response = TestClient(create_app()).patch("/api/library/me/games/1", json={"rating": "Good"})
     assert response.status_code == 401
 
 
 @requires_db
 def test_patch_game_updates_rating(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
-    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"rating": "Perfect"})
+    response = client_as(user_id).patch(
+        f"/api/library/me/games/{game_id}", json={"rating": "Perfect"}
+    )
     assert response.status_code == 200
     body = response.json()
     # Full game payload back, same wire shape as the public reads — including
@@ -323,16 +329,18 @@ def test_patch_game_updates_rating(fresh_user_with_game) -> None:
 def test_patch_game_persists_to_public_read(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     client = client_as(user_id)
-    assert client.patch(f"/api/py/me/games/{game_id}", json={"rating": "Bad"}).status_code == 200
-    username = client.get("/api/py/me/profile").json()["username"]
-    [game] = TestClient(create_app()).get(f"/api/py/users/{username}/games").json()
+    assert (
+        client.patch(f"/api/library/me/games/{game_id}", json={"rating": "Bad"}).status_code == 200
+    )
+    username = client.get("/api/library/me/profile").json()["username"]
+    [game] = TestClient(create_app()).get(f"/api/library/users/{username}/games").json()
     assert game["rating"] == "Bad"
 
 
 @requires_db
 def test_patch_game_empty_string_clears_rating(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
-    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"rating": ""})
+    response = client_as(user_id).patch(f"/api/library/me/games/{game_id}", json={"rating": ""})
     assert response.status_code == 200
     assert response.json()["rating"] == ""  # NULL in the DB, "" on the wire
 
@@ -341,7 +349,7 @@ def test_patch_game_empty_string_clears_rating(fresh_user_with_game) -> None:
 def test_patch_game_null_clears_rating(fresh_user_with_game) -> None:
     # JSON null is the other documented clear spelling (the FE sends "").
     user_id, game_id = fresh_user_with_game
-    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"rating": None})
+    response = client_as(user_id).patch(f"/api/library/me/games/{game_id}", json={"rating": None})
     assert response.status_code == 200
     assert response.json()["rating"] == ""
 
@@ -352,7 +360,9 @@ def test_patch_game_unknown_field_is_422(fresh_user_with_game) -> None:
     # under PATCH semantics a silently-dropped field is indistinguishable
     # from a deliberate "leave unchanged".
     user_id, game_id = fresh_user_with_game
-    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"ratings": "Perfect"})
+    response = client_as(user_id).patch(
+        f"/api/library/me/games/{game_id}", json={"ratings": "Perfect"}
+    )
     assert response.status_code == 422
 
 
@@ -361,7 +371,7 @@ def test_patch_game_omitted_rating_changes_nothing(fresh_user_with_game) -> None
     # PATCH semantics: {} is a valid no-op — absent fields are left untouched,
     # not reset. The fixture's rating survives.
     user_id, game_id = fresh_user_with_game
-    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={})
+    response = client_as(user_id).patch(f"/api/library/me/games/{game_id}", json={})
     assert response.status_code == 200
     assert response.json()["rating"] == "Good"
 
@@ -369,7 +379,9 @@ def test_patch_game_omitted_rating_changes_nothing(fresh_user_with_game) -> None
 @requires_db
 def test_patch_game_unknown_rating_is_422(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
-    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"rating": "Legendary"})
+    response = client_as(user_id).patch(
+        f"/api/library/me/games/{game_id}", json={"rating": "Legendary"}
+    )
     assert response.status_code == 422
 
 
@@ -378,7 +390,9 @@ def test_patch_game_updates_system(fresh_user_with_game) -> None:
     # The escape hatch for the duplicate-add 409: one entry per game per user
     # means a second console has to be an edit, not a second add.
     user_id, game_id = fresh_user_with_game
-    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"system": "Switch"})
+    response = client_as(user_id).patch(
+        f"/api/library/me/games/{game_id}", json={"system": "Switch"}
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["system"] == "Switch"
@@ -392,16 +406,20 @@ def test_patch_game_updates_system(fresh_user_with_game) -> None:
 def test_patch_game_system_persists_to_public_read(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     client = client_as(user_id)
-    assert client.patch(f"/api/py/me/games/{game_id}", json={"system": "PS5"}).status_code == 200
-    username = client.get("/api/py/me/profile").json()["username"]
-    [game] = TestClient(create_app()).get(f"/api/py/users/{username}/games").json()
+    assert (
+        client.patch(f"/api/library/me/games/{game_id}", json={"system": "PS5"}).status_code == 200
+    )
+    username = client.get("/api/library/me/profile").json()["username"]
+    [game] = TestClient(create_app()).get(f"/api/library/users/{username}/games").json()
     assert game["system"] == "PS5"
 
 
 @requires_db
 def test_patch_game_system_is_trimmed(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
-    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"system": "  PS5  "})
+    response = client_as(user_id).patch(
+        f"/api/library/me/games/{game_id}", json={"system": "  PS5  "}
+    )
     assert response.status_code == 200
     assert response.json()["system"] == "PS5"
 
@@ -413,15 +431,17 @@ def test_patch_game_blank_system_is_422(fresh_user_with_game, system) -> None:
     # so neither a blank string nor null may be read as "unset it". Omitting
     # the key is the only way to leave it alone.
     user_id, game_id = fresh_user_with_game
-    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"system": system})
+    response = client_as(user_id).patch(f"/api/library/me/games/{game_id}", json={"system": system})
     assert response.status_code == 422
-    assert client_as(user_id).get("/api/py/me/profile").status_code == 200
+    assert client_as(user_id).get("/api/library/me/profile").status_code == 200
 
 
 @requires_db
 def test_patch_game_over_long_system_is_422(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
-    response = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={"system": "x" * 101})
+    response = client_as(user_id).patch(
+        f"/api/library/me/games/{game_id}", json={"system": "x" * 101}
+    )
     assert response.status_code == 422
 
 
@@ -429,7 +449,7 @@ def test_patch_game_over_long_system_is_422(fresh_user_with_game) -> None:
 def test_patch_game_rating_and_system_together(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     response = client_as(user_id).patch(
-        f"/api/py/me/games/{game_id}", json={"rating": "Perfect", "system": "PC"}
+        f"/api/library/me/games/{game_id}", json={"rating": "Perfect", "system": "PC"}
     )
     assert response.status_code == 200
     body = response.json()
@@ -443,27 +463,27 @@ def test_patch_someone_elses_game_is_404(fresh_user_with_game) -> None:
     # untouched afterward.
     user_id, game_id = fresh_user_with_game
     response = client_as(ROBERT_PROFILE_ID).patch(
-        f"/api/py/me/games/{game_id}", json={"rating": "Perfect"}
+        f"/api/library/me/games/{game_id}", json={"rating": "Perfect"}
     )
     assert response.status_code == 404
-    check = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={})
+    check = client_as(user_id).patch(f"/api/library/me/games/{game_id}", json={})
     assert check.json()["rating"] == "Good"
 
 
 @requires_db
 def test_patch_nonexistent_game_is_404(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
-    response = client_as(user_id).patch("/api/py/me/games/999999999", json={"rating": "Good"})
+    response = client_as(user_id).patch("/api/library/me/games/999999999", json={"rating": "Good"})
     assert response.status_code == 404
 
 
 def test_create_session_requires_token() -> None:
-    response = TestClient(create_app()).post("/api/py/me/games/1/sessions", json={})
+    response = TestClient(create_app()).post("/api/library/me/games/1/sessions", json={})
     assert response.status_code == 401
 
 
 def test_close_session_requires_token() -> None:
-    response = TestClient(create_app()).patch("/api/py/me/sessions/1", json={})
+    response = TestClient(create_app()).patch("/api/library/me/sessions/1", json={})
     assert response.status_code == 401
 
 
@@ -471,7 +491,7 @@ def test_close_session_requires_token() -> None:
 def test_start_playing_opens_session(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     response = client_as(user_id).post(
-        f"/api/py/me/games/{game_id}/sessions", json={"startDate": "2026-07-20"}
+        f"/api/library/me/games/{game_id}/sessions", json={"startDate": "2026-07-20"}
     )
     assert response.status_code == 201
     body = response.json()
@@ -485,7 +505,7 @@ def test_start_playing_opens_session(fresh_user_with_game) -> None:
 @requires_db
 def test_start_playing_defaults_to_today(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
-    response = client_as(user_id).post(f"/api/py/me/games/{game_id}/sessions", json={})
+    response = client_as(user_id).post(f"/api/library/me/games/{game_id}/sessions", json={})
     assert response.status_code == 201
     assert response.json()["playingSince"] == date.today().isoformat()
 
@@ -494,9 +514,9 @@ def test_start_playing_defaults_to_today(fresh_user_with_game) -> None:
 def test_start_playing_shows_on_public_read(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     client = client_as(user_id)
-    assert client.post(f"/api/py/me/games/{game_id}/sessions", json={}).status_code == 201
-    username = client.get("/api/py/me/profile").json()["username"]
-    [game] = TestClient(create_app()).get(f"/api/py/users/{username}/games").json()
+    assert client.post(f"/api/library/me/games/{game_id}/sessions", json={}).status_code == 201
+    username = client.get("/api/library/me/profile").json()["username"]
+    [game] = TestClient(create_app()).get(f"/api/library/users/{username}/games").json()
     assert game["currentlyPlaying"] is True
     assert isinstance(game["openSessionId"], int)
 
@@ -505,8 +525,8 @@ def test_start_playing_shows_on_public_read(fresh_user_with_game) -> None:
 def test_second_open_session_is_409(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     client = client_as(user_id)
-    assert client.post(f"/api/py/me/games/{game_id}/sessions", json={}).status_code == 201
-    response = client.post(f"/api/py/me/games/{game_id}/sessions", json={})
+    assert client.post(f"/api/library/me/games/{game_id}/sessions", json={}).status_code == 201
+    response = client.post(f"/api/library/me/games/{game_id}/sessions", json={})
     assert response.status_code == 409
     assert "already being played" in response.json()["detail"]
 
@@ -515,7 +535,7 @@ def test_second_open_session_is_409(fresh_user_with_game) -> None:
 def test_log_past_session_updates_last_played(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     response = client_as(user_id).post(
-        f"/api/py/me/games/{game_id}/sessions",
+        f"/api/library/me/games/{game_id}/sessions",
         json={"startDate": "2026-06-01", "endDate": "2026-06-10"},
     )
     assert response.status_code == 201
@@ -531,9 +551,9 @@ def test_log_past_session_allowed_while_playing(fresh_user_with_game) -> None:
     # only opening a second one does.
     user_id, game_id = fresh_user_with_game
     client = client_as(user_id)
-    assert client.post(f"/api/py/me/games/{game_id}/sessions", json={}).status_code == 201
+    assert client.post(f"/api/library/me/games/{game_id}/sessions", json={}).status_code == 201
     response = client.post(
-        f"/api/py/me/games/{game_id}/sessions",
+        f"/api/library/me/games/{game_id}/sessions",
         json={"startDate": "2026-02-01", "endDate": "2026-02-10"},
     )
     assert response.status_code == 201
@@ -544,7 +564,7 @@ def test_log_past_session_allowed_while_playing(fresh_user_with_game) -> None:
 def test_create_session_end_before_start_is_422(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     response = client_as(user_id).post(
-        f"/api/py/me/games/{game_id}/sessions",
+        f"/api/library/me/games/{game_id}/sessions",
         json={"startDate": "2026-06-10", "endDate": "2026-06-01"},
     )
     assert response.status_code == 422
@@ -554,7 +574,7 @@ def test_create_session_end_before_start_is_422(fresh_user_with_game) -> None:
 def test_create_session_unknown_field_is_422(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     response = client_as(user_id).post(
-        f"/api/py/me/games/{game_id}/sessions", json={"start": "2026-06-01"}
+        f"/api/library/me/games/{game_id}/sessions", json={"start": "2026-06-01"}
     )
     assert response.status_code == 422
 
@@ -562,7 +582,9 @@ def test_create_session_unknown_field_is_422(fresh_user_with_game) -> None:
 @requires_db
 def test_create_session_foreign_game_is_404(fresh_user_with_game) -> None:
     _, game_id = fresh_user_with_game
-    response = client_as(ROBERT_PROFILE_ID).post(f"/api/py/me/games/{game_id}/sessions", json={})
+    response = client_as(ROBERT_PROFILE_ID).post(
+        f"/api/library/me/games/{game_id}/sessions", json={}
+    )
     assert response.status_code == 404
 
 
@@ -574,7 +596,7 @@ def test_create_session_forbidden_in_preview(
     get_settings.cache_clear()
     try:
         user_id, game_id = fresh_user_with_game
-        response = client_as(user_id).post(f"/api/py/me/games/{game_id}/sessions", json={})
+        response = client_as(user_id).post(f"/api/library/me/games/{game_id}/sessions", json={})
         assert response.status_code == 503
     finally:
         get_settings.cache_clear()
@@ -583,7 +605,7 @@ def test_create_session_forbidden_in_preview(
 def _start_playing(user_id: uuid.UUID, game_id: int, start: str = "2026-07-01") -> int:
     """Open a session via the API and return its id."""
     response = client_as(user_id).post(
-        f"/api/py/me/games/{game_id}/sessions", json={"startDate": start}
+        f"/api/library/me/games/{game_id}/sessions", json={"startDate": start}
     )
     assert response.status_code == 201
     return response.json()["openSessionId"]
@@ -594,7 +616,7 @@ def test_stop_playing_closes_session(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     session_id = _start_playing(user_id, game_id)
     response = client_as(user_id).patch(
-        f"/api/py/me/sessions/{session_id}", json={"endDate": "2026-07-15"}
+        f"/api/library/me/sessions/{session_id}", json={"endDate": "2026-07-15"}
     )
     assert response.status_code == 200
     body = response.json()
@@ -608,7 +630,7 @@ def test_stop_playing_closes_session(fresh_user_with_game) -> None:
 def test_stop_playing_defaults_to_today(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     session_id = _start_playing(user_id, game_id)
-    response = client_as(user_id).patch(f"/api/py/me/sessions/{session_id}", json={})
+    response = client_as(user_id).patch(f"/api/library/me/sessions/{session_id}", json={})
     assert response.status_code == 200
     assert response.json()["lastPlayed"] == date.today().isoformat()
 
@@ -618,7 +640,7 @@ def test_rate_on_stop_applies_both(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     session_id = _start_playing(user_id, game_id)
     response = client_as(user_id).patch(
-        f"/api/py/me/sessions/{session_id}",
+        f"/api/library/me/sessions/{session_id}",
         json={"endDate": "2026-07-15", "rating": "Perfect"},
     )
     assert response.status_code == 200
@@ -632,7 +654,9 @@ def test_rate_on_stop_applies_both(fresh_user_with_game) -> None:
 def test_rate_on_stop_can_clear_rating(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     session_id = _start_playing(user_id, game_id)
-    response = client_as(user_id).patch(f"/api/py/me/sessions/{session_id}", json={"rating": ""})
+    response = client_as(user_id).patch(
+        f"/api/library/me/sessions/{session_id}", json={"rating": ""}
+    )
     assert response.status_code == 200
     assert response.json()["rating"] == ""  # fixture's "Good" cleared
 
@@ -642,7 +666,9 @@ def test_rate_on_stop_null_clears_rating(fresh_user_with_game) -> None:
     # null is the other documented clear spelling, same as PATCH /me/games.
     user_id, game_id = fresh_user_with_game
     session_id = _start_playing(user_id, game_id)
-    response = client_as(user_id).patch(f"/api/py/me/sessions/{session_id}", json={"rating": None})
+    response = client_as(user_id).patch(
+        f"/api/library/me/sessions/{session_id}", json={"rating": None}
+    )
     assert response.status_code == 200
     assert response.json()["rating"] == ""
 
@@ -658,8 +684,8 @@ def test_open_sessions_on_different_games_coexist(fresh_user_with_game) -> None:
         session.commit()
         other_id = other.id
     client = client_as(user_id)
-    assert client.post(f"/api/py/me/games/{game_id}/sessions", json={}).status_code == 201
-    response = client.post(f"/api/py/me/games/{other_id}/sessions", json={})
+    assert client.post(f"/api/library/me/games/{game_id}/sessions", json={}).status_code == 201
+    response = client.post(f"/api/library/me/games/{other_id}/sessions", json={})
     assert response.status_code == 201
     assert response.json()["currentlyPlaying"] is True
 
@@ -687,12 +713,12 @@ def test_same_day_session_boundaries_are_valid(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     client = client_as(user_id)
     logged = client.post(
-        f"/api/py/me/games/{game_id}/sessions",
+        f"/api/library/me/games/{game_id}/sessions",
         json={"startDate": "2026-05-05", "endDate": "2026-05-05"},
     )
     assert logged.status_code == 201
     session_id = _start_playing(user_id, game_id, start="2026-07-10")
-    closed = client.patch(f"/api/py/me/sessions/{session_id}", json={"endDate": "2026-07-10"})
+    closed = client.patch(f"/api/library/me/sessions/{session_id}", json={"endDate": "2026-07-10"})
     assert closed.status_code == 200
     assert closed.json()["lastPlayed"] == "2026-07-10"
 
@@ -702,10 +728,10 @@ def test_stop_with_unknown_rating_is_422_and_stays_open(fresh_user_with_game) ->
     user_id, game_id = fresh_user_with_game
     session_id = _start_playing(user_id, game_id)
     response = client_as(user_id).patch(
-        f"/api/py/me/sessions/{session_id}", json={"rating": "Legendary"}
+        f"/api/library/me/sessions/{session_id}", json={"rating": "Legendary"}
     )
     assert response.status_code == 422
-    check = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={})
+    check = client_as(user_id).patch(f"/api/library/me/games/{game_id}", json={})
     assert check.json()["currentlyPlaying"] is True
 
 
@@ -714,8 +740,8 @@ def test_close_already_closed_session_is_409(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     session_id = _start_playing(user_id, game_id)
     client = client_as(user_id)
-    assert client.patch(f"/api/py/me/sessions/{session_id}", json={}).status_code == 200
-    response = client.patch(f"/api/py/me/sessions/{session_id}", json={})
+    assert client.patch(f"/api/library/me/sessions/{session_id}", json={}).status_code == 200
+    response = client.patch(f"/api/library/me/sessions/{session_id}", json={})
     assert response.status_code == 409
 
 
@@ -724,10 +750,10 @@ def test_close_end_before_session_start_is_422(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     session_id = _start_playing(user_id, game_id, start="2026-07-10")
     response = client_as(user_id).patch(
-        f"/api/py/me/sessions/{session_id}", json={"endDate": "2026-07-01"}
+        f"/api/library/me/sessions/{session_id}", json={"endDate": "2026-07-01"}
     )
     assert response.status_code == 422
-    check = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={})
+    check = client_as(user_id).patch(f"/api/library/me/games/{game_id}", json={})
     assert check.json()["currentlyPlaying"] is True
 
 
@@ -735,16 +761,16 @@ def test_close_end_before_session_start_is_422(fresh_user_with_game) -> None:
 def test_close_foreign_session_is_404(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     session_id = _start_playing(user_id, game_id)
-    response = client_as(ROBERT_PROFILE_ID).patch(f"/api/py/me/sessions/{session_id}", json={})
+    response = client_as(ROBERT_PROFILE_ID).patch(f"/api/library/me/sessions/{session_id}", json={})
     assert response.status_code == 404
-    check = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={})
+    check = client_as(user_id).patch(f"/api/library/me/games/{game_id}", json={})
     assert check.json()["currentlyPlaying"] is True
 
 
 @requires_db
 def test_close_nonexistent_session_is_404(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
-    response = client_as(user_id).patch("/api/py/me/sessions/999999999", json={})
+    response = client_as(user_id).patch("/api/library/me/sessions/999999999", json={})
     assert response.status_code == 404
 
 
@@ -757,7 +783,7 @@ def test_close_session_forbidden_in_preview(
     monkeypatch.setenv("APP_ENV", "preview")
     get_settings.cache_clear()
     try:
-        response = client_as(user_id).patch(f"/api/py/me/sessions/{session_id}", json={})
+        response = client_as(user_id).patch(f"/api/library/me/sessions/{session_id}", json={})
         assert response.status_code == 503
     finally:
         get_settings.cache_clear()
@@ -772,7 +798,7 @@ def test_patch_game_forbidden_in_preview(
     try:
         user_id, game_id = fresh_user_with_game
         response = client_as(user_id).patch(
-            f"/api/py/me/games/{game_id}", json={"rating": "Perfect"}
+            f"/api/library/me/games/{game_id}", json={"rating": "Perfect"}
         )
         assert response.status_code == 503
     finally:
@@ -829,7 +855,7 @@ def test_delete_account_removes_everything_owned(
     # the row that has no FK and would survive the cascade.
     assert _count("SELECT count(*) FROM rate_limits WHERE user_id = :id", user_id) > 0
 
-    assert client.delete("/api/py/me/account").status_code == 204
+    assert client.delete("/api/library/me/account").status_code == 204
 
     assert _count("SELECT count(*) FROM auth.users WHERE id = :id", user_id) == 0
     assert _count("SELECT count(*) FROM profiles WHERE id = :id", user_id) == 0
@@ -856,7 +882,7 @@ def test_delete_account_without_profile_succeeds(
     # with no profile" is a real account. It must be deletable, not a 403.
     user_id, _ = fresh_auth_user
     _stub_admin_delete(monkeypatch)
-    assert client_as(user_id).delete("/api/py/me/account").status_code == 204
+    assert client_as(user_id).delete("/api/library/me/account").status_code == 204
     assert _count("SELECT count(*) FROM auth.users WHERE id = :id", user_id) == 0
 
 
@@ -869,8 +895,8 @@ def test_delete_account_is_idempotent(
     # That is the outcome the caller wanted, so it is a 204, not an error.
     user_id, _ = fresh_user_with_game
     _stub_admin_delete(monkeypatch)
-    assert client_as(user_id).delete("/api/py/me/account").status_code == 204
-    assert client_as(user_id).delete("/api/py/me/account").status_code == 204
+    assert client_as(user_id).delete("/api/library/me/account").status_code == 204
+    assert client_as(user_id).delete("/api/library/me/account").status_code == 204
 
 
 @requires_db
@@ -887,7 +913,7 @@ def test_delete_account_unconfigured_admin_is_503(
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "")
     get_settings.cache_clear()
     try:
-        response = client_as(user_id).delete("/api/py/me/account")
+        response = client_as(user_id).delete("/api/library/me/account")
         assert response.status_code == 503
         assert "nothing was deleted" in response.json()["detail"]
         assert _count("SELECT count(*) FROM profiles WHERE id = :id", user_id) == 1
@@ -910,7 +936,7 @@ def test_delete_account_bogus_404_does_not_report_success(
     user_id, _ = fresh_user_with_game
     _stub_admin_404(monkeypatch)
 
-    response = client_as(user_id).delete("/api/py/me/account")
+    response = client_as(user_id).delete("/api/library/me/account")
 
     assert response.status_code == 503
     assert _count("SELECT count(*) FROM profiles WHERE id = :id", user_id) == 1
@@ -927,7 +953,7 @@ def test_delete_account_genuine_404_still_succeeds(
     user_id, _ = fresh_auth_user
     _delete_auth_user(user_id)  # really remove it, so no profile row survives
     _stub_admin_404(monkeypatch)
-    assert client_as(user_id).delete("/api/py/me/account").status_code == 204
+    assert client_as(user_id).delete("/api/library/me/account").status_code == 204
 
 
 @requires_db
@@ -937,7 +963,7 @@ def test_delete_account_refuses_for_the_founder(monkeypatch: pytest.MonkeyPatch)
     # production build would fail prerendering its OG image.
     _stub_admin_delete(monkeypatch)
 
-    response = client_as(ROBERT_PROFILE_ID).delete("/api/py/me/account")
+    response = client_as(ROBERT_PROFILE_ID).delete("/api/library/me/account")
 
     assert response.status_code == 403
     assert "cannot be deleted" in response.json()["detail"]
@@ -960,7 +986,7 @@ def test_delete_account_survives_a_rate_limit_cleanup_failure(
 
     monkeypatch.setattr("app.services.me.rate_limit_repo.delete_for_user", boom)
 
-    assert client_as(user_id).delete("/api/py/me/account").status_code == 204
+    assert client_as(user_id).delete("/api/library/me/account").status_code == 204
     assert _count("SELECT count(*) FROM profiles WHERE id = :id", user_id) == 0
 
 
@@ -973,7 +999,7 @@ def test_delete_account_forbidden_in_preview(
     monkeypatch.setenv("APP_ENV", "preview")
     get_settings.cache_clear()
     try:
-        assert client_as(user_id).delete("/api/py/me/account").status_code == 503
+        assert client_as(user_id).delete("/api/library/me/account").status_code == 503
         assert _count("SELECT count(*) FROM profiles WHERE id = :id", user_id) == 1
     finally:
         get_settings.cache_clear()
@@ -989,7 +1015,7 @@ def test_add_game_minimal_manual_entry(fresh_user_with_game) -> None:
     # Only name + system — the manual-add path for games IGDB doesn't know.
     user_id, _ = fresh_user_with_game
     response = client_as(user_id).post(
-        "/api/py/me/games", json={"name": "Homebrew Quest", "system": "NES"}
+        "/api/library/me/games", json={"name": "Homebrew Quest", "system": "NES"}
     )
     assert response.status_code == 201
     game = response.json()
@@ -1008,7 +1034,7 @@ def test_add_game_minimal_manual_entry(fresh_user_with_game) -> None:
 def test_add_game_full_igdb_payload(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     response = client_as(user_id).post(
-        "/api/py/me/games",
+        "/api/library/me/games",
         json={
             "name": "Chrono Trigger",
             "system": "SNES",
@@ -1038,7 +1064,7 @@ def test_add_game_stores_wikipedias_genres_over_the_clients(
     user_id, _ = fresh_user_with_game
     monkeypatch.setattr(genre_service, "lookup_one", lambda name: ["Roguelike", "Action RPG"])
     response = client_as(user_id).post(
-        "/api/py/me/games",
+        "/api/library/me/games",
         json={
             "name": "Hades II",
             "system": "PC",
@@ -1055,10 +1081,10 @@ def test_add_game_shows_on_public_read(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     username = f"gamer-{str(user_id)[:8]}"
     created = client_as(user_id).post(
-        "/api/py/me/games", json={"name": "Public Test", "system": "PS5"}
+        "/api/library/me/games", json={"name": "Public Test", "system": "PS5"}
     )
     assert created.status_code == 201
-    games = client_as(user_id).get(f"/api/py/users/{username}/games").json()
+    games = client_as(user_id).get(f"/api/library/users/{username}/games").json()
     names = {g["name"] for g in games}
     assert "Public Test" in names
     # The fixture's original game carries its one closed session in the count.
@@ -1071,7 +1097,7 @@ def test_add_duplicate_game_is_409(fresh_user_with_game) -> None:
     # The fixture user already owns Test Quest on SNES.
     user_id, _ = fresh_user_with_game
     response = client_as(user_id).post(
-        "/api/py/me/games", json={"name": "Test Quest", "system": "SNES"}
+        "/api/library/me/games", json={"name": "Test Quest", "system": "SNES"}
     )
     assert response.status_code == 409
     assert "already in your library" in response.json()["detail"]
@@ -1085,7 +1111,7 @@ def test_add_same_name_other_system_is_a_conflict(fresh_user_with_game) -> None:
     # its identity — so this is the same 409 as re-adding it on SNES.
     user_id, _ = fresh_user_with_game
     response = client_as(user_id).post(
-        "/api/py/me/games", json={"name": "Test Quest", "system": "Switch"}
+        "/api/library/me/games", json={"name": "Test Quest", "system": "Switch"}
     )
     assert response.status_code == 409
     assert "already in your library" in response.json()["detail"]
@@ -1098,23 +1124,23 @@ def test_two_users_adding_the_same_igdb_game_share_one_catalog_row(fresh_auth_us
     first_id, _ = fresh_auth_user
     assert (
         client_as(first_id)
-        .post("/api/py/me/profile", json={"username": f"cat-{str(first_id)[:8]}"})
+        .post("/api/library/me/profile", json={"username": f"cat-{str(first_id)[:8]}"})
         .status_code
         == 201
     )
     payload = {"name": "Shared Quest", "igdbId": TEST_IGDB_BASE + 2}
     first = client_as(first_id).post(
-        "/api/py/me/games", json={**payload, "system": "SNES", "rating": "Good"}
+        "/api/library/me/games", json={**payload, "system": "SNES", "rating": "Good"}
     )
     assert first.status_code == 201
 
     second_id = _make_auth_user()
     try:
         client_as(second_id).post(
-            "/api/py/me/profile", json={"username": f"cat-{str(second_id)[:8]}"}
+            "/api/library/me/profile", json={"username": f"cat-{str(second_id)[:8]}"}
         )
         second = client_as(second_id).post(
-            "/api/py/me/games", json={**payload, "system": "Switch", "rating": "Bad"}
+            "/api/library/me/games", json={**payload, "system": "Switch", "rating": "Bad"}
         )
         assert second.status_code == 201
         # Same game, different entries.
@@ -1147,11 +1173,11 @@ def test_same_title_via_search_then_by_hand_is_a_conflict(fresh_user_with_game) 
     user_id, _ = fresh_user_with_game
     client = client_as(user_id)
     first = client.post(
-        "/api/py/me/games",
+        "/api/library/me/games",
         json={"name": "Hollow Knight", "system": "Switch", "igdbId": TEST_IGDB_BASE + 6},
     )
     assert first.status_code == 201
-    again = client.post("/api/py/me/games", json={"name": "Hollow Knight", "system": "Switch"})
+    again = client.post("/api/library/me/games", json={"name": "Hollow Knight", "system": "Switch"})
     assert again.status_code == 409
     assert "already in your library" in again.json()["detail"]
 
@@ -1167,10 +1193,10 @@ def test_by_hand_then_the_same_title_via_search_is_a_conflict(fresh_user_with_ga
     entry in scope. Verified by making that mutation."""
     user_id, _ = fresh_user_with_game
     client = client_as(user_id)
-    first = client.post("/api/py/me/games", json={"name": "Celeste", "system": "PC"})
+    first = client.post("/api/library/me/games", json={"name": "Celeste", "system": "PC"})
     assert first.status_code == 201
     again = client.post(
-        "/api/py/me/games",
+        "/api/library/me/games",
         json={"name": "Celeste", "system": "Switch", "igdbId": TEST_IGDB_BASE + 10},
     )
     assert again.status_code == 409
@@ -1189,19 +1215,19 @@ def test_two_igdb_games_sharing_a_title_are_both_addable(fresh_user_with_game) -
     user_id, _ = fresh_user_with_game
     client = client_as(user_id)
     original = client.post(
-        "/api/py/me/games",
+        "/api/library/me/games",
         json={"name": "Star Fox", "system": "SNES", "igdbId": TEST_IGDB_BASE + 20},
     )
     assert original.status_code == 201
     remaster = client.post(
-        "/api/py/me/games",
+        "/api/library/me/games",
         json={"name": "Star Fox", "system": "Nintendo Switch", "igdbId": TEST_IGDB_BASE + 21},
     )
     assert remaster.status_code == 201
     assert remaster.json()["id"] != original.json()["id"]
     # ...but the SAME igdb_id still is a duplicate, whatever console it names.
     dupe = client.post(
-        "/api/py/me/games",
+        "/api/library/me/games",
         json={"name": "Star Fox", "system": "Wii", "igdbId": TEST_IGDB_BASE + 20},
     )
     assert dupe.status_code == 409
@@ -1224,16 +1250,18 @@ def test_losing_the_race_to_create_a_shared_row_still_succeeds(
     from app.repositories import me as me_repo
 
     owner_id, _ = fresh_auth_user
-    client_as(owner_id).post("/api/py/me/profile", json={"username": f"race-{str(owner_id)[:8]}"})
+    client_as(owner_id).post(
+        "/api/library/me/profile", json={"username": f"race-{str(owner_id)[:8]}"}
+    )
     payload = {"name": "Race Quest", "igdbId": TEST_IGDB_BASE + 7}
     assert (
-        client_as(owner_id).post("/api/py/me/games", json={**payload, "system": "PC"})
+        client_as(owner_id).post("/api/library/me/games", json={**payload, "system": "PC"})
     ).status_code == 201
 
     loser_id = _make_auth_user()
     try:
         client_as(loser_id).post(
-            "/api/py/me/profile", json={"username": f"race-{str(loser_id)[:8]}"}
+            "/api/library/me/profile", json={"username": f"race-{str(loser_id)[:8]}"}
         )
         real = me_repo._select_metadata
         calls = {"n": 0}
@@ -1244,7 +1272,7 @@ def test_losing_the_race_to_create_a_shared_row_still_succeeds(
 
         monkeypatch.setattr(me_repo, "_select_metadata", missing_first_time)
         response = client_as(loser_id).post(
-            "/api/py/me/games", json={**payload, "system": "Switch"}
+            "/api/library/me/games", json={**payload, "system": "Switch"}
         )
         # Revert this one stub, not monkeypatch.undo(): the same function-scoped
         # instance also carries the autouse network guard and the genre stub, and
@@ -1272,19 +1300,21 @@ def test_two_users_hand_entering_the_same_name_get_private_rows(fresh_auth_user)
     # way to say two people mean the same game, so neither one's metadata can
     # overwrite the other's.
     first_id, _ = fresh_auth_user
-    client_as(first_id).post("/api/py/me/profile", json={"username": f"priv-{str(first_id)[:8]}"})
+    client_as(first_id).post(
+        "/api/library/me/profile", json={"username": f"priv-{str(first_id)[:8]}"}
+    )
     name = f"Handmade {str(first_id)[:8]}"
     assert (
-        client_as(first_id).post("/api/py/me/games", json={"name": name, "system": "PC"})
+        client_as(first_id).post("/api/library/me/games", json={"name": name, "system": "PC"})
     ).status_code == 201
 
     second_id = _make_auth_user()
     try:
         client_as(second_id).post(
-            "/api/py/me/profile", json={"username": f"priv-{str(second_id)[:8]}"}
+            "/api/library/me/profile", json={"username": f"priv-{str(second_id)[:8]}"}
         )
         assert (
-            client_as(second_id).post("/api/py/me/games", json={"name": name, "system": "PC"})
+            client_as(second_id).post("/api/library/me/games", json={"name": name, "system": "PC"})
         ).status_code == 201
 
         sm = get_sessionmaker()
@@ -1305,9 +1335,14 @@ def test_two_users_hand_entering_the_same_name_get_private_rows(fresh_auth_user)
 def test_add_game_blank_fields_are_422(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     client = client_as(user_id)
-    assert client.post("/api/py/me/games", json={"name": "  ", "system": "NES"}).status_code == 422
-    assert client.post("/api/py/me/games", json={"name": "Game", "system": ""}).status_code == 422
-    assert client.post("/api/py/me/games", json={"system": "NES"}).status_code == 422
+    assert (
+        client.post("/api/library/me/games", json={"name": "  ", "system": "NES"}).status_code
+        == 422
+    )
+    assert (
+        client.post("/api/library/me/games", json={"name": "Game", "system": ""}).status_code == 422
+    )
+    assert client.post("/api/library/me/games", json={"system": "NES"}).status_code == 422
 
 
 @requires_db
@@ -1316,7 +1351,7 @@ def test_add_game_rejects_non_igdb_image_url(fresh_user_with_game) -> None:
     # library free image hosting for arbitrary content.
     user_id, _ = fresh_user_with_game
     response = client_as(user_id).post(
-        "/api/py/me/games",
+        "/api/library/me/games",
         json={"name": "Sneaky", "system": "PC", "imageUrl": "https://evil.example.com/x.jpg"},
     )
     assert response.status_code == 422
@@ -1326,7 +1361,7 @@ def test_add_game_rejects_non_igdb_image_url(fresh_user_with_game) -> None:
 def test_add_game_unknown_rating_is_422(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     response = client_as(user_id).post(
-        "/api/py/me/games", json={"name": "Rated", "system": "PC", "rating": "Amazing"}
+        "/api/library/me/games", json={"name": "Rated", "system": "PC", "rating": "Amazing"}
     )
     assert response.status_code == 422
 
@@ -1335,7 +1370,7 @@ def test_add_game_unknown_rating_is_422(fresh_user_with_game) -> None:
 def test_add_game_unknown_field_is_422(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     response = client_as(user_id).post(
-        "/api/py/me/games", json={"name": "Typo", "system": "PC", "systm": "oops"}
+        "/api/library/me/games", json={"name": "Typo", "system": "PC", "systm": "oops"}
     )
     assert response.status_code == 422
 
@@ -1345,7 +1380,7 @@ def test_add_game_before_onboarding_is_403(fresh_auth_user) -> None:
     # Authenticated but no profile row yet: a clear 403, not an FK 500.
     user_id, _ = fresh_auth_user
     response = client_as(user_id).post(
-        "/api/py/me/games", json={"name": "Too Soon", "system": "PC"}
+        "/api/library/me/games", json={"name": "Too Soon", "system": "PC"}
     )
     assert response.status_code == 403
 
@@ -1359,7 +1394,7 @@ def test_add_game_forbidden_in_preview(
     try:
         user_id, _ = fresh_user_with_game
         response = client_as(user_id).post(
-            "/api/py/me/games", json={"name": "Preview", "system": "PC"}
+            "/api/library/me/games", json={"name": "Preview", "system": "PC"}
         )
         assert response.status_code == 503
     finally:
@@ -1375,10 +1410,10 @@ def test_add_game_forbidden_in_preview(
 def test_delete_game_cascades_sessions(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     username = f"gamer-{str(user_id)[:8]}"
-    response = client_as(user_id).delete(f"/api/py/me/games/{game_id}")
+    response = client_as(user_id).delete(f"/api/library/me/games/{game_id}")
     assert response.status_code == 204
 
-    games = client_as(user_id).get(f"/api/py/users/{username}/games").json()
+    games = client_as(user_id).get(f"/api/library/users/{username}/games").json()
     assert games == []
     sm = get_sessionmaker()
     with sm() as session:
@@ -1389,17 +1424,17 @@ def test_delete_game_cascades_sessions(fresh_user_with_game) -> None:
 @requires_db
 def test_delete_foreign_game_is_404(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
-    response = client_as(ROBERT_PROFILE_ID).delete(f"/api/py/me/games/{game_id}")
+    response = client_as(ROBERT_PROFILE_ID).delete(f"/api/library/me/games/{game_id}")
     assert response.status_code == 404
     # Still there for its real owner.
-    check = client_as(user_id).patch(f"/api/py/me/games/{game_id}", json={})
+    check = client_as(user_id).patch(f"/api/library/me/games/{game_id}", json={})
     assert check.status_code == 200
 
 
 @requires_db
 def test_delete_nonexistent_game_is_404(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
-    assert client_as(user_id).delete("/api/py/me/games/999999999").status_code == 404
+    assert client_as(user_id).delete("/api/library/me/games/999999999").status_code == 404
 
 
 @requires_db
@@ -1410,7 +1445,7 @@ def test_delete_game_forbidden_in_preview(
     get_settings.cache_clear()
     try:
         user_id, game_id = fresh_user_with_game
-        response = client_as(user_id).delete(f"/api/py/me/games/{game_id}")
+        response = client_as(user_id).delete(f"/api/library/me/games/{game_id}")
         assert response.status_code == 503
     finally:
         get_settings.cache_clear()
@@ -1422,7 +1457,7 @@ def test_delete_game_forbidden_in_preview(
 
 
 def _add_wishlist(user_id: uuid.UUID, body: dict) -> dict:
-    response = client_as(user_id).post("/api/py/me/wishlist", json=body)
+    response = client_as(user_id).post("/api/library/me/wishlist", json=body)
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -1469,7 +1504,7 @@ def test_add_wishlist_duplicate_name_is_409(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     _add_wishlist(user_id, {"name": "Wish Once", "system": "PS5"})
     response = client_as(user_id).post(
-        "/api/py/me/wishlist", json={"name": "Wish Once", "system": "Switch"}
+        "/api/library/me/wishlist", json={"name": "Wish Once", "system": "Switch"}
     )
     assert response.status_code == 409
 
@@ -1480,7 +1515,7 @@ def test_add_wishlist_before_onboarding_is_403(fresh_auth_user) -> None:
     # letting the wishlist_items → profiles FK surface as a 500 (or get
     # misread as a duplicate by the IntegrityError backstop).
     user_id, _ = fresh_auth_user
-    response = client_as(user_id).post("/api/py/me/wishlist", json={"name": "Too Soon"})
+    response = client_as(user_id).post("/api/library/me/wishlist", json={"name": "Too Soon"})
     assert response.status_code == 403
 
 
@@ -1489,7 +1524,7 @@ def test_add_wishlist_shows_on_public_read(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     username = f"gamer-{str(user_id)[:8]}"
     _add_wishlist(user_id, {"name": "Public Wish"})
-    wishlist = client_as(user_id).get(f"/api/py/users/{username}/wishlist").json()
+    wishlist = client_as(user_id).get(f"/api/library/users/{username}/wishlist").json()
     assert [w["name"] for w in wishlist] == ["Public Wish"]
 
 
@@ -1498,7 +1533,7 @@ def test_update_wishlist_star_notes_system(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     item = _add_wishlist(user_id, {"name": "Editable Wish", "system": "PS5"})
     response = client_as(user_id).patch(
-        f"/api/py/me/wishlist/{item['id']}",
+        f"/api/library/me/wishlist/{item['id']}",
         json={"starred": True, "notes": "hyped", "system": ""},
     )
     assert response.status_code == 200
@@ -1513,7 +1548,7 @@ def test_update_wishlist_partial_leaves_rest(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     item = _add_wishlist(user_id, {"name": "Sticky Wish", "starred": True, "notes": "keep me"})
     response = client_as(user_id).patch(
-        f"/api/py/me/wishlist/{item['id']}", json={"starred": False}
+        f"/api/library/me/wishlist/{item['id']}", json={"starred": False}
     )
     updated = response.json()
     assert updated["starred"] is False
@@ -1524,7 +1559,9 @@ def test_update_wishlist_partial_leaves_rest(fresh_user_with_game) -> None:
 def test_update_wishlist_unknown_field_is_422(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     item = _add_wishlist(user_id, {"name": "Typo Wish"})
-    response = client_as(user_id).patch(f"/api/py/me/wishlist/{item['id']}", json={"stared": True})
+    response = client_as(user_id).patch(
+        f"/api/library/me/wishlist/{item['id']}", json={"stared": True}
+    )
     assert response.status_code == 422
 
 
@@ -1533,8 +1570,8 @@ def test_delete_wishlist_item(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     username = f"gamer-{str(user_id)[:8]}"
     item = _add_wishlist(user_id, {"name": "Doomed Wish"})
-    assert client_as(user_id).delete(f"/api/py/me/wishlist/{item['id']}").status_code == 204
-    wishlist = client_as(user_id).get(f"/api/py/users/{username}/wishlist").json()
+    assert client_as(user_id).delete(f"/api/library/me/wishlist/{item['id']}").status_code == 204
+    wishlist = client_as(user_id).get(f"/api/library/users/{username}/wishlist").json()
     assert wishlist == []
 
 
@@ -1543,9 +1580,12 @@ def test_wishlist_foreign_and_nonexistent_are_404(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     item = _add_wishlist(user_id, {"name": "Foreign Wish"})
     assert (
-        client_as(ROBERT_PROFILE_ID).delete(f"/api/py/me/wishlist/{item['id']}").status_code == 404
+        client_as(ROBERT_PROFILE_ID).delete(f"/api/library/me/wishlist/{item['id']}").status_code
+        == 404
     )
-    assert client_as(user_id).patch("/api/py/me/wishlist/999999999", json={}).status_code == 404
+    assert (
+        client_as(user_id).patch("/api/library/me/wishlist/999999999", json={}).status_code == 404
+    )
 
 
 @requires_db
@@ -1556,7 +1596,7 @@ def test_two_igdb_games_sharing_a_title_are_both_wishlistable(fresh_user_with_ga
     _add_wishlist(user_id, {"name": "Star Fox", "igdbId": TEST_IGDB_BASE + 11})
     _add_wishlist(user_id, {"name": "Star Fox", "igdbId": TEST_IGDB_BASE + 12})
     dupe = client_as(user_id).post(
-        "/api/py/me/wishlist", json={"name": "Star Fox", "igdbId": TEST_IGDB_BASE + 11}
+        "/api/library/me/wishlist", json={"name": "Star Fox", "igdbId": TEST_IGDB_BASE + 11}
     )
     assert dupe.status_code == 409
 
@@ -1569,13 +1609,13 @@ def test_promoting_a_title_you_own_a_different_edition_of_succeeds(fresh_user_wi
     user_id, _ = fresh_user_with_game
     client = client_as(user_id)
     owned = client.post(
-        "/api/py/me/games",
+        "/api/library/me/games",
         json={"name": "Star Fox", "system": "SNES", "igdbId": TEST_IGDB_BASE + 13},
     )
     assert owned.status_code == 201
     item = _add_wishlist(user_id, {"name": "Star Fox", "igdbId": TEST_IGDB_BASE + 14})
     response = client.post(
-        f"/api/py/me/wishlist/{item['id']}/promote", json={"system": "Nintendo Switch"}
+        f"/api/library/me/wishlist/{item['id']}/promote", json={"system": "Nintendo Switch"}
     )
     assert response.status_code == 201
     assert response.json()["id"] != owned.json()["id"]
@@ -1594,7 +1634,7 @@ def test_promote_wishlist_item(fresh_user_with_game) -> None:
             "igdbId": TEST_IGDB_BASE + 4,
         },
     )
-    response = client_as(user_id).post(f"/api/py/me/wishlist/{item['id']}/promote", json={})
+    response = client_as(user_id).post(f"/api/library/me/wishlist/{item['id']}/promote", json={})
     assert response.status_code == 201
     game = response.json()
     assert game["name"] == "Promoted Quest"
@@ -1603,9 +1643,9 @@ def test_promote_wishlist_item(fresh_user_with_game) -> None:
     assert game["sessionCount"] == 0
 
     # Atomic move: in the library, gone from the wishlist.
-    games = client_as(user_id).get(f"/api/py/users/{username}/games").json()
+    games = client_as(user_id).get(f"/api/library/users/{username}/games").json()
     assert "Promoted Quest" in {g["name"] for g in games}
-    wishlist = client_as(user_id).get(f"/api/py/users/{username}/wishlist").json()
+    wishlist = client_as(user_id).get(f"/api/library/users/{username}/wishlist").json()
     assert wishlist == []
 
 
@@ -1626,7 +1666,7 @@ def test_promote_keeps_the_games_metadata(fresh_user_with_game) -> None:
             "igdbId": TEST_IGDB_BASE + 5,
         },
     )
-    game = client_as(user_id).post(f"/api/py/me/wishlist/{item['id']}/promote", json={}).json()
+    game = client_as(user_id).post(f"/api/library/me/wishlist/{item['id']}/promote", json={}).json()
     for field in ("name", "genres", "releaseDate", "imageUrl"):
         assert game[field] == item[field], field
 
@@ -1637,7 +1677,7 @@ def test_promote_payload_system_wins(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     item = _add_wishlist(user_id, {"name": "Switched Quest", "system": "PS5"})
     response = client_as(user_id).post(
-        f"/api/py/me/wishlist/{item['id']}/promote", json={"system": "Switch"}
+        f"/api/library/me/wishlist/{item['id']}/promote", json={"system": "Switch"}
     )
     assert response.status_code == 201
     assert response.json()["system"] == "Switch"
@@ -1647,11 +1687,11 @@ def test_promote_payload_system_wins(fresh_user_with_game) -> None:
 def test_promote_without_any_system_is_422(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     item = _add_wishlist(user_id, {"name": "Systemless Wish"})
-    response = client_as(user_id).post(f"/api/py/me/wishlist/{item['id']}/promote", json={})
+    response = client_as(user_id).post(f"/api/library/me/wishlist/{item['id']}/promote", json={})
     assert response.status_code == 422
     # Still on the wishlist — nothing half-happened.
     username = f"gamer-{str(user_id)[:8]}"
-    wishlist = client_as(user_id).get(f"/api/py/users/{username}/wishlist").json()
+    wishlist = client_as(user_id).get(f"/api/library/users/{username}/wishlist").json()
     assert [w["name"] for w in wishlist] == ["Systemless Wish"]
 
 
@@ -1660,11 +1700,11 @@ def test_promote_into_existing_library_slot_is_409(fresh_user_with_game) -> None
     # The fixture user already owns Test Quest on SNES.
     user_id, _ = fresh_user_with_game
     item = _add_wishlist(user_id, {"name": "Test Quest", "system": "SNES"})
-    response = client_as(user_id).post(f"/api/py/me/wishlist/{item['id']}/promote", json={})
+    response = client_as(user_id).post(f"/api/library/me/wishlist/{item['id']}/promote", json={})
     assert response.status_code == 409
     # The wishlist row survives the refused promote.
     username = f"gamer-{str(user_id)[:8]}"
-    wishlist = client_as(user_id).get(f"/api/py/users/{username}/wishlist").json()
+    wishlist = client_as(user_id).get(f"/api/library/users/{username}/wishlist").json()
     assert [w["name"] for w in wishlist] == ["Test Quest"]
 
 
@@ -1678,10 +1718,13 @@ def test_wishlist_writes_forbidden_in_preview(
     get_settings.cache_clear()
     try:
         client = client_as(user_id)
-        assert client.post("/api/py/me/wishlist", json={"name": "Nope"}).status_code == 503
-        assert client.patch(f"/api/py/me/wishlist/{item['id']}", json={}).status_code == 503
-        assert client.delete(f"/api/py/me/wishlist/{item['id']}").status_code == 503
-        assert client.post(f"/api/py/me/wishlist/{item['id']}/promote", json={}).status_code == 503
+        assert client.post("/api/library/me/wishlist", json={"name": "Nope"}).status_code == 503
+        assert client.patch(f"/api/library/me/wishlist/{item['id']}", json={}).status_code == 503
+        assert client.delete(f"/api/library/me/wishlist/{item['id']}").status_code == 503
+        assert (
+            client.post(f"/api/library/me/wishlist/{item['id']}/promote", json={}).status_code
+            == 503
+        )
     finally:
         get_settings.cache_clear()
 
@@ -1718,10 +1761,10 @@ def test_write_rate_limit_returns_429_at_the_boundary(
     monkeypatch.setattr(guards, "WRITE_RATE_LIMIT_MAX", 1)
     client = client_as(user_id)
 
-    first = client.post("/api/py/me/wishlist", json={"name": "Within budget"})
+    first = client.post("/api/library/me/wishlist", json={"name": "Within budget"})
     assert first.status_code == 201
 
-    second = client.post("/api/py/me/wishlist", json={"name": "Over budget"})
+    second = client.post("/api/library/me/wishlist", json={"name": "Over budget"})
     assert second.status_code == 429
     # Retry-After tells the caller when it's worth trying again.
     assert second.headers["Retry-After"] == str(int(guards.WRITE_RATE_LIMIT_WINDOW.total_seconds()))
@@ -1732,7 +1775,7 @@ def test_write_rate_limit_returns_429_at_the_boundary(
     assert "too many" in second.json()["detail"].lower()
     # Refused before the write, not after it: the second item does not exist.
     username = f"gamer-{str(user_id)[:8]}"
-    names = {w["name"] for w in client.get(f"/api/py/users/{username}/wishlist").json()}
+    names = {w["name"] for w in client.get(f"/api/library/users/{username}/wishlist").json()}
     assert names == {"Within budget"}
 
 
@@ -1746,8 +1789,8 @@ def test_write_rate_limit_window_resets(
     monkeypatch.setattr(guards, "WRITE_RATE_LIMIT_MAX", 1)
     monkeypatch.setattr(guards, "WRITE_RATE_LIMIT_WINDOW", timedelta(seconds=0))
     client = client_as(user_id)
-    assert client.post("/api/py/me/wishlist", json={"name": "One"}).status_code == 201
-    assert client.post("/api/py/me/wishlist", json={"name": "Two"}).status_code == 201
+    assert client.post("/api/library/me/wishlist", json={"name": "One"}).status_code == 201
+    assert client.post("/api/library/me/wishlist", json={"name": "Two"}).status_code == 201
 
 
 @requires_db
@@ -1760,8 +1803,14 @@ def test_write_rate_limit_is_per_user(fresh_user_with_game, monkeypatch) -> None
     spender_id, _ = fresh_user_with_game
     _reset_write_budget(spender_id)
     monkeypatch.setattr(guards, "WRITE_RATE_LIMIT_MAX", 1)
-    assert client_as(spender_id).post("/api/py/me/wishlist", json={"name": "A"}).status_code == 201
-    assert client_as(spender_id).post("/api/py/me/wishlist", json={"name": "B"}).status_code == 429
+    assert (
+        client_as(spender_id).post("/api/library/me/wishlist", json={"name": "A"}).status_code
+        == 201
+    )
+    assert (
+        client_as(spender_id).post("/api/library/me/wishlist", json={"name": "B"}).status_code
+        == 429
+    )
 
     other_id = _make_auth_user()
     try:
@@ -1769,9 +1818,9 @@ def test_write_rate_limit_is_per_user(fresh_user_with_game, monkeypatch) -> None
         # Onboarding is itself a charged write, and it succeeds: proof the
         # budget is keyed per user, not global.
         username = f"other-{str(other_id)[:8]}"
-        assert other.post("/api/py/me/profile", json={"username": username}).status_code == 201
+        assert other.post("/api/library/me/profile", json={"username": username}).status_code == 201
         # ...and their own next write is the one that exceeds their own budget.
-        assert other.post("/api/py/me/wishlist", json={"name": "C"}).status_code == 429
+        assert other.post("/api/library/me/wishlist", json={"name": "C"}).status_code == 429
     finally:
         _delete_auth_user(other_id)
         _reset_write_budget(other_id)
@@ -1786,7 +1835,7 @@ def test_add_game_refused_when_library_is_full(
     get_settings.cache_clear()
     try:
         response = client_as(user_id).post(
-            "/api/py/me/games", json={"name": "One Too Many", "system": "PC"}
+            "/api/library/me/games", json={"name": "One Too Many", "system": "PC"}
         )
         assert response.status_code == 403
         assert "full" in response.json()["detail"].lower()
@@ -1803,7 +1852,7 @@ def test_add_game_allowed_below_the_cap(
     get_settings.cache_clear()
     try:
         response = client_as(user_id).post(
-            "/api/py/me/games", json={"name": "Room For One More", "system": "PC"}
+            "/api/library/me/games", json={"name": "Room For One More", "system": "PC"}
         )
         assert response.status_code == 201
     finally:
@@ -1821,7 +1870,9 @@ def test_promote_refused_when_library_is_full(
     monkeypatch.setenv("MAX_GAMES", "1")
     get_settings.cache_clear()
     try:
-        response = client_as(user_id).post(f"/api/py/me/wishlist/{item['id']}/promote", json={})
+        response = client_as(user_id).post(
+            f"/api/library/me/wishlist/{item['id']}/promote", json={}
+        )
         assert response.status_code == 403
         assert "full" in response.json()["detail"].lower()
     finally:

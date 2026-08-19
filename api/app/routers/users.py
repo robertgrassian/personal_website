@@ -8,13 +8,12 @@ error shape.
 
 from fastapi import APIRouter
 
-from app.core.config import API_PREFIX
 from app.core.db import DbSession
 from app.schemas.users import GameRead, ProfileRead, UserSummary, WishlistGameRead
 from app.services import follows as follows_service
 from app.services import users as users_service
 
-router = APIRouter(prefix=API_PREFIX, tags=["users"])
+router = APIRouter(tags=["users"])
 
 
 @router.get("/users/{username}/games")

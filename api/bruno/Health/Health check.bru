@@ -1,0 +1,21 @@
+meta {
+  name: Health check
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}{{apiPrefix}}/health
+  body: none
+  auth: none
+}
+
+docs {
+  Liveness plus a real `SELECT 1`, which is the point: this is also the daily
+  keep-alive that stops Supabase's free tier pausing the database for inactivity.
+  `vercel.json` runs it on a cron at 06:00 UTC.
+
+  - 200 `{"status": "ok", "env": "...", "db": "ok"}`
+  - 200 without the `db` field when DATABASE_URL is unset (CI, a bare checkout)
+  - 503 database configured but unreachable
+}
