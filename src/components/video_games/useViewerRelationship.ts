@@ -10,7 +10,8 @@ import { forgetOwnedLibrary, isKnownOwnLibrary, rememberOwnedLibrary } from "@/l
 // The page HTML is identical for every viewer (one route is prerendered static,
 // the other cached), so this can only be answered client-side after hydration.
 // Its `isMe` result also decides whether edit affordances render, via
-// FollowControls' useIsOwner — one request, one answer, so the Follow button and
+// FollowControls' useIsLikelyOwner / useIsConfirmedOwner — one request, one
+// answer, so the Follow button and
 // the edit pencils can never contradict each other. It cannot use the
 // pre-paint data-authed flag either — that proves a session exists, not whose,
 // and "am I following this person?" is a question only the API can answer.
@@ -30,10 +31,20 @@ export type ViewerRelationship = "unknown" | "me" | "following" | "not-following
 // them. Same hazard the effect's reset below guards on the read side.
 export type SetViewerRelationship = (forUsername: string, next: ViewerRelationship) => void;
 
-export function useViewerRelationship(
-  ownerUsername: string
-): [ViewerRelationship, SetViewerRelationship] {
+// Whether `relationship` came from the API or from the cached guess. Separate
+// from the relationship itself so the four states keep their meaning: this asks
+// how the answer was reached, not what it says.
+export type ViewerRelationshipState = {
+  relationship: ViewerRelationship;
+  confirmed: boolean;
+  setRelationship: SetViewerRelationship;
+};
+
+export function useViewerRelationship(ownerUsername: string): ViewerRelationshipState {
   const [relationship, setRelationship] = useState<ViewerRelationship>("unknown");
+  // Guilty until proven: only an API answer sets this, so anything gated on it
+  // waits for one.
+  const [confirmed, setConfirmed] = useState(false);
 
   // A ref, not the prop: the setter is handed to callers that captured it in an
   // async closure, so it has to read the CURRENT owner, not the one that was
@@ -55,10 +66,11 @@ export function useViewerRelationship(
     // "Following" for someone you have never followed — and the unfollow it
     // offered would target the wrong user.
     setRelationship("unknown");
+    setConfirmed(false);
 
     // Then re-answer "me" immediately if a previous visit confirmed this is the
     // viewer's own library (src/lib/ownedLibrary.ts). The edit affordances read
-    // this through useIsOwner, so on a warm cache they render at hydration
+    // this through useIsLikelyOwner, so on a warm cache they render at hydration
     // instead of one round trip later.
     //
     // Safe in the direction it guesses: "me" is the state that renders NO
@@ -115,6 +127,8 @@ export function useViewerRelationship(
 
       const body = (await res.json()) as { amIFollowing?: boolean; isMe?: boolean };
       if (cancelled) return;
+      // Authoritative from here down, whichever branch it takes.
+      setConfirmed(true);
       if (body.isMe) {
         rememberOwnedLibrary(ownerUsername, session.user.id);
         setRelationship("me");
@@ -137,5 +151,5 @@ export function useViewerRelationship(
     };
   }, [ownerUsername]);
 
-  return [relationship, setForOwner];
+  return { relationship, confirmed, setRelationship: setForOwner };
 }

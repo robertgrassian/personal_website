@@ -30,6 +30,7 @@ import {
 type FollowState = {
   ownerUsername: string;
   relationship: ViewerRelationship;
+  confirmed: boolean;
   setRelationship: SetViewerRelationship;
 };
 
@@ -44,9 +45,11 @@ export function FollowStateProvider({
   ownerUsername: string;
   children: ReactNode;
 }) {
-  const [relationship, setRelationship] = useViewerRelationship(ownerUsername);
+  const { relationship, confirmed, setRelationship } = useViewerRelationship(ownerUsername);
   return (
-    <FollowStateContext.Provider value={{ ownerUsername, relationship, setRelationship }}>
+    <FollowStateContext.Provider
+      value={{ ownerUsername, relationship, confirmed, setRelationship }}
+    >
       {children}
     </FollowStateContext.Provider>
   );
@@ -64,7 +67,34 @@ export function FollowStateProvider({
 // Any failure (403 not onboarded, 404 unknown username, network) leaves
 // `relationship` at "unknown", so this returns false: no edit controls, which
 // is the safe direction.
-export function useIsOwner(): boolean {
+//
+// TWO ANSWERS, and picking the wrong one is the sharp edge here. The library
+// caches "this one is mine" (src/lib/ownedLibrary.ts) and useViewerRelationship
+// seeds itself from it, so between hydration and the /me/relationship response
+// there is a window where the answer is a guess that may be retracted.
+//
+// The dividing line is what the server can still refuse. PATCH and DELETE
+// /me/games/{id} 404 on a row the caller does not own, so an affordance that
+// targets an EXISTING row is safe on the guess and gets it instantly. POST
+// /me/games has no row to check and always writes to the caller's own library,
+// so an affordance that CREATES one must wait for the confirmed answer or it
+// can put a row somewhere the viewer was not looking.
+//
+// Hence the names: reach for useIsConfirmedOwner unless you know the guess is
+// safe for what you are gating.
+
+// The API said so. The slower, always-correct answer — use it for anything
+// that creates a row, and by default when unsure.
+export function useIsConfirmedOwner(): boolean {
+  const state = useContext(FollowStateContext);
+  return state?.relationship === "me" && state.confirmed;
+}
+
+// The API said so, OR a previous visit did and this one has not heard back
+// yet. Instant, and wrong for a few hundred milliseconds if the cache is
+// stale. Fine for pencils, copy, and anything else the server can still
+// refuse; never for a create.
+export function useIsLikelyOwner(): boolean {
   return useContext(FollowStateContext)?.relationship === "me";
 }
 

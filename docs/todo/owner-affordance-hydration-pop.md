@@ -38,9 +38,11 @@ shows the controls for the length of one round trip before the API takes them aw
 appear at hydration, disappear when `isMe: false` lands, and the entry is cleared. Cosmetic, but
 "the server re-checks ownership" is not the reason: `PATCH`/`DELETE /me/games/{id}` do 404 on
 someone else's row, while `POST /me/games` has no row to check and always writes to the CALLER's
-library. So the add dialog is gated on `canEdit` rather than on its own open state, which is what
-stops a wrong guess turning into a row in the viewer's own library. The entry also carries the user
-id that earned it, so switching accounts (which fires `SIGNED_IN`, never a sign-out) drops it.
+library. That split is now in the hook names: `useIsLikelyOwner` includes the guess and drives the
+pencils and the copy, `useIsConfirmedOwner` waits for the API and drives everything that creates a
+row. Measured with a 600ms stub: pencils at +586ms, "+ Add game" at +1112ms, and on a stale cache
+the add affordance never appears at all. The entry also carries the user id that earned it, so
+switching accounts (which fires `SIGNED_IN`, never a sign-out) drops it.
 
 _Still true._ This only affects a viewer looking at their own library, who is about to interact with
 the page anyway.

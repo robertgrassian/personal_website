@@ -14,7 +14,7 @@ import type { BaseGame } from "./baseGame";
 // auto-follow there, so change both together.
 //
 // It does NOT decide edit affordances: ownership is per-library and resolved
-// per-viewer (see useIsOwner in FollowControls), since any user's library can be edited by
+// per-viewer (see useIsLikelyOwner in FollowControls), since any user's library can be edited by
 // its own owner.
 export const LIBRARY_OWNER_USERNAME = "rgrassian";
 

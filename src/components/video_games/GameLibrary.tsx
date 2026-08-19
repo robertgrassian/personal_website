@@ -9,7 +9,7 @@ import { VIEW_LABEL, VALID_GAME_VIEW, isGameView } from "./libraryConfig";
 import { PeopleList } from "./PeopleList";
 import type { UserSummary } from "@/lib/follows";
 import { useGameLibraryUrlState } from "./useGameLibraryUrlState";
-import { useIsOwner } from "./FollowControls";
+import { useIsConfirmedOwner, useIsLikelyOwner } from "./FollowControls";
 import { EditGameModal } from "./EditGameModal";
 import { EditWishlistModal } from "./EditWishlistModal";
 import { AddGameModal } from "./AddGameModal";
@@ -52,7 +52,11 @@ export function GameLibrary({
   // Read from the FollowStateProvider that LibraryPage wraps this in, which
   // means the same request that decides the Follow button also decides these
   // controls — they can no longer disagree mid-flight.
-  const canEdit = useIsOwner();
+  const canEdit = useIsLikelyOwner();
+  // Adding is the one thing the server cannot aim for us: POST /me/games writes
+  // to whoever's token sent it, so the affordance waits for the confirmed
+  // answer while the pencils above run on the guess. See FollowControls.
+  const canAdd = useIsConfirmedOwner();
 
   // URL-backed state lives in the hook; this component only renders. Passed
   // whole to GameShelves rather than unpacked into eleven props.
@@ -196,7 +200,7 @@ export function GameLibrary({
         ))}
       </div>
       <div className="flex items-center gap-0 sm:gap-1">
-        {canEdit && isGameView(view) && (
+        {canAdd && isGameView(view) && (
           <button
             type="button"
             onClick={handleAddGame}
@@ -242,6 +246,7 @@ export function GameLibrary({
             view={view}
             tabs={tabs}
             canEdit={canEdit}
+            canAdd={canAdd}
             urlState={urlState}
             onAddGame={handleAddGame}
             statsOpen={statsOpen}
@@ -260,12 +265,10 @@ export function GameLibrary({
           </>
         )}
 
-        {/* Gated on canEdit as well as on the open state, so a viewer whose
-            ownership answer is corrected mid-dialog loses the dialog too. The
-            buttons that set these are already owner-only; this is what keeps
-            an OPEN one from outliving the answer that opened it, which matters
-            most for the add dialog: its write targets the caller's own
-            library, so there is no row for the server to reject. */}
+        {/* Gated on the ownership answer as well as on the open state, so a
+            viewer whose answer is corrected mid-dialog loses the dialog too:
+            the buttons that set these are owner-only, but an already-OPEN one
+            would otherwise outlive the answer that opened it. */}
         {canEdit && editingGame && (
           <EditGameModal
             game={editingGame}
@@ -280,7 +283,7 @@ export function GameLibrary({
             onClose={() => setEditingWishlistId(null)}
           />
         )}
-        {canEdit && addOpen && (
+        {canAdd && addOpen && (
           <AddGameModal
             target={addTarget}
             existingSystems={existingSystems}

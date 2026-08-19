@@ -64,10 +64,14 @@ type GameShelvesProps = {
   // (the add button appears only for the owner, the tabs wrap on narrow screens).
   // A single container makes the height irrelevant.
   tabs: ReactNode;
-  // Still needed here for the copy ("Your library" vs "This library") and the
-  // empty-library call to action. Whether a *card* shows a pencil is no longer
-  // this component's business: GameCase reads that from LibraryEditingContext.
+  // Still needed here for the copy ("Your library" vs "This library"). Whether
+  // a *card* shows a pencil is no longer this component's business: GameCase
+  // reads that from LibraryEditingContext.
   canEdit: boolean;
+  // Confirmed ownership, which the empty-library call to action needs because
+  // it opens the add dialog. See FollowControls for why adding is the one
+  // affordance that cannot run on the cached guess.
+  canAdd: boolean;
   urlState: UrlState;
   onAddGame: () => void;
   // Owned by GameLibrary because the button that opens it lives in the tab
@@ -86,6 +90,7 @@ export function GameShelves({
   view,
   tabs,
   canEdit,
+  canAdd,
   urlState,
   onAddGame,
   statsOpen,
@@ -427,7 +432,7 @@ export function GameShelves({
                   view === "played" ? "library" : "wishlist"
                 } is empty.`}
               </p>
-              {canEdit && (
+              {canAdd && (
                 <button
                   type="button"
                   onClick={onAddGame}

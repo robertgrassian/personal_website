@@ -44,7 +44,7 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | Library page shell (both routes)       | `src/components/video_games/LibraryPage.tsx`                                       |
 | Owner modals                           | `AddGameModal.tsx`, `EditGameModal.tsx`, `EditWishlistModal.tsx`, `ModalShell.tsx` |
 | "Currently playing" CRT                | `src/components/crt/CrtTv.tsx` + `crt.css`                                         |
-| Can this viewer edit?                  | `LibraryEditingContext.tsx`, `useViewerRelationship.ts`, `src/lib/ownedLibrary.ts` |
+| Can this viewer edit?                  | `FollowControls.tsx` (two hooks), `useViewerRelationship.ts`, `ownedLibrary.ts`    |
 | Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                       |
 | Library styles                         | `src/app/video-games/video-games.css`; site tokens in `src/app/globals.css`        |
 | API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)           |
@@ -77,6 +77,10 @@ Dead code worth knowing about: `src/components/video_games/CurrentlyPlaying.tsx`
 - **The game library owns the `/video-games` prefix.** Everything belonging to it nests there, including per-user libraries at `/video-games/u/[username]` (moved off a top-level `/u/` 2026-07-29, redirect in `next.config.ts`). New library surfaces go under that prefix rather than at the top level. Auth is the deliberate exception: `/onboarding` and `/auth/*` stay top-level because identity is site-wide, not the library's.
 - **Always support both light and dark mode.** The site uses `@media (prefers-color-scheme: dark)` CSS variables in `globals.css` and Tailwind `dark:` variants in components — both must be addressed for any new UI. Never add color classes that only work in one mode.
 - **Nav height is one variable.** `--nav-height` in `globals.css` (`:root`), consumed as `h-[var(--nav-height)]` in `Nav.tsx` and `top-[var(--nav-height)]` in `GameShelves.tsx` (the sticky library header, which holds the view tabs and `FilterBar`) and `StatsPanel.tsx`. Change it in one place and all three follow.
+- **Owner affordances that CREATE a row use `useIsConfirmedOwner`, never `useIsLikelyOwner`.** The
+  latter includes a cached guess that can be wrong for one round trip, which is fine where the
+  server can still refuse (`PATCH`/`DELETE` 404 on another user's row) and unsafe where it cannot
+  (`POST /me/games` always writes to the caller's own library). Both live in `FollowControls.tsx`.
 - **Adding a read means adding its cache tag.** Tags are defined in `libraryApi.ts` and must be paired with every write that can change them, in `video-games/actions.ts`. Too narrow a tag serves a stale page.
 
 ## Repository
