@@ -41,7 +41,7 @@ def find_or_create_metadata(
     genres: list[str],
     release_date: date | None,
     image_url: str | None,
-    platforms: list[str] | None = None,
+    platforms: list[str],
 ) -> GameMetadata:
     """The catalog row for a game, creating it if this is the first time anyone
     has added it.
@@ -53,6 +53,11 @@ def find_or_create_metadata(
 
     Flushes rather than commits: the caller inserts the link row next, and the
     two must land together or a failed add would leave an orphan catalog row.
+
+    No parameter here has a default, deliberately: platforms carried one until
+    2026-08-19 and neither caller passed it, so every row the add path created
+    stored an empty list and only the backfill script ever filled one in. A
+    missing argument should be a TypeError, not a silently empty column.
     """
     existing = _select_metadata(db, user_id=user_id, igdb_id=igdb_id, name=name)
     if existing is not None:
@@ -64,7 +69,7 @@ def find_or_create_metadata(
         genres=genres,
         release_date=release_date,
         image_url=image_url,
-        platforms=platforms or [],
+        platforms=platforms,
         # Only private rows have an owner. Stamping a creator on a shared row
         # would make whoever happened to add it first look like its author.
         created_by_user_id=None if igdb_id is not None else user_id,

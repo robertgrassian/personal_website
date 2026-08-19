@@ -107,8 +107,10 @@ reasoning behind the shape, which the models themselves don't record.
 - **`game_metadata.platforms` vs `played_games.system`.** The first is every platform the
   game released on — the catalog's fact, and what makes "which consoles are valid for
   this game?" answerable without asking every user. The second is the one console a
-  particular user played it on. Populate `platforms` with `scripts/backfill_platforms.py`,
-  which is re-runnable and reads the ids straight out of `game_metadata.igdb_id`.
+  particular user played it on. The add path fills `platforms` from IGDB when it creates a
+  catalog row (`lookup_platforms` in `app/services/igdb.py`), so it is populated on the way
+  in; `scripts/backfill_platforms.py` is the repair tool for rows that predate that, and is
+  re-runnable because it reads the ids straight out of `game_metadata.igdb_id`.
 - **Both columns speak IGDB's platform vocabulary**, since migration `d1a83f6c25e7`. Before
   it, systems were typed by hand and the same console appeared under several names — 18 rows
   said `PS5` and 7 said `PlayStation 5`, so PlayStation 5 rendered as two separate shelves

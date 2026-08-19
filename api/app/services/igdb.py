@@ -11,6 +11,7 @@ and ``_query_igdb`` so tests can stub the network seam and exercise
 everything else (rate limiting, token caching, parsing) for real.
 """
 
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -24,6 +25,8 @@ from app.core.text import fold_text
 from app.repositories import igdb as igdb_repo
 from app.schemas.igdb import IgdbSearchResponse, IgdbSearchResult
 from app.services import rate_limit
+
+logger = logging.getLogger(__name__)
 
 RATE_LIMIT_BUCKET = "igdb_search"
 RATE_LIMIT_MAX = 30
@@ -419,3 +422,36 @@ def search_games(db: Session, user_id: uuid.UUID, query: str, page: int = 1) -> 
                 has_more=pageable and len(raw) == SEARCH_LIMIT and page < MAX_PAGE,
             )
     return IgdbSearchResponse(results=[], has_more=False)
+
+
+def lookup_platforms(db: Session, igdb_id: int) -> list[str]:
+    """Every platform IGDB lists for one game, in IGDB's own names. [] on a miss.
+
+    For the add write path, so a catalog row carries its platforms the moment
+    it is created rather than waiting for scripts/backfill_platforms.py. Same
+    query that script runs, so the two agree and a later re-run finds nothing
+    to change -- including the sort, which is what makes "nothing to change"
+    true rather than merely likely.
+
+    Two rules borrowed from genres.lookup_one, which shares this path:
+
+      * Never raises. A third-party miss must not fail an add; the caller
+        stores [] and the read path falls back to the user's own systems.
+      * No rate limit of its own. Unlike search_games this is not a request a
+        client can aim at IGDB directly -- it rides on a write already bounded
+        by rate_limit_writes, one call per new catalog row.
+    """
+    settings = get_settings()
+    if not settings.twitch_client_id or not settings.twitch_client_secret:
+        return []
+    # Interpolated as an int rather than escaped as text: Apicalypse has no
+    # bound parameters, and int() is what makes the interpolation safe.
+    body = f"fields platforms.name; where id = {int(igdb_id)}; limit 1;"
+    try:
+        rows = _run_query(db, settings, body)
+    except Exception:
+        logger.exception("Platform lookup failed for IGDB id %s", igdb_id)
+        return []
+    if not rows:
+        return []
+    return sorted(p["name"] for p in rows[0].get("platforms") or [] if p.get("name"))

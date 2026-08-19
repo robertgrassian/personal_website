@@ -7,8 +7,13 @@ game got none. This replaces the stand-in with IGDB's real list.
 
 Unlike the igdb_id backfill that preceded it, this is re-runnable and needs no
 saved state: game_metadata.igdb_id is populated now, so the ids are in the
-database and IGDB is asked directly. Re-run it whenever new games have been
-added and their platforms matter.
+database and IGDB is asked directly.
+
+A REPAIR TOOL, not the way platforms normally land. The add path fills them
+from IGDB when it creates a catalog row (lookup_platforms in
+app/services/igdb.py), running the same query with the same sort so a re-run
+finds nothing to change. Reach for this to catch up rows created before that
+existed, or after fixing an igdb_id that had pointed at a variant.
 
 WHAT IT STORES, AND WHY THAT IS A DECISION: IGDB's own platform names, verbatim
 ("Nintendo Entertainment System"), not the shelf's labels ("NES"). The column
