@@ -33,10 +33,14 @@ decision rather than a tweak:
   every viewer and be hidden in CSS (the `data-hide-authed` pattern), which puts a pencil button in
   the DOM of every card for visitors who will never use one.
 
-_Known cost of the cache, accepted._ A stale entry (rename, or a second account on the same browser
-without a sign-out event) shows the controls for the length of one round trip before the API takes
-them away, verified: they appear at hydration, disappear when `isMe: false` lands, and the entry is
-cleared. Cosmetic only — every write re-checks ownership server-side.
+_Known cost of the cache, accepted._ A stale entry (today only a rename, which does not exist yet)
+shows the controls for the length of one round trip before the API takes them away, verified: they
+appear at hydration, disappear when `isMe: false` lands, and the entry is cleared. Cosmetic, but
+"the server re-checks ownership" is not the reason: `PATCH`/`DELETE /me/games/{id}` do 404 on
+someone else's row, while `POST /me/games` has no row to check and always writes to the CALLER's
+library. So the add dialog is gated on `canEdit` rather than on its own open state, which is what
+stops a wrong guess turning into a row in the viewer's own library. The entry also carries the user
+id that earned it, so switching accounts (which fires `SIGNED_IN`, never a sign-out) drops it.
 
 _Still true._ This only affects a viewer looking at their own library, who is about to interact with
 the page anyway.

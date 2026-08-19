@@ -78,6 +78,11 @@ export function useViewerRelationship(
       if (guessedOwn && !cancelled) setRelationship("unknown");
     }
 
+    // Bounds the wait above. Ten seconds is well past a slow answer and well
+    // short of a viewer wondering why the pencils are gone.
+    const abort = new AbortController();
+    const timeout = window.setTimeout(() => abort.abort(), 10_000);
+
     async function resolve() {
       const supabase = createClient();
       const {
@@ -86,9 +91,9 @@ export function useViewerRelationship(
       // Logged-out viewers pay no network cost, and stay at "unknown" so
       // nothing renders. getSession() only reads local cookies.
       if (!session) {
-        // Undo the optimistic guess above: the cache outlived its session.
+        // The cache outlived its session, so it is wrong by definition.
         forgetOwnedLibrary();
-        if (!cancelled) setRelationship("unknown");
+        dropGuess();
         return;
       }
 
@@ -97,6 +102,10 @@ export function useViewerRelationship(
       const res = await fetch(`/api/py/me/relationship/${encodeURIComponent(ownerUsername)}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
         cache: "no-store",
+        // A request that never settles would leave the guess standing for the
+        // life of the page, since neither branch below would run. Aborting
+        // rejects it into dropGuess instead.
+        signal: abort.signal,
       });
       if (!res.ok) {
         dropGuess();
@@ -107,7 +116,7 @@ export function useViewerRelationship(
       const body = (await res.json()) as { amIFollowing?: boolean; isMe?: boolean };
       if (cancelled) return;
       if (body.isMe) {
-        rememberOwnedLibrary(ownerUsername);
+        rememberOwnedLibrary(ownerUsername, session.user.id);
         setRelationship("me");
       } else {
         // Only clears an entry naming THIS library, so signing in as someone
@@ -123,6 +132,8 @@ export function useViewerRelationship(
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeout);
+      abort.abort();
     };
   }, [ownerUsername]);
 

@@ -247,9 +247,11 @@ export function GameShelves({
   // every game on screen and must not move the page. So is `groupBy`, which
   // reshuffles shelves without narrowing anything, so it cannot strand the
   // results the way a filter that collapses the document can.
-  // Joined on \u0000, written as an escape rather than a literal NUL byte, which
-  // makes git and grep treat this file as binary. No input can contain it, so
-  // two different filter sets cannot produce the same signature.
+  // Joined on \u0000 rather than a space: a separator that can occur inside a
+  // value lets two different filter sets share a signature. Nothing typed into
+  // these filters produces one, though a crafted ?search=%00 does, at the cost
+  // of one missed scroll adjustment. Written as an escape because a literal NUL
+  // byte in the source makes git and grep treat this file as binary.
   const filterSignature =
     view === "played"
       ? [

@@ -26,7 +26,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { setAuthFlag } from "@/lib/authFlag";
-import { forgetOwnedLibrary } from "@/lib/ownedLibrary";
+import { forgetOwnedLibrary, forgetOwnedLibraryForOtherUser } from "@/lib/ownedLibrary";
 // Shared with the Account link beside it, so the header cluster stays one look.
 import { headerLinkClass } from "@/components/video_games/formStyles";
 
@@ -45,9 +45,13 @@ export function AuthButton() {
       setAuthFlag(Boolean(session));
       // Same staleness problem, one level up: the cached "this library is
       // mine" answer (src/lib/ownedLibrary.ts) belongs to the session that
-      // earned it, so losing the session drops it. Signing in does not seed
-      // it — only /me/relationship can say whose library this is.
-      if (!session) forgetOwnedLibrary();
+      // earned it. Losing the session drops it, and so does replacing it with
+      // another account's — a switch fires SIGNED_IN, never a sign-out, so
+      // checking only for absence would let one user's entry survive into the
+      // next user's page. Signing in does not seed it: only /me/relationship
+      // can say whose library this is.
+      if (session) forgetOwnedLibraryForOtherUser(session.user.id);
+      else forgetOwnedLibrary();
     });
     return () => subscription.unsubscribe();
   }, []);

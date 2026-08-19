@@ -260,21 +260,27 @@ export function GameLibrary({
           </>
         )}
 
-        {editingGame && (
+        {/* Gated on canEdit as well as on the open state, so a viewer whose
+            ownership answer is corrected mid-dialog loses the dialog too. The
+            buttons that set these are already owner-only; this is what keeps
+            an OPEN one from outliving the answer that opened it, which matters
+            most for the add dialog: its write targets the caller's own
+            library, so there is no row for the server to reject. */}
+        {canEdit && editingGame && (
           <EditGameModal
             game={editingGame}
             existingSystems={existingSystems}
             onClose={() => setEditingGameId(null)}
           />
         )}
-        {editingWishlistItem && (
+        {canEdit && editingWishlistItem && (
           <EditWishlistModal
             item={editingWishlistItem}
             existingSystems={existingSystems}
             onClose={() => setEditingWishlistId(null)}
           />
         )}
-        {addOpen && (
+        {canEdit && addOpen && (
           <AddGameModal
             target={addTarget}
             existingSystems={existingSystems}
