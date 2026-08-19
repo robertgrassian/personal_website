@@ -30,13 +30,14 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 - [ ] **The genre lookup picks the wrong Wikipedia article for two titles, at a confidence score of
       1.0.** [Details](docs/todo/genre-lookup-wrong-article.md)
 
-- [ ] **The modal scroll lock does not actually stop the page scrolling.** Affects all five surfaces
-      sharing `useModalChrome`. [Details](docs/todo/modal-scroll-lock.md)
-
 - [ ] **Owner edit affordances still pop in after hydration.**
       [Details](docs/todo/owner-affordance-hydration-pop.md)
 
 ## Backlog / Ideas
+
+- [ ] **Check whether the modal scroll lock holds on iOS Safari; on desktop it does.** Filed as a
+      defect on a bad test: `window.scrollBy` moves an `overflow: hidden` viewport by spec. Wheel and
+      keyboard are locked. [Details](docs/todo/modal-scroll-lock.md)
 
 - [ ] **There probably should not be two game modals. Merge `AddGameModal` and `EditGameModal` into
       one.** Sequence with **When adding a game, let me say I'm playing it now**, **Make library and
