@@ -6,6 +6,10 @@ import { inputClass, labelClass } from "./formStyles";
 import { foldForSearch } from "./pipeline";
 import { useVisibleViewportInsets } from "./useVisibleViewportInsets";
 
+// Must match ModalShell's `duration-200` on the frame padding, which is what
+// resizes the dialog body this component scrolls inside of.
+const MODAL_REFLOW_MS = 200;
+
 type SuggestInputProps = {
   /** Field label. Rendered for screen readers only when `labelHidden`. */
   label: string;
@@ -132,10 +136,18 @@ export function SuggestInput({
   const hidden = useVisibleViewportInsets();
   useEffect(() => {
     if (!listOpen) return;
-    const frame = requestAnimationFrame(() => {
-      listRef.current?.scrollIntoView({ block: "nearest" });
-    });
-    return () => cancelAnimationFrame(frame);
+    const scroll = () => listRef.current?.scrollIntoView({ block: "nearest" });
+    const frame = requestAnimationFrame(scroll);
+    // Twice, because the dialog is still animating out of the keyboard's way
+    // when the first one measures: the body it scrolls has not finished
+    // shrinking, so a list that just fit can end up clipped again. The second
+    // pass lands after ModalShell's padding transition and is a no-op whenever
+    // the first was enough.
+    const settled = setTimeout(scroll, MODAL_REFLOW_MS);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(settled);
+    };
   }, [listOpen, hidden]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
