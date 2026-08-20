@@ -18,11 +18,14 @@ CSS alternative, stretching `::-webkit-calendar-picker-indicator` over the whole
 but swallows the clicks that place the text cursor, so it trades away direct typing. Whatever
 replaces these needs both.
 
-**Each field also carries its own "Clear" button** (2026-08-20), because the platform picker's Reset
-empties the control without React hearing a change and the controlled value is written straight
-back, so the tap read as dead on mobile. The inputs re-read the DOM on blur for the same reason. A
-replacement control has to keep an explicit clear: "leave 'To' empty" is only reachable if emptying
-it is.
+**The picker's own Reset needed a native listener to work at all** (2026-08-20). On iOS, WebKit
+dispatches `change` while the element still holds the old value and commits the clear afterwards
+([facebook/react#8938](https://github.com/facebook/react/issues/8938)); React only calls `onChange`
+once the value has already moved, so it drops the event outright and the controlled value keeps the
+stale date. `useNativeValueSync` in `SessionDateFields.tsx` subscribes to the raw `change` and
+`blur` events and re-reads the field on the next task. Whatever replaces these inputs inherits the
+problem the moment it is controlled: emptying the field has to be reachable, since "leave 'To'
+empty" is the documented way to log a session that is still open.
 
 _The constraint that rules out a stock range picker:_ the end date is optional on purpose. "Leave
 'To' empty if you're still playing it" logs a backdated session that is still open, which is what
