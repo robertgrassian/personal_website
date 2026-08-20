@@ -53,8 +53,11 @@ export function ModalShell({
   useModalChrome(onClose, initialFocusRef ?? closeButtonRef);
 
   return (
-    // z-[60]: above the backdrop, which is portalled to <body> and so paints
-    // after this frame at equal z. pointer-events-none lets a tap on the empty
+    // The z contract, which now spans three files: backdrop z-30 under the two
+    // stays-mounted panels (z-40), backdrop z-50 over the nav (z-50) for these
+    // dialogs, frame z-[60] over that. The frame has to clear its own backdrop
+    // because the backdrop is portalled to <body> and so paints after it at
+    // equal z. pointer-events-none lets a tap on the empty
     // area reach that backdrop, since the frame now covers it rather than
     // containing it; the panel turns pointer events back on.
     //

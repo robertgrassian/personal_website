@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-// The dimming/blurring layer behind a modal surface, shared by the five that
-// use useModalChrome.
+// The dimming/blurring layer behind a modal surface, shared by the three
+// components that render one: ModalShell (for the owner dialogs), StatsPanel
+// and FilterSheet.
 //
 // Why this is not `position: fixed; inset: 0`, which is what every other site
 // does and what this was for a long time: on iOS 26, scrolling shrinks the URL
@@ -16,13 +17,19 @@ import { createPortal } from "react-dom";
 // the clip does not care how large the box claims to be.
 //
 // Ordinary document content does paint in that strip. So this lives in document
-// space instead: absolute, at the document's origin, as tall as the document.
-// It scrolls with the page rather than staying put, which is invisible while a
-// modal is open and covers every pixel the page can reach.
+// space instead: absolute, at the document's origin, as tall as the document,
+// which covers every pixel the page can reach.
+//
+// The tradeoff is that it scrolls with the page. Spanning the whole document
+// means scrolling still leaves it covered, but rubber-band overscroll past
+// either end can pull it off the edge, and the scroll lock that would prevent
+// that is itself broken (docs/todo/modal-scroll-lock.md). Fixing the lock
+// closes this; a fixed backdrop is not the answer, since that is what iOS
+// clips.
 type ModalBackdropProps = {
   onClose: () => void;
-  // z-index plus any transition classes. The three callers differ: the owner
-  // dialogs mount only while open, the two panels stay mounted and fade.
+  // z-index plus any transition classes. The callers differ: the owner dialogs
+  // mount only while open, the two panels stay mounted and fade.
   className?: string;
 };
 
@@ -34,26 +41,36 @@ export function ModalBackdrop({ onClose, className = "" }: ModalBackdropProps) {
 
   useEffect(() => setContainer(document.body), []);
 
-  useEffect(() => {
+  // Layout, not passive: the element renders at h-full, which for a box
+  // positioned against the initial containing block is one viewport tall at the
+  // document's origin. On a page scrolled any distance that is entirely off
+  // screen, so a passive effect would let a frame paint with no backdrop at
+  // all. Falls back to useEffect where there is no DOM to lay out.
+  const useMeasureEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+  useMeasureEffect(() => {
     const el = ref.current;
     if (!el) return;
 
+    // body's own box height, not documentElement.scrollHeight. Out-of-flow
+    // boxes never contribute to their parent's height, so this reading cannot
+    // see this backdrop or any sibling one, whatever an engine decides about
+    // counting absolute boxes in the viewport's scrollable overflow. Measuring
+    // scrollHeight instead needs the element zeroed first and still reads the
+    // stale height of every other mounted backdrop.
     const measure = () => {
-      // Zero-height first: unlike a fixed box, an absolute one counts toward
-      // the document's scrollable overflow, so measuring with the old height
-      // still applied would pin the document at that height and it could never
-      // shrink. Both writes happen in one synchronous block, so nothing paints
-      // at zero.
-      el.style.height = "0px";
-      el.style.height = `${document.documentElement.scrollHeight}px`;
+      const documentHeight = Math.max(
+        document.body.offsetHeight,
+        document.documentElement.clientHeight
+      );
+      el.style.height = `${documentHeight}px`;
     };
 
     measure();
     window.addEventListener("resize", measure);
 
     // The page behind can change height while a surface is open: changing a
-    // filter in FilterSheet adds or removes whole shelves. measure() is a fixed
-    // point, so the write it makes settles rather than feeding back.
+    // filter in FilterSheet adds or removes whole shelves.
     const observer = new ResizeObserver(measure);
     observer.observe(document.body);
 
@@ -61,7 +78,7 @@ export function ModalBackdrop({ onClose, className = "" }: ModalBackdropProps) {
       window.removeEventListener("resize", measure);
       observer.disconnect();
     };
-  }, [container]);
+  }, [container, useMeasureEffect]);
 
   if (!container) return null;
 

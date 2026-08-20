@@ -10,8 +10,9 @@
 
      Worth knowing if you are chasing the same bug this arrived with: covering
      is NOT what fixed the modal backdrop's uncovered strip. That strip is the
-     stale layout viewport, and useModalChrome.ts explains it. This is kept
-     because handling the safe areas is right on its own terms. */
+     stale layout viewport, and ModalBackdrop.tsx explains it. Covering is
+     still load-bearing for that fix: a document-space backdrop can only dim
+     pixels the document owns, and without it iOS keeps these for itself. */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
