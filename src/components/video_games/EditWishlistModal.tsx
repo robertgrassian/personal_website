@@ -2,37 +2,22 @@
 
 import { useOptimistic, useState } from "react";
 import type { WishlistGame } from "@/lib/wishlist";
-import {
-  deleteWishlistItem,
-  promoteWishlistItem,
-  updateWishlistItem,
-} from "@/app/video-games/actions";
+import { deleteWishlistItem, updateWishlistItem } from "@/app/video-games/actions";
 import { ModalShell } from "./ModalShell";
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
-import {
-  buttonClass,
-  ghostButtonClass,
-  inputClass,
-  labelClass,
-  saveButtonClass,
-} from "./formStyles";
-import { SuggestInput } from "./SuggestInput";
+import { inputClass, labelClass, saveButtonClass } from "./formStyles";
 import { systemLabel } from "@/lib/games";
 
 type EditWishlistModalProps = {
   item: WishlistGame;
-  // Shelf-system suggestions for the promote step's system picker.
-  existingSystems: string[];
-  // The systems this game is already in the library on, or null if it isn't.
-  // A wishlist entry for a game you own is legitimate (you want to replay it),
-  // so this hides the promote flow rather than warning about it: the server
-  // refuses that promote with a 409 whatever system is picked.
-  ownedSystems: string[] | null;
-  // Close this dialog and open the library one for the same game, where the
-  // session controls live. Both wishlist exits end here: a game already owned,
-  // and one just promoted.
-  onTrackSession: () => void;
+  // "Played?" — hand off to the library edit dialog, which owns rating, system
+  // and sessions. GameLibrary decides what that dialog edits: the row you
+  // already own, or a promote that creates one. This dialog does not need to
+  // know which, and deliberately does not ask: a wishlist entry for a game you
+  // already own is legitimate (you want to replay it), so both answers are
+  // ordinary.
+  onPlayed: () => void;
   onClose: () => void;
 };
 
@@ -40,13 +25,7 @@ type EditWishlistModalProps = {
 // EditGameModal): star toggle, notes, and the two exits — promote to the
 // library or remove. Same mount-only lifecycle: scroll lock and Escape bind
 // on mount, focus returns to the opener on unmount.
-export function EditWishlistModal({
-  item,
-  existingSystems,
-  ownedSystems,
-  onTrackSession,
-  onClose,
-}: EditWishlistModalProps) {
+export function EditWishlistModal({ item, onPlayed, onClose }: EditWishlistModalProps) {
   const { isPending, error, run } = useServerAction();
 
   // Optimistic star: the checkbox flips on click instead of after the
@@ -59,11 +38,6 @@ export function EditWishlistModal({
   // per keystroke would be miserable. Starred toggles write immediately.
   const [notesDraft, setNotesDraft] = useState(item.notes);
 
-  // promoteStep = the promote confirm (with system picker) is showing.
-  // The remove confirm's own step state lives inside ConfirmStep.
-  const [promoteStep, setPromoteStep] = useState(false);
-  const [promoteSystem, setPromoteSystem] = useState(item.system);
-
   const patch = (fields: { starred?: boolean; notes?: string }) => {
     run(() => updateWishlistItem(item.id, fields));
   };
@@ -75,15 +49,6 @@ export function EditWishlistModal({
     run(() => updateWishlistItem(item.id, { starred: next }), {
       optimistic: () => setOptimisticStarred(next),
     });
-  };
-
-  const promote = () => {
-    // The item moved to the library, so the wishlist row this dialog is about
-    // no longer exists. Rather than just closing, hand off to the library
-    // dialog for the game that now holds it: a promote means you played it,
-    // and the session and rating controls are all over there. onSuccess only,
-    // so a refused promote leaves you here with the error.
-    run(() => promoteWishlistItem(item.id, promoteSystem), { onSuccess: onTrackSession });
   };
 
   const remove = () => {
@@ -139,63 +104,20 @@ export function EditWishlistModal({
         )}
 
         <div className="mt-5 border-t border-shelf-plank pt-3">
-          {ownedSystems !== null ? (
-            <div>
-              <p className="text-xs text-shelf-text-muted">
-                Already in your library on {ownedSystems.map(systemLabel).join(", ")}, so there is
-                nothing to move. Keep it here as a replay you still want to get to.
-              </p>
-              <button
-                type="button"
-                onClick={onTrackSession}
-                disabled={isPending}
-                className={`mt-2 ${buttonClass}`}
-              >
-                Track a play session
-              </button>
-            </div>
-          ) : !promoteStep ? (
-            <button
-              type="button"
-              onClick={() => setPromoteStep(true)}
-              disabled={isPending}
-              className={buttonClass}
-            >
-              Played it, move to library
-            </button>
-          ) : (
-            <div>
-              <SuggestInput
-                label="System"
-                value={promoteSystem}
-                onChange={setPromoteSystem}
-                options={item.platforms.length > 0 ? item.platforms : existingSystems}
-                placeholder="e.g. SNES, PS5"
-              />
-              <p className="mt-1.5 text-[11px] text-shelf-text-muted">
-                It lands on the Unrated shelf, and this opens its library entry so you can rate it
-                and log the session.
-              </p>
-              <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={promote}
-                  disabled={isPending || promoteSystem.trim() === ""}
-                  className={buttonClass}
-                >
-                  Move to library
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPromoteStep(false)}
-                  disabled={isPending}
-                  className={ghostButtonClass}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+          {/* One button for both cases. "Played?" is the question the wishlist
+              can answer; everything that follows from it (which console, how
+              was it, when did you play) belongs to the library dialog, which
+              already asks all three. */}
+          {/* Filled, not outlined: this is the dialog's primary action, and the
+              one thing a wishlist entry exists to stop being. */}
+          <button
+            type="button"
+            onClick={onPlayed}
+            disabled={isPending}
+            className={`mb-3 ${saveButtonClass}`}
+          >
+            Played?
+          </button>
 
           <ConfirmStep
             triggerLabel="Remove from wishlist"
