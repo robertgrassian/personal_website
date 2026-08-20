@@ -19,7 +19,7 @@ referenced the old one. Decide whether delete is undoable at all, or whether und
 edits.
 
 _Where it gets written:_ every owner write goes routers → services → repositories under
-`/api/py/me/*`, so the log belongs at the service layer, in the same transaction as the change — a
+`/api/library/me/*`, so the log belongs at the service layer, in the same transaction as the change — a
 log entry that can go missing is not one you can undo from. Note `rate_limit_writes` commits
 **separately** on purpose, for the opposite reason (see the Tier 3 backend-refactors item); do not copy
 that shape here.

@@ -1,6 +1,7 @@
 // Importing "server-only" causes a build error if this module is ever bundled
 // into a client component — catches the mistake at build time, not runtime.
 import "server-only";
+import { API_PREFIX, LEGACY_API_PREFIX } from "./apiPrefix";
 import type { Game } from "./games";
 import type { WishlistGame } from "./wishlist";
 import type { LibraryProfile } from "./profile";
@@ -132,7 +133,7 @@ function wrapFetchError(err: unknown, what: string, url: string): Error {
 
 // Every library read is "one resource belonging to one user", so this helper
 // owns all four things that never vary between them: the origin, the
-// /api/py/users/{username} prefix, the escaping of that user-supplied segment,
+// {API_PREFIX}/users/{username} prefix, the escaping of that user-supplied segment,
 // and the cache tagging. Callers below supply only what actually differs.
 //
 // `resourceTag` is the narrow tag for this specific resource; the umbrella tag
@@ -165,7 +166,7 @@ async function fetchUserResource<T>(
 ): Promise<T | null> {
   // encodeURIComponent because /video-games/u/[username] puts user-shaped input
   // into these URLs: the segment is escaped rather than trusted.
-  const url = `${requireLibraryApiOrigin()}/api/py/users/${encodeURIComponent(username)}${subpath}`;
+  const url = `${requireLibraryApiOrigin()}${API_PREFIX}/users/${encodeURIComponent(username)}${subpath}`;
   const tags = [libraryCacheTag(username), resourceTag(username)];
   let res: Response;
   try {
@@ -182,6 +183,34 @@ async function fetchUserResource<T>(
       res = await fetchWithTimeout(url, tags);
     } catch (retryErr) {
       throw wrapFetchError(retryErr, what, url);
+    }
+  }
+  // A 404 while prerendering can mean the deployed API predates this code's
+  // prefix, so retry once on the old one. Same self-healing shape as the follow
+  // lists below: a build fetches from the API that is currently DEPLOYED, so the
+  // deploy shipping the rename asks a production that has not got the new prefix
+  // yet. Failing there fails the build, which stops the new API deploying, which
+  // makes the next build fail identically. Costs one extra request per resource
+  // on a build against a genuinely missing user, and nothing at request time.
+  //
+  // TEMPORARY, and the only thing left over from the rename: dead as soon as the
+  // rename is live in production, since nothing serves LEGACY_API_PREFIX any
+  // more. Delete this block and that constant.
+  if (res.status === 404 && IS_PRERENDER) {
+    const legacyUrl = url.replace(API_PREFIX, LEGACY_API_PREFIX);
+    try {
+      const legacyRes = await fetchWithTimeout(legacyUrl, tags);
+      if (legacyRes.ok) {
+        console.warn(
+          `[libraryApi] ${requireLibraryApiOrigin()} 404'd ${API_PREFIX} and answered on ` +
+            `${LEGACY_API_PREFIX}; it predates the prefix rename. Expected only while that ` +
+            `deploy is in flight.`
+        );
+        return (await legacyRes.json()) as T;
+      }
+    } catch {
+      // Fall through to the normal handling below, which reports the ORIGINAL
+      // 404 rather than whatever the fallback attempt did.
     }
   }
   // An expected outcome, not a failure: /video-games/u/{username} for a

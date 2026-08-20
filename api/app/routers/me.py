@@ -5,18 +5,12 @@ Every route here depends on ``CurrentUser`` — the JWT verification dependency
 runs. HTTP concerns only: map the service's domain exceptions to status codes.
 """
 
-from datetime import date
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, status
 
 from app.core.auth import CurrentUser
-from app.core.config import API_PREFIX
 from app.core.db import DbSession
-from app.core.guards import WRITE_GUARDS, forbid_in_preview
-from app.models.game import MAX_GENRES
+from app.core.guards import WRITE_GUARDS
 from app.schemas.me import (
-    CatalogPreview,
     GameCreate,
     GameUpdate,
     MyProfileRead,
@@ -32,7 +26,7 @@ from app.schemas.users import GameRead, WishlistGameRead
 from app.services import follows as follows_service
 from app.services import me as me_service
 
-router = APIRouter(prefix=API_PREFIX, tags=["me"])
+router = APIRouter(tags=["me"])
 
 
 @router.get("/me/profile")
@@ -239,7 +233,7 @@ def read_my_relationship(user: CurrentUser, db: DbSession, username: str) -> Rel
     return follows_service.get_relationship(db, user.id, username)
 
 
-@router.post(
+@router.put(
     "/me/following/{username}",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=WRITE_GUARDS,
@@ -247,6 +241,11 @@ def read_my_relationship(user: CurrentUser, db: DbSession, username: str) -> Rel
 def follow_user(user: CurrentUser, db: DbSession, username: str) -> None:
     """Follow a user. Idempotent: following someone you already follow is 204,
     not a conflict, so a double-fired toggle needs no special handling.
+
+    PUT rather than POST because of that idempotence. The edge from the caller
+    to {username} is one addressable thing, and POST is defined as unsafe to
+    repeat — clients and intermediaries are entitled to refuse to retry it,
+    which is exactly backwards for a toggle that is safe to send twice.
 
     Status mapping:
     - 403 authenticated but not onboarded yet
@@ -271,42 +270,3 @@ def unfollow_user(user: CurrentUser, db: DbSession, username: str) -> None:
     - 422 unfollowing yourself
     """
     follows_service.unfollow_user(db, user.id, username)
-
-
-@router.get("/me/catalog-preview", dependencies=[Depends(forbid_in_preview)])
-def preview_catalog_entry(
-    user: CurrentUser,
-    db: DbSession,
-    name: Annotated[str, Query(min_length=1, max_length=200)],
-    # Explicit aliases, because CamelModel's camelCase convention covers SCHEMA
-    # fields and not bare query params: without these the parameters are named
-    # igdb_id / release_date on the wire, FastAPI silently ignores the client's
-    # camelCase spelling, and the preview runs as though the game had no IGDB id
-    # and no release date. That shipped once; do not remove them.
-    igdb_id: Annotated[int | None, Query(alias="igdbId")] = None,
-    genres: Annotated[list[str], Query(max_length=MAX_GENRES)] = [],  # noqa: B006 (FastAPI reads the default, never mutates it)
-    release_date: Annotated[date | None, Query(alias="releaseDate")] = None,
-) -> CatalogPreview:
-    """The catalog values a game would carry if it were added right now.
-
-    A GET rather than part of the add response, because the add form shows this
-    before anything is created. `genres` and `releaseDate` are what the client
-    already has from IGDB: the same fallbacks the write path would use, passed
-    in so this answers with exactly what an add would store rather than with a
-    second opinion.
-
-    Guarded by forbid_in_preview because it WRITES rate-limit counters (its own
-    bucket, since it can call Wikipedia), and preview deploys hold a read-only
-    Postgres role.
-
-    Status mapping:
-    - 429 caller over their per-minute lookup budget
-    """
-    return me_service.preview_catalog_entry(
-        db,
-        user,
-        name=name,
-        igdb_id=igdb_id,
-        genres=genres,
-        release_date=release_date,
-    )

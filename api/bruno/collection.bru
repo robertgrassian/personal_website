@@ -1,0 +1,25 @@
+auth {
+  mode: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  # personal-website-api
+
+  Every request here targets `{{baseUrl}}{{apiPrefix}}`. The prefix is a variable
+  on purpose: it is one literal string in `api/app/core/config.py` (`API_PREFIX`)
+  and changing it there means changing it here, in one place.
+
+  Authenticated requests inherit the collection-level bearer token above, which
+  reads `{{accessToken}}`. Run `Setup / Sign in and capture token` to fill it.
+  Public requests set `auth: none` explicitly.
+
+  See `README.md` next to this file for setup.
+}

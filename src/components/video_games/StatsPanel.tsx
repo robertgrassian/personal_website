@@ -6,6 +6,7 @@ import { GameStats } from "./GameStats";
 import { SqlQueryPanel } from "./SqlQueryPanel";
 import { CloseIcon } from "@/components/Icon";
 import { useModalChrome } from "./useModalChrome";
+import { ModalBackdrop } from "./ModalBackdrop";
 
 type StatsPanelProps = {
   games: Game[];
@@ -36,10 +37,9 @@ export function StatsPanel({ games, currentlyPlayingGames, isOpen, onClose }: St
   return (
     <>
       {/* Backdrop — clicking it closes the panel */}
-      <div
-        aria-hidden="true"
-        onClick={onClose}
-        className={`fixed inset-0 z-30 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${
+      <ModalBackdrop
+        onClose={onClose}
+        className={`z-30 transition-opacity duration-300 ${
           isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         }`}
       />
@@ -51,7 +51,7 @@ export function StatsPanel({ games, currentlyPlayingGames, isOpen, onClose }: St
         aria-hidden={!isOpen}
         inert={!isOpen}
         role="dialog"
-        className={`fixed top-[var(--nav-height)] right-0 z-40 h-[calc(100%-var(--nav-height))] flex flex-col bg-background border-l border-divider shadow-2xl transition-[transform,width] duration-300 ease-in-out ${
+        className={`fixed top-[var(--nav-offset)] right-0 z-40 h-[calc(100%-var(--nav-offset))] flex flex-col pb-[var(--safe-bottom)] pl-[var(--safe-left)] pr-[var(--safe-right)] bg-background border-l border-divider shadow-2xl transition-[transform,width] duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         } ${activeTab === "query" ? "w-full sm:w-[min(90vw,1000px)]" : "w-full sm:w-[560px]"}`}
       >

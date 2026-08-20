@@ -44,10 +44,10 @@ and FastAPI is the only thing holding a database connection.
 
 - **Reads are public and cached.** A Server Component fetches through
   `src/lib/libraryApi.ts` (which imports `server-only`, so bundling it into the
-  browser is a build error) and hits `/api/py/users/{username}/*`.
+  browser is a build error) and hits `/api/library/users/{username}/*`.
 - **Writes are owner-only.** A Server Action in `src/app/video-games/actions.ts`
   calls `src/lib/meApi.ts`, which exchanges the session cookie for a Bearer JWT
-  and hits `/api/py/me/*`, then invalidates the affected cache tags. The browser
+  and hits `/api/library/me/*`, then invalidates the affected cache tags. The browser
   never holds an API token of its own.
 
 Docs are split so the same fact is not written in four places:

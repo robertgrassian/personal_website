@@ -2,7 +2,7 @@
 
 Python backend for the instanced game libraries feature, deployed as a Vercel
 serverless function. `index.py` exposes the ASGI `app`; everything else lives in
-the `app` package. All routes are served under the literal `/api/py` prefix
+the `app` package. All routes are served under the literal `/api/library` prefix
 (`API_PREFIX` in `app/core/config.py`) — Vercel and the dev rewrite both deliver
 the full original path to FastAPI.
 
@@ -23,6 +23,7 @@ app/
 alembic/            migrations (env.py scoped to the public schema — auth etc. are Supabase's)
 scripts/seed.py     CSV → DB seed (idempotent truncate-and-reload); also seeds Robert's auth.users row
 tests/              pytest + FastAPI TestClient; DB tests skip without DATABASE_URL
+bruno/              every endpoint as a runnable request + its reference docs (see below)
 ```
 
 Routers get a DB session via the `get_db` dependency in `app/core/db.py`
@@ -161,6 +162,22 @@ reasoning behind the shape, which the models themselves don't record.
 6. **Test** — add a `tests/test_*.py` using `TestClient(create_app())`. For
    authed routes, either mint an HS256 token (see `tests/test_auth.py`) or
    override the `get_current_user` dependency (see `tests/test_me_api.py`).
+7. **Document** — add the request to `bruno/`. `tests/test_bruno_collection.py`
+   fails the build otherwise, so this is enforced rather than remembered.
+
+## Endpoint reference: `bruno/`
+
+[Bruno](https://usebruno.com) collection, checked in as plain text next to the
+code it exercises. It is the human-readable endpoint documentation as well as a
+client: each request's `docs` block records the status codes, the payload rules,
+and why the route is shaped the way it is. Setup and conventions are in
+[`bruno/README.md`](bruno/README.md).
+
+`tests/test_bruno_collection.py` diffs it against the app's generated OpenAPI
+document, so it cannot silently fall behind the routers. FastAPI also serves the
+raw OpenAPI at `/api/library/openapi.json` and Swagger UI at `/api/library/docs` when
+`APP_ENV=dev`; those are the generated truth about shapes, the collection is the
+curated version with the reasoning attached.
 
 ## Commands (from `api/`)
 

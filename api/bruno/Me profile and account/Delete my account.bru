@@ -1,0 +1,28 @@
+meta {
+  name: Delete my account
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}{{apiPrefix}}/me/account
+  body: none
+  auth: inherit
+}
+
+docs {
+  Deletes the auth user, the profile, and everything that cascades from it:
+  games, play sessions, wishlist, follow edges. `rate_limits` has no FK to
+  `profiles`, so those rows are deleted explicitly.
+
+  Idempotent, for the same reason follow and unfollow are: a repeat on a
+  still-valid token for an already-deleted account is 204, not an error. It also
+  succeeds for a caller who never onboarded, since the auth user is theirs and
+  still deletable.
+
+  Destructive and unconfirmable. Point this at a local test account only.
+
+  - 204 deleted
+  - 403 the founder's account, which the rest of the site depends on
+  - 503 the accounts service was unreachable; nothing was deleted
+}

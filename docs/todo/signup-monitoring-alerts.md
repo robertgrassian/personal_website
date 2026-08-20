@@ -20,7 +20,7 @@ never be able to close signup, so it needs its own try/except and a timeout, and
 function may be frozen before a fire-and-forget task runs. **(b) Out-of-band** — a Supabase Database
 Webhook on `INSERT INTO profiles`, or a small endpoint polled by cron. Zero risk to the signup path
 and zero app code for the webhook flavor; the cron flavor has precedent, since `vercel.json` already
-runs one daily against `/api/py/health`.
+runs one daily against `/api/library/health`.
 
 _Decide the channel too_ (push, email, a Slack/Discord incoming webhook). Email means standing up a
 transactional provider that does not exist yet; a webhook does not. Note the volume this is sized

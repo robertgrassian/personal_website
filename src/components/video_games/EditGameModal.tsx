@@ -2,160 +2,166 @@
 
 import { useState } from "react";
 import { localToday, systemLabel, type Game, type Rating } from "@/lib/games";
-import {
-  deleteGame,
-  logSession,
-  stopSession,
-  updateGameRating,
-  updateGameSystem,
-} from "@/app/video-games/actions";
+import type { WishlistGame } from "@/lib/wishlist";
+import { deleteGame, promoteAndSave, saveGameEdits } from "@/app/video-games/actions";
 import { ModalShell } from "./ModalShell";
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
-import {
-  buttonClass,
-  fieldClass,
-  ghostButtonClass,
-  labelClass,
-  saveButtonClass,
-} from "./formStyles";
+import { SessionDateFields } from "./SessionDateFields";
+import { buttonClass, ghostButtonClass, saveButtonClass } from "./formStyles";
 import { SuggestInput } from "./SuggestInput";
+import { RequiredField } from "./RequiredField";
 
-// Date inputs size to their content rather than filling the row, so they take
-// the shared tokens plus their own padding instead of `inputClass`.
-const dateInputClass = `${fieldClass} px-2 py-1`;
+/** What this dialog is editing. A wishlist entry has no library row yet, so
+ *  every field below is a draft that the promote creates the row for. Both
+ *  cases are the SAME dialog on purpose: moving a game to the library means you
+ *  played it, and someone doing that days later may want to rate it and log the
+ *  playthrough in the same press. */
+export type EditSubject = { kind: "game"; game: Game } | { kind: "promote"; item: WishlistGame };
 
 type EditGameModalProps = {
-  game: Game;
-  // Every system already on a shelf, for the suggestions below. Same prop
-  // AddGameModal and EditWishlistModal take, from the same place.
+  subject: EditSubject;
+  // Every system already on a shelf, for the suggestions below.
   existingSystems: string[];
+  // Opened from the wishlist's "Played?", which is already an assertion that
+  // you played it: the session fields start open and dated today, so Save is
+  // live on arrival. Without this the dialog opened with nothing pending and a
+  // dead Save, which reads as broken when you got here by answering "yes".
+  startWithSession?: boolean;
   onClose: () => void;
 };
 
-// Owner-only edit dialog, opened by the pencil on a game case. One instance
-// lives in GameLibrary (like StatsPanel) rather than one per card — it exists
-// only while a game is being edited, and future owner actions (sessions,
-// delete) get sections here instead of fighting for space on the card.
+// Owner-only edit dialog. One Save commits everything: nothing in here reaches
+// the database until it is pressed, which is the rule for every persisted edit
+// in this directory. The per-field "Save rating" / "Save system" buttons this
+// replaced meant a dialog could be half-committed and half-draft, with no way
+// to tell by looking.
 //
 // This component is mounted only while open, so the scroll-lock/Escape effect
 // runs on mount and cleans up on unmount — no isOpen plumbing needed.
-export function EditGameModal({ game, existingSystems, onClose }: EditGameModalProps) {
-  // isPending covers the whole write round-trip: it stays true until the
-  // revalidated data lands, so session buttons stay disabled through the
-  // moment the game's play state visibly updates.
-  const { isPending, error, setError, run } = useServerAction();
+export function EditGameModal({
+  subject,
+  existingSystems,
+  startWithSession = false,
+  onClose,
+}: EditGameModalProps) {
+  const action = useServerAction();
+  const { isPending, error, run } = action;
 
-  // Session UI state. ratePrompt = the session has just been closed and the
-  // "how was it?" picker is offering a rating; logOpen = the past-session form
-  // is showing.
-  const [ratePrompt, setRatePrompt] = useState(false);
-  const [logOpen, setLogOpen] = useState(false);
-  const [logStart, setLogStart] = useState("");
-  const [logEnd, setLogEnd] = useState("");
+  const promoting = subject.kind === "promote";
+  const source = promoting ? subject.item : subject.game;
+  // A wishlist entry has no rating, so a promote starts unrated and any pick
+  // counts as a change.
+  const savedRating: Rating | "" = promoting ? "" : subject.game.rating;
+  const savedSystem = source.system;
 
-  // Both fields buffer and commit on an explicit Save. The rating used to write
-  // on the click, which made a mis-tap on a five-target grid a silent overwrite;
-  // the system field would otherwise file the game under "S", then "SN", then
-  // "SNE". The rating draft also replaced useOptimistic here: on failure it stays
-  // dirty, so the Save is still there to retry rather than snapping back.
-  const [ratingDraft, setRatingDraft] = useState<Rating | "">(game.rating);
-  const [systemDraft, setSystemDraft] = useState(game.system);
+  const [ratingDraft, setRatingDraft] = useState<Rating | "">(savedRating);
+  const [systemDraft, setSystemDraft] = useState(savedSystem);
 
-  const ratingDirty = ratingDraft !== game.rating;
-  // Compared trimmed, so trailing whitespace alone does not offer a Save that
-  // would write the value the row already holds.
-  const systemDirty = systemDraft.trim() !== game.system && systemDraft.trim() !== "";
+  // Session draft. The fields are always visible; filling in a start date is
+  // what makes it a pending change.
+  // A game with a session already open must not have a second one staged: an
+  // end-less session is an OPEN one, and create_my_session refuses a second
+  // (AlreadyPlayingError). "Played?" on a game you are already playing is
+  // already true, so it stages nothing and the Stop Playing control below is
+  // the meaningful action.
+  const alreadyOpen = subject.kind === "game" && subject.game.openSessionId !== null;
+  const stageSession = startWithSession && !alreadyOpen;
+  const [sessionStart, setSessionStart] = useState(stageSession ? localToday() : "");
+  const [sessionEnd, setSessionEnd] = useState("");
+  // Stopping is a pending edit like any other, not an immediate write.
+  const [stopPending, setStopPending] = useState(false);
 
-  // Same rule as the add form: the game's own platforms when we know them,
-  // every shelf system otherwise (hand-entered games, and anything added
-  // before the platforms column was backfilled).
-  const systemSuggestions = game.platforms.length > 0 ? game.platforms : existingSystems;
+  const playing =
+    !promoting && subject.game.currentlyPlaying && subject.game.openSessionId !== null;
 
-  const saveRating = () => {
-    // Confirming the rating the game already has is a valid answer to the
-    // "how was it?" prompt below, and there is nothing to write. Without this
-    // the prompt's Save would be a dead button for exactly one of its five
-    // choices, which is the rating most likely to be re-picked.
-    if (!ratingDirty) {
-      setRatePrompt(false);
+  // played_games.system is NOT NULL, so this is required in BOTH modes, not
+  // just on a promote. Clearing it on an existing game used to do nothing
+  // visible: `systemDirty` ignores an empty value, so a Save alongside a rating
+  // change would quietly keep the old console. Now it blocks Save and says so.
+  const systemMissing = systemDraft.trim() === "";
+  const ratingDirty = ratingDraft !== savedRating;
+  // Compared trimmed, so trailing whitespace alone is not a change. Empty is
+  // never a change: a game must be filed under something.
+  const systemDirty = systemDraft.trim() !== savedSystem && systemDraft.trim() !== "";
+  const sessionDirty = sessionStart !== "";
+  // An end with no start is not "no session", it is a session whose start the
+  // user has not given yet. Without this it silently vanished on Save, because
+  // sessionDirty is false and nothing was ever sent.
+  const endWithoutStart = sessionEnd !== "" && sessionStart === "";
+  const datesInvalid =
+    endWithoutStart || (sessionEnd !== "" && sessionStart !== "" && sessionEnd < sessionStart);
+  // Staging an end-less (open) session while one is already open is the 409
+  // above. Reachable by hand even when nothing was pre-staged.
+  const wouldDoubleOpen = sessionDirty && sessionEnd === "" && alreadyOpen && !stopPending;
+
+  // A promote is itself the change, so Save is live from the moment the dialog
+  // opens — it just needs a system, which played_games requires.
+  const hasChanges = promoting
+    ? systemDraft.trim() !== ""
+    : ratingDirty || systemDirty || sessionDirty || stopPending;
+  const canSave = hasChanges && !systemMissing && !datesInvalid && !wouldDoubleOpen && !isPending;
+
+  const save = () => {
+    const session = sessionDirty
+      ? { startDate: sessionStart, endDate: sessionEnd === "" ? null : sessionEnd }
+      : undefined;
+
+    if (promoting) {
+      // The wishlist row is gone once this lands, so the dialog's subject stops
+      // existing: close rather than sit on a stale item.
+      run(
+        () =>
+          promoteAndSave(subject.item.id, systemDraft, {
+            ...(ratingDirty ? { rating: ratingDraft } : {}),
+            ...(session ? { session } : {}),
+          }),
+        { onSuccess: onClose }
+      );
       return;
     }
-    run(() => updateGameRating(game.id, ratingDraft), {
-      // A saved rating answers the prompt too, wherever it was picked. Only on
-      // success: a failed write leaves the question genuinely unanswered.
-      onSuccess: () => setRatePrompt(false),
-    });
-  };
 
-  const startPlaying = () => {
-    // Clear any leftover rating prompt from the previous playthrough.
-    setRatePrompt(false);
-    run(() => logSession(game.id, localToday(), null));
-  };
-
-  // "Stop playing" closes the session and nothing else. It used to only OPEN a
-  // rating picker, and the write went out when you picked one of the five (or
-  // found the small "Stop without rating" link) — so anyone who read "Stop
-  // playing" as the action, saw the rating prompt as an optional afterthought
-  // and closed the dialog had, in fact, not stopped anything. The button now
-  // does what it says, and the rating became a follow-up question below.
-  const stopPlaying = () => {
-    const sessionId = game.openSessionId;
-    if (sessionId === null) {
-      // Unreachable in practice: this control only renders when `playing`
-      // below has already established the id is there. But a bare `return`
-      // here would be one more way for this button to silently do nothing,
-      // which is the shape of problem this whole change is about.
-      setError("This game has no open session to stop. Refresh the page and try again.");
-      return;
-    }
-    run(() => stopSession(sessionId, localToday()), {
-      // Only after the close lands: a prompt to rate a game whose session is
-      // still open would be asking about the wrong thing.
-      onSuccess: () => setRatePrompt(true),
-    });
-  };
-
-  const saveLoggedSession = () => {
-    if (logStart === "") return;
-    // An empty end date logs a backdated session that's still going — the
-    // game becomes currently playing (or a 409 if it already is).
-    const end = logEnd === "" ? null : logEnd;
-    run(() => logSession(game.id, logStart, end), {
-      onSuccess: () => {
-        setLogOpen(false);
-        setLogStart("");
-        setLogEnd("");
-        // An end-less log opens a new session, so the branch above flips back
-        // to "Stop playing" — a leftover "Finished: how was it?" underneath
-        // would be asking about a game that is currently being played.
-        setRatePrompt(false);
-      },
-    });
-  };
-
-  const saveSystem = () => {
-    run(() => updateGameSystem(game.id, systemDraft));
+    run(
+      () =>
+        saveGameEdits(subject.game.id, {
+          ...(ratingDirty ? { rating: ratingDraft } : {}),
+          ...(systemDirty ? { system: systemDraft } : {}),
+          ...(session ? { session } : {}),
+          ...(stopPending && subject.game.openSessionId !== null
+            ? { stopSessionId: subject.game.openSessionId, stopDate: localToday() }
+            : {}),
+        }),
+      {
+        // Stays open: revalidated data flows back into `subject`, so the drafts
+        // above converge on it and the dialog shows what was just saved. Only
+        // the transient draft state has to be cleared by hand.
+        onSuccess: () => {
+          setSessionStart("");
+          setSessionEnd("");
+          setStopPending(false);
+        },
+      }
+    );
   };
 
   const removeGame = () => {
+    if (promoting) return;
     // The game is gone — close the dialog; revalidation removes the card.
-    run(() => deleteGame(game.id), { onSuccess: onClose });
+    run(() => deleteGame(subject.game.id), { onSuccess: onClose });
   };
 
-  // `openSessionId` is always present but is null whenever nothing is open, so
-  // this check is real — unlike the id guards this component used to carry.
-  const playing = game.currentlyPlaying && game.openSessionId !== null;
-  const logDatesInvalid = logEnd !== "" && logStart !== "" && logEnd < logStart;
-  const sessionCount = game.sessionCount;
+  // Same rule as the add form: the game's own platforms when we know them,
+  // every shelf system otherwise.
+  const systemSuggestions = source.platforms.length > 0 ? source.platforms : existingSystems;
 
   return (
     <ModalShell
-      label={`Edit ${game.name}`}
-      title={game.name}
-      subtitle={systemLabel(game.system)}
+      label={promoting ? `Move ${source.name} to your library` : `Edit ${source.name}`}
+      title={source.name}
+      subtitle={
+        promoting ? "Moving from your wishlist to your library" : systemLabel(subject.game.system)
+      }
       onClose={onClose}
       error={error}
     >
@@ -164,7 +170,6 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
           Rating
         </p>
         <div className="mt-2">
-          {/* onPick sets the draft only. The write is the Save below. */}
           <RatingPicker
             variant="labeled"
             value={ratingDraft}
@@ -172,224 +177,138 @@ export function EditGameModal({ game, existingSystems, onClose }: EditGameModalP
             disabled={isPending}
           />
         </div>
-
-        {/* A ternary rather than two `&&` blocks, because these two never show
-            together: "Remove rating" clears the draft rather than writing, so it
-            is only reachable while there is nothing pending. */}
-        {ratingDirty ? (
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={saveRating}
-              disabled={isPending}
-              className={saveButtonClass}
-            >
-              Save rating
-            </button>
-            <button
-              type="button"
-              onClick={() => setRatingDraft(game.rating)}
-              disabled={isPending}
-              className={ghostButtonClass}
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          ratingDraft !== "" && (
-            <button
-              type="button"
-              onClick={() => setRatingDraft("")}
-              disabled={isPending}
-              className={`mt-3 ${ghostButtonClass}`}
-            >
-              Remove rating
-            </button>
-          )
-        )}
         {ratingDraft === "" && (
-          <p className="mt-3 text-xs text-shelf-text-muted italic">
-            Unrated games move to the Unrated shelf (visible only to you) until rated again.
+          <p className="mt-2 text-xs text-shelf-text-muted italic">
+            Unrated games sit on the Unrated shelf, visible only to you.
           </p>
         )}
 
         <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
           System
+          {promoting && (
+            <span className="ml-1.5 normal-case text-shelf-text-muted">(required)</span>
+          )}
         </p>
         {/* labelHidden: the "System" heading above is the visible label, but
-            the field still needs a programmatic one. */}
-        <SuggestInput
-          className="mt-2"
-          label="Console this game is filed under"
-          labelHidden
-          value={systemDraft}
-          onChange={setSystemDraft}
-          options={systemSuggestions}
-          maxLength={100}
-          placeholder="e.g. SNES, PS5"
-        />
-        {systemDirty && (
-          <button
-            type="button"
-            onClick={saveSystem}
-            disabled={isPending}
-            className={`mt-2 ${saveButtonClass}`}
-          >
-            Save system
-          </button>
-        )}
+            the field still needs a programmatic one. Negative margin so the
+            ring sits around the field without moving it. */}
+        <div className="mt-2">
+          <RequiredField missing={systemMissing}>
+            <SuggestInput
+              label="Console this game is filed under"
+              labelHidden
+              value={systemDraft}
+              onChange={setSystemDraft}
+              options={systemSuggestions}
+              maxLength={100}
+              placeholder="e.g. SNES, PS5"
+            />
+          </RequiredField>
+        </div>
         <p className="mt-1.5 text-[11px] text-shelf-text-muted">
-          Moving a game to another console keeps its rating and play history.
+          {promoting
+            ? "Which console did you play it on?"
+            : "Moving a game to another console keeps its rating and play history."}
         </p>
 
-        <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
-          Play
-        </p>
-
-        {playing ? (
-          <div className="mt-2">
+        {playing && !promoting && (
+          <div className="mt-5">
             <p className="text-sm text-shelf-text">
-              Playing since <span className="font-medium">{game.playingSince}</span>
+              Playing since <span className="font-medium">{subject.game.playingSince}</span>
             </p>
-            <button
-              type="button"
-              onClick={stopPlaying}
-              disabled={isPending}
-              className={`mt-2 ${buttonClass}`}
-            >
-              Stop playing
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={startPlaying}
-            disabled={isPending}
-            className={`mt-2 ${buttonClass}`}
-          >
-            Start playing
-          </button>
-        )}
-
-        {/* Rendered outside the branch above, because by the time it shows the
-            session is already closed and that branch has flipped to "Start
-            playing" — which is itself the confirmation that the stop landed.
-            Dismissing this changes nothing about the game's play state. */}
-        {ratePrompt && (
-          <div className="mt-3">
-            <p className="text-xs text-shelf-text-muted">Finished: how was it?</p>
-            {/* Same draft as the picker at the top of the dialog, so this is a
-                shortcut to it rather than a second rating. clearable={false}:
-                this is a prompt, so every click should set a rating — clicking
-                the one already selected would otherwise clear it, which is not
-                what answering a question should do. */}
-            <div className="mt-1.5">
-              <RatingPicker
-                value={ratingDraft}
-                onPick={setRatingDraft}
-                disabled={isPending}
-                clearable={false}
-                describe={(name) => `Rate ${name}`}
-              />
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              {/* Gated on a value being picked, NOT on the draft being dirty:
-                  re-picking the rating the game already has is a valid answer
-                  here (clearable={false} guarantees a click always sets one),
-                  and saveRating dismisses without a write in that case. The Save
-                  at the top of the dialog commits the same draft; this one is
-                  here because a confirm you have to scroll to find is the reason
-                  picks used to be written on the click. */}
-              {ratingDraft !== "" && (
+            {stopPending ? (
+              <p className="mt-2 text-xs text-shelf-text">
+                Will be marked finished today when you save.{" "}
                 <button
                   type="button"
-                  onClick={saveRating}
+                  onClick={() => setStopPending(false)}
                   disabled={isPending}
-                  className={saveButtonClass}
+                  className={ghostButtonClass}
                 >
-                  Save rating
+                  Undo
                 </button>
-              )}
+              </p>
+            ) : (
               <button
                 type="button"
-                onClick={() => setRatePrompt(false)}
+                onClick={() => setStopPending(true)}
                 disabled={isPending}
-                className={ghostButtonClass}
+                className={`mt-2 ${buttonClass}`}
               >
-                Not now
+                Stop Playing
               </button>
-            </div>
+            )}
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => setLogOpen((open) => !open)}
-          aria-expanded={logOpen}
-          className={`mt-3 block ${ghostButtonClass}`}
-        >
-          Log a past session
-        </button>
-        {logOpen && (
-          <div className="mt-2 flex flex-wrap items-end gap-2">
-            <label className={labelClass}>
-              From
-              <input
-                type="date"
-                value={logStart}
-                max={localToday()}
-                onChange={(e) => setLogStart(e.target.value)}
-                className={dateInputClass}
-              />
-            </label>
-            <label className={labelClass}>
-              To
-              <input
-                type="date"
-                value={logEnd}
-                min={logStart || undefined}
-                max={localToday()}
-                onChange={(e) => setLogEnd(e.target.value)}
-                className={dateInputClass}
-              />
-            </label>
-            <button
-              type="button"
-              onClick={saveLoggedSession}
-              disabled={isPending || logStart === "" || logDatesInvalid}
-              className={saveButtonClass}
-            >
-              Save
-            </button>
-            <p className="w-full text-[11px] text-shelf-text-muted">
-              Leave “To” empty if you’re still playing it.
+        {/* A wider gap than the other section headings get: this one can follow
+            the Stop Playing button, and at mt-5 the heading crowded it. */}
+        <p className="mt-7 text-xs font-semibold uppercase tracking-widest text-shelf-label">
+          Track a Played Session
+        </p>
+        {/* Always shown rather than behind a disclosure: a session is an
+            ordinary field of this dialog, and one fewer press to reach it.
+            Empty by default, which is what keeps Save honest — pre-filling
+            today here would leave every game looking like it had a pending
+            change. The "Played?" path fills it in, because arriving that way
+            has already asserted the session. */}
+        <SessionDateFields
+          startDate={sessionStart}
+          endDate={sessionEnd}
+          onChangeStart={setSessionStart}
+          onChangeEnd={setSessionEnd}
+          disabled={isPending}
+          problem={
+            endWithoutStart
+              ? "Add a start date, or clear the end date."
+              : datesInvalid
+                ? "The end date is before the start date."
+                : wouldDoubleOpen
+                  ? "You are already playing this. Add an end date, or stop playing first."
+                  : null
+          }
+        />
+
+        {/* Always present, so there is one place to look for "did this save?".
+            Disabled until something is actually pending. */}
+        <div className="mt-6 border-t border-shelf-plank pt-4">
+          <button type="button" onClick={save} disabled={!canSave} className={saveButtonClass}>
+            {promoting ? "Save And Move To Library" : "Save"}
+          </button>
+          {systemMissing && (
+            <p className="mt-1.5 text-[11px] text-shelf-text-muted">
+              {promoting
+                ? "Pick the console you played it on to save."
+                : "A game needs a console. Pick one to save."}
             </p>
+          )}
+        </div>
+
+        {!promoting && (
+          <div className="mt-4 border-t border-shelf-plank pt-3">
+            <ConfirmStep
+              triggerLabel="Remove from library"
+              confirmLabel="Remove"
+              onConfirm={removeGame}
+              disabled={isPending}
+              prompt={
+                <>
+                  Remove <span className="font-medium">{source.name}</span>?
+                  {subject.game.sessionCount > 0 && (
+                    <span className="text-shelf-text-muted">
+                      {" "}
+                      This also deletes{" "}
+                      {subject.game.sessionCount === 1
+                        ? "its 1 logged session"
+                        : `its ${subject.game.sessionCount} logged sessions`}
+                      .
+                    </span>
+                  )}
+                </>
+              }
+            />
           </div>
         )}
-
-        <div className="mt-5 border-t border-shelf-plank pt-3">
-          <ConfirmStep
-            triggerLabel="Remove from library"
-            confirmLabel="Remove"
-            onConfirm={removeGame}
-            disabled={isPending}
-            prompt={
-              <>
-                Remove <span className="font-medium">{game.name}</span>?
-                {sessionCount > 0 && (
-                  <span className="text-shelf-text-muted">
-                    {" "}
-                    This also deletes{" "}
-                    {sessionCount === 1
-                      ? "its 1 logged session"
-                      : `its ${sessionCount} logged sessions`}
-                    .
-                  </span>
-                )}
-              </>
-            }
-          />
-        </div>
       </>
     </ModalShell>
   );

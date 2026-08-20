@@ -99,7 +99,7 @@ export interface Game extends BaseGame {
   sessionCount: number;
 }
 
-// One candidate from GET /api/py/igdb/search — the add-game picker's row.
+// One candidate from GET {API_PREFIX}/game-catalog — the add-game picker's row.
 // Platforms/genres are IGDB's own names. The confirm step picks which shelf the
 // game lands on but cannot rewrite the rest: name and release date become the
 // shared catalog row, and genres are re-sourced from Wikipedia server-side, so

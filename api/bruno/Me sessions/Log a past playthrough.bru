@@ -1,0 +1,35 @@
+meta {
+  name: Log a past playthrough
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}{{apiPrefix}}/me/games/{{gameId}}/sessions
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "startDate": "2026-06-01",
+    "endDate": "2026-06-14"
+  }
+}
+
+docs {
+  Same endpoint as `Start playing`; sending both dates logs an already-finished
+  session instead of opening one. A closed session does not conflict with an open
+  one, so this works while the game is currently being played.
+
+  The newest closed `endDate` is what the read path reports as `lastPlayed`.
+
+  - 201 the game, with the session folded into its play state
+  - 404 game nonexistent or someone else's
+  - 422 endDate before startDate
+  - 429 over the write budget
+}

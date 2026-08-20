@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "name": "personal-website-api",
+  "type": "collection",
+  "ignore": ["node_modules", ".git"]
+}

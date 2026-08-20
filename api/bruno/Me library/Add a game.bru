@@ -1,0 +1,54 @@
+meta {
+  name: Add a game
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}{{apiPrefix}}/me/games
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Hollow Knight",
+    "system": "Nintendo Switch",
+    "genres": ["Metroidvania"],
+    "releaseDate": "2017-02-24",
+    "imageUrl": "",
+    "igdbId": null,
+    "rating": ""
+  }
+}
+
+docs {
+  Adds a game to the caller's library. Only `name` and `system` are required;
+  every IGDB-derived field is optional so a hand-entered title works.
+
+  `igdbId` decides catalog identity. With one, the shared `game_metadata` row is
+  looked up or created and everyone who adds that game lands on it. Without one,
+  the row is private to its creator, because a hand-typed name is not a canonical
+  key and one person's typo must not rewrite someone else's shelf.
+
+  `imageUrl` accepts only `https://images.igdb.com/` URLs or `""`. Covers are
+  hotlinked, so an open URL field would make any library free image hosting.
+
+  Genres sent here are only a FALLBACK. When the add creates a new catalog row the
+  server looks the genres up from Wikipedia, because IGDB's are too coarse for a
+  library. Ask `Catalog and search / Preview a catalog entry` what it will actually
+  store.
+
+  Returns the created game in the same wire shape as the public read.
+
+  - 201 created
+  - 403 not onboarded, or library at MAX_GAMES
+  - 409 that game is already in the library
+  - 422 blank name or system, unknown rating, non-IGDB imageUrl
+  - 429 over the shared 60-writes-per-minute budget
+  - 503 writes disabled (preview deploys hold a read-only Postgres role)
+}

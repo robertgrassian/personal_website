@@ -312,7 +312,7 @@ export function GameShelves({
           add/stats buttons, the filter status, and the filter bar. Everything a
           visitor navigates WITH stays reachable however far down the shelves
           they are.
-          top-[var(--nav-height)] parks it directly under the site nav.
+          top-[var(--nav-offset)] parks it directly under the site nav.
           z-20 sits above the shelves and below the nav (z-50) and stats panel (z-40).
           rounded-b-lg + shelf-filter-bar separate it from the shelf content
           (shadow in light mode, bottom border in dark).
@@ -334,7 +334,7 @@ export function GameShelves({
           controls stay hidden from the tab order exactly while off screen. */}
       <div
         ref={headerRef}
-        className={`sticky top-[var(--nav-height)] z-20 bg-shelf-bg/95 backdrop-blur-sm rounded-b-lg shelf-filter-bar transition-[translate,visibility] duration-300 ${headerVisible ? "translate-y-0" : "-translate-y-full invisible pointer-events-none"}`}
+        className={`sticky top-[var(--nav-offset)] z-20 bg-shelf-bg/95 backdrop-blur-sm rounded-b-lg shelf-filter-bar transition-[translate,visibility] duration-300 ${headerVisible ? "translate-y-0" : "-translate-y-full invisible pointer-events-none"}`}
       >
         {tabs}
 

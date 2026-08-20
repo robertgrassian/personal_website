@@ -1,0 +1,29 @@
+meta {
+  name: Follow a user
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}{{apiPrefix}}/me/following/{{otherUsername}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Idempotent: following someone you already follow is 204, not a conflict, so a
+  double-fired toggle needs no special handling. A composite PK on `follows` makes
+  duplicate edges impossible at the database level too.
+
+  PUT rather than POST precisely because of that. The edge from the caller to
+  {username} is one addressable thing, and POST is defined as unsafe to repeat, so
+  clients and intermediaries may refuse to retry it. That is backwards for a toggle
+  which is safe to send twice. Bodyless PUT on a named sub-resource is the standard
+  spelling for set membership.
+
+  - 204 following
+  - 403 not onboarded
+  - 404 no such username
+  - 422 following yourself (a CHECK constraint backs this up)
+  - 429 over the write budget
+}

@@ -1,0 +1,55 @@
+meta {
+  name: Preview a catalog entry
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}{{apiPrefix}}/game-catalog/preview?name=Hollow Knight&igdbId=2932&releaseDate=2017-02-24
+  body: none
+  auth: inherit
+}
+
+params:query {
+  name: Hollow Knight
+  igdbId: 2932
+  releaseDate: 2017-02-24
+  ~genres: Metroidvania
+}
+
+docs {
+  What the shared catalog row for this game holds, or would hold if it were added
+  right now: `genres` and `releaseDate`.
+
+  A GET rather than part of the add response, because the add form shows these
+  before anything is created. It exists because those values belong to the catalog,
+  not the adder, so the form can display them but not set them.
+
+  A sub-resource of `game-catalog` rather than a `/me` route. It was
+  `GET /me/catalog-preview` until 2026-08-18, which put it under `/me` for an
+  authorization reason: it needs auth and burns rate-limit budget. But it describes
+  a catalog fact shared by everyone who owns the game, not a fact about the caller,
+  so it belongs next to the search instead.
+
+  The SERVICE function stays in `services/me.py` even though the route moved. It
+  shares its genre-resolution helpers with the add path deliberately, so the
+  preview and the write cannot disagree about the rule.
+
+  Pass the `genres` and `releaseDate` the client already has from IGDB. They are
+  the same fallbacks the write path would use, so passing them makes this answer
+  with exactly what an add would store rather than with a second opinion.
+
+  Watch the query parameter names. CamelModel's camelCase convention covers SCHEMA
+  fields, not bare query params, so `igdbId` and `releaseDate` only work because
+  the route declares explicit aliases. Without them FastAPI silently ignores the
+  camelCase spelling and the preview runs as though the game had no IGDB id. That
+  shipped once.
+
+  Another GET that writes, in this case rate-limit counters, since it can call out
+  to Wikipedia. Blocked on preview deploys for that reason.
+
+  - 200 `{"genres": [...], "releaseDate": "..."}`
+  - 401 not logged in
+  - 429 over the per-minute lookup budget
+  - 503 writes disabled on this environment
+}

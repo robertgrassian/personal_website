@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { API_PREFIX } from "@/lib/apiPrefix";
 import { forgetOwnedLibrary, isKnownOwnLibrary, rememberOwnedLibrary } from "@/lib/ownedLibrary";
 
 // Resolves the viewer's relationship to the library they're looking at, so the
@@ -11,8 +12,8 @@ import { forgetOwnedLibrary, isKnownOwnLibrary, rememberOwnedLibrary } from "@/l
 // the other cached), so this can only be answered client-side after hydration.
 // Its `isMe` result also decides whether edit affordances render, via
 // FollowControls' useIsLikelyOwner / useIsConfirmedOwner — one request, one
-// answer, so the Follow button and
-// the edit pencils can never contradict each other. It cannot use the
+// answer, so the Follow button and the edit pencils can never contradict each
+// other. It cannot use the
 // pre-paint data-authed flag either — that proves a session exists, not whose,
 // and "am I following this person?" is a question only the API can answer.
 //
@@ -109,16 +110,19 @@ export function useViewerRelationship(ownerUsername: string): ViewerRelationship
         return;
       }
 
-      // Relative URL: the /api/py rewrite makes this same-origin in dev and
+      // Relative URL: the API_PREFIX rewrite makes this same-origin in dev and
       // prod alike, so no CORS is involved.
-      const res = await fetch(`/api/py/me/relationship/${encodeURIComponent(ownerUsername)}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        cache: "no-store",
-        // A request that never settles would leave the guess standing for the
-        // life of the page, since neither branch below would run. Aborting
-        // rejects it into dropGuess instead.
-        signal: abort.signal,
-      });
+      const res = await fetch(
+        `${API_PREFIX}/me/relationship/${encodeURIComponent(ownerUsername)}`,
+        {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: "no-store",
+          // A request that never settles would leave the guess standing for the
+          // life of the page, since neither branch below would run. Aborting
+          // rejects it into dropGuess instead.
+          signal: abort.signal,
+        }
+      );
       if (!res.ok) {
         dropGuess();
         return;

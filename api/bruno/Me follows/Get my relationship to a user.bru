@@ -1,0 +1,25 @@
+meta {
+  name: Get my relationship to a user
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}{{apiPrefix}}/me/relationship/{{otherUsername}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Everything the follow button needs: `amIFollowing` and `isMe`.
+
+  A /me route rather than a field on the public profile because it differs per
+  viewer and must never be cached. Folding `isMe` in here is what lets the button
+  settle "hide entirely" against "show Follow" from one request instead of racing
+  two, and it costs nothing because the service already has both profiles loaded.
+
+  - 200 the relationship
+  - 401 not logged in
+  - 403 authenticated but not onboarded
+  - 404 no such username
+}

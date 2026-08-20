@@ -1,0 +1,20 @@
+meta {
+  name: List a user's wishlist
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}{{apiPrefix}}/users/{{username}}/wishlist
+  body: none
+  auth: none
+}
+
+docs {
+  Same shape as the games list plus `starred`, `notes` and `dateAdded`, and minus
+  the rating and play state. `system` may be `""`: a wishlist entry can stay
+  undecided about which platform to buy on.
+
+  - 200 a list of wishlist entries
+  - 404 no such username
+}
