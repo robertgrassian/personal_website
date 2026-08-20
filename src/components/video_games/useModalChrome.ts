@@ -1,15 +1,13 @@
 import { useEffect, useRef, type RefObject } from "react";
 
 // The dimming/blurring layer behind a modal surface, shared by the five that
-// use this hook. Callers supply their own positioning (`absolute` inside
-// ModalShell's fixed frame, `fixed` for the two stays-mounted panels), z-index
-// and transition.
+// use this hook. Callers add only z-index and transitions.
 //
-// min-h-lvh, not `inset-0` alone: a mobile browser's retracting URL bar grows
-// the visual viewport without growing the layout viewport that `inset-0`
-// resolves against, so the revealed strip stayed unblurred. `inset-0` remains
-// as the fallback height where lvh is unsupported.
-export const modalBackdropClass = "inset-0 min-h-lvh bg-black/40 backdrop-blur-sm";
+// inset-0 reaches the screen edges only because layout.tsx sets
+// viewport-fit=cover. Without that the page is inset out of the device safe
+// areas and this stops above the home indicator, leaving a strip it cannot
+// dim or blur however the box is sized.
+export const modalBackdropClass = "fixed inset-0 bg-black/40 backdrop-blur-sm";
 
 // Shared chrome for the owner dialogs. Locks body scroll, moves focus into the
 // dialog (to initialFocusRef), closes on Escape, and restores focus to whatever

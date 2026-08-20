@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
@@ -13,6 +13,15 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+// viewportFit "cover" lets the page paint into the device safe areas instead
+// of being inset out of them. Without it a `fixed; inset: 0` overlay stops
+// above the home indicator on iOS 26, which is why the modal backdrop left an
+// unblurred strip. The --safe-* tokens in globals.css only report non-zero
+// values once this is set; everything pinned to a viewport edge consumes them.
+export const viewport: Viewport = {
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   // Base for resolving relative OG/Twitter image URLs. Without it Next falls

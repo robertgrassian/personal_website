@@ -1,7 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --nav-height: 4rem; /* 64px — consumed as h-[var(--nav-height)] in Nav.tsx and top-[var(--nav-height)] in GameShelves.tsx and StatsPanel.tsx */
+  --nav-height: 4rem; /* 64px — the bar itself, consumed as h-[var(--nav-height)] in Nav.tsx */
+
+  /* Device safe areas, non-zero only because layout.tsx opts into
+     viewport-fit=cover. Without that opt-in iOS insets the whole page out of
+     them, which is what left a strip the modal backdrop could not paint into.
+     Covering means the page now owns those pixels, so anything pinned to a
+     viewport edge has to pad itself back out of them. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  /* The modal frame's visual gutter, before the safe areas are added to it.
+     A token rather than a p-* utility because each side needs its own calc,
+     and a responsive shorthand like sm:p-4 sorts after per-side utilities and
+     silently overrides them. AddGameModal's panel cap reads it too. */
+  --modal-gutter: 0.75rem;
+
+  /* Where the nav bar ends, which is what the sticky library chrome offsets
+     against: the bar plus whatever the nav pads above it. Consumed as
+     top-[var(--nav-offset)] in GameShelves.tsx and StatsPanel.tsx. */
+  --nav-offset: calc(var(--nav-height) + var(--safe-top));
 
   --background: #ffffff;
   --foreground: #171717;
@@ -120,6 +141,14 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans);
+}
+
+/* 40rem is Tailwind's sm breakpoint, so the gutter steps up with the sm:
+   variants the modals already use. */
+@media (width >= 40rem) {
+  :root {
+    --modal-gutter: 1rem;
+  }
 }
 
 /* Pre-paint auth visibility. layout.tsx's inline script sets data-authed on

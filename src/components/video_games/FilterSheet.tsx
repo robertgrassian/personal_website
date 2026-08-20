@@ -101,7 +101,7 @@ export function FilterSheet(props: FilterSheetProps) {
       <div
         aria-hidden="true"
         onClick={onClose}
-        className={`fixed z-30 ${modalBackdropClass} transition-opacity duration-300 sm:hidden ${
+        className={`${modalBackdropClass} z-30 transition-opacity duration-300 sm:hidden ${
           isOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       />
@@ -114,6 +114,12 @@ export function FilterSheet(props: FilterSheetProps) {
         inert={!isOpen}
         // max-h-[85vh] leaves the shelves visible above the sheet, so it reads
         // as a layer over the library rather than a new page.
+        //
+        // No --safe-bottom padding here, unlike the other edge-pinned surfaces:
+        // the action row at the foot of this sheet already pads itself with
+        // max(1rem, env(safe-area-inset-bottom)), which was inert until
+        // viewport-fit=cover made the inset non-zero. Adding it here too would
+        // apply the gap twice.
         className={`fixed inset-x-0 bottom-0 z-40 flex max-h-[85vh] flex-col rounded-t-2xl border-t border-divider bg-background shadow-2xl transition-transform duration-300 ease-out sm:hidden ${
           isOpen ? "translate-y-0" : "translate-y-full"
         }`}

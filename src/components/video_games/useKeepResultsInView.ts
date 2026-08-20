@@ -56,7 +56,7 @@ export function useKeepResultsInView(
       const chrome = chromeRef.current;
       if (!results || !chrome) return;
 
-      // The chrome's own sticky offset resolves --nav-height to pixels for us,
+      // The chrome's own sticky offset resolves --nav-offset to pixels for us,
       // so the nav and the header are measured rather than restated here. The
       // header is one element holding the tab strip, the filter status and the
       // filter bar, so offsetHeight already covers all of it.
