@@ -4,10 +4,14 @@
   --nav-height: 4rem; /* 64px — the bar itself, consumed as h-[var(--nav-height)] in Nav.tsx */
 
   /* Device safe areas, non-zero only because layout.tsx opts into
-     viewport-fit=cover. Without that opt-in iOS insets the whole page out of
-     them, which is what left a strip the modal backdrop could not paint into.
-     Covering means the page now owns those pixels, so anything pinned to a
-     viewport edge has to pad itself back out of them. */
+     viewport-fit=cover. Covering means the page owns the notch and
+     home-indicator pixels rather than being inset out of them, so anything
+     pinned to a viewport edge has to pad itself back out.
+
+     Worth knowing if you are chasing the same bug this arrived with: covering
+     is NOT what fixed the modal backdrop's uncovered strip. That strip is the
+     stale layout viewport, and useModalChrome.ts explains it. This is kept
+     because handling the safe areas is right on its own terms. */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -16,7 +20,7 @@
   /* The modal frame's visual gutter, before the safe areas are added to it.
      A token rather than a p-* utility because each side needs its own calc,
      and a responsive shorthand like sm:p-4 sorts after per-side utilities and
-     silently overrides them. AddGameModal's panel cap reads it too. */
+     silently overrides them. */
   --modal-gutter: 0.75rem;
 
   /* Where the nav bar ends, which is what the sticky library chrome offsets
