@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { localToday } from "@/lib/games";
-import { fieldClass, labelClass } from "./formStyles";
+import { fieldClass, ghostButtonClass, labelClass } from "./formStyles";
 
 // Date inputs size to their content rather than filling the row, so they take
 // the shared tokens plus their own padding instead of `inputClass`.
@@ -15,21 +15,21 @@ const dateInputClass = `${fieldClass} px-2 py-1`;
 // from anywhere in the field) and better in every other: typing straight into
 // the field works, and the segments advance month to day to year on their own.
 
-/** Keeps a date input's draft in step with the DOM when the browser changes the
- *  field behind React's back, which is what the picker's own Reset button does
- *  on iOS.
+/** Keeps a date input's draft in step with the DOM when iOS changes the field
+ *  without telling React.
  *
- *  React's onChange cannot see that press. WebKit dispatches change while the
- *  element still holds the OLD value and commits the clear afterwards
- *  (facebook/react#8938), and React only calls onChange when the value has
- *  already moved, so it drops the event and the field keeps the stale date.
- *  A native listener is not filtered that way, and re-reading on the next task
- *  runs after WebKit has committed. Reset then clears the field on its own,
- *  with no second control needed beside it.
+ *  The picker's Reset button reverts the field to the value it held when the
+ *  picker opened and fires nothing (facebook/react#23299), so spinning to a new
+ *  date and then pressing Reset leaves the draft holding a date the field is no
+ *  longer showing, and Save would write it. Subscribing to the raw events
+ *  rather than React's onChange, and re-reading on the next task, stops the two
+ *  diverging.
  *
- *  blur is listened to as well, for a browser that mutates the value without
- *  dispatching anything at all: the correction lands when the picker closes
- *  rather than never. */
+ *  What this deliberately does NOT do is make Reset empty the field. Reverting
+ *  to the value already committed is the whole of what that button does on iOS,
+ *  so it can never clear a date that is already there; the Clear buttons below
+ *  are the only way. Checked 2026-08-20 after two attempts to "fix" Reset.
+ */
 function useNativeValueSync(value: string, onChange: (value: string) => void) {
   const ref = useRef<HTMLInputElement>(null);
   // Latest-ref pattern, as in useModalChrome: the listener reads through this
@@ -120,6 +120,30 @@ export function SessionDateFields({
           />
         </label>
       </div>
+      {/* py-1.5 buys a touch-sized hit area on a 12px label; the row's own
+          margin is trimmed to match so the spacing below is unchanged. */}
+      {!disabled && (startDate !== "" || endDate !== "") && (
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-4">
+          {startDate !== "" && (
+            <button
+              type="button"
+              onClick={() => onChangeStart("")}
+              className={`py-1.5 ${ghostButtonClass}`}
+            >
+              Clear “From”
+            </button>
+          )}
+          {endDate !== "" && (
+            <button
+              type="button"
+              onClick={() => onChangeEnd("")}
+              className={`py-1.5 ${ghostButtonClass}`}
+            >
+              Clear “To”
+            </button>
+          )}
+        </div>
+      )}
       <p
         id="session-date-help"
         className={`mt-1.5 text-[11px] ${
