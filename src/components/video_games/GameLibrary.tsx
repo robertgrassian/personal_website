@@ -9,7 +9,7 @@ import { VIEW_LABEL, VALID_GAME_VIEW, isGameView } from "./libraryConfig";
 import { PeopleList } from "./PeopleList";
 import type { UserSummary } from "@/lib/follows";
 import { useGameLibraryUrlState } from "./useGameLibraryUrlState";
-import { useIsOwner } from "./FollowControls";
+import { useIsConfirmedOwner, useIsLikelyOwner } from "./FollowControls";
 import { EditGameModal } from "./EditGameModal";
 import { EditWishlistModal } from "./EditWishlistModal";
 import { AddGameModal } from "./AddGameModal";
@@ -53,7 +53,11 @@ export function GameLibrary({
   // Read from the FollowStateProvider that LibraryPage wraps this in, which
   // means the same request that decides the Follow button also decides these
   // controls — they can no longer disagree mid-flight.
-  const canEdit = useIsOwner();
+  const canEdit = useIsLikelyOwner();
+  // Adding is the one thing the server cannot aim for us: POST /me/games writes
+  // to whoever's token sent it, so the affordance waits for the confirmed
+  // answer while the pencils above run on the guess. See FollowControls.
+  const canAdd = useIsConfirmedOwner();
 
   // URL-backed state lives in the hook; this component only renders. Passed
   // whole to GameShelves rather than unpacked into eleven props.
@@ -264,7 +268,7 @@ export function GameLibrary({
         ))}
       </div>
       <div className="flex items-center gap-0 sm:gap-1">
-        {canEdit && isGameView(view) && (
+        {canAdd && isGameView(view) && (
           <button
             type="button"
             onClick={handleAddGame}
@@ -310,6 +314,7 @@ export function GameLibrary({
             view={view}
             tabs={tabs}
             canEdit={canEdit}
+            canAdd={canAdd}
             urlState={urlState}
             onAddGame={handleAddGame}
             statsOpen={statsOpen}
@@ -328,7 +333,11 @@ export function GameLibrary({
           </>
         )}
 
-        {editingGame && (
+        {/* Gated on the ownership answer as well as on the open state, so a
+            viewer whose answer is corrected mid-dialog loses the dialog too:
+            the buttons that set these are owner-only, but an already-OPEN one
+            would otherwise outlive the answer that opened it. */}
+        {canEdit && editingGame && (
           <EditGameModal
             subject={{ kind: "game", game: editingGame }}
             existingSystems={existingSystems}
@@ -336,14 +345,16 @@ export function GameLibrary({
             onClose={() => setEditingGameId(null)}
           />
         )}
-        {editingWishlistItem && (
+        {canEdit && editingWishlistItem && (
           <EditWishlistModal
             item={editingWishlistItem}
             onPlayed={handlePlayed}
             onClose={() => setEditingWishlistId(null)}
           />
         )}
-        {promotingItem && (
+        {/* canEdit, not canAdd: promote targets an EXISTING wishlist row, so
+            POST /me/wishlist/{id}/promote 404s on someone else's. */}
+        {canEdit && promotingItem && (
           <EditGameModal
             subject={{ kind: "promote", item: promotingItem }}
             existingSystems={existingSystems}
@@ -351,7 +362,7 @@ export function GameLibrary({
             onClose={() => setPromotingWishlistId(null)}
           />
         )}
-        {addOpen && (
+        {canAdd && addOpen && (
           <AddGameModal
             target={addTarget}
             existingSystems={existingSystems}

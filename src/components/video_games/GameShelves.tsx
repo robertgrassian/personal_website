@@ -64,10 +64,14 @@ type GameShelvesProps = {
   // (the add button appears only for the owner, the tabs wrap on narrow screens).
   // A single container makes the height irrelevant.
   tabs: ReactNode;
-  // Still needed here for the copy ("Your library" vs "This library") and the
-  // empty-library call to action. Whether a *card* shows a pencil is no longer
-  // this component's business: GameCase reads that from LibraryEditingContext.
+  // Still needed here for the copy ("Your library" vs "This library"). Whether
+  // a *card* shows a pencil is no longer this component's business: GameCase
+  // reads that from LibraryEditingContext.
   canEdit: boolean;
+  // Confirmed ownership, which the empty-library call to action needs because
+  // it opens the add dialog. See FollowControls for why adding is the one
+  // affordance that cannot run on the cached guess.
+  canAdd: boolean;
   urlState: UrlState;
   onAddGame: () => void;
   // Owned by GameLibrary because the button that opens it lives in the tab
@@ -86,6 +90,7 @@ export function GameShelves({
   view,
   tabs,
   canEdit,
+  canAdd,
   urlState,
   onAddGame,
   statsOpen,
@@ -247,6 +252,11 @@ export function GameShelves({
   // every game on screen and must not move the page. So is `groupBy`, which
   // reshuffles shelves without narrowing anything, so it cannot strand the
   // results the way a filter that collapses the document can.
+  // Joined on \u0000 rather than a space: a separator that can occur inside a
+  // value lets two different filter sets share a signature. Nothing typed into
+  // these filters produces one, though a crafted ?search=%00 does, at the cost
+  // of one missed scroll adjustment. Written as an escape because a literal NUL
+  // byte in the source makes git and grep treat this file as binary.
   const filterSignature =
     view === "played"
       ? [
@@ -255,13 +265,13 @@ export function GameShelves({
           deferredFilters.system,
           deferredFilters.genre,
           deferredFilters.rating,
-        ].join(" ")
+        ].join("\u0000")
       : [
           "wishlist",
           deferredWishlistFilters.search,
           deferredWishlistFilters.system,
           deferredWishlistFilters.genre,
-        ].join(" ");
+        ].join("\u0000");
   useKeepResultsInView(resultsRef, headerRef, filterSignature);
 
   // The props both views pass identically, and now also the props the desktop
@@ -422,7 +432,7 @@ export function GameShelves({
                   view === "played" ? "library" : "wishlist"
                 } is empty.`}
               </p>
-              {canEdit && (
+              {canAdd && (
                 <button
                   type="button"
                   onClick={onAddGame}

@@ -105,7 +105,7 @@ export async function LibraryPage({
   return (
     <main className="min-h-screen bg-shelf-bg shelf-theme">
       {/* Wraps the whole page, not just the header: GameLibrary reads
-          useIsOwner() from this context to decide whether to render edit
+          useIsLikelyOwner() from this context to decide whether to render edit
           controls. Spanning a server-rendered subtree costs nothing, because
           `children` is a serialized RSC slot rather than an import — SignupCta
           and CrtTv ship no extra JavaScript, and when `relationship` resolves
