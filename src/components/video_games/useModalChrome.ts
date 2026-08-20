@@ -3,11 +3,23 @@ import { useEffect, useRef, type RefObject } from "react";
 // The dimming/blurring layer behind a modal surface, shared by the five that
 // use this hook. Callers add only z-index and transitions.
 //
-// inset-0 reaches the screen edges only because layout.tsx sets
-// viewport-fit=cover. Without that the page is inset out of the device safe
-// areas and this stops above the home indicator, leaving a strip it cannot
-// dim or blur however the box is sized.
-export const modalBackdropClass = "fixed inset-0 bg-black/40 backdrop-blur-sm";
+// The 25vh bleed covers a strip at the bottom of the screen this used to leave
+// undimmed on iOS 26, roughly 60px of it, once the page had been scrolled.
+//
+// Scrolling there does not remove the URL bar, it shrinks it to a floating
+// pill, and the layout viewport stays sized for the expanded bar. So
+// `position: fixed` anchors to a box shorter than what is on screen, while
+// ordinary in-flow content reaches the bottom edge perfectly well: the strip
+// showed the page's own game covers, unblurred, below a backdrop that had
+// stopped. Apple has this filed as bottom-anchored elements stopping "at the
+// height where the toolbar was located".
+//
+// Hence an overshoot rather than a length, since no unit names that box: 25vh
+// is far more than any browser chrome, on both edges because the bar can be
+// top or bottom. The excess sits off screen or behind that chrome, and a fixed
+// box adds no scrollable overflow, so over-covering is free.
+export const modalBackdropClass =
+  "fixed inset-x-0 top-[-25vh] bottom-[-25vh] bg-black/40 backdrop-blur-sm";
 
 // Shared chrome for the owner dialogs. Locks body scroll, moves focus into the
 // dialog (to initialFocusRef), closes on Escape, and restores focus to whatever
