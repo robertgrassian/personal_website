@@ -1,7 +1,7 @@
 "use client";
 
 import { localToday } from "@/lib/games";
-import { fieldClass, labelClass } from "./formStyles";
+import { fieldClass, ghostButtonClass, labelClass } from "./formStyles";
 
 // Date inputs size to their content rather than filling the row, so they take
 // the shared tokens plus their own padding instead of `inputClass`.
@@ -37,6 +37,19 @@ export function SessionDateFields({
   disabled,
   problem,
 }: SessionDateFieldsProps) {
+  // A controlled input's value is whatever state says, so any clear the browser
+  // performs without React hearing an event is written straight back and the
+  // press looks dead. That is what the mobile picker's own Reset button hits.
+  // Re-reading the DOM on blur makes the field converge on what the user did
+  // instead of silently reverting.
+  const syncFromDom = (current: string, onChange: (value: string) => void) => {
+    return (e: React.FocusEvent<HTMLInputElement>) => {
+      if (e.target.value !== current) onChange(e.target.value);
+    };
+  };
+
+  const showClear = !disabled && (startDate !== "" || endDate !== "");
+
   return (
     <div className="mt-2">
       <div className="flex flex-wrap items-end gap-2">
@@ -48,6 +61,7 @@ export function SessionDateFields({
             max={localToday()}
             disabled={disabled}
             onChange={(e) => onChangeStart(e.target.value)}
+            onBlur={syncFromDom(startDate, onChangeStart)}
             aria-invalid={problem !== null}
             aria-describedby="session-date-help"
             className={dateInputClass}
@@ -62,12 +76,41 @@ export function SessionDateFields({
             max={localToday()}
             disabled={disabled}
             onChange={(e) => onChangeEnd(e.target.value)}
+            onBlur={syncFromDom(endDate, onChangeEnd)}
             aria-invalid={problem !== null}
             aria-describedby="session-date-help"
             className={dateInputClass}
           />
         </label>
       </div>
+      {/* The in-app way to empty a field. Needed because the platform picker's
+          Reset is unreliable above, and because "clear the end date" is
+          literally what the validation message below asks the user to do. */}
+      {showClear && (
+        // py-1.5 buys a touch-sized hit area on a 12px label; the row's own
+        // margin is trimmed to match so the spacing below the fields is
+        // unchanged.
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-4">
+          {startDate !== "" && (
+            <button
+              type="button"
+              onClick={() => onChangeStart("")}
+              className={`py-1.5 ${ghostButtonClass}`}
+            >
+              Clear “From”
+            </button>
+          )}
+          {endDate !== "" && (
+            <button
+              type="button"
+              onClick={() => onChangeEnd("")}
+              className={`py-1.5 ${ghostButtonClass}`}
+            >
+              Clear “To”
+            </button>
+          )}
+        </div>
+      )}
       <p
         id="session-date-help"
         className={`mt-1.5 text-[11px] ${
