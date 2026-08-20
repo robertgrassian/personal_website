@@ -29,7 +29,8 @@
 import { useRef, type ReactNode } from "react";
 import { RATINGS, UNRATED_LABEL, systemLabel, type RatingFilter } from "@/lib/games";
 import { CloseIcon } from "@/components/Icon";
-import { modalBackdropClass, useModalChrome } from "./useModalChrome";
+import { useModalChrome } from "./useModalChrome";
+import { ModalBackdrop } from "./ModalBackdrop";
 import { FilterSelect, type FilterControlProps } from "./FilterBar";
 import { accentButtonClass, filterSelectClass } from "./formStyles";
 
@@ -98,10 +99,9 @@ export function FilterSheet(props: FilterSheetProps) {
       {/* Backdrop. sm:hidden on both halves: the sheet is a phone affordance,
           and on desktop every one of these controls is already inline in the
           bar, so a stuck-open state must not be able to cover that. */}
-      <div
-        aria-hidden="true"
-        onClick={onClose}
-        className={`${modalBackdropClass} z-30 transition-opacity duration-300 sm:hidden ${
+      <ModalBackdrop
+        onClose={onClose}
+        className={`z-30 transition-opacity duration-300 sm:hidden ${
           isOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       />

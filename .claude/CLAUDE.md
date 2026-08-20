@@ -33,24 +33,24 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 
 ### Where things live
 
-| Task                                   | File                                                                               |
-| -------------------------------------- | ---------------------------------------------------------------------------------- |
-| Library read fetches, cache tags       | `src/lib/libraryApi.ts`                                                            |
-| Owner writes (client-callable)         | `src/app/video-games/actions.ts` → `src/lib/meApi.ts`                              |
-| Filter / group / sort logic            | `src/components/video_games/pipeline.ts`                                           |
-| Filter/group/sort option lists         | `src/components/video_games/libraryConfig.ts`, `useFilterOptions.ts`               |
-| Shared types, `RATINGS`, `systemLabel` | `src/lib/games.ts` (library), `wishlist.ts`, `profile.ts`, `follows.ts`            |
-| Shelf UI                               | `GameShelves.tsx` → `ShelfSection.tsx` → `GameCase.tsx` / `GameCaseBack.tsx`       |
-| Library page shell (both routes)       | `src/components/video_games/LibraryPage.tsx`                                       |
-| Owner modals                           | `AddGameModal.tsx`, `EditGameModal.tsx`, `EditWishlistModal.tsx`, `ModalShell.tsx` |
-| "Currently playing" CRT                | `src/components/crt/CrtTv.tsx` + `crt.css`                                         |
-| Can this viewer edit?                  | `LibraryEditingContext.tsx`, `useViewerRelationship.ts`                            |
-| Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                       |
-| Library styles                         | `src/app/video-games/video-games.css`; site tokens in `src/app/globals.css`        |
-| API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)           |
-| API endpoint reference, runnable       | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)       |
-| Migrations                             | `api/alembic/versions/`                                                            |
-| Tests                                  | `api/tests/` (pytest). No frontend test suite exists yet                           |
+| Task                                   | File                                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Library read fetches, cache tags       | `src/lib/libraryApi.ts`                                                                                 |
+| Owner writes (client-callable)         | `src/app/video-games/actions.ts` → `src/lib/meApi.ts`                                                   |
+| Filter / group / sort logic            | `src/components/video_games/pipeline.ts`                                                                |
+| Filter/group/sort option lists         | `src/components/video_games/libraryConfig.ts`, `useFilterOptions.ts`                                    |
+| Shared types, `RATINGS`, `systemLabel` | `src/lib/games.ts` (library), `wishlist.ts`, `profile.ts`, `follows.ts`                                 |
+| Shelf UI                               | `GameShelves.tsx` → `ShelfSection.tsx` → `GameCase.tsx` / `GameCaseBack.tsx`                            |
+| Library page shell (both routes)       | `src/components/video_games/LibraryPage.tsx`                                                            |
+| Owner modals                           | `AddGameModal.tsx`, `EditGameModal.tsx`, `EditWishlistModal.tsx`, `ModalShell.tsx`, `ModalBackdrop.tsx` |
+| "Currently playing" CRT                | `src/components/crt/CrtTv.tsx` + `crt.css`                                                              |
+| Can this viewer edit?                  | `LibraryEditingContext.tsx`, `useViewerRelationship.ts`                                                 |
+| Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                                            |
+| Library styles                         | `src/app/video-games/video-games.css`; site tokens in `src/app/globals.css`                             |
+| API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)                                |
+| API endpoint reference, runnable       | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)                            |
+| Migrations                             | `api/alembic/versions/`                                                                                 |
+| Tests                                  | `api/tests/` (pytest). No frontend test suite exists yet                                                |
 
 Dead code worth knowing about: `src/components/video_games/CurrentlyPlaying.tsx` is the **old** stylized CRT and is imported by nothing. The live one is `crt/CrtTv.tsx`, used by `LibraryPage` and `/currently-playing`.
 
