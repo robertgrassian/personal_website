@@ -94,8 +94,13 @@ export function ModalShell({
     // grid-rows-[minmax(0,1fr)] pins the row to this box's content height. The
     // default auto row grows with its item, so a panel sizing itself in % had
     // nothing definite to resolve against and could outgrow the frame.
+    //
+    // The padding transition is what makes getting out of the keyboard's way
+    // read as the dialog tracking it rather than teleporting. It animates only
+    // when a keyboard is involved: --safe-* never changes, so on desktop and on
+    // a phone with no keyboard there is nothing here to transition.
     <div
-      className="pointer-events-none fixed inset-0 z-[60] grid grid-rows-[minmax(0,1fr)] place-items-center pt-[calc(var(--modal-gutter)+max(var(--safe-top),var(--hidden-top,0px)))] pr-[calc(var(--modal-gutter)+var(--safe-right))] pb-[calc(var(--modal-gutter)+max(var(--safe-bottom),var(--hidden-bottom,0px)))] pl-[calc(var(--modal-gutter)+var(--safe-left))]"
+      className="pointer-events-none fixed inset-0 z-[60] grid grid-rows-[minmax(0,1fr)] place-items-center pt-[calc(var(--modal-gutter)+max(var(--safe-top),var(--hidden-top,0px)))] pr-[calc(var(--modal-gutter)+var(--safe-right))] pb-[calc(var(--modal-gutter)+max(var(--safe-bottom),var(--hidden-bottom,0px)))] pl-[calc(var(--modal-gutter)+var(--safe-left))] transition-[padding] duration-200 ease-out motion-reduce:transition-none"
       style={
         {
           "--hidden-top": `${hidden.top}px`,
