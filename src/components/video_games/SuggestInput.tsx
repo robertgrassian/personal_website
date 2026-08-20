@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDownIcon } from "@/components/Icon";
 import { inputClass, labelClass } from "./formStyles";
 import { foldForSearch } from "./pipeline";
+import { useVisibleViewportInsets } from "./useVisibleViewportInsets";
 
 type SuggestInputProps = {
   /** Field label. Rendered for screen readers only when `labelHidden`. */
@@ -88,7 +89,16 @@ export function SuggestInput({
     onChange(option);
     setOpen(false);
     setActiveIndex(-1);
-    inputRef.current?.focus();
+    // Picking a suggestion is the end of the interaction, so on touch the
+    // field gives focus up and the software keyboard drops with it. Keeping
+    // focus there is right on a fine pointer, where it costs nothing and Tab
+    // carries on from the field, and wrong on a phone, where it leaves half
+    // the screen covered by a keyboard for a field nobody is typing in.
+    if (window.matchMedia("(pointer: fine)").matches) {
+      inputRef.current?.focus();
+    } else {
+      inputRef.current?.blur();
+    }
   };
 
   // Pointer-down outside closes. A blur handler would be the obvious choice and
@@ -110,16 +120,23 @@ export function SuggestInput({
     listRef.current?.children[activeIndex]?.scrollIntoView({ block: "nearest" });
   }, [activeIndex]);
 
-  // The add form's body is a scroll container, so a list opened near its bottom
-  // edge is clipped rather than overflowing the dialog. One frame later, after
-  // the list has been laid out and can be measured.
+  // Every dialog body is a scroll container (ModalShell), so a list opened near
+  // its bottom edge is clipped rather than overflowing the dialog. Scrolling it
+  // into view is what makes the last option reachable on a phone, where the
+  // band left above the keyboard is barely taller than the list itself. One
+  // frame later, after the list has been laid out and can be measured.
+  //
+  // Re-run when the keyboard moves, not only on opening: tapping the field
+  // opens the list and THEN raises the keyboard, which shrinks the dialog under
+  // a list that has already been placed, leaving it clipped below the fold.
+  const hidden = useVisibleViewportInsets();
   useEffect(() => {
     if (!listOpen) return;
     const frame = requestAnimationFrame(() => {
       listRef.current?.scrollIntoView({ block: "nearest" });
     });
     return () => cancelAnimationFrame(frame);
-  }, [listOpen]);
+  }, [listOpen, hidden]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
