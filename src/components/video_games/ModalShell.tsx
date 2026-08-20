@@ -2,7 +2,7 @@
 
 import { useRef, type ReactNode } from "react";
 import { CloseIcon } from "@/components/Icon";
-import { useModalChrome } from "./useModalChrome";
+import { modalBackdropClass, useModalChrome } from "./useModalChrome";
 
 // The dialog frame shared by the owner-edit modals (AddGameModal,
 // EditGameModal, EditWishlistModal): backdrop, panel, header row with the close
@@ -57,16 +57,14 @@ export function ModalShell({
     // Height stays inset-0 rather than measured from visualViewport: that was
     // tried and reverted, because a pixel height goes stale between viewport
     // events and the panel then centers in a stale, taller box. Mobile browsers
-    // already shrink the layout viewport for the keyboard.
+    // already shrink the layout viewport for the keyboard. The backdrop below
+    // is the one part that reaches past it, so the panel keeps centering in the
+    // area that is visible whether or not the URL bar is showing.
     //
     // p-3 on a phone, where the gutter competes with the keyboard for pixels.
     <div className="fixed inset-0 z-50 grid place-items-center p-3 sm:p-4">
       {/* Backdrop — clicking it closes the dialog */}
-      <div
-        aria-hidden="true"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-      />
+      <div aria-hidden="true" onClick={onClose} className={`absolute ${modalBackdropClass}`} />
 
       {/* min-w-0 is load-bearing: a grid item's automatic minimum size is
           min-content, so without it the centering track cannot go narrower than

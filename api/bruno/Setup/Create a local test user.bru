@@ -1,0 +1,40 @@
+meta {
+  name: Create a local test user
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{supabaseUrl}}/auth/v1/admin/users
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  apikey: {{serviceRoleKey}}
+  Authorization: Bearer {{serviceRoleKey}}
+}
+
+body:json {
+  {
+    "email": "{{testEmail}}",
+    "password": "{{testPassword}}",
+    "email_confirm": true
+  }
+}
+
+docs {
+  Not one of our endpoints: this talks to the local Supabase GoTrue admin API to
+  mint a password user, because the real site only offers OAuth and magic links
+  and neither is scriptable from a REST client.
+
+  Needs `serviceRoleKey` set in the environment (`supabase status` prints it, or
+  read SUPABASE_SERVICE_ROLE_KEY from the repo-root `.env`). That key bypasses
+  all authorization, so it belongs only in the LOCAL environment.
+
+  The user this creates has an `auth.users` row but no profile, so it starts at
+  onboarding: run `Me profile and account / Create my profile` next.
+
+  Local only. Against production this is both wrong and dangerous.
+}

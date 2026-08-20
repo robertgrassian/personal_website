@@ -1,0 +1,22 @@
+meta {
+  name: Unfollow a user
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}{{apiPrefix}}/me/following/{{otherUsername}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Idempotent, like follow. The founder edge created at signup is an ordinary row
+  and can be removed here like any other.
+
+  - 204 not following
+  - 403 not onboarded
+  - 404 no such username
+  - 422 unfollowing yourself
+  - 429 over the write budget
+}

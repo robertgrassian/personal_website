@@ -62,8 +62,13 @@ _The constraint that applies to every fix here:_ genres live on the **shared** `
 so correcting one rewrites the genre for every user who owns that game (the runbook says this
 outright). Fine for one curator, re-think before strangers.
 
-Related: **"Take a pass at the catalog rows whose `igdb_id` points at a variant"** in Up Next -
-those eleven rows carry the _variant's_ genres, so some of what this audit turns up is that item's
-job rather than this one, and doing it first shrinks this list. And **"Make library and wishlist
+_Eleven rows were repointed off IGDB variants on 2026-08-17_ (`scripts/repoint_variant_rows.py`),
+which deliberately did **not** touch their genres: those still come from the variant, and replacing
+them with IGDB's coarse vocabulary is what this item exists to undo. So these are known-suspect and
+worth checking first: Call of Duty: Black Ops III, Dead Cells, Disco Elysium: The Final Cut, Grim
+Fandango Remastered, Hollow Knight, Luigi's Mansion, Metroid Dread, Pac-Man World 2, SpongeBob
+SquarePants: Lights, Camera, Pants!, Super Mario 64, Super Smash Bros. Brawl.
+
+And **"Make library and wishlist
 entries fully editable"** would give genres a write path from the UI, at which point one-off
 corrections stop needing a script at all.

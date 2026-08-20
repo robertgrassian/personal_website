@@ -41,12 +41,12 @@ flowchart TB
 
     PAGE -.->|navigate| LP
     LP -->|"getProfile, getGames, getWishlist, getFollowers, getFollowing"| LA
-    LA -->|"GET /api/py/users/:username/*"| RR
+    LA -->|"GET /api/library/users/:username/*"| RR
     LP -->|"HTML + props"| PAGE
 
     CLIENT -->|click or submit| SA
     SA --> MA
-    MA -->|"POST / PATCH / DELETE /api/py/me/*"| RR
+    MA -->|"POST / PUT / PATCH / DELETE /api/library/me/*"| RR
     SA -->|on success| RT
     RT -.->|"drops the cached read, next render refetches"| LA
 
@@ -77,7 +77,7 @@ narrows it.
 
 Owner-only and uncached. A client component calls a Server Action in
 `app/video-games/actions.ts`; the action calls `meApi.ts`, which exchanges the
-Supabase session cookie for a Bearer JWT and hits `/api/py/me/*`; FastAPI
+Supabase session cookie for a Bearer JWT and hits `/api/library/me/*`; FastAPI
 verifies that JWT locally against Supabase's JWKS and enforces
 `jwt.sub == row.user_id`. On success the action calls `revalidateTag`, which
 drops the cached read so the next render sees the change.
@@ -97,6 +97,21 @@ tag in `libraryApi.ts` **and** pairing it with every write that can change it in
   only, so owner edit controls, the follow button and the sign-up banner all
   resolve client-side via uncached authenticated calls. Rendering any of it on
   the server would leak one viewer's state into another's cached HTML.
-- **`/api/py` is a literal prefix, not a rewrite artifact.** In dev, `next dev`
-  proxies it to uvicorn on :8000; in production Vercel routes it to the Python
-  function. FastAPI routes on the full path either way (`next.config.ts`).
+- **`/api/library` is a literal prefix, not a rewrite artifact.** In dev, `next
+dev` proxies it to uvicorn on :8000; in production Vercel routes it to the
+  Python function. FastAPI routes on the full path either way (`next.config.ts`).
+  It is declared once per side: `API_PREFIX` in `api/app/core/config.py`, applied
+  at `include_router` time, and `API_PREFIX` in `src/lib/apiPrefix.ts` for the
+  callers. The rewrite in `next.config.ts` and the matcher exclusion in
+  `src/middleware.ts` have to be kept in step with those by hand.
+  <br>
+  The second segment exists because `/api` is contested: Vercel routes it to the
+  Python function and Next.js claims it for its own Route Handlers, so one
+  subtree has to be named as this API's. It names the app, not the runtime: it
+  was `/api/py` until 2026-08-18, which leaked an implementation choice clients
+  have no business knowing and would have become a lie the day the backend was
+  rewritten. Nothing serves the old prefix now. The one trace of the rename left
+  is a prerender-only retry in `libraryApi.ts`: a build fetches from the API that
+  is currently DEPLOYED, so the build shipping a prefix rename asks a production
+  that has not got the new one yet, and failing there fails the build, which
+  stops the new API deploying, which fails the next build the same way.

@@ -1,0 +1,19 @@
+meta {
+  name: List a user's followers
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}{{apiPrefix}}/users/{{username}}/followers
+  body: none
+  auth: none
+}
+
+docs {
+  Who follows this user. Public, like the libraries themselves. Each row is
+  `username` plus `displayName`, which is all a link to their library needs.
+
+  - 200 a list of user summaries
+  - 404 no such username
+}

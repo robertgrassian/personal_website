@@ -8,9 +8,10 @@ that govern this file (sections, caps, what goes where) live in the `proj-todo` 
 The organizing goal is **sharing the site with people**, so Up Next holds what should be true
 before that happens.
 
-- [ ] **Take a pass at the catalog rows whose `igdb_id` points at a variant, not the base game.**
-      (Promoted by request 2026-08-10.) Related: **Audit the genre vocabulary**.
-      [Details](docs/todo/igdb-variant-catalog-rows.md)
+- [ ] **Every newly created catalog row stores `platforms: []`: neither add path passes it to
+      `find_or_create_metadata`.** (Promoted by request 2026-08-19.) Code fix plus a one-time prod
+      backfill. Decide with **Anyone can define a shared catalog row for everyone**.
+      [Details](docs/todo/new-games-empty-platforms.md)
 
 - [ ] **When adding a game, let me say I'm playing it now, or that I played it before: a play
       history section in the add-game form.** (Promoted by request 2026-08-09.) Collides with
@@ -42,14 +43,19 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 ## Backlog / Ideas
 
+- [ ] **Delete the prerender-only `/api/py` retry in `libraryApi.ts`'s `fetchUserResource`, and
+      `LEGACY_API_PREFIX` with it.** All that survives the 2026-08-18 prefix rename, and dead the
+      moment that rename is live in prod: it exists so the deploy shipping it can build against a
+      production still on the old prefix.
+
 - [ ] **There probably should not be two game modals. Merge `AddGameModal` and `EditGameModal` into
       one.** Sequence with **When adding a game, let me say I'm playing it now**, **Make library and
       wishlist entries fully editable** and **Make viewing a game's details better**.
       [Details](docs/todo/merge-game-modals.md)
 
 - [ ] **Audit the genre vocabulary, fix the wrong values in the database with a script, and stop
-      them coming back.** Premise unverified against prod. Related: **catalog rows whose `igdb_id`
-      points at a variant**. [Details](docs/todo/genre-vocabulary-audit.md)
+      them coming back.** Premise unverified against prod; the eleven variant-id rows named inside
+      were fixed 2026-08-17. [Details](docs/todo/genre-vocabulary-audit.md)
 
 - [ ] **Detect where the title sits on a game cover, and crop the CRT picture so it is not cut
       off.** [Details](docs/todo/cover-title-crop-crt.md)

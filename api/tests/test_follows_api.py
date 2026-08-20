@@ -102,7 +102,7 @@ def make_user():
         user_id = _make_auth_user()
         created.append(user_id)
         username = f"follow-{str(user_id)[:8]}"
-        response = client_as(user_id).post("/api/py/me/profile", json={"username": username})
+        response = client_as(user_id).post("/api/library/me/profile", json={"username": username})
         assert response.status_code == 201, response.text
         return User(user_id, username)
 
@@ -132,13 +132,13 @@ def no_auto_follow(monkeypatch: pytest.MonkeyPatch):
 def test_follow_then_unfollow_round_trip(make_user, no_auto_follow) -> None:
     a, b = make_user(), make_user()
 
-    followed = a.client.post(f"/api/py/me/following/{b.username}")
+    followed = a.client.put(f"/api/library/me/following/{b.username}")
     assert followed.status_code == 204
     assert _edge_count(a.id, b.id) == 1
     # Directed edge: A following B does not make B follow A.
     assert _edge_count(b.id, a.id) == 0
 
-    unfollowed = a.client.delete(f"/api/py/me/following/{b.username}")
+    unfollowed = a.client.delete(f"/api/library/me/following/{b.username}")
     assert unfollowed.status_code == 204
     assert _edge_count(a.id, b.id) == 0
 
@@ -148,32 +148,32 @@ def test_double_follow_is_idempotent(make_user, no_auto_follow) -> None:
     """A double-fired toggle must not 409 — the UI treats follow as a plain
     toggle and has no conflict state to render."""
     a, b = make_user(), make_user()
-    assert a.client.post(f"/api/py/me/following/{b.username}").status_code == 204
-    assert a.client.post(f"/api/py/me/following/{b.username}").status_code == 204
+    assert a.client.put(f"/api/library/me/following/{b.username}").status_code == 204
+    assert a.client.put(f"/api/library/me/following/{b.username}").status_code == 204
     assert _edge_count(a.id, b.id) == 1
 
 
 @requires_db
 def test_unfollow_when_not_following_is_noop(make_user, no_auto_follow) -> None:
     a, b = make_user(), make_user()
-    assert a.client.delete(f"/api/py/me/following/{b.username}").status_code == 204
+    assert a.client.delete(f"/api/library/me/following/{b.username}").status_code == 204
     assert _edge_count(a.id, b.id) == 0
 
 
 @requires_db
-@pytest.mark.parametrize("method", ["post", "delete"])
+@pytest.mark.parametrize("method", ["put", "delete"])
 def test_self_follow_is_422(make_user, no_auto_follow, method: str) -> None:
     a = make_user()
-    response = getattr(a.client, method)(f"/api/py/me/following/{a.username}")
+    response = getattr(a.client, method)(f"/api/library/me/following/{a.username}")
     assert response.status_code == 422
     assert "yourself" in response.json()["detail"]
 
 
 @requires_db
-@pytest.mark.parametrize("method", ["post", "delete"])
+@pytest.mark.parametrize("method", ["put", "delete"])
 def test_follow_unknown_user_is_404(make_user, no_auto_follow, method: str) -> None:
     a = make_user()
-    response = getattr(a.client, method)("/api/py/me/following/nobody")
+    response = getattr(a.client, method)("/api/library/me/following/nobody")
     assert response.status_code == 404
 
 
@@ -182,15 +182,15 @@ def test_follow_username_is_case_insensitive(make_user, no_auto_follow) -> None:
     """Usernames are citext, so the URL casing a follower list link happens to
     use must not matter."""
     a, b = make_user(), make_user()
-    assert a.client.post(f"/api/py/me/following/{b.username.upper()}").status_code == 204
+    assert a.client.put(f"/api/library/me/following/{b.username.upper()}").status_code == 204
     assert _edge_count(a.id, b.id) == 1
 
 
 @requires_db
-@pytest.mark.parametrize("method", ["post", "delete"])
+@pytest.mark.parametrize("method", ["put", "delete"])
 def test_follow_requires_auth(method: str) -> None:
     # No dependency override: the real auth dependency runs and rejects.
-    response = getattr(TestClient(create_app()), method)("/api/py/me/following/rgrassian")
+    response = getattr(TestClient(create_app()), method)("/api/library/me/following/rgrassian")
     assert response.status_code == 401
 
 
@@ -201,17 +201,17 @@ def test_follow_requires_auth(method: str) -> None:
 def test_relationship_reflects_follow_state(make_user, no_auto_follow) -> None:
     a, b = make_user(), make_user()
 
-    before = a.client.get(f"/api/py/me/relationship/{b.username}")
+    before = a.client.get(f"/api/library/me/relationship/{b.username}")
     assert before.status_code == 200
     assert before.json() == {"amIFollowing": False, "isMe": False}
 
-    a.client.post(f"/api/py/me/following/{b.username}")
-    after = a.client.get(f"/api/py/me/relationship/{b.username}")
+    a.client.put(f"/api/library/me/following/{b.username}")
+    after = a.client.get(f"/api/library/me/relationship/{b.username}")
     assert after.json() == {"amIFollowing": True, "isMe": False}
 
     # The other direction is unaffected — this is what stops the follow button
     # from rendering "Following" on someone who merely follows you.
-    assert b.client.get(f"/api/py/me/relationship/{a.username}").json() == {
+    assert b.client.get(f"/api/library/me/relationship/{a.username}").json() == {
         "amIFollowing": False,
         "isMe": False,
     }
@@ -220,7 +220,7 @@ def test_relationship_reflects_follow_state(make_user, no_auto_follow) -> None:
 @requires_db
 def test_relationship_with_self_reports_is_me(make_user, no_auto_follow) -> None:
     a = make_user()
-    assert a.client.get(f"/api/py/me/relationship/{a.username}").json() == {
+    assert a.client.get(f"/api/library/me/relationship/{a.username}").json() == {
         "amIFollowing": False,
         "isMe": True,
     }
@@ -230,9 +230,9 @@ def test_relationship_with_self_reports_is_me(make_user, no_auto_follow) -> None
 @pytest.mark.parametrize(
     ("method", "path"),
     [
-        ("get", "/api/py/me/relationship/rgrassian"),
-        ("post", "/api/py/me/following/rgrassian"),
-        ("delete", "/api/py/me/following/rgrassian"),
+        ("get", "/api/library/me/relationship/rgrassian"),
+        ("put", "/api/library/me/following/rgrassian"),
+        ("delete", "/api/library/me/following/rgrassian"),
     ],
 )
 def test_not_onboarded_caller_is_403(no_auto_follow, method: str, path: str) -> None:
@@ -253,12 +253,12 @@ def test_not_onboarded_caller_is_403(no_auto_follow, method: str, path: str) -> 
 @requires_db
 def test_relationship_unknown_user_is_404(make_user, no_auto_follow) -> None:
     a = make_user()
-    assert a.client.get("/api/py/me/relationship/nobody").status_code == 404
+    assert a.client.get("/api/library/me/relationship/nobody").status_code == 404
 
 
 @requires_db
 def test_relationship_requires_auth() -> None:
-    assert TestClient(create_app()).get("/api/py/me/relationship/rgrassian").status_code == 401
+    assert TestClient(create_app()).get("/api/library/me/relationship/rgrassian").status_code == 401
 
 
 # --- public follower / following lists ------------------------------------
@@ -267,23 +267,23 @@ def test_relationship_requires_auth() -> None:
 @requires_db
 def test_lists_are_directional(make_user, no_auto_follow) -> None:
     a, b = make_user(), make_user()
-    a.client.post(f"/api/py/me/following/{b.username}")
+    a.client.put(f"/api/library/me/following/{b.username}")
     client = TestClient(create_app())
 
-    a_following = client.get(f"/api/py/users/{a.username}/following").json()
+    a_following = client.get(f"/api/library/users/{a.username}/following").json()
     assert [u["username"] for u in a_following] == [b.username]
-    assert client.get(f"/api/py/users/{a.username}/followers").json() == []
+    assert client.get(f"/api/library/users/{a.username}/followers").json() == []
 
-    b_followers = client.get(f"/api/py/users/{b.username}/followers").json()
+    b_followers = client.get(f"/api/library/users/{b.username}/followers").json()
     assert [u["username"] for u in b_followers] == [a.username]
-    assert client.get(f"/api/py/users/{b.username}/following").json() == []
+    assert client.get(f"/api/library/users/{b.username}/following").json() == []
 
 
 @requires_db
 def test_list_rows_carry_only_public_summary_fields(make_user, no_auto_follow) -> None:
     a, b = make_user(), make_user()
-    a.client.post(f"/api/py/me/following/{b.username}")
-    rows = TestClient(create_app()).get(f"/api/py/users/{a.username}/following").json()
+    a.client.put(f"/api/library/me/following/{b.username}")
+    rows = TestClient(create_app()).get(f"/api/library/users/{a.username}/following").json()
     assert rows == [{"username": b.username, "displayName": b.username}]
 
 
@@ -291,9 +291,9 @@ def test_list_rows_carry_only_public_summary_fields(make_user, no_auto_follow) -
 def test_lists_are_public(make_user, no_auto_follow) -> None:
     """No auth on these reads: follower lists are public, like the libraries."""
     a, b = make_user(), make_user()
-    a.client.post(f"/api/py/me/following/{b.username}")
+    a.client.put(f"/api/library/me/following/{b.username}")
     anonymous = TestClient(create_app())
-    assert anonymous.get(f"/api/py/users/{b.username}/followers").status_code == 200
+    assert anonymous.get(f"/api/library/users/{b.username}/followers").status_code == 200
 
 
 @requires_db
@@ -302,16 +302,16 @@ def test_profile_counts_track_the_graph(make_user, no_auto_follow) -> None:
     client = TestClient(create_app())
 
     def counts(username: str) -> tuple[int, int]:
-        body = client.get(f"/api/py/users/{username}").json()
+        body = client.get(f"/api/library/users/{username}").json()
         return body["followerCount"], body["followingCount"]
 
     assert counts(b.username) == (0, 0)
-    a.client.post(f"/api/py/me/following/{b.username}")
-    c.client.post(f"/api/py/me/following/{b.username}")
+    a.client.put(f"/api/library/me/following/{b.username}")
+    c.client.put(f"/api/library/me/following/{b.username}")
     assert counts(b.username) == (2, 0)
     assert counts(a.username) == (0, 1)
 
-    a.client.delete(f"/api/py/me/following/{b.username}")
+    a.client.delete(f"/api/library/me/following/{b.username}")
     assert counts(b.username) == (1, 0)
 
 
@@ -352,7 +352,7 @@ def test_founder_signing_up_does_not_self_follow(monkeypatch: pytest.MonkeyPatch
     username = f"founder-{str(user_id)[:8]}"
     monkeypatch.setattr(me_service, "FOUNDER_USERNAME", username)
     try:
-        response = client_as(user_id).post("/api/py/me/profile", json={"username": username})
+        response = client_as(user_id).post("/api/library/me/profile", json={"username": username})
         assert response.status_code == 201
         assert _edge_count(user_id, user_id) == 0
     finally:
@@ -368,7 +368,7 @@ def test_misconfigured_founder_still_allows_signup(monkeypatch: pytest.MonkeyPat
     user_id = _make_auth_user()
     try:
         response = client_as(user_id).post(
-            "/api/py/me/profile", json={"username": f"orphan-{str(user_id)[:8]}"}
+            "/api/library/me/profile", json={"username": f"orphan-{str(user_id)[:8]}"}
         )
         assert response.status_code == 201
     finally:
@@ -380,10 +380,10 @@ def test_lists_are_newest_edge_first(make_user, no_auto_follow) -> None:
     """Ordering is part of the contract — a follower list that shuffled between
     renders would look broken. Single-element lists cannot catch a regression."""
     target, first, second = make_user(), make_user(), make_user()
-    first.client.post(f"/api/py/me/following/{target.username}")
-    second.client.post(f"/api/py/me/following/{target.username}")
+    first.client.put(f"/api/library/me/following/{target.username}")
+    second.client.put(f"/api/library/me/following/{target.username}")
 
-    rows = TestClient(create_app()).get(f"/api/py/users/{target.username}/followers").json()
+    rows = TestClient(create_app()).get(f"/api/library/users/{target.username}/followers").json()
     assert [u["username"] for u in rows] == [second.username, first.username]
 
 
@@ -396,7 +396,9 @@ def test_founder_edge_can_be_unfollowed(monkeypatch: pytest.MonkeyPatch, make_us
     newcomer = make_user()
     assert _edge_count(newcomer.id, founder.id) == 1
 
-    assert newcomer.client.delete(f"/api/py/me/following/{founder.username}").status_code == 204
+    assert (
+        newcomer.client.delete(f"/api/library/me/following/{founder.username}").status_code == 204
+    )
     assert _edge_count(newcomer.id, founder.id) == 0
     # The founder still follows them; unfollowing is one-directional.
     assert _edge_count(founder.id, newcomer.id) == 1
@@ -412,13 +414,13 @@ def test_signup_moves_the_founders_counts(monkeypatch: pytest.MonkeyPatch, make_
     founder = make_user()
     monkeypatch.setattr(me_service, "FOUNDER_USERNAME", founder.username)
     client = TestClient(create_app())
-    before = client.get(f"/api/py/users/{founder.username}").json()
+    before = client.get(f"/api/library/users/{founder.username}").json()
     assert (before["followerCount"], before["followingCount"]) == (0, 0)
 
     newcomer = make_user()
-    after = client.get(f"/api/py/users/{founder.username}").json()
+    after = client.get(f"/api/library/users/{founder.username}").json()
     assert (after["followerCount"], after["followingCount"]) == (1, 1)
-    rows = client.get(f"/api/py/users/{founder.username}/followers").json()
+    rows = client.get(f"/api/library/users/{founder.username}/followers").json()
     assert [u["username"] for u in rows] == [newcomer.username]
 
 
@@ -426,5 +428,5 @@ def test_signup_moves_the_founders_counts(monkeypatch: pytest.MonkeyPatch, make_
 def test_unfollow_self_says_unfollow(make_user, no_auto_follow) -> None:
     """The message names the action actually attempted."""
     a = make_user()
-    detail = a.client.delete(f"/api/py/me/following/{a.username}").json()["detail"]
+    detail = a.client.delete(f"/api/library/me/following/{a.username}").json()["detail"]
     assert "unfollow yourself" in detail

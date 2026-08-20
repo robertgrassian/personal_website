@@ -1,0 +1,25 @@
+meta {
+  name: Get a user profile
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}{{apiPrefix}}/users/{{username}}
+  body: none
+  auth: none
+}
+
+docs {
+  Public profile: `username`, `displayName`, `followerCount`, `followingCount`.
+
+  Deliberately carries no per-viewer state (no "am I following them?"), because
+  this response is cached and shared across viewers. That question is
+  `Me follows / Get my relationship to a user` instead.
+
+  `username` is `citext`, so `/users/RGrassian` and `/users/rgrassian` are the
+  same person.
+
+  - 200 the profile
+  - 404 no such username
+}

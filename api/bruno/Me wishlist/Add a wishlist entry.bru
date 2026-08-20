@@ -1,0 +1,45 @@
+meta {
+  name: Add a wishlist entry
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}{{apiPrefix}}/me/wishlist
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Silksong",
+    "system": "",
+    "genres": [],
+    "releaseDate": null,
+    "imageUrl": "",
+    "igdbId": null,
+    "starred": true,
+    "notes": "day one",
+    "dateAdded": "2026-08-18"
+  }
+}
+
+docs {
+  Same IGDB-pick-or-manual shape as adding a game, but only `name` is required:
+  the wishlist dedupes by name alone and `system` may stay undecided.
+
+  `dateAdded` defaults to the SERVER clock, which is UTC in production, so an
+  evening write in a western timezone would land on the wrong day. The web UI
+  always sends the browser-local date explicitly; the default exists for tests
+  and hand-rolled calls like this one.
+
+  - 201 created
+  - 403 not onboarded
+  - 409 that name is already wishlisted
+  - 422 blank name, non-IGDB imageUrl
+  - 429 over the write budget
+}

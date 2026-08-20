@@ -1,0 +1,34 @@
+meta {
+  name: Update a wishlist entry
+  type: http
+  seq: 2
+}
+
+patch {
+  url: {{baseUrl}}{{apiPrefix}}/me/wishlist/{{wishlistItemId}}
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "starred": false,
+    "notes": "wait for a sale",
+    "system": "PC (Microsoft Windows)"
+  }
+}
+
+docs {
+  PATCH semantics as elsewhere: omitted means unchanged.
+
+  Unlike a library game, `system: ""` here DOES clear, back to undecided (stored
+  NULL), because a wishlist entry is allowed not to have one.
+
+  - 200 the updated entry
+  - 404 nonexistent or someone else's
+  - 429 over the write budget
+}

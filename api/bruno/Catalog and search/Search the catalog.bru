@@ -1,0 +1,49 @@
+meta {
+  name: Search the catalog
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}{{apiPrefix}}/game-catalog?q=hollow knight&page=1
+  body: none
+  auth: inherit
+}
+
+params:query {
+  q: hollow knight
+  page: 1
+}
+
+docs {
+  The add-game picker's search. A server-side proxy over IGDB rather than a browser
+  call, because IGDB authenticates through Twitch OAuth and those credentials must
+  never reach a client.
+
+  The URL says `game-catalog`, not `igdb`, on purpose: IGDB is the supplier behind
+  this route, not the resource it serves, and a path naming the vendor would have
+  to change the day a second source is added. The vendor name stays in
+  `services/igdb.py` and `repositories/igdb.py`, which genuinely are IGDB clients.
+  (It was `GET /igdb/search` until 2026-08-18.)
+
+  A query on a collection rather than a `/search` verb. `q` is required, because
+  the collection is IGDB's and cannot be enumerated.
+
+  Authenticated but not owner-scoped: searching costs IGDB quota, not library
+  state, so any signed-in user may do it. Rate-limited on its own bucket, and
+  `page` is capped so paging cannot be used to grind the quota.
+
+  `hasMore` is the server's answer rather than something the picker infers from
+  page length, because only this side knows the cap and knows when a page came
+  from a fallback query that cannot be paged at all.
+
+  A GET that WRITES (the Twitch token cache and the rate-limit counters), which is
+  why it is blocked on preview deploys. An accepted deviation from GET being safe:
+  a prefetching client can burn a little budget, and nothing worse.
+
+  - 200 `{"results": [...], "hasMore": bool}`
+  - 401 not logged in
+  - 429 over the per-minute search budget
+  - 502 Twitch or IGDB upstream failure
+  - 503 credentials not configured in this environment
+}

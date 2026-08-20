@@ -29,7 +29,7 @@
 import { useRef, type ReactNode } from "react";
 import { RATINGS, UNRATED_LABEL, systemLabel, type RatingFilter } from "@/lib/games";
 import { CloseIcon } from "@/components/Icon";
-import { useModalChrome } from "./useModalChrome";
+import { modalBackdropClass, useModalChrome } from "./useModalChrome";
 import { FilterSelect, type FilterControlProps } from "./FilterBar";
 import { accentButtonClass, filterSelectClass } from "./formStyles";
 
@@ -101,7 +101,7 @@ export function FilterSheet(props: FilterSheetProps) {
       <div
         aria-hidden="true"
         onClick={onClose}
-        className={`fixed inset-0 z-30 bg-black/40 backdrop-blur-sm transition-opacity duration-300 sm:hidden ${
+        className={`fixed z-30 ${modalBackdropClass} transition-opacity duration-300 sm:hidden ${
           isOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       />

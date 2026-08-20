@@ -7,12 +7,13 @@
 // those server-side calls.
 //
 // Authenticated per-viewer READS are a separate, deliberate pattern: client
-// components may call /api/py/me/* directly with the token from the browser
+// components may call the /me/* routes directly with the token from the browser
 // Supabase client (e.g. useViewerRelationship) — the session is readable in the
 // browser by design of @supabase/ssr, and read-only calls need no
 // revalidation. Writes never take that path.
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { API_PREFIX } from "./apiPrefix";
 import { requireLibraryApiOrigin, targetsForeignEnvironmentApi } from "@/lib/libraryApi";
 import type { CatalogPreview, IgdbSearchResult, NewGame } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
@@ -89,7 +90,7 @@ type ApiCall<T> =
   | { ok: false; status: number; message: string; detail?: string; unreachable?: true };
 
 type CallOptions = {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   // null sends no body at all — DELETEs, and the POSTs that carry everything in
   // the path (follow/unfollow).
   body?: Record<string, unknown> | null;
@@ -185,7 +186,7 @@ async function callMeApi<T>(path: string, options: CallOptions): Promise<ApiCall
  *  completed onboarding yet (the API returns 404 for that state). */
 export async function fetchMyProfile(): Promise<MyProfile | null> {
   // The one genuinely read-only /me call, so no preview refusal.
-  const res = await callMeApi<MyProfile>("/api/py/me/profile", {
+  const res = await callMeApi<MyProfile>(`${API_PREFIX}/me/profile`, {
     what: "load your profile",
     refuseOnForeignApi: false,
   });
@@ -258,7 +259,7 @@ export async function createMyProfile(
   username: string,
   displayName: string
 ): Promise<CreateProfileResult> {
-  const res = await callMeApi<MyProfile>("/api/py/me/profile", {
+  const res = await callMeApi<MyProfile>(`${API_PREFIX}/me/profile`, {
     method: "POST",
     body: { username, displayName },
     what: "create your profile",
@@ -310,7 +311,7 @@ export async function deleteMyAccount(): Promise<MutateResult> {
     data: { session },
   } = await supabase.auth.getSession();
 
-  const result = await mutate("/api/py/me/account", "DELETE", null, "delete your account");
+  const result = await mutate(`${API_PREFIX}/me/account`, "DELETE", null, "delete your account");
   if (result.ok && session) usernameByUserId.delete(session.user.id);
   return result;
 }
@@ -325,7 +326,7 @@ export type MutateResult = { ok: true } | { ok: false; message: string };
  *  fallback error text. DELETE sends no body (the API answers 204). */
 async function mutate(
   path: string,
-  method: "POST" | "PATCH" | "DELETE",
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
   body: Record<string, unknown> | null,
   what: string,
   // Only the two create paths pass this. Everything else is a plain database
@@ -339,17 +340,23 @@ async function mutate(
 /** Add a game to the caller's library. `rating: ""` and `igdbId: null` etc.
  *  are sent as-is — the API treats ""/null as absent for optional fields. */
 export function createMyGame(game: NewGame): Promise<MutateResult> {
-  return mutate("/api/py/me/games", "POST", { ...game }, "add the game", TIMEOUT_MS.add);
+  return mutate(`${API_PREFIX}/me/games`, "POST", { ...game }, "add the game", TIMEOUT_MS.add);
 }
 
 /** Remove a game (and, server-side via cascade, its play sessions). */
 export function deleteMyGame(gameId: number): Promise<MutateResult> {
-  return mutate(`/api/py/me/games/${gameId}`, "DELETE", null, "delete the game");
+  return mutate(`${API_PREFIX}/me/games/${gameId}`, "DELETE", null, "delete the game");
 }
 
 /** Add a wishlist entry. */
 export function createMyWishlistItem(item: NewWishlistItem): Promise<MutateResult> {
-  return mutate("/api/py/me/wishlist", "POST", { ...item }, "add to the wishlist", TIMEOUT_MS.add);
+  return mutate(
+    `${API_PREFIX}/me/wishlist`,
+    "POST",
+    { ...item },
+    "add to the wishlist",
+    TIMEOUT_MS.add
+  );
 }
 
 /** Partially edit a wishlist entry — pass only the fields to change
@@ -358,16 +365,14 @@ export function updateMyWishlistItem(
   itemId: number,
   fields: { starred?: boolean; notes?: string; system?: string }
 ): Promise<MutateResult> {
-  return mutate(`/api/py/me/wishlist/${itemId}`, "PATCH", fields, "update the wishlist");
+  return mutate(`${API_PREFIX}/me/wishlist/${itemId}`, "PATCH", fields, "update the wishlist");
 }
 
 /** Remove a wishlist entry. */
 export function deleteMyWishlistItem(itemId: number): Promise<MutateResult> {
-  return mutate(`/api/py/me/wishlist/${itemId}`, "DELETE", null, "remove from the wishlist");
+  return mutate(`${API_PREFIX}/me/wishlist/${itemId}`, "DELETE", null, "remove from the wishlist");
 }
 
-/** Promote a wishlist entry into the library ("I bought it"). `system` wins
- *  over the stored one; "" defers to what the wishlist row already has. */
 /** Promote, returning the id of the library row it created.
  *
  *  The id is the reason this does not go through `mutate`: the dialog can save
@@ -378,7 +383,7 @@ export async function promoteMyWishlistItem(
   itemId: number,
   system: string
 ): Promise<PromoteResult> {
-  const res = await callMeApi<{ id: number }>(`/api/py/me/wishlist/${itemId}/promote`, {
+  const res = await callMeApi<{ id: number }>(`${API_PREFIX}/me/wishlist/${itemId}/promote`, {
     method: "POST",
     body: { system },
     what: "move to the library",
@@ -408,7 +413,7 @@ export async function searchIgdb(query: string, page = 1): Promise<SearchIgdbRes
   // counters), so it keeps the mutations' preview refusal (the callMeApi
   // default).
   const res = await callMeApi<{ results: IgdbSearchResult[]; hasMore: boolean }>(
-    `/api/py/igdb/search?q=${encodeURIComponent(query)}&page=${page}`,
+    `${API_PREFIX}/game-catalog?q=${encodeURIComponent(query)}&page=${page}`,
     { what: "search", timeoutMs: TIMEOUT_MS.igdb }
   );
   if (!res.ok) return { ok: false, message: res.message };
@@ -442,7 +447,7 @@ export async function previewCatalogEntry(
   // URLSearchParams would otherwise comma-join them into one genre.
   for (const genre of game.genres) params.append("genres", genre);
 
-  const res = await callMeApi<CatalogPreview>(`/api/py/me/catalog-preview?${params}`, {
+  const res = await callMeApi<CatalogPreview>(`${API_PREFIX}/game-catalog/preview?${params}`, {
     what: "look up this game",
     timeoutMs: TIMEOUT_MS.igdb,
   });
@@ -464,7 +469,7 @@ export function updateMyGame(
   const body: Record<string, unknown> = {};
   if (fields.rating !== undefined) body.rating = fields.rating;
   if (fields.system !== undefined) body.system = fields.system;
-  return mutate(`/api/py/me/games/${gameId}`, "PATCH", body, "save your changes");
+  return mutate(`${API_PREFIX}/me/games/${gameId}`, "PATCH", body, "save your changes");
 }
 
 /** Start playing (endDate null → open session) or log a past playthrough
@@ -475,7 +480,7 @@ export function createMySession(
   endDate: string | null
 ): Promise<MutateResult> {
   return mutate(
-    `/api/py/me/games/${gameId}/sessions`,
+    `${API_PREFIX}/me/games/${gameId}/sessions`,
     "POST",
     { startDate, endDate },
     "log the session"
@@ -490,7 +495,7 @@ export function createMySession(
  *  closes, so the key is now always absent, which the API's PATCH semantics
  *  read as "leave unchanged". The endpoint keeps the capability. */
 export function closeMySession(sessionId: number, endDate: string): Promise<MutateResult> {
-  return mutate(`/api/py/me/sessions/${sessionId}`, "PATCH", { endDate }, "stop the session");
+  return mutate(`${API_PREFIX}/me/sessions/${sessionId}`, "PATCH", { endDate }, "stop the session");
 }
 
 /** Follow / unfollow a user. Both are idempotent server-side, so a
@@ -499,8 +504,10 @@ export function closeMySession(sessionId: number, endDate: string): Promise<Muta
  *  API answers 404 for anything that isn't a real user. */
 export function followUser(username: string): Promise<MutateResult> {
   return mutate(
-    `/api/py/me/following/${encodeURIComponent(username)}`,
-    "POST",
+    `${API_PREFIX}/me/following/${encodeURIComponent(username)}`,
+    // PUT, not POST: the edge is one addressable thing and the write is
+    // idempotent, so a retried request must be safe to send.
+    "PUT",
     null,
     "follow this user"
   );
@@ -508,7 +515,7 @@ export function followUser(username: string): Promise<MutateResult> {
 
 export function unfollowUser(username: string): Promise<MutateResult> {
   return mutate(
-    `/api/py/me/following/${encodeURIComponent(username)}`,
+    `${API_PREFIX}/me/following/${encodeURIComponent(username)}`,
     "DELETE",
     null,
     "unfollow this user"

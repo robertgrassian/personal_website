@@ -1,0 +1,20 @@
+meta {
+  name: Delete a game
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}{{apiPrefix}}/me/games/{{gameId}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Removes the game and, by FK cascade, its play sessions. The shared catalog row
+  survives: other people may own the same game.
+
+  - 204 deleted
+  - 404 no such game in the caller's library
+  - 429 over the write budget
+}

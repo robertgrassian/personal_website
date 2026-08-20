@@ -1,0 +1,42 @@
+meta {
+  name: Promote a wishlist entry
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}{{apiPrefix}}/me/wishlist/{{wishlistItemId}}/promote
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "system": "Nintendo Switch"
+  }
+}
+
+docs {
+  Moves a wishlist entry into the library: the game is created and the wishlist row
+  removed in one transaction. Returns the new library game, unrated and with no
+  sessions.
+
+  `system` is required by the games table, so it must arrive here when the wishlist
+  row never had one. When both exist the payload wins, since you might buy it on a
+  different platform than you wishlisted.
+
+  The one RPC-shaped route in the collection. It is a verb on a URL rather than a
+  state change on a resource, which is the tradeoff for getting the create and the
+  delete under one transaction.
+
+  - 201 the new library game
+  - 403 library at MAX_GAMES
+  - 404 no such wishlist entry
+  - 409 that game is already in the library
+  - 422 no system anywhere
+  - 429 over the write budget
+}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { API_PREFIX } from "@/lib/apiPrefix";
 
 // Resolves the viewer's relationship to the library they're looking at, so the
 // follow button and the "back to my library" link know what to render.
@@ -64,12 +65,15 @@ export function useViewerRelationship(
       // nothing renders. getSession() only reads local cookies.
       if (!session) return;
 
-      // Relative URL: the /api/py rewrite makes this same-origin in dev and
+      // Relative URL: the API_PREFIX rewrite makes this same-origin in dev and
       // prod alike, so no CORS is involved.
-      const res = await fetch(`/api/py/me/relationship/${encodeURIComponent(ownerUsername)}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        cache: "no-store",
-      });
+      const res = await fetch(
+        `${API_PREFIX}/me/relationship/${encodeURIComponent(ownerUsername)}`,
+        {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: "no-store",
+        }
+      );
       if (!res.ok || cancelled) return;
 
       const body = (await res.json()) as { amIFollowing?: boolean; isMe?: boolean };
