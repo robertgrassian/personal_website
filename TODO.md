@@ -8,11 +8,6 @@ that govern this file (sections, caps, what goes where) live in the `proj-todo` 
 The organizing goal is **sharing the site with people**, so Up Next holds what should be true
 before that happens.
 
-- [ ] **Run the one-time `backfill_platforms.py` catch-up against prod.** (Promoted by request
-      2026-08-19.) The code fix shipped 2026-08-19, so new rows are fine; every row created before
-      it still stores `platforms: []`. All that is left is the command, and reading its preview.
-      [Details](docs/todo/new-games-empty-platforms.md)
-
 - [ ] **When adding a game, let me say I'm playing it now, or that I played it before: a play
       history section in the add-game form.** (Promoted by request 2026-08-09.) Collides with
       **Fold "+ Add to wishlist" into a single "+ Add game"**.
