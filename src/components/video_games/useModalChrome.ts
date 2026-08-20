@@ -3,17 +3,11 @@ import { useEffect, useRef, type RefObject } from "react";
 // The dimming/blurring layer behind a modal surface, shared by the five that
 // use this hook. Callers add only z-index and transitions.
 //
-// What actually fixes the strip this used to leave uncovered on iOS is
-// viewport-fit=cover in layout.tsx: without it the page is inset out of the
-// device safe areas, so `inset-0` stops above the home indicator no matter
-// how the box is sized. Sizing it with min-h-lvh was tried first and changed
-// nothing on the device, which is what pointed away from the height.
-//
-// The 25vh bleed on top of that is a backstop for a browser whose layout
-// viewport lags a retracting URL bar. The excess sits off screen or behind
-// browser chrome, and a fixed box adds no scrollable overflow, so it is free.
-export const modalBackdropClass =
-  "fixed inset-x-0 top-[-25vh] bottom-[-25vh] bg-black/40 backdrop-blur-sm";
+// inset-0 reaches the screen edges only because layout.tsx sets
+// viewport-fit=cover. Without that the page is inset out of the device safe
+// areas and this stops above the home indicator, leaving a strip it cannot
+// dim or blur however the box is sized.
+export const modalBackdropClass = "fixed inset-0 bg-black/40 backdrop-blur-sm";
 
 // Shared chrome for the owner dialogs. Locks body scroll, moves focus into the
 // dialog (to initialFocusRef), closes on Escape, and restores focus to whatever

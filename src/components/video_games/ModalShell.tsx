@@ -57,12 +57,16 @@ export function ModalShell({
     // Height stays inset-0 rather than measured from visualViewport: that was
     // tried and reverted, because a pixel height goes stale between viewport
     // events and the panel then centers in a stale, taller box. Mobile browsers
-    // already shrink the layout viewport for the keyboard. The backdrop below
-    // bleeds past this frame instead, so the panel keeps centering in the area
-    // that is visible whether or not the URL bar is showing.
+    // already shrink the layout viewport for the keyboard.
     //
-    // p-3 on a phone, where the gutter competes with the keyboard for pixels.
-    <div className="fixed inset-0 z-50 grid place-items-center p-3 sm:p-4 pt-[calc(0.75rem+var(--safe-top))] pb-[calc(0.75rem+var(--safe-bottom))]">
+    // Every side is set separately, and the gutter comes from --modal-gutter
+    // rather than p-3/sm:p-4: a responsive shorthand sorts after the per-side
+    // utilities and would silently drop the safe-area half of each calc.
+    //
+    // grid-rows-[minmax(0,1fr)] pins the row to this box's content height. The
+    // default auto row grows with its item, so a panel sizing itself in % had
+    // nothing definite to resolve against and could outgrow the frame.
+    <div className="fixed inset-0 z-50 grid grid-rows-[minmax(0,1fr)] place-items-center pt-[calc(var(--modal-gutter)+var(--safe-top))] pr-[calc(var(--modal-gutter)+var(--safe-right))] pb-[calc(var(--modal-gutter)+var(--safe-bottom))] pl-[calc(var(--modal-gutter)+var(--safe-left))]">
       {/* Backdrop — clicking it closes the dialog */}
       <div aria-hidden="true" onClick={onClose} className={modalBackdropClass} />
 

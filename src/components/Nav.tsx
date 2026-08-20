@@ -32,7 +32,7 @@ export function Nav() {
     // sticky top-0 keeps the nav visible while scrolling.
     // backdrop-blur-sm + bg-background/90 = frosted glass that lets a hint of page content show through.
     // z-50 ensures the nav sits above all page content, including sticky filter bars (z-20).
-    <nav className="sticky top-0 z-50 border-b border-divider bg-background/90 backdrop-blur-sm pt-[var(--safe-top)]">
+    <nav className="sticky top-0 z-50 border-b border-divider bg-background/90 backdrop-blur-sm pt-[var(--safe-top)] pl-[var(--safe-left)] pr-[var(--safe-right)]">
       {/* Everything scales down only below `sm`, from when the auth control
           still lived here and pushed the row past a phone's width. Kept after
           it moved into the library: the smaller phone type reads fine and
