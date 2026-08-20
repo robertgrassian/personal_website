@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDownIcon } from "@/components/Icon";
 import { inputClass, labelClass } from "./formStyles";
 import { foldForSearch } from "./pipeline";
+import { useVisualViewportBox } from "./useVisualViewportBox";
 
 type SuggestInputProps = {
   /** Field label. Rendered for screen readers only when `labelHidden`. */
@@ -110,16 +111,23 @@ export function SuggestInput({
     listRef.current?.children[activeIndex]?.scrollIntoView({ block: "nearest" });
   }, [activeIndex]);
 
-  // The add form's body is a scroll container, so a list opened near its bottom
-  // edge is clipped rather than overflowing the dialog. One frame later, after
-  // the list has been laid out and can be measured.
+  // Every dialog body is a scroll container (ModalShell), so a list opened near
+  // its bottom edge is clipped rather than overflowing the dialog. Scrolling it
+  // into view is what makes the last option reachable on a phone, where the
+  // band left above the keyboard is barely taller than the list itself. One
+  // frame later, after the list has been laid out and can be measured.
+  //
+  // Re-run on the visible height too, not just on opening: tapping the field
+  // opens the list and THEN raises the keyboard, which shrinks the dialog under
+  // a list that has already been placed, leaving it clipped below the fold.
+  const visibleHeight = useVisualViewportBox()?.height;
   useEffect(() => {
     if (!listOpen) return;
     const frame = requestAnimationFrame(() => {
       listRef.current?.scrollIntoView({ block: "nearest" });
     });
     return () => cancelAnimationFrame(frame);
-  }, [listOpen]);
+  }, [listOpen, visibleHeight]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
