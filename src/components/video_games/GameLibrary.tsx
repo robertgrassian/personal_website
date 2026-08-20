@@ -14,6 +14,7 @@ import { EditGameModal } from "./EditGameModal";
 import { EditWishlistModal } from "./EditWishlistModal";
 import { AddGameModal } from "./AddGameModal";
 import { ownedKey } from "./GameSearchStep";
+import { foldForSearch } from "./pipeline";
 import type { GameCaseInput } from "./GameCase";
 import { LibraryEditingProvider } from "./LibraryEditingContext";
 
@@ -63,9 +64,16 @@ export function GameLibrary({
   // always reflects the latest server data after a revalidation replaces the
   // games array.
   const [editingGameId, setEditingGameId] = useState<number | null>(null);
+  // Whether the game dialog was opened by answering "Played?" on the wishlist,
+  // which pre-stages a session. The pencil on a shelf card does not.
+  const [openedFromPlayed, setOpenedFromPlayed] = useState(false);
   // Wishlist edits tracked separately — the pencil is shared, but the two
   // views open different dialogs (EditGameModal vs EditWishlistModal).
   const [editingWishlistId, setEditingWishlistId] = useState<number | null>(null);
+  // The wishlist "Played?" hand-off: the wishlist entry whose promote the
+  // library dialog is collecting. Separate from editingGameId because there is
+  // no library row yet for it to point at.
+  const [promotingWishlistId, setPromotingWishlistId] = useState<number | null>(null);
 
   // Bail on the id before scanning. These ran an array scan each on every
   // render, including every keystroke in the search box, to look up a dialog
@@ -73,6 +81,11 @@ export function GameLibrary({
   //
   // Looking up by id rather than by position keeps the dialog open and
   // consistent when a rating change moves the game to a different shelf.
+  // Resolving the key during render rather than converting it to an id in an
+  // effect is what makes the promote handoff safe: if the new row is not in
+  // `games` yet, this is undefined and the dialog simply opens on the render
+  // that delivers it. A promote whose row never arrives degrades to no dialog,
+  // never to a dialog pointing at nothing.
   const editingGame = useMemo(
     () => (editingGameId === null ? undefined : games.find((g) => g.id === editingGameId)),
     [editingGameId, games]
@@ -83,15 +96,70 @@ export function GameLibrary({
     [editingWishlistId, wishlist]
   );
 
+  // Every library game the server would treat as "you already have this" for a
+  // wishlist entry, which is what decides whether the promote flow is offered
+  // and which game the session handoff lands on.
+  //
+  // This mirrors promote_my_wishlist_item's refusal rule rather than reusing
+  // `ownedKey`, which cannot express it: ownedKey picks ONE of igdb-id or name,
+  // while the server checks the catalog row AND the name, and narrows the name
+  // check by whether the incoming entry has an id of its own (see
+  // find_game_by_name). A single-key lookup therefore misses the cross-kind
+  // pairs — a hand-entered wishlist entry against an IGDB library row, and the
+  // reverse — which are exactly the cases the server still refuses with a 409.
+  //
+  // The `igdbId == null` narrowing is what keeps the name arm from swallowing
+  // the five different games called "Star Fox": once both sides carry an id,
+  // identity is that id alone.
+  //
+  // Names are compared folded while the server compares them exactly, so this
+  // over-matches on a "Pokemon"/"Pokémon" pair of hand-entered rows. Deliberate
+  // direction: over-matching hides a promote that would have worked, while
+  // under-matching puts back the dead button this whole change is about.
+  const ownedInLibrary = useMemo(() => {
+    if (editingWishlistItem === undefined) return [];
+    const wanted = foldForSearch(editingWishlistItem.name);
+    const wantedId = editingWishlistItem.igdbId;
+    return games.filter(
+      (game) =>
+        (wantedId != null && game.igdbId === wantedId) ||
+        (foldForSearch(game.name) === wanted && (wantedId == null || game.igdbId == null))
+    );
+  }, [editingWishlistItem, games]);
+
+  const promotingItem = useMemo(
+    () =>
+      promotingWishlistId === null ? undefined : wishlist.find((w) => w.id === promotingWishlistId),
+    [promotingWishlistId, wishlist]
+  );
+
   // useCallback so the context value below keeps a stable identity, which is
   // what lets the React.memo on GameCase actually bite.
   const handleEditGame = useCallback(
     (game: GameCaseInput) => {
       if (view === "wishlist") setEditingWishlistId(game.id);
-      else setEditingGameId(game.id);
+      else {
+        setOpenedFromPlayed(false);
+        setEditingGameId(game.id);
+      }
     },
     [view]
   );
+  // "Played?" from the wishlist dialog. Which dialog that opens is decided
+  // here, because this is where both collections are in hand: a game already in
+  // the library gets its existing row edited, and one that is not gets a
+  // promote that creates it. Either way the user lands in the same dialog.
+  const handlePlayed = useCallback(() => {
+    if (editingWishlistItem === undefined) return;
+    const owned = ownedInLibrary[0];
+    setEditingWishlistId(null);
+    if (owned === undefined) setPromotingWishlistId(editingWishlistItem.id);
+    else {
+      setOpenedFromPlayed(true);
+      setEditingGameId(owned.id);
+    }
+  }, [editingWishlistItem, ownedInLibrary]);
+
   // null for a visitor — GameCase gates the pencil on exactly this.
   const openEditor = canEdit ? handleEditGame : null;
   const handleAddGame = useCallback(() => setAddOpen(true), []);
@@ -262,16 +330,25 @@ export function GameLibrary({
 
         {editingGame && (
           <EditGameModal
-            game={editingGame}
+            subject={{ kind: "game", game: editingGame }}
             existingSystems={existingSystems}
+            startWithSession={openedFromPlayed}
             onClose={() => setEditingGameId(null)}
           />
         )}
         {editingWishlistItem && (
           <EditWishlistModal
             item={editingWishlistItem}
-            existingSystems={existingSystems}
+            onPlayed={handlePlayed}
             onClose={() => setEditingWishlistId(null)}
+          />
+        )}
+        {promotingItem && (
+          <EditGameModal
+            subject={{ kind: "promote", item: promotingItem }}
+            existingSystems={existingSystems}
+            startWithSession
+            onClose={() => setPromotingWishlistId(null)}
           />
         )}
         {addOpen && (

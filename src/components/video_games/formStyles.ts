@@ -86,12 +86,6 @@ export const dangerButtonClass =
   "text-red-600 dark:text-red-400 hover:bg-red-600/10 transition-colors cursor-pointer " +
   "disabled:opacity-50 disabled:cursor-default";
 
-// The trigger half of a destructive two-step ("Remove from library"). A quiet
-// link, so the dangerous thing is never the most prominent control in a dialog.
-export const dangerLinkClass =
-  "text-xs text-red-600 dark:text-red-400 underline underline-offset-2 " +
-  "hover:opacity-80 transition-opacity cursor-pointer disabled:opacity-50";
-
 // The quiet text links in the library header's viewer-controls cluster: Sign
 // in / Sign out (AuthButton) and Account. Shared so the cluster cannot drift
 // into two slightly different underlines.

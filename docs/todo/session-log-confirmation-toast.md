@@ -23,3 +23,9 @@ every owner write: rating, add, delete, wishlist, follow) or an inline "Saved" l
 `role="status"` so screen readers announce it, and both color schemes. Note a link inside a toast
 raises a question the inline version does not: the edit modal is still open, so "view all sessions"
 has to decide whether it replaces the modal's contents or closes it and navigates.
+
+**The one-Save redesign made this sharper** (2026-08-19): `EditGameModal` stays open after a
+successful Save, so a Save that only logged a closed past session changes nothing visible inside the
+dialog beyond the date fields clearing. There is no success text and no live region, so the honest
+read is "did that do anything?". Deliberately not solved with a one-off here, because this item owns
+the site-wide primitive.

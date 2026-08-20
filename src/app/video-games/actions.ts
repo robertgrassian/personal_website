@@ -21,8 +21,7 @@ import {
   previewCatalogEntry,
   promoteMyWishlistItem,
   searchIgdb,
-  updateMyGameRating,
-  updateMyGameSystem,
+  updateMyGame,
   unfollowUser,
   updateMyWishlistItem,
   type CatalogPreviewResult,
@@ -133,8 +132,27 @@ async function write(
   tags: TagFor[],
   alsoRevalidate?: string
 ): Promise<MutateResult> {
-  const result = await run();
-  if (result.ok) {
+  return writeApplied(async () => ({ result: await run(), applied: false }), tags, alsoRevalidate);
+}
+
+/** What a multi-write action did: its overall answer, and whether ANY of its
+ *  writes landed. The two come apart only for a partial application, which is
+ *  exactly the case a plain `ok` check gets wrong. */
+type WriteOutcome = { result: MutateResult; applied: boolean };
+
+/** write() for an action that can half-succeed.
+ *
+ *  Revalidation is keyed on "did anything land", not on "did everything land".
+ *  Keying it on `ok` left a partially-applied Save with a stale cache: the
+ *  promote had really moved the row, but the wishlist page kept showing it and
+ *  the retry hit a 404 on an item that no longer existed. */
+async function writeApplied(
+  run: () => Promise<WriteOutcome>,
+  tags: TagFor[],
+  alsoRevalidate?: string
+): Promise<MutateResult> {
+  const { result, applied } = await run();
+  if (result.ok || applied) {
     // Revalidation runs AFTER the API accepted the write, so nothing it does
     // can undo one. fetchMyUsername → fetchMyProfile throws on an unreachable
     // or unwell API, and letting that escape would reject the Server Action
@@ -287,76 +305,133 @@ export async function deleteWishlistItem(itemId: number): Promise<MutateResult> 
  *  between resources, so the wishlist loses an entry and the library gains one.
  *  Tagging it games-only would leave the promoted row visibly still on the
  *  wishlist. */
-export async function promoteWishlistItem(itemId: number, system: string): Promise<MutateResult> {
-  return (
-    rejectBadId(itemId, "promote") ??
-    write(() => promoteMyWishlistItem(itemId, system.trim()), [gamesTag, wishlistTag])
-  );
-}
+/** Everything one press of Save can change about a library entry. Every field
+ *  is optional and only the present ones are written, so a Save that touched
+ *  only the rating still costs one API call. `session` logs a playthrough;
+ *  `stopSessionId` closes the open one. */
+export type GameEdits = {
+  rating?: Rating | "";
+  system?: string;
+  session?: { startDate: string; endDate: string | null };
+  stopSessionId?: number;
+  stopDate?: string;
+};
 
-export async function updateGameRating(gameId: number, rating: Rating | ""): Promise<MutateResult> {
-  // Actions are a public HTTP surface (any client can invoke them with any
-  // arguments), so re-check the input shape server-side before forwarding.
-  // Authorization itself lives in FastAPI — a token for a non-owner gets a 404.
-  if (!Number.isInteger(gameId) || !isValidRating(rating)) {
-    return { ok: false, message: "Invalid rating request." };
+/** Validate the edits and turn them into the calls that apply them. Shared by
+ *  saveGameEdits and promoteAndSave, so a promote carrying a rating obeys
+ *  exactly the same rules as an ordinary edit. Null means something is invalid.
+ *
+ *  Order matters: rating and system land before the session, so a dialog that
+ *  both rates and logs cannot end up logged but unrated if one call fails. */
+function editCalls(gameId: number, edits: GameEdits): Array<() => Promise<MutateResult>> | null {
+  const calls: Array<() => Promise<MutateResult>> = [];
+
+  // Rating and system go in ONE PATCH: GameUpdate takes both, so a Save that
+  // changes both can no longer apply one and fail the other. This is also the
+  // overwhelmingly common Save, which makes the common case a single call.
+  const fields: { rating?: string; system?: string } = {};
+  if (edits.rating !== undefined) {
+    if (!isValidRating(edits.rating)) return null;
+    fields.rating = edits.rating;
   }
-
-  // On success this purges the cached games read and re-renders the static
-  // pages built from it on their next request. Not the wishlist or the follow
-  // lists: a rating cannot change either.
-  return write(() => updateMyGameRating(gameId, rating), [gamesTag]);
+  if (edits.system !== undefined) {
+    const trimmed = edits.system.trim();
+    if (trimmed === "" || trimmed.length > MAX_SYSTEM_LENGTH) return null;
+    fields.system = trimmed;
+  }
+  if (Object.keys(fields).length > 0) calls.push(() => updateMyGame(gameId, fields));
+  if (edits.stopSessionId !== undefined) {
+    const stopDate = edits.stopDate;
+    if (!Number.isInteger(edits.stopSessionId) || stopDate === undefined) return null;
+    if (!ISO_DATE_RE.test(stopDate)) return null;
+    const sessionId = edits.stopSessionId;
+    calls.push(() => closeMySession(sessionId, stopDate));
+  }
+  if (edits.session !== undefined) {
+    const { startDate, endDate } = edits.session;
+    if (!ISO_DATE_RE.test(startDate)) return null;
+    if (endDate !== null && !ISO_DATE_RE.test(endDate)) return null;
+    if (endDate !== null && endDate < startDate) return null;
+    calls.push(() => createMySession(gameId, startDate, endDate));
+  }
+  return calls;
 }
 
-/** Change which console a library entry records.
+/** Run the calls in order, stopping at the first failure.
  *
- *  The escape hatch for the add path's duplicate 409: with one entry per game
- *  per user, "I own this on SNES and just got the DS version" has to be an
- *  edit, because a second add is rejected by the unique key.
- *
- *  Trimmed and length-checked here as well as server-side, so an over-long or
- *  blank value fails as a readable message instead of a 422 the UI would have
- *  to translate. MAX_SYSTEM_LENGTH mirrors GameUpdate.system's max_length.
- */
-export async function updateGameSystem(gameId: number, system: string): Promise<MutateResult> {
-  const trimmed = system.trim();
-  if (!Number.isInteger(gameId) || trimmed === "" || trimmed.length > MAX_SYSTEM_LENGTH) {
+ *  A partial application is reported as such rather than as a plain failure:
+ *  the earlier writes really did land, and saying "that did not work" when half
+ *  of it did is how a retry becomes a duplicate. */
+async function runInOrder(calls: Array<() => Promise<MutateResult>>): Promise<WriteOutcome> {
+  for (let i = 0; i < calls.length; i++) {
+    const result = await calls[i]();
+    if (!result.ok) {
+      return {
+        applied: i > 0,
+        result: {
+          ok: false,
+          message:
+            i === 0
+              ? result.message
+              : `${result.message} Your earlier changes were saved, so do not repeat them.`,
+        },
+      };
+    }
+  }
+  return { result: { ok: true }, applied: calls.length > 0 };
+}
+
+/** One press of Save on a library entry. */
+export async function saveGameEdits(gameId: number, edits: GameEdits): Promise<MutateResult> {
+  const bad = rejectBadId(gameId, "save");
+  if (bad) return bad;
+  const calls = editCalls(gameId, edits);
+  if (calls === null) return { ok: false, message: "Invalid edit." };
+  if (calls.length === 0) return { ok: true };
+  return writeApplied(() => runInOrder(calls), [gamesTag]);
+}
+
+/** One press of Save on a wishlist entry being promoted: the move itself, plus
+ *  whatever else the dialog collected on the way through. The system is
+ *  required rather than optional because played_games.system is NOT NULL and
+ *  the promote is what creates the row. */
+export async function promoteAndSave(
+  itemId: number,
+  system: string,
+  edits: Omit<GameEdits, "system" | "stopSessionId" | "stopDate">
+): Promise<MutateResult> {
+  const bad = rejectBadId(itemId, "promote");
+  if (bad) return bad;
+  const trimmedSystem = system.trim();
+  if (trimmedSystem === "" || trimmedSystem.length > MAX_SYSTEM_LENGTH) {
     return { ok: false, message: "Invalid system." };
   }
 
-  // Games only: the system is per-entry, so no other cached read can change.
-  return write(() => updateMyGameSystem(gameId, trimmed), [gamesTag]);
-}
+  // `applied` is true from the moment the promote lands, so every failure below
+  // still revalidates: the wishlist row is genuinely gone, and a cache that
+  // still shows it sends the retry into a 404 on an item that no longer exists.
+  return writeApplied(async () => {
+    const promoted = await promoteMyWishlistItem(itemId, trimmedSystem);
+    if (!promoted.ok) return { result: { ok: false, message: promoted.message }, applied: false };
 
-/** Start playing a game (endDate null → open session) or log a past
- *  playthrough (both dates, inclusive). */
-export async function logSession(
-  gameId: number,
-  startDate: string,
-  endDate: string | null
-): Promise<MutateResult> {
-  if (
-    !Number.isInteger(gameId) ||
-    !ISO_DATE_RE.test(startDate) ||
-    (endDate !== null && !ISO_DATE_RE.test(endDate))
-  ) {
-    return { ok: false, message: "Invalid session request." };
-  }
-
-  return write(() => createMySession(gameId, startDate, endDate), [gamesTag]);
-}
-
-/** Stop playing: close the open session. The rating is deliberately NOT part of
- *  this call any more. The API still accepts one (PATCH /me/sessions/{id} can
- *  close and rate in one transaction), but the UI now asks about the rating
- *  only after the session is closed, as a separate write the owner may skip:
- *  see stopPlaying in EditGameModal. */
-export async function stopSession(sessionId: number, endDate: string): Promise<MutateResult> {
-  if (!Number.isInteger(sessionId) || !ISO_DATE_RE.test(endDate)) {
-    return { ok: false, message: "Invalid stop request." };
-  }
-
-  return write(() => closeMySession(sessionId, endDate), [gamesTag]);
+    const partial = (rest: string): WriteOutcome => ({
+      result: { ok: false, message: `Moved to the library, but ${rest}` },
+      applied: true,
+    });
+    // Nothing else can be applied without the new row id, which only the 201
+    // body carries.
+    if (promoted.gameId === null) {
+      return Object.keys(edits).length > 0
+        ? partial("the rest could not be saved. Open it from your library to finish.")
+        : { result: { ok: true }, applied: true };
+    }
+    const calls = editCalls(promoted.gameId, edits);
+    if (calls === null) {
+      return partial("the rest was invalid. Open it from your library to finish.");
+    }
+    // The promote landed even when the follow-ups did not.
+    return { result: (await runInOrder(calls)).result, applied: true };
+  }, [gamesTag, wishlistTag]);
 }
 
 /** Follow a user. Revalidates BOTH libraries: the caller's following list grew

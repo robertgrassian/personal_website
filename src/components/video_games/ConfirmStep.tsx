@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { buttonClass, dangerButtonClass, dangerLinkClass } from "./formStyles";
+import { buttonClass, dangerButtonClass } from "./formStyles";
 
 // A destructive action behind a two-step confirm: a quiet red link that swaps
 // itself for a prompt plus Remove / Cancel.
@@ -10,10 +10,11 @@ import { buttonClass, dangerButtonClass, dangerLinkClass } from "./formStyles";
 // the only thing that reads it. Hoisting it would give each modal a boolean to
 // declare and reset for no benefit.
 //
-// Why the trigger is a link and the confirm is an outlined button rather than a
-// filled one: the destructive path should never be the most prominent control
-// in a dialog, and a filled red button beside a neutral Cancel reads as the
-// default action.
+// The trigger is a real button rather than the small text link it used to be:
+// a control that is genuinely hard to hit is not safer, it is just annoying,
+// and the confirm step is what makes a mis-tap harmless. Both halves stay
+// OUTLINED rather than filled, which is what keeps the destructive path from
+// reading as the dialog's default action.
 
 type ConfirmStepProps = {
   /** The link text that opens the confirm, e.g. "Remove from library". */
@@ -56,7 +57,7 @@ export function ConfirmStep({
         type="button"
         onClick={() => setConfirming(true)}
         disabled={disabled}
-        className={`${triggerClassName} ${dangerLinkClass}`.trim()}
+        className={`${triggerClassName} ${dangerButtonClass}`.trim()}
       >
         {triggerLabel}
       </button>

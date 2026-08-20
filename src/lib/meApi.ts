@@ -373,16 +373,30 @@ export function deleteMyWishlistItem(itemId: number): Promise<MutateResult> {
   return mutate(`${API_PREFIX}/me/wishlist/${itemId}`, "DELETE", null, "remove from the wishlist");
 }
 
-/** Promote a wishlist entry into the library ("I bought it"). `system` wins
- *  over the stored one; "" defers to what the wishlist row already has. */
-export function promoteMyWishlistItem(itemId: number, system: string): Promise<MutateResult> {
-  return mutate(
-    `${API_PREFIX}/me/wishlist/${itemId}/promote`,
-    "POST",
-    { system },
-    "move to the library"
-  );
+/** Promote, returning the id of the library row it created.
+ *
+ *  The id is the reason this does not go through `mutate`: the dialog can save
+ *  a rating and a session in the same press, and both need a game id that does
+ *  not exist until this call answers. The API has always sent the new game back
+ *  (201 + GameRead); `mutate` is what was discarding it. */
+export async function promoteMyWishlistItem(
+  itemId: number,
+  system: string
+): Promise<PromoteResult> {
+  const res = await callMeApi<{ id: number }>(`${API_PREFIX}/me/wishlist/${itemId}/promote`, {
+    method: "POST",
+    body: { system },
+    what: "move to the library",
+  });
+  if (!res.ok) return { ok: false, message: res.message };
+  // A 201 that somehow arrived without a parseable body: the write landed, so
+  // reporting failure would be a lie, but the follow-up writes have no id to
+  // target. Reported as a partial success by the caller.
+  if (typeof res.data?.id !== "number") return { ok: true, gameId: null };
+  return { ok: true, gameId: res.data.id };
 }
+
+export type PromoteResult = { ok: true; gameId: number | null } | { ok: false; message: string };
 
 // Search results ride in the ok branch; failures reuse the message shape so
 // the modal can render either with one code path.
@@ -441,19 +455,21 @@ export async function previewCatalogEntry(
   return { ok: true, preview: res.data };
 }
 
-/** Set or clear ("" = unrated) the rating on one of the caller's games. */
-export function updateMyGameRating(gameId: number, rating: string): Promise<MutateResult> {
-  return mutate(`${API_PREFIX}/me/games/${gameId}`, "PATCH", { rating }, "update the rating");
-}
-
-/** Change which console one of the caller's games is filed under.
+/** Rating and system in ONE PATCH, for the dialog's single Save.
  *
- *  Separate call rather than a `fields` bag like updateMyWishlistItem, because
- *  the PATCH is partial on the server: sending only the key that changed is
- *  what keeps "omitted = leave unchanged" meaningful. There is no clear: the
- *  API 422s a blank system, since a library row must name a console. */
-export function updateMyGameSystem(gameId: number, system: string): Promise<MutateResult> {
-  return mutate(`${API_PREFIX}/me/games/${gameId}`, "PATCH", { system }, "update the system");
+ *  GameUpdate is partial on the server (it checks `model_fields_set`), so an
+ *  omitted key still means "leave unchanged" and this stays a partial edit. The
+ *  point is atomicity: sending both as two calls left a Save that changed both
+ *  able to apply one and fail the other. Only keys actually present are sent,
+ *  which is why the body is built rather than spread from a fixed shape. */
+export function updateMyGame(
+  gameId: number,
+  fields: { rating?: string; system?: string }
+): Promise<MutateResult> {
+  const body: Record<string, unknown> = {};
+  if (fields.rating !== undefined) body.rating = fields.rating;
+  if (fields.system !== undefined) body.system = fields.system;
+  return mutate(`${API_PREFIX}/me/games/${gameId}`, "PATCH", body, "save your changes");
 }
 
 /** Start playing (endDate null → open session) or log a past playthrough

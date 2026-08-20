@@ -5,11 +5,18 @@ _Section: **Backlog / Ideas** &middot; index: [`TODO.md`](../../TODO.md)_
 Instead of picking the start, hitting check, then the end, hitting check again. Noticed on mobile
 2026-08-06; it is the same on desktop, since the cause is not mobile-specific.
 
-_What is there now:_ two independent `<input type="date">` controls, "From" (`EditGameModal.tsx`)
-and "To", inside the `logOpen` block. Each opens the platform's own picker, so two dates means two
-sheets and two confirmations. They are already linked in the only ways HTML allows: `min={logStart}`
-on the To field, `max` of today on both, and a `logDatesInvalid` guard disabling Save on an inverted
-range.
+_What is there now:_ two independent `<input type="date">` controls, "From" and "To", in
+**`SessionDateFields.tsx`** (2026-08-19, extracted out of `EditGameModal` and always visible rather
+than behind a disclosure). Each opens the platform's own picker, so two dates means two sheets and
+two confirmations. They are already linked in the only ways HTML allows: `min` on the To field,
+`max` of today on both, and a `problem` string that disables the dialog's Save and says why.
+
+**A click-anywhere-opens-the-calendar attempt was made and reverted** (2026-08-19): calling
+`showPicker()` from the input's `onClick` fights the browser, since clicking the calendar glyph
+already opens the picker natively and the handler fired a second time, flickering it shut. The
+CSS alternative, stretching `::-webkit-calendar-picker-indicator` over the whole field, does work
+but swallows the clicks that place the text cursor, so it trades away direct typing. Whatever
+replaces these needs both.
 
 _The constraint that rules out a stock range picker:_ the end date is optional on purpose. "Leave
 'To' empty if you're still playing it" logs a backdated session that is still open, which is what
@@ -25,6 +32,6 @@ against a two-tap annoyance on a control the owner uses a handful of times a wee
 ground worth considering first: default "To" to the start date once "From" is set, so the common
 single-day session needs no second pick at all.
 
-Related: the "library-level create session button" item plans to reuse this same past-dates
-form, so whatever this becomes should be a shared component rather than more markup inside
-`EditGameModal`.
+**The "make it a shared component first" prerequisite is done:** `SessionDateFields` is controlled
+and stateless, holds no write of its own, and is what the "library-level create session button" item
+should render.

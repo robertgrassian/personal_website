@@ -107,11 +107,10 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 - [ ] **Give library games a "notes" field, like wishlist entries already have, then grow it into a
       real play journal.** [Details](docs/todo/game-notes-play-journal.md)
 
-- [ ] **Overhaul the wishlist promote flow: it is "played", not "bought".**
-      [Details](docs/todo/wishlist-promote-played.md)
-
-- [ ] **Make library and wishlist entries fully editable, and keep the two edit modals 1:1.** Would
-      unblock **Audit the genre vocabulary**. [Details](docs/todo/fully-editable-entries.md)
+- [ ] **Make library and wishlist entries fully editable.** The "keep the two edit modals 1:1" half
+      needs re-deciding: the wishlist dialog deliberately stopped duplicating the library's fields
+      2026-08-19. Would unblock **Audit the genre vocabulary**.
+      [Details](docs/todo/fully-editable-entries.md)
 
 - [ ] **Fold "+ Add to wishlist" into a single "+ Add game" that picks its destination.** Collides
       with **When adding a game, let me say I'm playing it now**.
