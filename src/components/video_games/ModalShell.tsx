@@ -62,7 +62,7 @@ export function ModalShell({
     // that is visible whether or not the URL bar is showing.
     //
     // p-3 on a phone, where the gutter competes with the keyboard for pixels.
-    <div className="fixed inset-0 z-50 grid place-items-center p-3 sm:p-4">
+    <div className="fixed inset-0 z-50 grid place-items-center p-3 sm:p-4 pt-[calc(0.75rem+var(--safe-top))] pb-[calc(0.75rem+var(--safe-bottom))]">
       {/* Backdrop — clicking it closes the dialog */}
       <div aria-hidden="true" onClick={onClose} className={modalBackdropClass} />
 

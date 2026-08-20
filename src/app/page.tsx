@@ -56,7 +56,7 @@ export default function Home() {
       </div>
 
       {/* Tiles pinned to the bottom of the viewport */}
-      <div className="relative z-10 px-4 sm:px-6 pb-8 sm:pb-12">
+      <div className="relative z-10 px-4 sm:px-6 pb-[calc(2rem+var(--safe-bottom))] sm:pb-[calc(3rem+var(--safe-bottom))]">
         <div className="max-w-3xl mx-auto grid grid-cols-3 gap-3 sm:gap-4">
           {sections.map((s) => (
             // backdrop-blur-sm + bg-white/10 = frosted glass effect over the photo

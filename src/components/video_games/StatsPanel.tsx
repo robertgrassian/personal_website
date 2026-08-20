@@ -51,7 +51,7 @@ export function StatsPanel({ games, currentlyPlayingGames, isOpen, onClose }: St
         aria-hidden={!isOpen}
         inert={!isOpen}
         role="dialog"
-        className={`fixed top-[var(--nav-height)] right-0 z-40 h-[calc(100%-var(--nav-height))] flex flex-col bg-background border-l border-divider shadow-2xl transition-[transform,width] duration-300 ease-in-out ${
+        className={`fixed top-[var(--nav-offset)] right-0 z-40 h-[calc(100%-var(--nav-offset))] flex flex-col pb-[var(--safe-bottom)] bg-background border-l border-divider shadow-2xl transition-[transform,width] duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         } ${activeTab === "query" ? "w-full sm:w-[min(90vw,1000px)]" : "w-full sm:w-[560px]"}`}
       >

@@ -1,7 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --nav-height: 4rem; /* 64px — consumed as h-[var(--nav-height)] in Nav.tsx and top-[var(--nav-height)] in GameShelves.tsx and StatsPanel.tsx */
+  --nav-height: 4rem; /* 64px — the bar itself, consumed as h-[var(--nav-height)] in Nav.tsx */
+
+  /* Device safe areas, non-zero only because layout.tsx opts into
+     viewport-fit=cover. Without that opt-in iOS insets the whole page out of
+     them, which is what left a strip the modal backdrop could not paint into.
+     Covering means the page now owns those pixels, so anything pinned to a
+     viewport edge has to pad itself back out of them. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* Where the nav bar ends, which is what the sticky library chrome offsets
+     against: the bar plus whatever the nav pads above it. Consumed as
+     top-[var(--nav-offset)] in GameShelves.tsx and StatsPanel.tsx. */
+  --nav-offset: calc(var(--nav-height) + var(--safe-top));
 
   --background: #ffffff;
   --foreground: #171717;

@@ -3,17 +3,15 @@ import { useEffect, useRef, type RefObject } from "react";
 // The dimming/blurring layer behind a modal surface, shared by the five that
 // use this hook. Callers add only z-index and transitions.
 //
-// The 25vh bleed above and below covers the strip a mobile browser reveals
-// when its URL bar retracts. WebKit anchors `position: fixed` to a layout
-// viewport that does not grow when that happens — reported for iOS 26 as
-// bottom-anchored elements stopping where the toolbar was — so `inset-0` ends
-// at the old edge and the strip stays unblurred and undimmed.
+// What actually fixes the strip this used to leave uncovered on iOS is
+// viewport-fit=cover in layout.tsx: without it the page is inset out of the
+// device safe areas, so `inset-0` stops above the home indicator no matter
+// how the box is sized. Sizing it with min-h-lvh was tried first and changed
+// nothing on the device, which is what pointed away from the height.
 //
-// Sizing the box to the large viewport with min-h-lvh was tried first and
-// changed nothing on the device, so this overshoots by a relative amount
-// instead: far more than any browser chrome, and on both edges since the bar
-// can be top or bottom. The excess sits off screen or behind that chrome, and
-// a fixed box adds no scrollable overflow, so over-covering costs nothing.
+// The 25vh bleed on top of that is a backstop for a browser whose layout
+// viewport lags a retracting URL bar. The excess sits off screen or behind
+// browser chrome, and a fixed box adds no scrollable overflow, so it is free.
 export const modalBackdropClass =
   "fixed inset-x-0 top-[-25vh] bottom-[-25vh] bg-black/40 backdrop-blur-sm";
 
