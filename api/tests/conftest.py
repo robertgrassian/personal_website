@@ -9,10 +9,11 @@ making live requests without anyone noticing -- they passed locally, where the
 DB tests skip for want of DATABASE_URL, and failed in CI against whatever the
 search happened to return that day.
 
-`stub_genre_lookup` is the fix for the modules that add games; `no_outbound_http`
-is the backstop that makes the next module to forget fail loudly instead of
-quietly depending on Wikipedia. It both raises and records, because the callers
-swallow exceptions by design; see its docstring.
+`stub_genre_lookup` and `stub_platform_lookup` are the fix for the modules that
+add games; `no_outbound_http` is the backstop that makes the next module to
+forget fail loudly instead of quietly depending on Wikipedia or IGDB. It both
+raises and records, because the callers swallow exceptions by design; see its
+docstring.
 
 Blocking the module-level httpx functions rather than sockets is deliberate.
 The two seams that reach third parties are services/genres.py (httpx.get) and
@@ -31,6 +32,7 @@ from sqlalchemy import text
 from app.core.config import get_settings
 from app.core.db import get_sessionmaker
 from app.services import genres as genre_service
+from app.services import igdb as igdb_service
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -90,6 +92,19 @@ def stub_genre_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
     Wikipedia says today. Tests that want the sourcing itself override this.
     """
     monkeypatch.setattr(genre_service, "lookup_one", lambda name: [])
+
+
+@pytest.fixture
+def stub_platform_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Resolve every platform lookup to a clean miss.
+
+    Same shape and same reason as stub_genre_lookup: create_my_game calls IGDB
+    for a new catalog row's platforms, so without this every DB test that adds
+    a game reaches the network. Opt-in for symmetry, and so test_igdb_api.py
+    keeps the real implementation. A miss stores [], which is what these tests
+    already assert.
+    """
+    monkeypatch.setattr(igdb_service, "lookup_platforms", lambda db, igdb_id: [])
 
 
 # The module-level conveniences. httpx.Client methods are untouched on purpose,

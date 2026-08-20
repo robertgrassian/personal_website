@@ -30,7 +30,7 @@ requires_db = pytest.mark.skipif(not get_settings().database_url, reason="DATABA
 
 # Adding a game or a wishlist entry calls Wikipedia for any catalog row that
 # does not exist yet, which is most rows these tests create. See conftest.
-pytestmark = pytest.mark.usefixtures("stub_genre_lookup")
+pytestmark = pytest.mark.usefixtures("stub_genre_lookup", "stub_platform_lookup")
 
 # Test igdb ids start well above anything IGDB actually issues (their ids are
 # six digits at most). Since igdb_id became the catalog's identity key, a test

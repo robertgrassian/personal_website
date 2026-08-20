@@ -29,7 +29,7 @@ requires_db = pytest.mark.skipif(not get_settings().database_url, reason="DATABA
 
 # The fixtures below build their users through the real write path, so adding
 # their games reaches the genre lookup the same way /me/games does. See conftest.
-pytestmark = pytest.mark.usefixtures("stub_genre_lookup")
+pytestmark = pytest.mark.usefixtures("stub_genre_lookup", "stub_platform_lookup")
 
 # The exact wire keys of the TS types being mirrored (src/lib/games.ts,
 # src/lib/wishlist.ts) — camelCase, via the schema alias generator.
