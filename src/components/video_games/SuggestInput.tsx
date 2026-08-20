@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDownIcon } from "@/components/Icon";
 import { inputClass, labelClass } from "./formStyles";
 import { foldForSearch } from "./pipeline";
-import { useVisualViewportBox } from "./useVisualViewportBox";
+import { useVisibleViewportInsets } from "./useVisibleViewportInsets";
 
 type SuggestInputProps = {
   /** Field label. Rendered for screen readers only when `labelHidden`. */
@@ -117,17 +117,17 @@ export function SuggestInput({
   // band left above the keyboard is barely taller than the list itself. One
   // frame later, after the list has been laid out and can be measured.
   //
-  // Re-run on the visible height too, not just on opening: tapping the field
+  // Re-run when the keyboard moves, not only on opening: tapping the field
   // opens the list and THEN raises the keyboard, which shrinks the dialog under
   // a list that has already been placed, leaving it clipped below the fold.
-  const visibleHeight = useVisualViewportBox()?.height;
+  const hidden = useVisibleViewportInsets();
   useEffect(() => {
     if (!listOpen) return;
     const frame = requestAnimationFrame(() => {
       listRef.current?.scrollIntoView({ block: "nearest" });
     });
     return () => cancelAnimationFrame(frame);
-  }, [listOpen, visibleHeight]);
+  }, [listOpen, hidden]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {

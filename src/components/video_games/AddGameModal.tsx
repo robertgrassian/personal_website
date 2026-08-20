@@ -145,6 +145,9 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
       // recovered is another visible result; 80% from `sm` up, where a
       // full-height dialog reads as a page instead.
       panelClassName="flex max-h-full sm:max-h-[80%] w-full max-w-md flex-col"
+      // This dialog's two steps are flex columns that scroll their own results
+      // list, so the shell must not wrap them in a scrolling body of its own.
+      scrollBody={false}
       // The search box, not the close button: this dialog opens ready to type.
       initialFocusRef={searchInputRef}
     >
