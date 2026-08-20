@@ -58,6 +58,11 @@ export function ModalShell({
     // area reach that backdrop, since the frame now covers it rather than
     // containing it; the panel turns pointer events back on.
     //
+    // This frame stays `fixed` even though the backdrop had to stop being
+    // fixed. WebKit clipping a fixed layer to the stale layout viewport only
+    // matters to something that has to reach the screen's edges, and this only
+    // has to place the panel, which belongs inside the visible area anyway.
+    //
     // Height stays inset-0 rather than measured from visualViewport: that was
     // tried and reverted, because a pixel height goes stale between viewport
     // events and the panel then centers in a stale, taller box. Mobile browsers
