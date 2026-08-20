@@ -5,7 +5,8 @@ import type { Game } from "@/lib/games";
 import { GameStats } from "./GameStats";
 import { SqlQueryPanel } from "./SqlQueryPanel";
 import { CloseIcon } from "@/components/Icon";
-import { modalBackdropClass, useModalChrome } from "./useModalChrome";
+import { useModalChrome } from "./useModalChrome";
+import { ModalBackdrop } from "./ModalBackdrop";
 
 type StatsPanelProps = {
   games: Game[];
@@ -36,10 +37,9 @@ export function StatsPanel({ games, currentlyPlayingGames, isOpen, onClose }: St
   return (
     <>
       {/* Backdrop — clicking it closes the panel */}
-      <div
-        aria-hidden="true"
-        onClick={onClose}
-        className={`${modalBackdropClass} z-30 transition-opacity duration-300 ${
+      <ModalBackdrop
+        onClose={onClose}
+        className={`z-30 transition-opacity duration-300 ${
           isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         }`}
       />

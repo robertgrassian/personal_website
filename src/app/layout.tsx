@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 // consumes them to pad itself back out.
 //
 // This shipped as an attempted fix for the modal backdrop's uncovered strip
-// and did not fix it; see useModalChrome.ts for what did. Kept because
+// and did not fix it; see ModalBackdrop.tsx for what did. Kept because
 // handling the safe areas is correct on its own terms.
 export const viewport: Viewport = {
   viewportFit: "cover",

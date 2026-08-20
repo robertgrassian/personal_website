@@ -33,24 +33,24 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 
 ### Where things live
 
-| Task                                   | File                                                                               |
-| -------------------------------------- | ---------------------------------------------------------------------------------- |
-| Library read fetches, cache tags       | `src/lib/libraryApi.ts`                                                            |
-| Owner writes (client-callable)         | `src/app/video-games/actions.ts` → `src/lib/meApi.ts`                              |
-| Filter / group / sort logic            | `src/components/video_games/pipeline.ts`                                           |
-| Filter/group/sort option lists         | `src/components/video_games/libraryConfig.ts`, `useFilterOptions.ts`               |
-| Shared types, `RATINGS`, `systemLabel` | `src/lib/games.ts` (library), `wishlist.ts`, `profile.ts`, `follows.ts`            |
-| Shelf UI                               | `GameShelves.tsx` → `ShelfSection.tsx` → `GameCase.tsx` / `GameCaseBack.tsx`       |
-| Library page shell (both routes)       | `src/components/video_games/LibraryPage.tsx`                                       |
-| Owner modals                           | `AddGameModal.tsx`, `EditGameModal.tsx`, `EditWishlistModal.tsx`, `ModalShell.tsx` |
-| "Currently playing" CRT                | `src/components/crt/CrtTv.tsx` + `crt.css`                                         |
-| Can this viewer edit?                  | `LibraryEditingContext.tsx`, `useViewerRelationship.ts`                            |
-| Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                       |
-| Library styles                         | `src/app/video-games/video-games.css`; site tokens in `src/app/globals.css`        |
-| API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)           |
-| API endpoint reference, runnable       | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)       |
-| Migrations                             | `api/alembic/versions/`                                                            |
-| Tests                                  | `api/tests/` (pytest). No frontend test suite exists yet                           |
+| Task                                   | File                                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Library read fetches, cache tags       | `src/lib/libraryApi.ts`                                                                                 |
+| Owner writes (client-callable)         | `src/app/video-games/actions.ts` → `src/lib/meApi.ts`                                                   |
+| Filter / group / sort logic            | `src/components/video_games/pipeline.ts`                                                                |
+| Filter/group/sort option lists         | `src/components/video_games/libraryConfig.ts`, `useFilterOptions.ts`                                    |
+| Shared types, `RATINGS`, `systemLabel` | `src/lib/games.ts` (library), `wishlist.ts`, `profile.ts`, `follows.ts`                                 |
+| Shelf UI                               | `GameShelves.tsx` → `ShelfSection.tsx` → `GameCase.tsx` / `GameCaseBack.tsx`                            |
+| Library page shell (both routes)       | `src/components/video_games/LibraryPage.tsx`                                                            |
+| Owner modals                           | `AddGameModal.tsx`, `EditGameModal.tsx`, `EditWishlistModal.tsx`, `ModalShell.tsx`, `ModalBackdrop.tsx` |
+| "Currently playing" CRT                | `src/components/crt/CrtTv.tsx` + `crt.css`                                                              |
+| Can this viewer edit?                  | `LibraryEditingContext.tsx`, `useViewerRelationship.ts`                                                 |
+| Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                                            |
+| Library styles                         | `src/app/video-games/video-games.css`; site tokens in `src/app/globals.css`                             |
+| API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)                                |
+| API endpoint reference, runnable       | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)                            |
+| Migrations                             | `api/alembic/versions/`                                                                                 |
+| Tests                                  | `api/tests/` (pytest). No frontend test suite exists yet                                                |
 
 Dead code worth knowing about: `src/components/video_games/CurrentlyPlaying.tsx` is the **old** stylized CRT and is imported by nothing. The live one is `crt/CrtTv.tsx`, used by `LibraryPage` and `/currently-playing`.
 
@@ -78,7 +78,7 @@ Dead code worth knowing about: `src/components/video_games/CurrentlyPlaying.tsx`
 - **The game library owns the `/video-games` prefix.** Everything belonging to it nests there, including per-user libraries at `/video-games/u/[username]` (moved off a top-level `/u/` 2026-07-29, redirect in `next.config.ts`). New library surfaces go under that prefix rather than at the top level. Auth is the deliberate exception: `/onboarding` and `/auth/*` stay top-level because identity is site-wide, not the library's.
 - **Always support both light and dark mode.** The site uses `@media (prefers-color-scheme: dark)` CSS variables in `globals.css` and Tailwind `dark:` variants in components — both must be addressed for any new UI. Never add color classes that only work in one mode.
 - **Nav height is one variable.** `--nav-height` in `globals.css` (`:root`) is the bar itself, consumed as `h-[var(--nav-height)]` in `Nav.tsx`. `--nav-offset` is that plus `--safe-top`, which is where the bar actually ends, consumed as `top-[var(--nav-offset)]` in `GameShelves.tsx` (the sticky library header, which holds the view tabs and `FilterBar`) and `StatsPanel.tsx`. Change the height in one place and all three follow.
-- **The page owns the device safe areas.** `layout.tsx` exports `viewport: { viewportFit: "cover" }`, so iOS stops insetting the page out of the notch and home-indicator strips: a `fixed; inset: 0` overlay reaches the screen edges. The cost is that anything pinned to a viewport edge must pad itself back out, via the four `--safe-*` tokens in `globals.css` (all four: covering un-insets left and right too, which matters in landscape). Today that is `Nav`, `StatsPanel`, `ModalShell` and the homepage tiles. `FilterSheet` predates the change and pads its action row with a raw `max(1rem, env(safe-area-inset-bottom))`, so it must not be padded again.
+- **The page owns the device safe areas.** `layout.tsx` exports `viewport: { viewportFit: "cover" }`, so iOS stops insetting the page out of the notch and home-indicator strips: page content reaches the screen edges, which is what `ModalBackdrop` relies on to dim them. A `fixed` overlay does not, whatever its insets say: WebKit clips fixed layers to a layout viewport that goes stale when the URL bar shrinks, which is why the backdrop is document-positioned. The cost is that anything pinned to a viewport edge must pad itself back out, via the four `--safe-*` tokens in `globals.css` (all four: covering un-insets left and right too, which matters in landscape). Today that is `Nav`, `StatsPanel`, `ModalShell` and the homepage tiles. `FilterSheet` predates the change and pads its action row with a raw `max(1rem, env(safe-area-inset-bottom))`, so it must not be padded again.
 - **Adding a read means adding its cache tag.** Tags are defined in `libraryApi.ts` and must be paired with every write that can change them, in `video-games/actions.ts`. Too narrow a tag serves a stale page.
 
 ## Repository
