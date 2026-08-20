@@ -15,10 +15,14 @@ const geistMono = Geist_Mono({
 });
 
 // viewportFit "cover" lets the page paint into the device safe areas instead
-// of being inset out of them. Without it a `fixed; inset: 0` overlay stops
-// above the home indicator on iOS 26, which is why the modal backdrop left an
-// unblurred strip. The --safe-* tokens in globals.css only report non-zero
-// values once this is set; everything pinned to a viewport edge consumes them.
+// of being inset out of them, so a `fixed; inset: 0` overlay reaches the notch
+// and home-indicator edges. The --safe-* tokens in globals.css report non-zero
+// values only once this is set, and everything pinned to a viewport edge
+// consumes them to pad itself back out.
+//
+// This shipped as an attempted fix for the modal backdrop's uncovered strip
+// and did not fix it; see useModalChrome.ts for what did. Kept because
+// handling the safe areas is correct on its own terms.
 export const viewport: Viewport = {
   viewportFit: "cover",
 };
