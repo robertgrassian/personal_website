@@ -2,8 +2,8 @@
 
 import { useRef, type ReactNode } from "react";
 import { CloseIcon } from "@/components/Icon";
-import { modalBackdropClass, useModalChrome } from "./useModalChrome";
-import { useVisualViewportBox } from "./useVisualViewportBox";
+import { useModalChrome } from "./useModalChrome";
+import { ModalBackdrop } from "./ModalBackdrop";
 
 // The dialog frame shared by the owner-edit modals (AddGameModal,
 // EditGameModal, EditWishlistModal): backdrop, panel, header row with the close
@@ -27,13 +27,10 @@ type ModalShellProps = {
   onClose: () => void;
   // Rendered as a role="alert" line under the body. null = no error showing.
   error: string | null;
-  // Extra classes for the panel. Both defaults matter: the panel is a flex
-  // column so the body below can be the one scrolling part, and max-h-full caps
-  // it at the frame, which is the visible band rather than the whole screen.
+  // Extra classes for the panel. AddGameModal is the only dialog that needs
+  // them: it is a capped-height flex column so its results list scrolls while
+  // the search box and buttons stay put.
   panelClassName?: string;
-  // False when the children are the flex column's own sections and scroll
-  // themselves (AddGameModal). True wraps them in the scrolling body below.
-  scrollBody?: boolean;
   // When set, the header's close button does not take initial focus and this
   // element does instead (AddGameModal focuses its search input).
   initialFocusRef?: React.RefObject<HTMLElement | null>;
@@ -46,8 +43,7 @@ export function ModalShell({
   subtitle,
   onClose,
   error,
-  panelClassName = "flex max-h-full w-full max-w-sm flex-col",
-  scrollBody = true,
+  panelClassName = "w-full max-w-sm",
   initialFocusRef,
   children,
 }: ModalShellProps) {
@@ -56,47 +52,49 @@ export function ModalShell({
   // dialogs want; a caller with a better first stop passes its own ref.
   useModalChrome(onClose, initialFocusRef ?? closeButtonRef);
 
-  // The frame is sized to what the user can see, not to the layout viewport
-  // `inset-0` would give: with a software keyboard up those are different
-  // boxes, and the difference is a dialog centered partly behind the keyboard
-  // with the page showing through above it. See useVisualViewportBox.
-  //
-  // An earlier version of this measured the same way and was reverted for going
-  // stale between viewport events; the hook now listens for the scroll events
-  // as well as the resize ones, which is what was missing. `inset: 0` stays as
-  // the pre-measurement and unsupported-browser fallback.
-  const visible = useVisualViewportBox();
-
   return (
-    // z-50: above StatsPanel's backdrop/panel (z-30/z-40 range).
+    // The z contract, which now spans three files: backdrop z-30 under the two
+    // stays-mounted panels (z-40), backdrop z-50 over the nav (z-50) for these
+    // dialogs, frame z-[60] over that. The frame has to clear its own backdrop
+    // because the backdrop is portalled to <body> and so paints after it at
+    // equal z. pointer-events-none lets a tap on the empty
+    // area reach that backdrop, since the frame now covers it rather than
+    // containing it; the panel turns pointer events back on.
     //
-    // p-3 on a phone, where the gutter competes with the keyboard for pixels.
-    <div
-      className="fixed z-50 flex items-center justify-center p-3 sm:p-4"
-      style={visible ?? { inset: 0 }}
-    >
-      {/* Backdrop — clicking it closes the dialog. Its own min-h-lvh still
-          earns its place: it covers the strip a retracting URL bar reveals in
-          the frame before the resize event lands. */}
-      <div aria-hidden="true" onClick={onClose} className={`absolute ${modalBackdropClass}`} />
+    // This frame stays `fixed` even though the backdrop had to stop being
+    // fixed. WebKit clipping a fixed layer to the stale layout viewport only
+    // matters to something that has to reach the screen's edges, and this only
+    // has to place the panel, which belongs inside the visible area anyway.
+    //
+    // Height stays inset-0 rather than measured from visualViewport: that was
+    // tried and reverted, because a pixel height goes stale between viewport
+    // events and the panel then centers in a stale, taller box. Mobile browsers
+    // already shrink the layout viewport for the keyboard.
+    //
+    // Every side is set separately, and the gutter comes from --modal-gutter
+    // rather than p-3/sm:p-4: a responsive shorthand sorts after the per-side
+    // utilities and would silently drop the safe-area half of each calc.
+    //
+    // grid-rows-[minmax(0,1fr)] pins the row to this box's content height. The
+    // default auto row grows with its item, so a panel sizing itself in % had
+    // nothing definite to resolve against and could outgrow the frame.
+    <div className="pointer-events-none fixed inset-0 z-[60] grid grid-rows-[minmax(0,1fr)] place-items-center pt-[calc(var(--modal-gutter)+var(--safe-top))] pr-[calc(var(--modal-gutter)+var(--safe-right))] pb-[calc(var(--modal-gutter)+var(--safe-bottom))] pl-[calc(var(--modal-gutter)+var(--safe-left))]">
+      {/* Backdrop — clicking it closes the dialog */}
+      <ModalBackdrop onClose={onClose} className="z-50" />
 
-      {/* Centered with flex rather than `place-items-center`, so the panel's
-          max-h-full has something definite to resolve against: an auto grid row
-          is sized BY its item, so the percentage came back as the panel's own
-          height and capped nothing.
-
-          min-w-0 is load-bearing: a flex item's automatic minimum size is
-          min-content, so without it the panel cannot go narrower than the
-          search results' untruncated nowrap lines, and its right edge
-          overflowed off screen on a phone. */}
+      {/* min-w-0 is load-bearing: a grid item's automatic minimum size is
+          min-content, so without it the centering track cannot go narrower than
+          the search results' untruncated nowrap lines, and the panel's right
+          edge overflowed off screen on a phone. */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className={`relative min-w-0 rounded-lg border border-shelf-plank bg-shelf-bg p-4 sm:p-5 shadow-2xl ${panelClassName}`}
+        className={`pointer-events-auto relative min-w-0 rounded-lg border border-shelf-plank bg-shelf-bg p-4 sm:p-5 shadow-2xl ${panelClassName}`}
       >
-        {/* shrink-0 keeps the header at its natural height as the scrolling
-            body below grows. */}
+        {/* shrink-0 matters only for the flex-column panel, where the header
+            must not compress as the scrolling middle section grows. It is inert
+            in the default block panel. */}
         <div className="flex shrink-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-shelf-text font-semibold leading-snug">{title}</h2>
@@ -115,20 +113,7 @@ export function ModalShell({
           </button>
         </div>
 
-        {scrollBody ? (
-          // The one scrolling part of the dialog, so a form taller than the
-          // visible band can be reached instead of overflowing the frame with
-          // nothing to scroll. -mx-1/px-1 gives focus rings a pixel to sit in,
-          // since a scroll container clips them; overflow-x-hidden is not
-          // redundant, because one axis set to anything but `visible` computes
-          // the other to `auto`. overscroll-contain keeps a flick at the end of
-          // the form off the library behind it.
-          <div className="-mx-1 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1">
-            {children}
-          </div>
-        ) : (
-          children
-        )}
+        {children}
 
         {error && (
           <p role="alert" className="mt-3 shrink-0 text-xs text-red-500 dark:text-red-400">

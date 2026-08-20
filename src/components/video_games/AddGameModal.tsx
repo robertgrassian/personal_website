@@ -137,15 +137,14 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
       // search box and the buttons under it stay put however many results come
       // back. The cap is a max, so a two-result search renders a short dialog.
       //
-      // max-h-full fills the shell's frame on a phone, where the dialog splits
-      // a sub-400px band with the keyboard and every pixel recovered is another
-      // visible result; 80% from `sm` up, where a full-height dialog reads as a
-      // page instead. Full, not dvh: the frame is the band the user can see,
-      // which dvh overstates whenever the keyboard is up.
-      panelClassName="flex max-h-full sm:max-h-[80dvh] w-full max-w-md flex-col"
-      // This dialog's two steps are flex columns that scroll their own results
-      // list, so the shell must not wrap them in a scrolling body of its own.
-      scrollBody={false}
+      // Both caps are a % of the shell's grid row, which is its content box:
+      // the gutter and the device safe areas are already subtracted, so these
+      // cannot drift out of sync with them the way the hand-copied
+      // calc(100dvh - 1.5rem) they replaced did. Full height on a phone, where
+      // the dialog splits a sub-400px band with the keyboard and every pixel
+      // recovered is another visible result; 80% from `sm` up, where a
+      // full-height dialog reads as a page instead.
+      panelClassName="flex max-h-full sm:max-h-[80%] w-full max-w-md flex-col"
       // The search box, not the close button: this dialog opens ready to type.
       initialFocusRef={searchInputRef}
     >

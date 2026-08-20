@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
@@ -13,6 +13,19 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+// viewportFit "cover" lets the page paint into the device safe areas instead
+// of being inset out of them, so a `fixed; inset: 0` overlay reaches the notch
+// and home-indicator edges. The --safe-* tokens in globals.css report non-zero
+// values only once this is set, and everything pinned to a viewport edge
+// consumes them to pad itself back out.
+//
+// This shipped as an attempted fix for the modal backdrop's uncovered strip
+// and did not fix it; see ModalBackdrop.tsx for what did. Kept because
+// handling the safe areas is correct on its own terms.
+export const viewport: Viewport = {
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   // Base for resolving relative OG/Twitter image URLs. Without it Next falls
