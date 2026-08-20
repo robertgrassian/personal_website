@@ -89,7 +89,16 @@ export function SuggestInput({
     onChange(option);
     setOpen(false);
     setActiveIndex(-1);
-    inputRef.current?.focus();
+    // Picking a suggestion is the end of the interaction, so on touch the
+    // field gives focus up and the software keyboard drops with it. Keeping
+    // focus there is right on a fine pointer, where it costs nothing and Tab
+    // carries on from the field, and wrong on a phone, where it leaves half
+    // the screen covered by a keyboard for a field nobody is typing in.
+    if (window.matchMedia("(pointer: fine)").matches) {
+      inputRef.current?.focus();
+    } else {
+      inputRef.current?.blur();
+    }
   };
 
   // Pointer-down outside closes. A blur handler would be the obvious choice and
