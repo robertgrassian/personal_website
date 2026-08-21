@@ -26,6 +26,13 @@ import { createPortal } from "react-dom";
 // that is itself broken (docs/todo/modal-scroll-lock.md). Fixing the lock
 // closes this; a fixed backdrop is not the answer, since that is what iOS
 // clips.
+// Linear, so the dim comes and goes at one steady rate. An eased curve is
+// front-loaded, and using the same one in both directions does not mirror it:
+// opening would rush to dark and closing would rush to clear, so the two would
+// visibly disagree. Linear is its own reverse, which is the only way the two
+// halves match exactly.
+const FADE_EASING = "linear";
+
 type ModalBackdropProps = {
   onClose: () => void;
   // When set, the dim fades IN over this many ms on mount and back out over
@@ -119,7 +126,7 @@ export function ModalBackdrop({
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const animation = el.animate([{ opacity: 0 }, { opacity: 1 }], {
       duration: fadeMs,
-      easing: "ease-out",
+      easing: FADE_EASING,
     });
     return () => animation.cancel();
     // Keyed on `container`, not []: the portal has no DOM node until that is
@@ -142,7 +149,7 @@ export function ModalBackdrop({
       // carries the fade out; leaving it undefined otherwise keeps them apart.
       style={
         fadingOut && fadeMs !== null
-          ? { opacity: 0, transition: `opacity ${fadeMs}ms ease-out` }
+          ? { opacity: 0, transition: `opacity ${fadeMs}ms ${FADE_EASING}` }
           : undefined
       }
     />,
