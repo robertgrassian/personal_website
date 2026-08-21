@@ -1,12 +1,23 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { localToday } from "@/lib/games";
-import { fieldClass, ghostButtonClass, labelClass } from "./formStyles";
+import { fieldClass, ghostButtonClass } from "./formStyles";
 
 // Date inputs size to their content rather than filling the row, so they take
 // the shared tokens plus their own padding instead of `inputClass`.
 const dateInputClass = `${fieldClass} px-2 py-1`;
+
+// The shared labelClass unpacked into its two jobs, because the caption line
+// now holds a Clear button beside the text. It cannot stay one <label>: button
+// is a labelable element, so a button inside the label would become the label's
+// control and quietly break the caption's link to the date input.
+const fieldColumnClass = "flex min-w-0 flex-col gap-1";
+const captionRowClass =
+  "flex items-center gap-2 text-[10px] uppercase tracking-wide text-shelf-label";
+// Negative margin cancels the padding, so the touch area is bigger than the
+// 10px caption line without the line growing to fit it.
+const clearButtonClass = `-my-1.5 py-1.5 text-[10px] normal-case ${ghostButtonClass}`;
 
 // Deliberately NO showPicker() call on click. Calling it from an onClick
 // fights the browser: clicking the calendar glyph already opens the picker
@@ -27,8 +38,9 @@ const dateInputClass = `${fieldClass} px-2 py-1`;
  *
  *  What this deliberately does NOT do is make Reset empty the field. Reverting
  *  to the value already committed is the whole of what that button does on iOS,
- *  so it can never clear a date that is already there; the Clear buttons below
- *  are the only way. Checked 2026-08-20 after two attempts to "fix" Reset.
+ *  so it can never clear a date that is already there; the Clear button in each
+ *  caption line is the only way. Checked 2026-08-20 after two attempts to "fix"
+ *  Reset.
  */
 function useNativeValueSync(value: string, onChange: (value: string) => void) {
   const ref = useRef<HTMLInputElement>(null);
@@ -86,13 +98,31 @@ export function SessionDateFields({
 }: SessionDateFieldsProps) {
   const startRef = useNativeValueSync(startDate, onChangeStart);
   const endRef = useNativeValueSync(endDate, onChangeEnd);
+  const startId = useId();
+  const endId = useId();
+  const problemId = useId();
+
+  // Clear rode in a row of its own under the fields, which appeared the moment
+  // a date was set and grew the card by 30px mid-edit. On a phone that pushed
+  // the buttons below the fold only AFTER the first interaction, so the card
+  // looked like it fit right up until it did not. In the caption line the
+  // control costs no height at all and the card stops resizing under the user.
+  const clearable = !disabled;
 
   return (
     <div className="mt-2">
       <div className="flex flex-wrap items-end gap-2">
-        <label className={labelClass}>
-          From
+        <div className={fieldColumnClass}>
+          <div className={captionRowClass}>
+            <label htmlFor={startId}>From</label>
+            {clearable && startDate !== "" && (
+              <button type="button" onClick={() => onChangeStart("")} className={clearButtonClass}>
+                Clear
+              </button>
+            )}
+          </div>
           <input
+            id={startId}
             ref={startRef}
             type="date"
             value={startDate}
@@ -100,13 +130,21 @@ export function SessionDateFields({
             disabled={disabled}
             onChange={(e) => onChangeStart(e.target.value)}
             aria-invalid={problem !== null}
-            aria-describedby="session-date-help"
+            aria-describedby={problem === null ? undefined : problemId}
             className={dateInputClass}
           />
-        </label>
-        <label className={labelClass}>
-          To
+        </div>
+        <div className={fieldColumnClass}>
+          <div className={captionRowClass}>
+            <label htmlFor={endId}>To</label>
+            {clearable && endDate !== "" && (
+              <button type="button" onClick={() => onChangeEnd("")} className={clearButtonClass}>
+                Clear
+              </button>
+            )}
+          </div>
           <input
+            id={endId}
             ref={endRef}
             type="date"
             value={endDate}
@@ -115,43 +153,20 @@ export function SessionDateFields({
             disabled={disabled}
             onChange={(e) => onChangeEnd(e.target.value)}
             aria-invalid={problem !== null}
-            aria-describedby="session-date-help"
+            aria-describedby={problem === null ? undefined : problemId}
             className={dateInputClass}
           />
-        </label>
-      </div>
-      {/* py-1.5 buys a touch-sized hit area on a 12px label; the row's own
-          margin is trimmed to match so the spacing below is unchanged. */}
-      {!disabled && (startDate !== "" || endDate !== "") && (
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-4">
-          {startDate !== "" && (
-            <button
-              type="button"
-              onClick={() => onChangeStart("")}
-              className={`py-1.5 ${ghostButtonClass}`}
-            >
-              Clear “From”
-            </button>
-          )}
-          {endDate !== "" && (
-            <button
-              type="button"
-              onClick={() => onChangeEnd("")}
-              className={`py-1.5 ${ghostButtonClass}`}
-            >
-              Clear “To”
-            </button>
-          )}
         </div>
+      </div>
+      {/* Only the error. The standing hint this replaced described a rule the
+          form does not enforce, and held a line open under the fields for it in
+          every edit. aria-describedby is pointed here only while it exists, so
+          it never references a missing node. */}
+      {problem !== null && (
+        <p id={problemId} className="mt-1.5 text-[11px] text-red-600 dark:text-red-400">
+          {problem}
+        </p>
       )}
-      <p
-        id="session-date-help"
-        className={`mt-1.5 text-[11px] ${
-          problem === null ? "text-shelf-text-muted" : "text-red-600 dark:text-red-400"
-        }`}
-      >
-        {problem ?? "Leave “To” empty if you’re still playing it."}
-      </p>
     </div>
   );
 }
