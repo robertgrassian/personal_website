@@ -110,11 +110,18 @@ export function GameDetailCard({
     >
       {/* The grid item, and the element the flight translates and scales. min-w-0
           because a grid item's automatic minimum size is min-content, which
-          would otherwise let a long unbroken genre push the card off screen. */}
+          would otherwise let a long unbroken genre push the card off screen.
+
+          Narrower below sm, where w-full would otherwise leave the card all but
+          touching both edges of a phone. 340 is free: measured on 844-932px
+          phones the form is 670 tall at both 340 and the full 366-406, so the
+          margin costs no height. Going further does cost -- at 320 the text
+          rewraps and the card grows to 727 -- which is why this is a cap and
+          not a fraction. */}
       <div
         ref={flightRef}
         data-phase={phase}
-        className="game-card-flight game-card-scene pointer-events-auto min-w-0 max-h-full w-full max-w-md"
+        className="game-card-flight game-card-scene pointer-events-auto min-w-0 max-h-full w-full max-w-[340px] sm:max-w-md"
       >
         {/* The element that rotates. Separate from the one that travels, so
             neither transform has to be composed into the other. */}
