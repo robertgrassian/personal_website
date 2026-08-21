@@ -156,7 +156,7 @@ export function GameEditFields({
 
   return (
     <>
-      <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
+      <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-shelf-label">
         Rating
       </p>
       <div className="mt-2">
@@ -173,7 +173,7 @@ export function GameEditFields({
         </p>
       )}
 
-      <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
+      <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-shelf-label">
         System
         {promoting && <span className="ml-1.5 normal-case text-shelf-text-muted">(required)</span>}
       </p>
@@ -200,7 +200,7 @@ export function GameEditFields({
       </p>
 
       {playing && !promoting && (
-        <div className="mt-5">
+        <div className="mt-4">
           <p className="text-sm text-shelf-text">
             Playing since <span className="font-medium">{subject.game.playingSince}</span>
           </p>
@@ -231,7 +231,7 @@ export function GameEditFields({
 
       {/* A wider gap than the other section headings get: this one can follow
           the Stop Playing button, and at mt-5 the heading crowded it. */}
-      <p className="mt-7 text-xs font-semibold uppercase tracking-widest text-shelf-label">
+      <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
         Track a Played Session
       </p>
       {/* Always shown rather than behind a disclosure: a session is an
@@ -259,7 +259,7 @@ export function GameEditFields({
 
       {/* Always present, so there is one place to look for "did this save?".
           Disabled until something is actually pending. */}
-      <div className="mt-6 border-t border-shelf-plank pt-4">
+      <div className="mt-5 border-t border-shelf-plank pt-3">
         <button type="button" onClick={save} disabled={!canSave} className={saveButtonClass}>
           {promoting ? "Save And Move To Library" : "Save"}
         </button>
@@ -281,7 +281,7 @@ export function GameEditFields({
       </div>
 
       {!promoting && (
-        <div className="mt-4 border-t border-shelf-plank pt-3">
+        <div className="mt-3 border-t border-shelf-plank pt-2">
           <ConfirmStep
             triggerLabel="Remove from library"
             confirmLabel="Remove"

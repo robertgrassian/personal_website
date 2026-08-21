@@ -76,12 +76,21 @@ export function ModalFrame({
     // default auto row grows with its item, so a panel sizing itself in % had
     // nothing definite to resolve against and could outgrow the frame.
     //
+    // max-h-[100svh] is the browser's URL bar, not the keyboard. inset-0 spans
+    // the LAYOUT viewport, and on iOS that stays at the large size when the URL
+    // bar expands: the bar simply covers the bottom of a fixed element, so a
+    // panel sized to fill the frame had its last control hidden behind it and
+    // had to be scrolled to. svh is the SMALL viewport, the one with the
+    // browser UI shown, so sizing against it reserves that space whether the
+    // bar is up or not and the panel stops changing size as it comes and goes.
+    // Browsers without svh ignore this and behave as before.
+    //
     // The padding transition is what makes getting out of the keyboard's way
     // read as the dialog tracking it rather than teleporting. It animates only
     // when a keyboard is involved: --safe-* never changes, so on desktop and on
     // a phone with no keyboard there is nothing here to transition.
     <div
-      className="pointer-events-none fixed inset-0 z-[60] grid grid-rows-[minmax(0,1fr)] place-items-center pt-[calc(var(--modal-gutter)+max(var(--safe-top),var(--hidden-top,0px)))] pr-[calc(var(--modal-gutter)+var(--safe-right))] pb-[calc(var(--modal-gutter)+max(var(--safe-bottom),var(--hidden-bottom,0px)))] pl-[calc(var(--modal-gutter)+var(--safe-left))] transition-[padding] duration-200 ease-out motion-reduce:transition-none"
+      className="pointer-events-none fixed inset-0 z-[60] max-h-[100svh] grid grid-rows-[minmax(0,1fr)] place-items-center pt-[calc(var(--modal-gutter)+max(var(--safe-top),var(--hidden-top,0px)))] pr-[calc(var(--modal-gutter)+var(--safe-right))] pb-[calc(var(--modal-gutter)+max(var(--safe-bottom),var(--hidden-bottom,0px)))] pl-[calc(var(--modal-gutter)+var(--safe-left))] transition-[padding] duration-200 ease-out motion-reduce:transition-none"
       style={
         {
           "--hidden-top": `${hidden.top}px`,
