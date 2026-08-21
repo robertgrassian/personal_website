@@ -35,11 +35,14 @@ export function GameCaseBackSurface({
           alt=""
           fill
           aria-hidden
-          // contain, not cover: the card is taller than a cover, so cover
-          // cropped the art's top and bottom off. The dominant-color base
-          // fills what is left, which is what the back of a case looks like
-          // anyway.
-          className="object-contain"
+          // cover, not contain. The card is taller than a cover is, so
+          // something has to give: contain shows the whole art but leaves
+          // flat bands of the base color above and below it, and cover fills
+          // the surface but loses the art's top and bottom. The layer is
+          // blurred and half-transparent, which makes a crop essentially
+          // invisible and a hard band edge very visible, so cover is the one
+          // that disappears.
+          className="object-cover"
           sizes={sizes}
           // blur and opacity come from --back-blur / --back-img-opacity on
           // .game-case-back-surface, so they can be tuned live in DevTools.

@@ -7,7 +7,7 @@ import type { CardOrigin } from "./LibraryCardContext";
 // The two levers for how the flight feels. Slow enough that the case reads as
 // a case — you should have time to see the cover, the spine and the turn —
 // rather than as a panel that appeared.
-export const DURATION_MS = 660;
+export const DURATION_MS = 560;
 
 // The travel and the turn get DIFFERENT curves, on purpose. They still run for
 // the same duration off the same clock, so they start and finish together.
