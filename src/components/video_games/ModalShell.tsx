@@ -1,22 +1,16 @@
 "use client";
 
-import { useRef, type CSSProperties, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { CloseIcon } from "@/components/Icon";
-import { useModalChrome } from "./useModalChrome";
-import { ModalBackdrop } from "./ModalBackdrop";
-import { useVisibleViewportInsets } from "./useVisibleViewportInsets";
+import { ModalFrame } from "./ModalFrame";
 
-// The dialog frame shared by the owner-edit modals (AddGameModal,
-// EditGameModal, EditWishlistModal): backdrop, panel, header row with the close
-// button, and the error line under the body.
+// The conventional dialog panel: a centered flex column with a header row, one
+// scrolling body and an error line, inside ModalFrame's backdrop and chrome.
 //
-// useModalChrome already extracted these dialogs' shared *behavior* (scroll
-// lock, focus in/out, Escape). This is the other half — the markup — which was
-// still written out once per modal, so the z-index contract with StatsPanel and
-// the close button's focus wiring lived in three places.
-//
-// The hook is called here rather than by each caller, so a new dialog gets the
-// behavior by using the frame instead of by remembering to.
+// useModalChrome extracted these dialogs' shared *behavior* (scroll lock, focus
+// in/out, Escape); this is the other half, the markup, which was still written
+// out once per modal. ModalFrame now owns everything outside the panel, so a
+// dialog whose panel is not this shape reuses the chrome without forking it.
 type ModalShellProps = {
   // aria-label for the dialog. Distinct from `title`, which is what the user
   // reads: the label can name the action ("Edit Hades II") where the visible
@@ -53,64 +47,11 @@ export function ModalShell({
   children,
 }: ModalShellProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  // Default the focus target to the close button, which is what the two edit
-  // dialogs want; a caller with a better first stop passes its own ref.
-  useModalChrome(onClose, initialFocusRef ?? closeButtonRef);
-
-  // How much of the frame the software keyboard has taken, which is padded
-  // away below so the panel centers in what is left. Both are 0 without one.
-  const hidden = useVisibleViewportInsets();
 
   return (
-    // The z contract, which now spans three files: backdrop z-30 under the two
-    // stays-mounted panels (z-40), backdrop z-50 over the nav (z-50) for these
-    // dialogs, frame z-[60] over that. The frame has to clear its own backdrop
-    // because the backdrop is portalled to <body> and so paints after it at
-    // equal z. pointer-events-none lets a tap on the empty
-    // area reach that backdrop, since the frame now covers it rather than
-    // containing it; the panel turns pointer events back on.
-    //
-    // This frame stays `fixed` even though the backdrop had to stop being
-    // fixed. WebKit clipping a fixed layer to the stale layout viewport only
-    // matters to something that has to reach the screen's edges, and this only
-    // has to place the panel, which belongs inside the visible area anyway.
-    //
-    // Height stays inset-0, which is the layout viewport, and a software
-    // keyboard does NOT shrink that: it shrinks the visual viewport and can
-    // slide it down inside the layout one (useVisibleViewportInsets). So the
-    // strips it hides are padded away instead, top and bottom, which leaves
-    // this box's own insets free to keep meaning what they mean to iOS. An
-    // earlier attempt sized the whole frame from visualViewport and was
-    // reverted for going stale between events; the hook now listens for the
-    // scroll events too, which is what was missing.
-    //
-    // max(), not a sum: a hidden strip and a safe area are the same pixels
-    // twice, since the keyboard covers the home indicator it overlaps.
-    //
-    // Every side is set separately, and the gutter comes from --modal-gutter
-    // rather than p-3/sm:p-4: a responsive shorthand sorts after the per-side
-    // utilities and would silently drop the safe-area half of each calc.
-    //
-    // grid-rows-[minmax(0,1fr)] pins the row to this box's content height. The
-    // default auto row grows with its item, so a panel sizing itself in % had
-    // nothing definite to resolve against and could outgrow the frame.
-    //
-    // The padding transition is what makes getting out of the keyboard's way
-    // read as the dialog tracking it rather than teleporting. It animates only
-    // when a keyboard is involved: --safe-* never changes, so on desktop and on
-    // a phone with no keyboard there is nothing here to transition.
-    <div
-      className="pointer-events-none fixed inset-0 z-[60] grid grid-rows-[minmax(0,1fr)] place-items-center pt-[calc(var(--modal-gutter)+max(var(--safe-top),var(--hidden-top,0px)))] pr-[calc(var(--modal-gutter)+var(--safe-right))] pb-[calc(var(--modal-gutter)+max(var(--safe-bottom),var(--hidden-bottom,0px)))] pl-[calc(var(--modal-gutter)+var(--safe-left))] transition-[padding] duration-200 ease-out motion-reduce:transition-none"
-      style={
-        {
-          "--hidden-top": `${hidden.top}px`,
-          "--hidden-bottom": `${hidden.bottom}px`,
-        } as CSSProperties
-      }
-    >
-      {/* Backdrop — clicking it closes the dialog */}
-      <ModalBackdrop onClose={onClose} className="z-50" />
-
+    // Default the focus target to the close button, which is what the two edit
+    // dialogs want; a caller with a better first stop passes its own ref.
+    <ModalFrame onClose={onClose} initialFocusRef={initialFocusRef ?? closeButtonRef}>
       {/* min-w-0 is load-bearing: a grid item's automatic minimum size is
           min-content, so without it the centering track cannot go narrower than
           the search results' untruncated nowrap lines, and the panel's right
@@ -163,6 +104,6 @@ export function ModalShell({
           </p>
         )}
       </div>
-    </div>
+    </ModalFrame>
   );
 }
