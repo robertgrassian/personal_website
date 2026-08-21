@@ -348,6 +348,7 @@ export function GameLibrary({
         {canEdit && editingWishlistItem && (
           <EditWishlistModal
             item={editingWishlistItem}
+            existingSystems={existingSystems}
             onPlayed={handlePlayed}
             onClose={() => setEditingWishlistId(null)}
           />
