@@ -36,6 +36,8 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 ## Backlog / Ideas
 
+- [ ] Add "owned" as a field to wishlist games. Inloves migration and checkbox added to edit wishlist game UI.
+
 - [ ] **Delete the prerender-only `/api/py` retry in `libraryApi.ts`'s `fetchUserResource`, and
       `LEGACY_API_PREFIX` with it.** All that survives the 2026-08-18 prefix rename, and dead the
       moment that rename is live in prod: it exists so the deploy shipping it can build against a
