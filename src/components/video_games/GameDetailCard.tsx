@@ -196,14 +196,17 @@ export function GameDetailCard({
                 <h2 id={titleId} className="min-w-0 text-lg font-bold leading-tight text-white">
                   {source.name}
                 </h2>
+                {/* 44px touch target on phones. The negative margins eat back into the
+                  header padding, so the bigger button neither moves the icon nor
+                  grows the header row. */}
                 <button
                   ref={closeButtonRef}
                   type="button"
                   onClick={close}
                   aria-label="Close"
-                  className="shrink-0 rounded-md p-1 text-white/70 hover:bg-white/10 hover:text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                  className="-mr-2 -mb-2 -mt-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:-mr-1 sm:-mb-1 sm:-mt-1 sm:h-9 sm:w-9"
                 >
-                  <CloseIcon className="w-5 h-5" aria-hidden />
+                  <CloseIcon className="h-6 w-6 sm:h-5 sm:w-5" aria-hidden />
                 </button>
               </div>
 

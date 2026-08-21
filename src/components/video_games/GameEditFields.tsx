@@ -193,12 +193,6 @@ export function GameEditFields({
           />
         </RequiredField>
       </div>
-      <p className="mt-1.5 text-[11px] text-shelf-text-muted">
-        {promoting
-          ? "Which console did you play it on?"
-          : "Moving a game to another console keeps its rating and play history."}
-      </p>
-
       {playing && !promoting && (
         <div className="mt-4">
           <p className="text-sm text-shelf-text">
