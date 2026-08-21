@@ -86,7 +86,6 @@ export function GameDetailCard({
     origin,
     caseId,
     onClosed: onClose,
-    debugSubject: source.name,
   });
   const ratingEntry =
     subject.kind === "game" && subject.game.rating

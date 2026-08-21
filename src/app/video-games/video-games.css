@@ -251,33 +251,6 @@
   transition: opacity 260ms ease-out;
 }
 
-/* The blurred cover is the one part of the card that is expensive to
-   rasterize, and a layer that scales gets re-rasterized as it grows: Chrome
-   redoes it at discrete scale steps, which lands as isolated 33-50ms frames
-   scattered through an otherwise steady 17ms flight rather than as uniform
-   slowness. Promoting it for the flight rasterizes it once and lets the
-   compositor scale the texture instead of re-blurring. Blurred content is
-   exactly where scaling a texture is invisible, so this costs nothing to look
-   at. Dropped at rest so the card is not holding a layer while nothing moves,
-   which is the same rule the rest of the flight follows. */
-.game-card-inner[data-phase="flight"] .game-case-back-surface img {
-  will-change: transform;
-}
-
-/* Development A/B only, driven by ?flightdebug=none | all (see flightDebug.ts).
-   Neither selector can match without that query param setting the attribute. */
-[data-flight-promote="none"] .game-card-inner[data-phase="flight"] .game-case-back-surface img {
-  will-change: auto;
-}
-
-[data-flight-promote="all"] .game-card-inner[data-phase="flight"] {
-  will-change: transform;
-}
-
-[data-flight-promote="noblur"] .game-card-inner[data-phase="flight"] .game-case-back-surface {
-  --back-blur: 0px;
-}
-
 /* The shelf case no longer flips: this is the hover lift and nothing else. */
 .game-case-inner {
   transition: translate 0.2s ease-out;

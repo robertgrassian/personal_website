@@ -3,7 +3,6 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { CardOrigin } from "./LibraryCardContext";
-import { recordFlight } from "./flightDebug";
 
 // The two levers for how the flight feels. Slow enough that the case reads as
 // a case — you should have time to see the cover, the spine and the turn —
@@ -40,8 +39,6 @@ type UseCardFlightArgs = {
   caseId: string | null;
   // Called once the return flight has landed, to unmount the card.
   onClosed: () => void;
-  // Names this card in the dev frame-time readout. Nothing reads it otherwise.
-  debugSubject?: string;
 };
 
 function prefersReducedMotion(): boolean {
@@ -75,7 +72,7 @@ function invertTo(rect: CardOrigin, card: DOMRect): string {
  *  make awkward: two elements starting on the same frame with one shared curve,
  *  a callback at the end to drop out of 3D, and reversing a close from wherever
  *  the open had got to. */
-export function useCardFlight({ origin, caseId, onClosed, debugSubject = "" }: UseCardFlightArgs) {
+export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
   const flightRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [settled, setSettled] = useState(false);
@@ -126,11 +123,9 @@ export function useCardFlight({ origin, caseId, onClosed, debugSubject = "" }: U
       ...timing,
       easing: EASING_TURN,
     });
-    const stopRecording = recordFlight("open", debugSubject);
 
     Promise.all([travel.finished, flip.finished])
       .then(() => {
-        stopRecording();
         // Commit the rest phase BEFORE releasing the fill, so the filled value
         // hands straight over to the CSS that replaces it with no frame in
         // between. At rest the inner drops its rotateY and so does the back
@@ -226,13 +221,9 @@ export function useCardFlight({ origin, caseId, onClosed, debugSubject = "" }: U
       ...timing,
       easing: EASING_TURN,
     });
-    const stopRecording = recordFlight("close", debugSubject);
 
     Promise.all([travel.finished, flip.finished])
-      .then(() => {
-        stopRecording();
-        done();
-      })
+      .then(done)
       .catch(() => {});
 
     return () => {
