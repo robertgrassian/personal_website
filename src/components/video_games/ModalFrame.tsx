@@ -15,13 +15,20 @@ import { useVisibleViewportInsets } from "./useVisibleViewportInsets";
 // dialog should use.
 type ModalFrameProps = {
   onClose: () => void;
+  // Passed to ModalBackdrop. Off for a panel that animates above it; see there.
+  backdropBlur?: boolean;
   // Takes initial focus. Required rather than defaulted, because the element
   // worth focusing lives in the panel, which is the caller's.
   initialFocusRef: RefObject<HTMLElement | null>;
   children: ReactNode;
 };
 
-export function ModalFrame({ onClose, initialFocusRef, children }: ModalFrameProps) {
+export function ModalFrame({
+  onClose,
+  initialFocusRef,
+  backdropBlur = true,
+  children,
+}: ModalFrameProps) {
   useModalChrome(onClose, initialFocusRef);
 
   // How much of the frame the software keyboard has taken, which is padded
@@ -76,7 +83,7 @@ export function ModalFrame({ onClose, initialFocusRef, children }: ModalFramePro
       }
     >
       {/* Backdrop — clicking it closes the dialog */}
-      <ModalBackdrop onClose={onClose} className="z-50" />
+      <ModalBackdrop onClose={onClose} className="z-50" blur={backdropBlur} />
 
       {children}
     </div>

@@ -97,7 +97,7 @@ export function GameDetailCard({
   const editable = subject.kind === "promote" || canEdit;
 
   return (
-    <ModalFrame onClose={close} initialFocusRef={closeButtonRef}>
+    <ModalFrame onClose={close} initialFocusRef={closeButtonRef} backdropBlur={false}>
       {/* The grid item, and the element the flight translates and scales. min-w-0
           because a grid item's automatic minimum size is min-content, which
           would otherwise let a long unbroken genre push the card off screen. */}

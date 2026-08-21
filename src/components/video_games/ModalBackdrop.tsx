@@ -28,12 +28,26 @@ import { createPortal } from "react-dom";
 // clips.
 type ModalBackdropProps = {
   onClose: () => void;
+  // Whether to blur what is behind, as well as dim it.
+  //
+  // Off for anything with an animation running above it. This element is the
+  // height of the DOCUMENT, not the viewport (see below), which on the library
+  // page is ~4100px, so a backdrop-filter over it resamples the whole page —
+  // and it is recomputed every frame while something moves on top. Measured in
+  // Firefox over five runs each, that cost the detail card's flight two thirds
+  // of its frames: a consistent 66ms median against 17ms with the filter
+  // dropped. Hiding the backdrop entirely was no better than dropping just the
+  // filter, which is what pins the cost on the blur rather than on the size.
+  //
+  // A dialog that just sits there pays the blur once, so it keeps it. The dim
+  // goes deeper without the blur, to make up the separation it was providing.
+  blur?: boolean;
   // z-index plus any transition classes. The callers differ: the owner dialogs
   // mount only while open, the two panels stay mounted and fade.
   className?: string;
 };
 
-export function ModalBackdrop({ onClose, className = "" }: ModalBackdropProps) {
+export function ModalBackdrop({ onClose, className = "", blur = true }: ModalBackdropProps) {
   // A portal needs a real DOM node, which does not exist while rendering on the
   // server, so this stays null through SSR and the first render.
   const [container, setContainer] = useState<HTMLElement | null>(null);
@@ -89,7 +103,7 @@ export function ModalBackdrop({ onClose, className = "" }: ModalBackdropProps) {
       onClick={onClose}
       // h-full is only the pre-measurement height, for the frame between mount
       // and the effect above; the inline height replaces it immediately.
-      className={`absolute left-0 top-0 h-full w-full bg-black/40 backdrop-blur-sm ${className}`}
+      className={`absolute left-0 top-0 h-full w-full ${blur ? "bg-black/40 backdrop-blur-sm" : "bg-black/60"} ${className}`}
     />,
     container
   );
