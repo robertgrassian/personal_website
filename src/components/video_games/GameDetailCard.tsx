@@ -192,7 +192,7 @@ export function GameDetailCard({
               aria-labelledby={titleId}
               className="relative z-10 flex min-h-0 flex-1 flex-col"
             >
-              <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-5">
+              <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-4">
                 <h2 id={titleId} className="min-w-0 text-lg font-bold leading-tight text-white">
                   {source.name}
                 </h2>
@@ -210,7 +210,7 @@ export function GameDetailCard({
               {/* The card's one scrolling part. overscroll-contain keeps a flick
                 at the end of the form off the library behind it. */}
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
-                <div className="px-5 pb-5 pt-3">
+                <div className="px-5 pb-4 pt-2">
                   <p className="text-sm font-medium text-gray-100">{systemLabel(source.system)}</p>
                   <p className="mt-0.5 text-xs text-gray-300">
                     Released {formatDate(source.releaseDate)}
@@ -245,7 +245,7 @@ export function GameDetailCard({
                   // panel behind them only split the card into two halves. If
                   // a bright cover ever costs the labels their contrast,
                   // --back-overlay is the lever, not another layer.
-                  <div className="border-t border-white/15 px-5 pb-5 pt-1">
+                  <div className="border-t border-white/15 px-5 pb-4 pt-1">
                     {subject.kind === "wishlist" ? (
                       <WishlistEditFields
                         item={subject.item}
