@@ -112,16 +112,20 @@ export function GameDetailCard({
           because a grid item's automatic minimum size is min-content, which
           would otherwise let a long unbroken genre push the card off screen.
 
-          Narrower below sm, where w-full would otherwise leave the card all but
-          touching both edges of a phone. 340 is free: measured on 844-932px
-          phones the form is 670 tall at both 340 and the full 366-406, so the
-          margin costs no height. Going further does cost -- at 320 the text
-          rewraps and the card grows to 727 -- which is why this is a cap and
-          not a fraction. */}
+          Below sm it matches the shelf plank exactly, which is the page
+          container's own inset: `max-w-7xl mx-auto px-6` puts every shelf at
+          100vw - 3rem. At the 340 this replaced, the card came up 1px short of
+          the plank on a 390px phone and left a sliver of shelf showing down
+          each side, which reads as a near miss rather than a choice. Change
+          the container's px-6 and this has to follow.
+
+          Above sm the card is 448 instead, which is what buys exact case
+          proportions there; a phone cannot have those at any width, since the
+          form pins it at 670 tall and 2:3 would need 415px of card. */}
       <div
         ref={flightRef}
         data-phase={phase}
-        className="game-card-flight game-card-scene pointer-events-auto min-w-0 max-h-full w-full max-w-[340px] sm:max-w-md"
+        className="game-card-flight game-card-scene pointer-events-auto min-w-0 max-h-full w-full max-w-[calc(100vw-3rem)] sm:max-w-md"
       >
         {/* The element that rotates. Separate from the one that travels, so
             neither transform has to be composed into the other. */}
