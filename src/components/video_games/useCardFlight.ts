@@ -3,6 +3,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { CardOrigin } from "./LibraryCardContext";
+import { recordFlight } from "./flightDebug";
 
 // The two levers for how the flight feels. Slow enough that the case reads as
 // a case — you should have time to see the cover, the spine and the turn —
@@ -123,9 +124,11 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
       ...timing,
       easing: EASING_TURN,
     });
+    const stopRecording = recordFlight("open");
 
     Promise.all([travel.finished, flip.finished])
       .then(() => {
+        stopRecording();
         // Commit the rest phase BEFORE releasing the fill, so the filled value
         // hands straight over to the CSS that replaces it with no frame in
         // between. At rest the inner drops its rotateY and so does the back
@@ -221,9 +224,13 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
       ...timing,
       easing: EASING_TURN,
     });
+    const stopRecording = recordFlight("close");
 
     Promise.all([travel.finished, flip.finished])
-      .then(done)
+      .then(() => {
+        stopRecording();
+        done();
+      })
       .catch(() => {});
 
     return () => {
