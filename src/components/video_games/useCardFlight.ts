@@ -1,9 +1,13 @@
 "use client";
 
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { CardOrigin } from "./LibraryCardContext";
 
-const DURATION_MS = 480;
+// The two levers for how the flight feels. Slow enough that the case reads as
+// a case — you should have time to see the cover, the spine and the turn —
+// rather than as a panel that appeared.
+const DURATION_MS = 850;
 // Quick out of the shelf, long settle at the end.
 const EASING = "cubic-bezier(0.22, 0.68, 0.24, 1)";
 
@@ -71,19 +75,10 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
   useLayoutEffect(() => {
     const card = flightRef.current;
     const inner = innerRef.current;
-    const source = findCase(caseId);
-
-    // Hiding the source imperatively, rather than through React: a context or
-    // prop change would re-render all ~155 memoized cases in the first frames
-    // of the animation, which is the exact reconcile the memo exists to
-    // prevent, at the worst possible moment.
-    if (source !== null) source.style.visibility = "hidden";
 
     if (card === null || inner === null || origin === null || prefersReducedMotion()) {
       setSettled(true);
-      return () => {
-        if (source !== null) source.style.visibility = "";
-      };
+      return;
     }
 
     // Measure the UNtransformed layout box. React re-invokes this effect in
@@ -102,7 +97,11 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
     const options: KeyframeAnimationOptions = {
       duration: DURATION_MS,
       easing: EASING,
-      fill: "none",
+      // forwards, not none. On finish, `none` drops the animated value and the
+      // element snaps back to the inline transform set above — rotateY(0deg),
+      // which is the FRONT face, at full size. That painted one frame of
+      // unblurred cover art before React could commit the rest phase.
+      fill: "forwards",
     };
     const travel = card.animate([{ transform: invert }, { transform: "none" }], options);
     const flip = inner.animate(
@@ -112,13 +111,19 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
 
     Promise.all([travel.finished, flip.finished])
       .then(() => {
-        // Clear will-change before flattening: de-promoting a layer whose faces
-        // carry backface-visibility: hidden is a known one-frame flash in
-        // WebKit, and this is the order that avoids paying for it twice.
+        // Commit the rest phase BEFORE releasing the fill, so the filled value
+        // hands straight over to the CSS that replaces it with no frame in
+        // between. At rest the inner drops its rotateY and so does the back
+        // face, which cancel out, so the swap is pixel-identical.
+        flushSync(() => setSettled(true));
+        travel.cancel();
+        flip.cancel();
+        // Clear will-change last: de-promoting a layer whose faces carry
+        // backface-visibility: hidden is a known one-frame flash in WebKit, and
+        // this is the order that avoids paying for it twice.
         card.style.transform = "";
-        card.style.willChange = "";
         inner.style.transform = "";
-        setSettled(true);
+        card.style.willChange = "";
       })
       .catch(() => {
         // Cancelled by a close that arrived mid-flight; that path takes over.
@@ -131,19 +136,32 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
       // runs next has to measure a clean element.
       card.style.transform = "";
       inner.style.transform = "";
-      if (source !== null) source.style.visibility = "";
     };
     // Mount-only: `origin` is a snapshot of where the case was, and re-running
     // this on a re-render would restart the animation from a stale rect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // React can replace the source node while the card is open — saving a rating
-  // re-sorts the shelves — which would strand the hidden case and leave two
-  // copies of it on screen.
+  // The source case stays hidden for as long as the card is out, so the shelf
+  // does not show a copy of what you are holding.
+  //
+  // Imperative rather than through React: a context or prop change would
+  // re-render all ~155 memoized cases in the first frames of the animation,
+  // which is the exact reconcile the memo exists to prevent, at the worst
+  // possible moment.
+  //
+  // No dependency array, and the node is looked up again in the cleanup rather
+  // than captured. Saving a rating can move the game to another shelf, which
+  // destroys its case and builds a new one: a captured node would leave the
+  // NEW case hidden forever, which showed up as a game-shaped hole on the shelf
+  // that only a reload filled in.
   useLayoutEffect(() => {
     const source = findCase(caseId);
     if (source !== null) source.style.visibility = "hidden";
+    return () => {
+      const current = findCase(caseId);
+      if (current !== null) current.style.visibility = "";
+    };
   });
 
   // Inbound. Re-measures the case live rather than trusting `origin`: the page

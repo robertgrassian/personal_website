@@ -258,10 +258,13 @@
 
 /* Back face base — dominant color (or console fallback) shows through
    underneath the blurred cover art and dark overlay layers.
-   Tuning knobs — adjust in DevTools on any .game-case-back-surface element:
-     --back-blur:    how much the cover art is blurred (px)
+   THE THREE LEVERS for how the back of a case looks, here and on the detail
+   card, which shares this surface. Adjust in DevTools on any
+   .game-case-back-surface element, then copy the values back here:
+     --back-blur:        how much the cover art is blurred (px)
      --back-img-opacity: how visible the cover art is (0–1)
-     --back-overlay: how dark the text-safety overlay is (0–1) */
+     --back-overlay:     how dark the text-safety overlay is (0–1)
+   The dark-scheme set is in the prefers-color-scheme block near the bottom. */
 .game-case-back-surface {
   --back-blur: 6px;
   --back-img-opacity: 0.6;
@@ -273,11 +276,11 @@
    before a proportional scale-up of 6px would, and blur is a per-frame cost
    over the whole card, so this is tuned rather than multiplied. The overlay is
    heavier because the card carries much more text than the 96px face did. */
+/* The card deliberately does NOT retune --back-blur / --back-img-opacity /
+   --back-overlay: those three are the look of the back of the case, they are
+   tuned on .game-case-back-surface above, and the card is the same object at a
+   different size. */
 .game-card-surface {
-  --back-blur: 14px;
-  --back-img-opacity: 0.5;
-  --back-overlay: 0.55;
-
   /* The whole card is the back of the case, form controls included, so the
      shelf tokens are re-pointed here instead of every control being restyled:
      the field, button and label classes are all built from these variables, so
@@ -626,12 +629,6 @@
     --back-blur: 8px;
     --back-img-opacity: 0.55;
     --back-overlay: 0.35;
-  }
-
-  .game-card-surface {
-    --back-blur: 16px;
-    --back-img-opacity: 0.45;
-    --back-overlay: 0.6;
   }
 
   .shelf-filter-bar {
