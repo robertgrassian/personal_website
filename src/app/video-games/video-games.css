@@ -263,6 +263,16 @@
   background-color: var(--system-fallback, #1a1a2e);
 }
 
+/* The same surface at detail-card size. A large area reads as blurred well
+   before a proportional scale-up of 6px would, and blur is a per-frame cost
+   over the whole card, so this is tuned rather than multiplied. The overlay is
+   heavier because the card carries much more text than the 96px face did. */
+.game-card-surface {
+  --back-blur: 14px;
+  --back-img-opacity: 0.5;
+  --back-overlay: 0.55;
+}
+
 /* ── Currently Playing CRT ──
    A wood-paneled CRT television that shows the currently-playing game's cover.
    Bezel reuses the shelf walnut tones; grain runs vertically (0deg gradients)
@@ -578,6 +588,12 @@
     --back-blur: 8px;
     --back-img-opacity: 0.55;
     --back-overlay: 0.35;
+  }
+
+  .game-card-surface {
+    --back-blur: 16px;
+    --back-img-opacity: 0.45;
+    --back-overlay: 0.6;
   }
 
   .shelf-filter-bar {

@@ -5,7 +5,7 @@ import { useEffect, useRef, type RefObject } from "react";
 // opened it when it closes.
 //
 // Two lifecycles, one hook. The mount-only dialogs (AddGameModal,
-// EditGameModal, EditWishlistModal) render only while open, so they leave
+// the detail card, AddGameModal) render only while open, so they leave
 // `enabled` at its default and the effects run on mount and clean up on unmount
 // — no isOpen plumbing. StatsPanel cannot work that way: it slide-animates in
 // via `translate-x-full` and so stays mounted while closed, which is why it

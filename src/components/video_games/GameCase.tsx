@@ -1,14 +1,11 @@
 "use client";
-import { useState, useEffect, useRef, useCallback, memo } from "react";
+import { useState, useRef, useCallback, memo } from "react";
 import Image from "next/image";
 import type { BaseGame } from "@/lib/baseGame";
 import { type Rating, RATINGS } from "@/lib/games";
 import { extractDominantColor } from "@/lib/dominant-color";
-import { PencilIcon } from "@/components/Icon";
 import { RatingIndicator } from "./RatingIndicator";
-import { GameCaseBack } from "./GameCaseBack";
-import { GameCaseSpine } from "./GameCaseSpine";
-import { useLibraryEditing } from "./LibraryEditingContext";
+import { useLibraryCard } from "./LibraryCardContext";
 
 // View-agnostic input: Game supplies `rating` (badge); WishlistGame supplies
 // `starred` (star overlay). Never both — render logic picks one. `id` is the
@@ -25,33 +22,21 @@ type GameCaseProps = {
 };
 
 function GameCaseImpl({ game }: GameCaseProps) {
-  // Whether this viewer may edit, and how to open the editor, read straight
-  // from context instead of arriving as a prop through ShelfSection.
-  const { openEditor } = useLibraryEditing();
-  // `flipped` drives the 3D CSS flip — true shows the metadata back face.
-  const [flipped, setFlipped] = useState(false);
-  // Badge disappears and reappears at the animation midpoint (300ms = half of 0.6s flip)
-  // so it's not visible during the rotation.
-  const [showBadge, setShowBadge] = useState(true);
-  useEffect(() => {
-    // Hide at midpoint when flipping away, reappear slightly earlier when flipping back.
-    const delay = flipped ? 300 : 200;
-    const timer = setTimeout(() => setShowBadge(!flipped), delay);
-    return () => clearTimeout(timer);
-  }, [flipped]);
+  // Both read straight from context instead of arriving as props through
+  // ShelfSection, which stays presentational.
+  const { openCard, kind } = useLibraryCard();
   // `imageError` tracks whether the cover image failed to load (broken URL, network issue, etc.).
   // When true, we fall back to the system color just as if no imageUrl were provided.
   const [imageError, setImageError] = useState(false);
 
-  // Dominant color extracted from the cover art — used for spine and back face.
-  // null means not yet extracted or no image; falls back to --system-fallback from CSS.
-  // isDark tracks whether the color is dark (true) or light (false) — used to pick
-  // contrasting text color on the spine. Provided by fast-average-color's luminance check.
+  // Dominant color extracted from the cover art, handed to the detail card so
+  // its background matches the cover you just clicked. null means not yet
+  // extracted or no image; the card falls back to the console color.
   const [dominantColor, setDominantColor] = useState<string | null>(null);
-  const [isDark, setIsDark] = useState(true);
   // Ref to the <img> element inside Next.js <Image> — needed by FastAverageColor
   // to read pixel data from the rendered image via a hidden <canvas>.
   const imageRef = useRef<HTMLImageElement>(null);
+  const caseRef = useRef<HTMLButtonElement>(null);
 
   // Extracts the dominant color once the cover image has fully loaded.
   // useCallback keeps a stable reference so it doesn't re-trigger the Image onLoad.
@@ -63,22 +48,20 @@ function GameCaseImpl({ game }: GameCaseProps) {
     // Uses a shared FAC instance with a sequential queue — see src/lib/dominant-color.ts.
     // This avoids 100+ simultaneous canvas reads janking the main thread on page load.
     extractDominantColor(img)
-      .then((result) => {
-        setDominantColor(result.hex);
-        setIsDark(result.isDark);
-      })
+      .then((result) => setDominantColor(result.hex))
       .catch(() => {});
   }, []);
 
-  // Editable = the owner is viewing, i.e. openEditor is non-null. It used to
-  // also test `game.id !== undefined`, back when the id was optional on the
-  // type; every row carries one, so that half never fired and is gone.
-  //
-  // Deliberately NOT gated on `rating`: that's a Game-only field, and requiring
-  // it hid the pencil on every wishlist card — which made EditWishlistModal
-  // unreachable. GameLibrary's handleEditGame picks the right dialog per view,
-  // so both kinds are editable.
-  const editable = openEditor !== null;
+  const open = useCallback(() => {
+    const el = caseRef.current;
+    if (el === null) return;
+    const rect = el.getBoundingClientRect();
+    openCard(
+      game,
+      { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
+      dominantColor
+    );
+  }, [openCard, game, dominantColor]);
 
   const hasImage = game.imageUrl !== "" && !imageError;
   const ratingLetter = game.rating
@@ -86,14 +69,10 @@ function GameCaseImpl({ game }: GameCaseProps) {
     : undefined;
 
   return (
-    // Outer wrapper is intentionally non-interactive: it carries `group` (so
-    // hover variants cover both the card and the pencil) and the positioning
-    // context for the pencil, which must be a SIBLING of the flip button —
-    // interactive elements can't nest inside a native button.
+    // Outer wrapper carries `group` so the hover variants below cover the whole
+    // card. It is non-interactive: the button inside is the whole affordance.
     <div className="group relative w-24 shrink-0">
-      {/* Flip surface — a real button, so Enter/Space and focus semantics come
-          free; Escape additionally flips back to the front.
-          game-case-scene provides the perspective for the 3D flip. */}
+      {/* A real button, so Enter/Space and focus semantics come free. */}
       {/* touch-action: manipulation opts this button out of double-tap-to-zoom,
           which is the only thing a browser waits on a tap to find out. Next's
           default viewport meta already earns that on iOS and Chrome, so this is
@@ -102,34 +81,21 @@ function GameCaseImpl({ game }: GameCaseProps) {
           desktop window dragged narrower than 640px should keep the default
           arrow rather than switching to a hand. */}
       <button
+        ref={caseRef}
         type="button"
-        aria-pressed={flipped}
+        aria-label={`View details for ${game.name}`}
+        aria-haspopup="dialog"
+        data-case-id={`${kind}-${game.id}`}
         className="game-case-scene relative block w-full touch-manipulation cursor-pointer pointer-fine:cursor-default select-none appearance-none bg-transparent border-0 p-0 text-left
                    rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--shelf-input-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--shelf-bg)]"
-        onClick={() => setFlipped((f) => !f)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape" && flipped) setFlipped(false);
-        }}
+        onClick={open}
       >
-        {/* Inner container — rotates as a unit for the 3D flip.
-            Hover lift is here so both faces translate together. */}
-        {/* When dominantColor is set, override --system-fallback at this level.
-          CSS cascading means children (spine, back face) inherit it automatically,
-          no prop drilling needed — they already read var(--system-fallback). */}
-        <div
-          className={`game-case-inner h-36 relative
-                    group-hover:-translate-y-2 group-hover:shadow-xl
-                    ${flipped ? "is-flipped" : ""}`}
-          style={
-            dominantColor
-              ? ({ "--system-fallback": dominantColor } as React.CSSProperties)
-              : undefined
-          }
-        >
-          {/* ── Front face ── */}
+        {/* Inner container — the hover lift, and the element the detail card's
+            opening animation measures, since the lift is where the card
+            visually is. */}
+        <div className="game-case-inner h-36 relative group-hover:-translate-y-2 group-hover:shadow-xl">
           <div
             className="game-case-front absolute inset-0 rounded overflow-hidden shadow-lg"
-            aria-hidden={flipped}
             data-system={!hasImage ? game.system : undefined}
             style={!hasImage ? { backgroundColor: "var(--system-fallback, #374151)" } : undefined}
           >
@@ -154,10 +120,10 @@ function GameCaseImpl({ game }: GameCaseProps) {
               </div>
             )}
 
-            {/* Title overlay — fades in on hover/focus (desktop) or when front is tapped.
+            {/* Title overlay — fades in on hover/focus (desktop) or when tapped.
               group-has-[:focus-visible] replaces the old group-focus-visible:
               the group wrapper is no longer focusable itself, so we react to
-              keyboard focus landing on anything inside it (card or pencil). */}
+              keyboard focus landing on anything inside it. */}
             {/* z-0 is explicit: badge/ribbon at z-10 intentionally sit above this overlay */}
             <div
               className="absolute inset-0 bg-black/75 flex items-end p-2
@@ -169,8 +135,8 @@ function GameCaseImpl({ game }: GameCaseProps) {
 
             {/* Inside front face so overflow:hidden clips. Rating badge takes
               priority over the wishlist star — a game shouldn't have both. */}
-            {ratingLetter && showBadge && <RatingIndicator rank={ratingLetter} />}
-            {!ratingLetter && game.starred && showBadge && (
+            {ratingLetter && <RatingIndicator rank={ratingLetter} />}
+            {!ratingLetter && game.starred && (
               <div
                 role="img"
                 aria-label="Starred: priority wishlist pick"
@@ -184,61 +150,15 @@ function GameCaseImpl({ game }: GameCaseProps) {
               </div>
             )}
           </div>
-
-          {/* ── Spine edges ── visible mid-rotation, connecting front and back. */}
-          {/* Only pass system when there's no dominant color — otherwise the
-            [data-system] selector would override the inherited --system-fallback. */}
-          <GameCaseSpine
-            name={game.name}
-            system={dominantColor ? undefined : game.system}
-            side="left"
-            darkBackground={isDark}
-          />
-          <GameCaseSpine
-            name={game.name}
-            system={dominantColor ? undefined : game.system}
-            side="right"
-            darkBackground={isDark}
-          />
-
-          {/* ── Back face ── */}
-          <div
-            className="game-case-back absolute inset-0 rounded overflow-hidden shadow-lg"
-            aria-hidden={!flipped}
-            data-system={dominantColor ? undefined : game.system}
-          >
-            <GameCaseBack game={game} />
-          </div>
         </div>
       </button>
-
-      {/* Owner-only pencil → opens the edit dialog. A sibling of the flip
-          button (never nested inside it), absolutely positioned over the
-          card's top-left corner — the badge/star owns the top-right. It
-          mirrors the card's hover lift (same 0.2s translate as
-          .game-case-inner) so it moves as one with the cover, and shares the
-          badge's showBadge gating so it fades out around the flip midpoint. */}
-      {editable && showBadge && (
-        <button
-          type="button"
-          aria-label={`Edit ${game.name}`}
-          // `editable` already proved openEditor is non-null.
-          onClick={() => openEditor?.(game)}
-          className="absolute top-1 left-1 z-10 rounded-full bg-black/60 p-1 text-white/90
-                     group-hover:-translate-y-2 transition-[translate,background-color,color] duration-200 ease-out
-                     hover:bg-black/80 hover:text-white cursor-pointer
-                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-        >
-          <PencilIcon className="w-3 h-3" aria-hidden />
-        </button>
-      )}
     </div>
   );
 }
 
 // Memoized because a keystroke in the search box re-renders every visible card:
 // ~155 cases, ~1,500 elements, reconciling to change nothing. It only bites now
-// that the edit callback comes from context — while ShelfSection allocated a
+// that the open callback comes from context — while ShelfSection allocated a
 // fresh `() => onEditGame(game)` per card per render, the props were never
 // equal and the memo would have been dead weight. Game objects come from the
 // server payload and keep a stable identity, so the default shallow comparison

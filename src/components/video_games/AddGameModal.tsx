@@ -27,7 +27,7 @@ type AddGameModalProps = {
 
 // Owner-only "add a game" dialog: IGDB search → pick a result → confirm/edit
 // its details → POST. A manual path (blank form) covers games IGDB doesn't
-// know. Same mount-only lifecycle as EditGameModal: scroll lock and Escape
+// know. Same mount-only lifecycle as the detail card: scroll lock and Escape
 // bind on mount, focus returns to the opener on unmount.
 //
 // The two steps are separate components because they share no state and no

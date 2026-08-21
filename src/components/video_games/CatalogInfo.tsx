@@ -124,7 +124,7 @@ export function CatalogInfo({ game }: CatalogInfoProps) {
   );
 }
 
-// "2023-05-12" → "May 12, 2023". UTC-pinned like GameCaseBack's formatDate:
+// "2023-05-12" → "May 12, 2023". UTC-pinned like GameDetailCard's formatDate:
 // the ISO string parses as midnight UTC, a day earlier in negative offsets.
 function formatReleaseDate(iso: string | null): string {
   if (!iso) return "Not known";

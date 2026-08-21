@@ -66,7 +66,7 @@ type GameShelvesProps = {
   tabs: ReactNode;
   // Still needed here for the copy ("Your library" vs "This library"). Whether
   // a *card* shows a pencil is no longer this component's business: GameCase
-  // reads that from LibraryEditingContext.
+  // reads that from LibraryCardContext.
   canEdit: boolean;
   // Confirmed ownership, which the empty-library call to action needs because
   // it opens the add dialog. See FollowControls for why adding is the one
