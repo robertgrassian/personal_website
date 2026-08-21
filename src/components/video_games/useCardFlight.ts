@@ -7,14 +7,25 @@ import type { CardOrigin } from "./LibraryCardContext";
 // The two levers for how the flight feels. Slow enough that the case reads as
 // a case — you should have time to see the cover, the spine and the turn —
 // rather than as a panel that appeared.
-const DURATION_MS = 760;
-// Most of the time goes on the turn, not on settling. The curve this replaced,
-// cubic-bezier(0.22, 0.68, 0.24, 1), was 98.5% complete at 75% of the way
-// through: the last ~200ms moved almost nothing, which read as dragging at the
-// end AND as stutter, since near-zero motion spread over many frames shows up
-// as sub-pixel steps. This one is ~91% at the same point, so the tail carries
-// real movement.
-const EASING = "cubic-bezier(0.25, 0.1, 0.55, 1)";
+const DURATION_MS = 660;
+
+// The travel and the turn get DIFFERENT curves, on purpose. They still run for
+// the same duration off the same clock, so they start and finish together.
+//
+// Travel: a normal ease-out. The curve this replaced was 98.5% complete at 75%
+// of the way through, so the last ~200ms moved almost nothing, which read as
+// dragging at the end and as stutter both, since near-zero motion spread over
+// many frames is sub-pixel steps.
+const EASING_TRAVEL = "cubic-bezier(0.25, 0.1, 0.55, 1)";
+
+// Turn: slow through the middle. rotateY collapses the projected width toward
+// zero as it approaches 90 degrees, so the visual change per degree is at its
+// maximum exactly where the spine is — on one shared ease-out curve the case
+// snapped from angled-one-way to angled-the-other with barely any edge-on
+// frames. Measured over the flight, the shared curve held within 20 degrees of
+// edge-on for 99ms and was already past 116 degrees at the halfway point; this
+// one is symmetric (90 degrees at 50%) and holds for 196ms.
+const EASING_TURN = "cubic-bezier(0.25, 0.45, 0.75, 0.55)";
 
 export type FlightPhase = "flight" | "rest";
 
@@ -99,20 +110,19 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
     // rotation runs front-to-back: 0 here, 180 at the end.
     inner.style.transform = "rotateY(0deg)";
 
-    const options: KeyframeAnimationOptions = {
-      duration: DURATION_MS,
-      easing: EASING,
-      // forwards, not none. On finish, `none` drops the animated value and the
-      // element snaps back to the inline transform set above — rotateY(0deg),
-      // which is the FRONT face, at full size. That painted one frame of
-      // unblurred cover art before React could commit the rest phase.
-      fill: "forwards",
-    };
-    const travel = card.animate([{ transform: invert }, { transform: "none" }], options);
-    const flip = inner.animate(
-      [{ transform: "rotateY(0deg)" }, { transform: "rotateY(180deg)" }],
-      options
-    );
+    // forwards, not none. On finish, `none` drops the animated value and the
+    // element snaps back to the inline transform set above — rotateY(0deg),
+    // which is the FRONT face, at full size. That painted one frame of
+    // unblurred cover art before React could commit the rest phase.
+    const timing = { duration: DURATION_MS, fill: "forwards" as FillMode };
+    const travel = card.animate([{ transform: invert }, { transform: "none" }], {
+      ...timing,
+      easing: EASING_TRAVEL,
+    });
+    const flip = inner.animate([{ transform: "rotateY(0deg)" }, { transform: "rotateY(180deg)" }], {
+      ...timing,
+      easing: EASING_TURN,
+    });
 
     Promise.all([travel.finished, flip.finished])
       .then(() => {
@@ -202,16 +212,15 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
     // browser paints.
     inner.style.transform = "rotateY(180deg)";
 
-    const options: KeyframeAnimationOptions = {
-      duration: DURATION_MS,
-      easing: EASING,
-      fill: "forwards",
-    };
-    const travel = card.animate([{ transform: "none" }, { transform: invert }], options);
-    const flip = inner.animate(
-      [{ transform: "rotateY(180deg)" }, { transform: "rotateY(0deg)" }],
-      options
-    );
+    const timing = { duration: DURATION_MS, fill: "forwards" as FillMode };
+    const travel = card.animate([{ transform: "none" }, { transform: invert }], {
+      ...timing,
+      easing: EASING_TRAVEL,
+    });
+    const flip = inner.animate([{ transform: "rotateY(180deg)" }, { transform: "rotateY(0deg)" }], {
+      ...timing,
+      easing: EASING_TURN,
+    });
 
     Promise.all([travel.finished, flip.finished])
       .then(done)
