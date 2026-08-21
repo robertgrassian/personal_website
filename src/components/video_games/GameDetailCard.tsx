@@ -8,7 +8,7 @@ import { CloseIcon } from "@/components/Icon";
 import { ModalFrame } from "./ModalFrame";
 import { GameCaseBackSurface } from "./GameCaseBackSurface";
 import { GameCaseSpine } from "./GameCaseSpine";
-import { useCardFlight } from "./useCardFlight";
+import { DURATION_MS, useCardFlight } from "./useCardFlight";
 import type { CardOrigin } from "./LibraryCardContext";
 import { GameEditFields } from "./GameEditFields";
 import { WishlistEditFields } from "./WishlistEditFields";
@@ -82,7 +82,7 @@ export function GameDetailCard({
   // `close` runs the return flight and calls onClose when it lands, so every
   // way out of the card — the X, Escape, the backdrop, a delete — flies back
   // rather than vanishing.
-  const { flightRef, innerRef, phase, close } = useCardFlight({
+  const { flightRef, innerRef, phase, close, closing } = useCardFlight({
     origin,
     caseId,
     onClosed: onClose,
@@ -97,7 +97,15 @@ export function GameDetailCard({
   const editable = subject.kind === "promote" || canEdit;
 
   return (
-    <ModalFrame onClose={close} initialFocusRef={closeButtonRef} backdropBlur={false}>
+    <ModalFrame
+      onClose={close}
+      initialFocusRef={closeButtonRef}
+      backdropBlur={false}
+      // The dim leaves WITH the card rather than after it, so the page comes
+      // back as the case returns to the shelf instead of snapping back once it
+      // has already landed.
+      backdropFadeOutMs={closing ? DURATION_MS : null}
+    >
       {/* The grid item, and the element the flight translates and scales. min-w-0
           because a grid item's automatic minimum size is min-content, which
           would otherwise let a long unbroken genre push the card off screen. */}
@@ -218,11 +226,13 @@ export function GameDetailCard({
                 </div>
 
                 {editable && (
-                  // Same surface as the block above, just a little deeper so the
-                  // fields hold their contrast against a bright cover. The shelf
-                  // tokens are re-pointed for this scrim in video-games.css, so
-                  // the controls need no changes of their own.
-                  <div className="border-t border-white/15 bg-black/20 px-5 pb-5 pt-1">
+                  // One surface all the way down. The fields carry their own
+                  // translucent backgrounds (the shelf tokens are re-pointed
+                  // for this scrim in video-games.css), so a second, darker
+                  // panel behind them only split the card into two halves. If
+                  // a bright cover ever costs the labels their contrast,
+                  // --back-overlay is the lever, not another layer.
+                  <div className="border-t border-white/15 px-5 pb-5 pt-1">
                     {subject.kind === "wishlist" ? (
                       <WishlistEditFields
                         item={subject.item}

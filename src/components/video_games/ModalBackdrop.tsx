@@ -28,6 +28,10 @@ import { createPortal } from "react-dom";
 // clips.
 type ModalBackdropProps = {
   onClose: () => void;
+  // When set, the dim fades out over this many ms instead of cutting when the
+  // dialog unmounts. For a panel that animates away, so the page comes back as
+  // the panel leaves rather than snapping back once it has gone.
+  fadeOutMs?: number | null;
   // Whether to blur what is behind, as well as dim it.
   //
   // Off for anything with an animation running above it. This element is the
@@ -47,7 +51,12 @@ type ModalBackdropProps = {
   className?: string;
 };
 
-export function ModalBackdrop({ onClose, className = "", blur = true }: ModalBackdropProps) {
+export function ModalBackdrop({
+  onClose,
+  className = "",
+  blur = true,
+  fadeOutMs = null,
+}: ModalBackdropProps) {
   // A portal needs a real DOM node, which does not exist while rendering on the
   // server, so this stays null through SSR and the first render.
   const [container, setContainer] = useState<HTMLElement | null>(null);
@@ -104,6 +113,13 @@ export function ModalBackdrop({ onClose, className = "", blur = true }: ModalBac
       // h-full is only the pre-measurement height, for the frame between mount
       // and the effect above; the inline height replaces it immediately.
       className={`absolute left-0 top-0 h-full w-full ${blur ? "bg-black/40 backdrop-blur-sm" : "bg-black/60"} ${className}`}
+      // Height is set imperatively in the effect above, so this only ever
+      // carries the fade; leaving it undefined otherwise keeps them apart.
+      style={
+        fadeOutMs === null
+          ? undefined
+          : { opacity: 0, transition: `opacity ${fadeOutMs}ms ease-out` }
+      }
     />,
     container
   );

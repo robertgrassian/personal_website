@@ -17,6 +17,9 @@ type ModalFrameProps = {
   onClose: () => void;
   // Passed to ModalBackdrop. Off for a panel that animates above it; see there.
   backdropBlur?: boolean;
+  // Passed to ModalBackdrop: fade the dim out over this many ms rather than
+  // cutting it when the dialog unmounts.
+  backdropFadeOutMs?: number | null;
   // Takes initial focus. Required rather than defaulted, because the element
   // worth focusing lives in the panel, which is the caller's.
   initialFocusRef: RefObject<HTMLElement | null>;
@@ -27,6 +30,7 @@ export function ModalFrame({
   onClose,
   initialFocusRef,
   backdropBlur = true,
+  backdropFadeOutMs = null,
   children,
 }: ModalFrameProps) {
   useModalChrome(onClose, initialFocusRef);
@@ -83,7 +87,12 @@ export function ModalFrame({
       }
     >
       {/* Backdrop — clicking it closes the dialog */}
-      <ModalBackdrop onClose={onClose} className="z-50" blur={backdropBlur} />
+      <ModalBackdrop
+        onClose={onClose}
+        className="z-50"
+        blur={backdropBlur}
+        fadeOutMs={backdropFadeOutMs}
+      />
 
       {children}
     </div>
