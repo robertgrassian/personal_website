@@ -45,6 +45,30 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+// Holds a frame request open for as long as the flight runs, doing nothing
+// with it.
+//
+// This looks pointless and is not. The flight is a compositor animation, so the
+// main thread has no per-frame work and can go idle; Gecko in particular then
+// stops driving frames at the full rate, which shows up as the flight
+// stuttering even though nothing is expensive.
+//
+// The evidence: an instrumented build sampled frame times with exactly this
+// loop, and every card was smooth under it — including the control that
+// changed nothing else. Taking the instrumentation out brought the stutter
+// back. The loop was the one thing common to every smooth measurement.
+//
+// It costs one no-op callback per frame for the length of the flight, which is
+// why it is acceptable as a fix rather than only as a probe. If a future
+// browser makes it unnecessary, deleting it is safe: the animation itself does
+// not depend on it.
+function keepFramesFlowing(): () => void {
+  let raf = requestAnimationFrame(function tick() {
+    raf = requestAnimationFrame(tick);
+  });
+  return () => cancelAnimationFrame(raf);
+}
+
 function findCase(caseId: string | null): HTMLElement | null {
   if (caseId === null) return null;
   return document.querySelector<HTMLElement>(`[data-case-id="${CSS.escape(caseId)}"]`);
@@ -123,9 +147,11 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
       ...timing,
       easing: EASING_TURN,
     });
+    const stopKeepAlive = keepFramesFlowing();
 
     Promise.all([travel.finished, flip.finished])
       .then(() => {
+        stopKeepAlive();
         // Commit the rest phase BEFORE releasing the fill, so the filled value
         // hands straight over to the CSS that replaces it with no frame in
         // between. At rest the inner drops its rotateY and so does the back
@@ -145,6 +171,7 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
       });
 
     return () => {
+      stopKeepAlive();
       travel.cancel();
       flip.cancel();
       // Cancelling does not undo the inline transforms set above, and whatever
@@ -221,12 +248,17 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
       ...timing,
       easing: EASING_TURN,
     });
+    const stopKeepAlive = keepFramesFlowing();
 
     Promise.all([travel.finished, flip.finished])
-      .then(done)
+      .then(() => {
+        stopKeepAlive();
+        done();
+      })
       .catch(() => {});
 
     return () => {
+      stopKeepAlive();
       travel.cancel();
       flip.cancel();
     };
