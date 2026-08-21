@@ -75,7 +75,7 @@ export function GameDetailCard({
   caseId,
   onClose,
 }: GameDetailCardProps) {
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const source = subject.kind === "game" ? subject.game : subject.item;
 
@@ -99,7 +99,13 @@ export function GameDetailCard({
   return (
     <ModalFrame
       onClose={close}
-      initialFocusRef={closeButtonRef}
+      // The dialog itself, not the close button. Focusing a control
+      // programmatically leaves :focus-visible up to each engine's heuristics,
+      // and WebKit resolves it as keyboard focus, so the X opened with a ring
+      // that then rode the focus restore into the next card. A container has no
+      // focus ring to mis-fire, and focusing the labelled dialog is what makes a
+      // screen reader announce it on open.
+      initialFocusRef={dialogRef}
       backdropBlur={false}
       // The dim arrives with the card and leaves with it, rather than cutting
       // on at the click and off once the case has already landed. Only when
@@ -187,10 +193,14 @@ export function GameDetailCard({
             className="game-case-back game-card-surface flex min-h-0 w-full flex-col rounded-lg shadow-2xl"
           >
             <div
+              ref={dialogRef}
+              // Focusable only from script: -1 keeps it out of the tab order, so
+              // Tab still goes straight from here to the close button.
+              tabIndex={-1}
               role="dialog"
               aria-modal="true"
               aria-labelledby={titleId}
-              className="relative z-10 flex min-h-0 flex-1 flex-col"
+              className="relative z-10 flex min-h-0 flex-1 flex-col focus:outline-none"
             >
               <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-4">
                 <h2 id={titleId} className="min-w-0 text-lg font-bold leading-tight text-white">
@@ -200,7 +210,6 @@ export function GameDetailCard({
                   header padding, so the bigger button neither moves the icon nor
                   grows the header row. */}
                 <button
-                  ref={closeButtonRef}
                   type="button"
                   onClick={close}
                   aria-label="Close"
