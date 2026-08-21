@@ -172,39 +172,88 @@
    hides whichever face is turned away from the viewer.
    --case-depth is half the case thickness — front and back each push out
    by this amount, and the spine width is 2× this value. */
-.game-case-scene {
-  --case-depth: 6px;
-  perspective: 800px;
+/* The detail card in flight: it leaves the shelf, flips, grows and lands
+   centered. --case-depth stays 6.25% of the card's width, the ratio 6px had
+   against a 96px case. perspective sits INSIDE the scaled box, so the effective
+   distance is 2400px x the current scale: foreshortening deepens as the card
+   comes toward you, which is the right direction for picking something up. */
+.game-card-scene {
+  --case-depth: 24px;
+  perspective: 2400px;
 }
-.game-case-inner {
-  transform-style: preserve-3d;
-  /* Two separate transitions: flip (transform) is slow, hover lift (translate) is fast. */
-  transition:
-    transform 0.6s ease,
-    translate 0.2s ease-out;
+.game-card-flight {
+  transform-origin: top left;
+  /* One cell, with the spacer below and the card itself stacked in it, so the
+     row is as tall as whichever is bigger. */
+  display: grid;
+  grid-template-columns: 1fr;
+  /* Pins the row to this box's used height, the same trick ModalFrame uses.
+     Without it the row sizes to the content, so a card capped by max-h-full
+     had its overflow clipped by the surface instead of reaching the scroller
+     inside -- content below the fold with no way to scroll to it. */
+  grid-template-rows: minmax(0, 1fr);
 }
-.game-case-inner.is-flipped {
-  transform: rotateY(180deg);
+
+/* A spacer that sets the card's MINIMUM height rather than its height. The card
+   is a game case, so it keeps case proportions when its contents are short -- a
+   viewer's card has no edit fields and would otherwise settle as a letterbox
+   strip. Contents taller than that (the owner's form) grow the card instead of
+   scrolling inside it, which is what kept "Remove from library" below the fold.
+   max-h-full still caps the growth, so a genuinely short viewport scrolls. */
+.game-card-flight::before {
+  content: "";
+  grid-area: 1 / 1;
+  aspect-ratio: 2 / 3;
 }
-/* The first rotateY has to promote the case to its own compositing layer, and
-   on a phone showing ~155 cases that each hold a cover image, that promotion
-   can cost a frame or two. It is paid after the tap, so it is felt as a gap
-   between pressing a case and the flip starting.
-   :active is set on touch-down and the click handler that adds .is-flipped does
-   not run until release, so promoting here buys that work the length of the
-   press as a head start.
-   Scoped to the pressed case alone: setting will-change on all ~155 at once is
-   how you make the whole page slower instead.
-   What this does NOT cover is the flip back. :active ends at release, so by the
-   time .is-flipped is removed and the reverse rotation starts, this rule has
-   stopped matching. Keeping the promotion on .is-flipped was tried and dropped:
-   it holds a layer for as long as a card sits flipped, which is the one moment
-   nothing is animating, and de-promoting an element whose faces carry
-   backface-visibility: hidden at the instant a transition starts is a known
-   source of a one-frame flash in WebKit. Unprofiled either way -- if a device
-   timeline shows this rule buys nothing, delete it rather than widen it. */
-.game-case-scene:active .game-case-inner {
+
+.game-card-flight > * {
+  grid-area: 1 / 1;
+  min-height: 0;
+}
+.game-card-flight[data-phase="flight"] {
   will-change: transform;
+  /* No stray taps on a card that is still moving. */
+  pointer-events: none;
+}
+.game-card-inner {
+  position: relative;
+  transform-style: preserve-3d;
+}
+/* The front face and spines, grouped so one aria-hidden covers them. It has to
+   keep preserve-3d: a plain wrapper flattens its children into its own plane,
+   which would collapse their translateZ and rotateY. */
+.game-card-faces {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+/* At rest the card drops out of 3D entirely. Dropping the back face's own
+   rotateY(180deg) in the same breath cancels the inner's, so the swap frame is
+   pixel-identical — and it takes text inputs, the caret and iOS selection
+   handles out of a preserve-3d / backface-visibility subtree, which is the part
+   of this WebKit handles badly. */
+.game-card-inner[data-phase="rest"] {
+  transform: none;
+  transform-style: flat;
+}
+.game-card-inner[data-phase="rest"] .game-case-back {
+  transform: none;
+}
+
+/* The blurred cover renders for the whole flight, so the back face is already
+   itself the moment it turns into view rather than resolving afterwards.
+   An earlier version skipped it during the flight on the theory that
+   re-rasterizing a blur per frame was expensive; re-measured over six runs
+   each, visible and hidden both sit at a 17.7ms median, so it was buying
+   nothing and costing a visible settle-in. The opacity transition stays for
+   the case where the image genuinely has not loaded yet. */
+.game-case-back-surface img {
+  transition: opacity 260ms ease-out;
+}
+
+/* The shelf case no longer flips: this is the hover lift and nothing else. */
+.game-case-inner {
+  transition: translate 0.2s ease-out;
 }
 .game-case-front,
 .game-case-back {
@@ -232,14 +281,8 @@
   border-radius: 0.25rem;
   /* Uses the same per-console color tokens as the no-cover-art fallback. */
   background: var(--system-fallback, #1a1a2e);
-  /* Hidden by default so perspective doesn't reveal a sliver on the card edges.
-     On flip-back, stay visible past mid-rotation (0.4s delay) then fade out. */
-  opacity: 0;
-  transition: opacity 0.15s 0.4s;
-}
-.game-case-inner.is-flipped .game-case-spine {
+  /* Only ever seen mid-rotation: the card unmounts them once it settles. */
   opacity: 1;
-  transition: opacity 0.15s;
 }
 .game-case-spine-left {
   left: 0;
@@ -252,15 +295,52 @@
 
 /* Back face base — dominant color (or console fallback) shows through
    underneath the blurred cover art and dark overlay layers.
-   Tuning knobs — adjust in DevTools on any .game-case-back-surface element:
-     --back-blur:    how much the cover art is blurred (px)
+   THE THREE LEVERS for how the back of a case looks, here and on the detail
+   card, which shares this surface. Adjust in DevTools on any
+   .game-case-back-surface element, then copy the values back here:
+     --back-blur:        how much the cover art is blurred (px)
      --back-img-opacity: how visible the cover art is (0–1)
-     --back-overlay: how dark the text-safety overlay is (0–1) */
+     --back-overlay:     how dark the text-safety overlay is (0–1)
+   The dark-scheme set is in the prefers-color-scheme block near the bottom. */
 .game-case-back-surface {
   --back-blur: 6px;
   --back-img-opacity: 0.6;
   --back-overlay: 0.25;
   background-color: var(--system-fallback, #1a1a2e);
+}
+
+/* The same surface at detail-card size. A large area reads as blurred well
+   before a proportional scale-up of 6px would, and blur is a per-frame cost
+   over the whole card, so this is tuned rather than multiplied. The overlay is
+   heavier because the card carries much more text than the 96px face did. */
+/* The card deliberately does NOT retune --back-blur / --back-img-opacity /
+   --back-overlay: those three are the look of the back of the case, they are
+   tuned on .game-case-back-surface above, and the card is the same object at a
+   different size. */
+.game-card-surface {
+  /* The whole card is the back of the case, form controls included, so the
+     shelf tokens are re-pointed here instead of every control being restyled:
+     the field, button and label classes are all built from these variables, so
+     redefining them once moves the entire form onto the scrim.
+
+     One set of values for both color schemes, because the scrim is dark in
+     both — the same reasoning the 96px back face used when it hard-coded
+     text-gray-200. White at low alpha rather than flat greys so the blurred
+     cover still reads through the fields. */
+  --shelf-text: #f3f4f6;
+  --shelf-text-muted: #d1d5db;
+  --shelf-label: #e5e7eb;
+  --shelf-label-muted: #9ca3af;
+  --shelf-plank: rgba(255, 255, 255, 0.25);
+  --shelf-input: rgba(255, 255, 255, 0.14);
+  --shelf-input-border: rgba(255, 255, 255, 0.3);
+  --shelf-input-text: #f9fafb;
+  --shelf-input-placeholder: #cbd5e1;
+  --shelf-input-ring: #fbbf24;
+  --shelf-divider: rgba(255, 255, 255, 0.2);
+  /* Focus-ring offsets resolve against this, so it has to be the color that is
+     actually behind the field rather than the page's shelf background. */
+  --shelf-bg: #1a1a2e;
 }
 
 /* ── Currently Playing CRT ──
@@ -454,6 +534,15 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* The hover lift and the detail card's flight. The flight is skipped in JS
+     too (useCardFlight); this covers the transition the lift would still run. */
+  .game-case-inner,
+  .game-card-flight,
+  .game-card-inner,
+  .game-case-back-surface img {
+    transition: none;
+  }
+
   .crt-osd,
   .crt-live-dot,
   .crt-picture {

@@ -20,7 +20,7 @@ type ConfirmStepProps = {
   /** The link text that opens the confirm, e.g. "Remove from library". */
   triggerLabel: string;
   /** The question, as nodes so callers can bold the item's name and append
-   *  consequences (EditGameModal warns about cascading play sessions). */
+   *  consequences (GameEditFields warns about cascading play sessions). */
   prompt: ReactNode;
   confirmLabel: string;
   onConfirm: () => void;

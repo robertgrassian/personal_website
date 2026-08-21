@@ -10,13 +10,12 @@ import { PeopleList } from "./PeopleList";
 import type { UserSummary } from "@/lib/follows";
 import { useGameLibraryUrlState } from "./useGameLibraryUrlState";
 import { useIsConfirmedOwner, useIsLikelyOwner } from "./FollowControls";
-import { EditGameModal } from "./EditGameModal";
-import { EditWishlistModal } from "./EditWishlistModal";
 import { AddGameModal } from "./AddGameModal";
+import { GameDetailCard, type CardSubject } from "./GameDetailCard";
 import { ownedKey } from "./GameSearchStep";
 import { foldForSearch } from "./pipeline";
 import type { GameCaseInput } from "./GameCase";
-import { LibraryEditingProvider } from "./LibraryEditingContext";
+import { LibraryCardProvider, type CardLaunch, type CardOrigin } from "./LibraryCardContext";
 
 type GameLibraryProps = {
   // Every played game, rated and unrated alike — one list through one pipeline.
@@ -64,20 +63,26 @@ export function GameLibrary({
   const urlState = useGameLibraryUrlState();
   const { view, setView } = urlState;
 
-  // The game being edited, tracked by id (not object) so the open dialog
-  // always reflects the latest server data after a revalidation replaces the
-  // games array.
-  const [editingGameId, setEditingGameId] = useState<number | null>(null);
-  // Whether the game dialog was opened by answering "Played?" on the wishlist,
-  // which pre-stages a session. The pencil on a shelf card does not.
-  const [openedFromPlayed, setOpenedFromPlayed] = useState(false);
-  // Wishlist edits tracked separately — the pencil is shared, but the two
-  // views open different dialogs (EditGameModal vs EditWishlistModal).
-  const [editingWishlistId, setEditingWishlistId] = useState<number | null>(null);
-  // The wishlist "Played?" hand-off: the wishlist entry whose promote the
-  // library dialog is collecting. Separate from editingGameId because there is
-  // no library row yet for it to point at.
-  const [promotingWishlistId, setPromotingWishlistId] = useState<number | null>(null);
+  // The one open detail card, tracked by id (not object) so it always reflects
+  // the latest server data after a revalidation replaces the games array. This
+  // replaced four separate pieces of modal state, which existed only because
+  // there used to be three dialogs to tell apart.
+  type Expanded = {
+    // Which collection `id` points into, and which fields the card shows.
+    // "promote" is a wishlist id whose library row does not exist yet.
+    kind: "game" | "wishlist" | "promote";
+    id: number;
+    // Where the case was on screen when it was clicked, for the opening
+    // animation. null means there is nothing to fly from: a promote has no
+    // shelf case, and neither does a card that swaps subject in place.
+    origin: CardOrigin | null;
+    dominantColor: string | null;
+    isDark: boolean;
+    // Arrived by answering "Played?", which pre-stages a session. Clicking a
+    // case does not.
+    startWithSession: boolean;
+  };
+  const [expanded, setExpanded] = useState<Expanded | null>(null);
 
   // Bail on the id before scanning. These ran an array scan each on every
   // render, including every keystroke in the search box, to look up a dialog
@@ -90,14 +95,19 @@ export function GameLibrary({
   // `games` yet, this is undefined and the dialog simply opens on the render
   // that delivers it. A promote whose row never arrives degrades to no dialog,
   // never to a dialog pointing at nothing.
-  const editingGame = useMemo(
-    () => (editingGameId === null ? undefined : games.find((g) => g.id === editingGameId)),
-    [editingGameId, games]
-  );
-  const editingWishlistItem = useMemo(
+  const expandedGame = useMemo(
     () =>
-      editingWishlistId === null ? undefined : wishlist.find((w) => w.id === editingWishlistId),
-    [editingWishlistId, wishlist]
+      expanded === null || expanded.kind !== "game"
+        ? undefined
+        : games.find((g) => g.id === expanded.id),
+    [expanded, games]
+  );
+  const expandedWishlistItem = useMemo(
+    () =>
+      expanded === null || expanded.kind === "game"
+        ? undefined
+        : wishlist.find((w) => w.id === expanded.id),
+    [expanded, wishlist]
   );
 
   // Every library game the server would treat as "you already have this" for a
@@ -121,51 +131,54 @@ export function GameLibrary({
   // direction: over-matching hides a promote that would have worked, while
   // under-matching puts back the dead button this whole change is about.
   const ownedInLibrary = useMemo(() => {
-    if (editingWishlistItem === undefined) return [];
-    const wanted = foldForSearch(editingWishlistItem.name);
-    const wantedId = editingWishlistItem.igdbId;
+    if (expandedWishlistItem === undefined) return [];
+    const wanted = foldForSearch(expandedWishlistItem.name);
+    const wantedId = expandedWishlistItem.igdbId;
     return games.filter(
       (game) =>
         (wantedId != null && game.igdbId === wantedId) ||
         (foldForSearch(game.name) === wanted && (wantedId == null || game.igdbId == null))
     );
-  }, [editingWishlistItem, games]);
+  }, [expandedWishlistItem, games]);
 
-  const promotingItem = useMemo(
-    () =>
-      promotingWishlistId === null ? undefined : wishlist.find((w) => w.id === promotingWishlistId),
-    [promotingWishlistId, wishlist]
-  );
+  // Which collection a shelf case belongs to. The people views render no
+  // shelves, so their answer never reaches a card.
+  const cardKind = view === "wishlist" ? "wishlist" : "game";
 
   // useCallback so the context value below keeps a stable identity, which is
   // what lets the React.memo on GameCase actually bite.
-  const handleEditGame = useCallback(
-    (game: GameCaseInput) => {
-      if (view === "wishlist") setEditingWishlistId(game.id);
-      else {
-        setOpenedFromPlayed(false);
-        setEditingGameId(game.id);
-      }
+  const handleOpenCard = useCallback(
+    (game: GameCaseInput, launch: CardLaunch) => {
+      setExpanded({ kind: cardKind, id: game.id, ...launch, startWithSession: false });
     },
-    [view]
+    [cardKind]
   );
-  // "Played?" from the wishlist dialog. Which dialog that opens is decided
-  // here, because this is where both collections are in hand: a game already in
-  // the library gets its existing row edited, and one that is not gets a
-  // promote that creates it. Either way the user lands in the same dialog.
-  const handlePlayed = useCallback(() => {
-    if (editingWishlistItem === undefined) return;
-    const owned = ownedInLibrary[0];
-    setEditingWishlistId(null);
-    if (owned === undefined) setPromotingWishlistId(editingWishlistItem.id);
-    else {
-      setOpenedFromPlayed(true);
-      setEditingGameId(owned.id);
-    }
-  }, [editingWishlistItem, ownedInLibrary]);
 
-  // null for a visitor — GameCase gates the pencil on exactly this.
-  const openEditor = canEdit ? handleEditGame : null;
+  // "Played?" on a wishlist card. What it becomes is decided here, because this
+  // is where both collections are in hand: a game already in the library swaps
+  // the card to that row, and one that is not swaps it to a promote that
+  // creates it. Either way the card stays on screen and only its fields change,
+  // so neither branch carries an origin to fly from.
+  const handlePlayed = useCallback(() => {
+    if (expandedWishlistItem === undefined) return;
+    const owned = ownedInLibrary[0];
+    setExpanded((current) =>
+      current === null
+        ? null
+        : owned === undefined
+          ? { ...current, kind: "promote", origin: null, startWithSession: true }
+          : {
+              kind: "game",
+              id: owned.id,
+              origin: null,
+              dominantColor: current.dominantColor,
+              isDark: current.isDark,
+              startWithSession: true,
+            }
+    );
+  }, [expandedWishlistItem, ownedInLibrary]);
+
+  const closeCard = useCallback(() => setExpanded(null), []);
   const handleAddGame = useCallback(() => setAddOpen(true), []);
   const handleStatsOpen = useCallback(() => setStatsOpen(true), []);
   const handleStatsClose = useCallback(() => setStatsOpen(false), []);
@@ -179,6 +192,33 @@ export function GameLibrary({
   // system in `games`". Computed here rather than read off useFilterOptions
   // because that hook lives with the shelves and these feed the modals; it is
   // one pass over a prop that only changes when the server data does.
+  // The card's subject, resolved from the id every render.
+  //
+  // Resolving during render rather than converting to an id in an effect is
+  // what makes the promote handoff safe: if the new row is not in `games` yet,
+  // this is null and the card simply opens on the render that delivers it. A
+  // promote whose row never arrives degrades to no card, never to a card
+  // pointing at nothing. Looking up by id rather than by position also keeps
+  // the card open and consistent when a rating change moves the game to a
+  // different shelf.
+  //
+  // A promote is gated on ownership here as well as on the open state, so a
+  // viewer whose answer is corrected mid-card loses it: the control that opens
+  // it is owner-only, but an already-open one would otherwise outlive the
+  // answer that opened it. canEdit, not canAdd: promote targets an EXISTING
+  // wishlist row, so POST /me/wishlist/{id}/promote 404s on someone else's.
+  const cardSubject: CardSubject | null = useMemo(() => {
+    if (expanded === null) return null;
+    if (expanded.kind === "game") {
+      return expandedGame === undefined ? null : { kind: "game", game: expandedGame };
+    }
+    if (expandedWishlistItem === undefined) return null;
+    if (expanded.kind === "promote") {
+      return canEdit ? { kind: "promote", item: expandedWishlistItem } : null;
+    }
+    return { kind: "wishlist", item: expandedWishlistItem };
+  }, [expanded, expandedGame, expandedWishlistItem, canEdit]);
+
   const existingSystems = useMemo(() => [...new Set(games.map((g) => g.system))].sort(), [games]);
 
   // What the add-game search already has, so a result can say so instead of
@@ -298,7 +338,7 @@ export function GameLibrary({
   return (
     // Wraps the whole body, not just the shelves, so every card surface reads
     // one answer however the views are rearranged later.
-    <LibraryEditingProvider openEditor={openEditor}>
+    <LibraryCardProvider openCard={handleOpenCard} kind={cardKind}>
       {/* Half the gap on phones: this sits between the CRT and the sticky
           chrome, both of which already carry their own breathing room. */}
       <div className="mt-4 sm:mt-8">
@@ -333,33 +373,18 @@ export function GameLibrary({
           </>
         )}
 
-        {/* Gated on the ownership answer as well as on the open state, so a
-            viewer whose answer is corrected mid-dialog loses the dialog too:
-            the buttons that set these are owner-only, but an already-OPEN one
-            would otherwise outlive the answer that opened it. */}
-        {canEdit && editingGame && (
-          <EditGameModal
-            subject={{ kind: "game", game: editingGame }}
+        {cardSubject !== null && expanded !== null && (
+          <GameDetailCard
+            subject={cardSubject}
+            canEdit={canEdit}
             existingSystems={existingSystems}
-            startWithSession={openedFromPlayed}
-            onClose={() => setEditingGameId(null)}
-          />
-        )}
-        {canEdit && editingWishlistItem && (
-          <EditWishlistModal
-            item={editingWishlistItem}
+            startWithSession={expanded.startWithSession}
             onPlayed={handlePlayed}
-            onClose={() => setEditingWishlistId(null)}
-          />
-        )}
-        {/* canEdit, not canAdd: promote targets an EXISTING wishlist row, so
-            POST /me/wishlist/{id}/promote 404s on someone else's. */}
-        {canEdit && promotingItem && (
-          <EditGameModal
-            subject={{ kind: "promote", item: promotingItem }}
-            existingSystems={existingSystems}
-            startWithSession
-            onClose={() => setPromotingWishlistId(null)}
+            dominantColor={expanded.dominantColor}
+            isDark={expanded.isDark}
+            origin={expanded.origin}
+            caseId={expanded.kind === "promote" ? null : `${expanded.kind}-${expanded.id}`}
+            onClose={closeCard}
           />
         )}
         {canAdd && addOpen && (
@@ -371,6 +396,6 @@ export function GameLibrary({
           />
         )}
       </div>
-    </LibraryEditingProvider>
+    </LibraryCardProvider>
   );
 }

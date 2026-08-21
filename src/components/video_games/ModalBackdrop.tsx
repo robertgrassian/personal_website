@@ -26,14 +26,49 @@ import { createPortal } from "react-dom";
 // that is itself broken (docs/todo/modal-scroll-lock.md). Fixing the lock
 // closes this; a fixed backdrop is not the answer, since that is what iOS
 // clips.
+// Linear, so the dim comes and goes at one steady rate. An eased curve is
+// front-loaded, and using the same one in both directions does not mirror it:
+// opening would rush to dark and closing would rush to clear, so the two would
+// visibly disagree. Linear is its own reverse, which is the only way the two
+// halves match exactly.
+const FADE_EASING = "linear";
+
 type ModalBackdropProps = {
   onClose: () => void;
+  // When set, the dim fades IN over this many ms on mount and back out over
+  // the same time when `fadingOut` goes true, instead of cutting on and off.
+  // For a panel that flies in and out, so the page dims as the panel arrives
+  // and returns as it leaves. Both directions or neither: a hard cut on the
+  // way in with a fade on the way out reads worse than either on its own.
+  fadeMs?: number | null;
+  // Runs the fade above in reverse. The caller unmounts when it finishes.
+  fadingOut?: boolean;
+  // Whether to blur what is behind, as well as dim it.
+  //
+  // Off for anything with an animation running above it. This element is the
+  // height of the DOCUMENT, not the viewport (see below), which on the library
+  // page is ~4100px, so a backdrop-filter over it resamples the whole page —
+  // and it is recomputed every frame while something moves on top. Measured in
+  // Firefox over five runs each, that cost the detail card's flight two thirds
+  // of its frames: a consistent 66ms median against 17ms with the filter
+  // dropped. Hiding the backdrop entirely was no better than dropping just the
+  // filter, which is what pins the cost on the blur rather than on the size.
+  //
+  // A dialog that just sits there pays the blur once, so it keeps it. The dim
+  // goes deeper without the blur, to make up the separation it was providing.
+  blur?: boolean;
   // z-index plus any transition classes. The callers differ: the owner dialogs
   // mount only while open, the two panels stay mounted and fade.
   className?: string;
 };
 
-export function ModalBackdrop({ onClose, className = "" }: ModalBackdropProps) {
+export function ModalBackdrop({
+  onClose,
+  className = "",
+  blur = true,
+  fadeMs = null,
+  fadingOut = false,
+}: ModalBackdropProps) {
   // A portal needs a real DOM node, which does not exist while rendering on the
   // server, so this stays null through SSR and the first render.
   const [container, setContainer] = useState<HTMLElement | null>(null);
@@ -80,6 +115,34 @@ export function ModalBackdrop({ onClose, className = "" }: ModalBackdropProps) {
     };
   }, [container, useMeasureEffect]);
 
+  // Fade in on mount. Web Animations rather than a CSS transition, because a
+  // transition needs the element painted at its start value first, and the
+  // height measurement above already writes to this node on the same frame.
+  //
+  // Layout, not passive, for the same reason as the measurement above: this
+  // node is created on a SECOND commit (the portal container is set in an
+  // effect) and carries its dim class with no inline opacity, so a passive
+  // effect can let that commit paint at full dim before the animation starts
+  // from zero — the page would flash dark, then fade in from nothing. React
+  // happens to flush the passive effect before paint here, so the flash does
+  // not currently show; that is its scheduling, not a guarantee.
+  //
+  // Skipped under reduced motion, where the dim simply appears.
+  useMeasureEffect(() => {
+    const el = ref.current;
+    if (el === null || fadeMs === null) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const animation = el.animate([{ opacity: 0 }, { opacity: 1 }], {
+      duration: fadeMs,
+      easing: FADE_EASING,
+    });
+    return () => animation.cancel();
+    // Keyed on `container`, not []: the portal has no DOM node until that is
+    // set in an effect, so a mount-only version ran while the ref was still
+    // null and never animated anything. `container` is assigned once, so this
+    // still runs exactly once, on the render that first has a node.
+  }, [container, fadeMs, useMeasureEffect]);
+
   if (!container) return null;
 
   return createPortal(
@@ -89,7 +152,14 @@ export function ModalBackdrop({ onClose, className = "" }: ModalBackdropProps) {
       onClick={onClose}
       // h-full is only the pre-measurement height, for the frame between mount
       // and the effect above; the inline height replaces it immediately.
-      className={`absolute left-0 top-0 h-full w-full bg-black/40 backdrop-blur-sm ${className}`}
+      className={`absolute left-0 top-0 h-full w-full ${blur ? "bg-black/40 backdrop-blur-sm" : "bg-black/60"} ${className}`}
+      // Height is set imperatively in the effect above, so this only ever
+      // carries the fade out; leaving it undefined otherwise keeps them apart.
+      style={
+        fadingOut && fadeMs !== null
+          ? { opacity: 0, transition: `opacity ${fadeMs}ms ${FADE_EASING}` }
+          : undefined
+      }
     />,
     container
   );

@@ -1,4 +1,4 @@
-# There probably should not be two game modals. Merge `AddGameModal` and `EditGameModal` into one.
+# `AddGameModal` is the last dialog left. Decide whether adding a game moves onto the detail card too.
 
 _Section: **Backlog / Ideas** &middot; index: [`TODO.md`](../../TODO.md)_
 
@@ -28,10 +28,16 @@ a real combobox 2026-08-15), which owns the field, its suggestion list and that 
 filter and keyboard behaviour for all three forms, plus `SessionDateFields` and `RequiredField`
 (both 2026-08-19), which `AddGameModal` does not use yet and probably should.
 
-_Sequence this with the three items that also want to reshape these dialogs_, or it will be done
-twice: **"When adding a game, let me say I'm playing it now"** in Up Next adds a play-history
-section to the add form, **"Make library and wishlist entries fully editable"** wants one shared
-field form across both modals, and **"Make viewing a game's details better"** floats hosting edit
-controls on the flipped card face, which would delete `EditGameModal` rather than merge it. That
-last one is the real counter-argument: if edit moves onto the card, there is no second modal left to
-merge.
+**The counter-argument won** (2026-08-20). Clicking a case now opens the back of the case at
+reading size, and the owner's edit form lives on it: `EditGameModal` and `EditWishlistModal` are
+deleted, and their bodies survive as `GameEditFields` and `WishlistEditFields`, which the card
+renders. So there is no second modal to merge, and the open question is narrower and different:
+**should adding a game move onto that surface too, or stay the one dialog?**
+
+Two things pull against folding it in. An add has no case to fly out of, so it would arrive with no
+motion, the way a promote does. And the search step is a real step, not a field: the card is sized
+for reading a game you already have, not for browsing results. The cheap version is that `AddGameForm`
+reuses `GameEditFields`' Save model and field set without the card shape at all.
+
+_Still sequence with_ **"When adding a game, let me say I'm playing it now"** in Up Next, which adds
+a play-history section to the add form.

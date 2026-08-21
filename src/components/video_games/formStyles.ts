@@ -29,7 +29,7 @@ export const filterSelectClass = `${filterFieldClass} cursor-pointer`;
 // min-w-0: a flex item's automatic minimum size refuses to shrink below its
 // content, and `input[type="date"]` carries an intrinsic control width that
 // `w-full` does not always beat. It applies on the MAIN axis only, so this is
-// inert in the add form's column and load-bearing in EditGameModal's
+// inert in the add form's column and load-bearing in GameEditFields'
 // `flex flex-wrap` row of date labels.
 export const labelClass =
   "flex min-w-0 flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label";

@@ -8,7 +8,7 @@ type ShelfSectionProps = {
 
 // ShelfSection renders one shelf — an optional header row plus a "plank" of
 // game cases. Purely presentational: whether a card shows an edit pencil is
-// read from LibraryEditingContext by GameCase itself, so this component no
+// read from LibraryCardContext by GameCase itself, so this component no
 // longer carries an editing concern through on its behalf.
 export function ShelfSection({ label, games }: ShelfSectionProps) {
   return (
