@@ -101,10 +101,12 @@ export function GameDetailCard({
       onClose={close}
       initialFocusRef={closeButtonRef}
       backdropBlur={false}
-      // The dim leaves WITH the card rather than after it, so the page comes
-      // back as the case returns to the shelf instead of snapping back once it
-      // has already landed.
-      backdropFadeOutMs={closing ? DURATION_MS : null}
+      // The dim arrives with the card and leaves with it, rather than cutting
+      // on at the click and off once the case has already landed. Only when
+      // there is a flight to match: a promote has no case to fly from, so its
+      // card simply appears and so does its dim.
+      backdropFadeMs={origin === null ? null : DURATION_MS}
+      backdropFadingOut={closing}
     >
       {/* The grid item, and the element the flight translates and scales. min-w-0
           because a grid item's automatic minimum size is min-content, which

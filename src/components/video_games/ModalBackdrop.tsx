@@ -28,10 +28,14 @@ import { createPortal } from "react-dom";
 // clips.
 type ModalBackdropProps = {
   onClose: () => void;
-  // When set, the dim fades out over this many ms instead of cutting when the
-  // dialog unmounts. For a panel that animates away, so the page comes back as
-  // the panel leaves rather than snapping back once it has gone.
-  fadeOutMs?: number | null;
+  // When set, the dim fades IN over this many ms on mount and back out over
+  // the same time when `fadingOut` goes true, instead of cutting on and off.
+  // For a panel that flies in and out, so the page dims as the panel arrives
+  // and returns as it leaves. Both directions or neither: a hard cut on the
+  // way in with a fade on the way out reads worse than either on its own.
+  fadeMs?: number | null;
+  // Runs the fade above in reverse. The caller unmounts when it finishes.
+  fadingOut?: boolean;
   // Whether to blur what is behind, as well as dim it.
   //
   // Off for anything with an animation running above it. This element is the
@@ -55,7 +59,8 @@ export function ModalBackdrop({
   onClose,
   className = "",
   blur = true,
-  fadeOutMs = null,
+  fadeMs = null,
+  fadingOut = false,
 }: ModalBackdropProps) {
   // A portal needs a real DOM node, which does not exist while rendering on the
   // server, so this stays null through SSR and the first render.
@@ -103,6 +108,26 @@ export function ModalBackdrop({
     };
   }, [container, useMeasureEffect]);
 
+  // Fade in on mount. Web Animations rather than a CSS transition, because a
+  // transition needs the element painted at its start value first, and the
+  // height measurement above already writes to this node on the same frame.
+  //
+  // Skipped under reduced motion, where the dim simply appears.
+  useEffect(() => {
+    const el = ref.current;
+    if (el === null || fadeMs === null) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const animation = el.animate([{ opacity: 0 }, { opacity: 1 }], {
+      duration: fadeMs,
+      easing: "ease-out",
+    });
+    return () => animation.cancel();
+    // Keyed on `container`, not []: the portal has no DOM node until that is
+    // set in an effect, so a mount-only version ran while the ref was still
+    // null and never animated anything. `container` is assigned once, so this
+    // still runs exactly once, on the render that first has a node.
+  }, [container, fadeMs]);
+
   if (!container) return null;
 
   return createPortal(
@@ -114,11 +139,11 @@ export function ModalBackdrop({
       // and the effect above; the inline height replaces it immediately.
       className={`absolute left-0 top-0 h-full w-full ${blur ? "bg-black/40 backdrop-blur-sm" : "bg-black/60"} ${className}`}
       // Height is set imperatively in the effect above, so this only ever
-      // carries the fade; leaving it undefined otherwise keeps them apart.
+      // carries the fade out; leaving it undefined otherwise keeps them apart.
       style={
-        fadeOutMs === null
-          ? undefined
-          : { opacity: 0, transition: `opacity ${fadeOutMs}ms ease-out` }
+        fadingOut && fadeMs !== null
+          ? { opacity: 0, transition: `opacity ${fadeMs}ms ease-out` }
+          : undefined
       }
     />,
     container
