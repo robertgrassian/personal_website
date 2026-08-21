@@ -18,8 +18,32 @@ function isEnabled(): boolean {
       process.env.NODE_ENV === "development" &&
       typeof window !== "undefined" &&
       new URLSearchParams(window.location.search).has("flightdebug");
+    if (enabled) applyPromotionVariant();
   }
   return enabled;
+}
+
+// Lets the compositing strategy be A/B'd from the URL, because the machines
+// that see the flight stutter are not the one this was written on, and one
+// round trip per hypothesis is slow.
+//
+//   ?flightdebug        the shipped behaviour: the blurred cover is promoted
+//   ?flightdebug=none   nothing promoted, for a baseline
+//   ?flightdebug=all    the whole rotating subtree promoted
+//   ?flightdebug=noblur the cover's blur is off for the flight
+//
+// noblur is the one that tells us the most. Gecko does not cache a
+// filter: blur() as a texture the way Blink does, so a blurred element that
+// scales can have its filter recomputed as it grows — which would land as
+// periodic dropped frames rather than uniform slowness. If noblur is the only
+// smooth variant, the fix is to stop using a runtime filter here at all.
+//
+// The CSS for each lives beside the flight rules in video-games.css.
+function applyPromotionVariant(): void {
+  const value = new URLSearchParams(window.location.search).get("flightdebug");
+  if (value === "none" || value === "all" || value === "noblur") {
+    document.documentElement.dataset.flightPromote = value;
+  }
 }
 
 function panel(): HTMLElement {
