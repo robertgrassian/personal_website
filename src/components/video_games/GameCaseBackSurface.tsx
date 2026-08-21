@@ -1,5 +1,5 @@
 import Image from "next/image";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 // The back-of-case look, as a background for whatever is laid on it:
 // dominant-color base → blurred cover art → dark overlay → content.
@@ -9,13 +9,10 @@ import type { CSSProperties, ReactNode } from "react";
 // The overlay is dark in both color schemes, so content on it uses fixed light
 // text rather than the shelf tokens. Anything that wants the shelf tokens
 // (every form control) has to bring its own solid surface.
+// --system-fallback is NOT set here. It belongs on an ancestor that the spines
+// share, so the whole case is one color; this surface just inherits it.
 type GameCaseBackSurfaceProps = {
   imageUrl: string;
-  // Console color fallback, applied only when there is no extracted color:
-  // the [data-system] rule out-specifies the inherited --system-fallback and
-  // would beat it.
-  system: string;
-  dominantColor: string | null;
   // Rendered width, for Next's image optimizer.
   sizes: string;
   className?: string;
@@ -24,8 +21,6 @@ type GameCaseBackSurfaceProps = {
 
 export function GameCaseBackSurface({
   imageUrl,
-  system,
-  dominantColor,
   sizes,
   className = "",
   children,
@@ -33,11 +28,7 @@ export function GameCaseBackSurface({
   const hasImage = imageUrl !== "";
 
   return (
-    <div
-      className={`game-case-back-surface relative overflow-hidden ${className}`}
-      data-system={dominantColor ? undefined : system}
-      style={dominantColor ? ({ "--system-fallback": dominantColor } as CSSProperties) : undefined}
-    >
+    <div className={`game-case-back-surface relative overflow-hidden ${className}`}>
       {hasImage && (
         <Image
           src={imageUrl}

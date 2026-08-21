@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef } from "react";
+import { useId, useRef, type CSSProperties } from "react";
 import Image from "next/image";
 import { RATINGS, systemLabel, type Game } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
@@ -108,7 +108,19 @@ export function GameDetailCard({
       >
         {/* The element that rotates. Separate from the one that travels, so
             neither transform has to be composed into the other. */}
-        <div ref={innerRef} data-phase={phase} className="game-card-inner flex min-h-0 w-full">
+        {/* --system-fallback lives here, on the shared ancestor of both faces
+            and the spines, so the whole case is one color. data-system only
+            when there is no extracted color: the [data-system] rule
+            out-specifies the inherited variable and would beat it. */}
+        <div
+          ref={innerRef}
+          data-phase={phase}
+          data-system={dominantColor ? undefined : source.system}
+          className="game-card-inner flex min-h-0 w-full"
+          style={
+            dominantColor ? ({ "--system-fallback": dominantColor } as CSSProperties) : undefined
+          }
+        >
           {/* The case as it looked on the shelf, shown only while it turns.
               sizes="96px" on purpose: this is the image the shelf already
               loaded, and the front face is never seen much above that size
@@ -118,7 +130,6 @@ export function GameDetailCard({
             <div className="game-card-faces" aria-hidden>
               <div
                 className="game-case-front absolute inset-0 overflow-hidden rounded-lg shadow-2xl"
-                data-system={dominantColor ? undefined : source.system}
                 style={
                   source.imageUrl === ""
                     ? { backgroundColor: "var(--system-fallback, #374151)" }
@@ -146,8 +157,6 @@ export function GameDetailCard({
 
           <GameCaseBackSurface
             imageUrl={source.imageUrl}
-            system={source.system}
-            dominantColor={dominantColor}
             sizes="384px"
             className="game-case-back game-card-surface flex min-h-0 w-full flex-col rounded-lg shadow-2xl"
           >

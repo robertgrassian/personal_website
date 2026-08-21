@@ -183,6 +183,12 @@
 }
 .game-card-flight {
   transform-origin: top left;
+  /* The card is a game case, so it keeps a case's proportions even when its
+     contents are short: a viewer's card has no edit fields under the divider
+     and would otherwise settle as a letterbox strip rather than a case back.
+     Not a hard constraint -- max-h-full still caps it, so a tall owner card on
+     a short screen is capped and scrolls inside instead of overflowing. */
+  aspect-ratio: 2 / 3;
 }
 .game-card-flight[data-phase="flight"] {
   will-change: transform;
