@@ -186,7 +186,14 @@
   /* One cell, with the spacer below and the card itself stacked in it, so the
      row is as tall as whichever is bigger. */
   display: grid;
-  grid-template-columns: 1fr;
+  /* minmax(0, ...), not a bare 1fr. `1fr` is minmax(auto, 1fr), and that auto
+     floor is the column's MIN-CONTENT width, so the column grew to whatever the
+     widest indivisible content needed and spilled out of the card: on WebKit
+     the two date inputs made it 427px inside a card correctly capped at 342,
+     hanging 61px off the side of a 390px phone. Same trick as the row below,
+     for the same reason. Firefox on a desktop never showed it because its date
+     input is far narrower; Firefox on iOS is WebKit, so it did. */
+  grid-template-columns: minmax(0, 1fr);
   /* Pins the row to this box's used height, the same trick ModalFrame uses.
      Without it the row sizes to the content, so a card capped by max-h-full
      had its overflow clipped by the surface instead of reaching the scroller
@@ -208,7 +215,14 @@
 
 .game-card-flight > * {
   grid-area: 1 / 1;
+  /* Both axes. A grid item's automatic minimum size is its MIN-CONTENT size,
+     so without these the card is only as small as its widest indivisible
+     content: on WebKit the two date inputs give the inner a 427px min-content
+     width, which then hung 61px off the side of a 390px phone while the card
+     itself was correctly 342. Firefox never showed it because its date input
+     is far narrower. */
   min-height: 0;
+  min-width: 0;
 }
 .game-card-flight[data-phase="flight"] {
   will-change: transform;
