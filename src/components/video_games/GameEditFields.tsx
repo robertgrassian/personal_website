@@ -193,11 +193,18 @@ export function GameEditFields({
           />
         </RequiredField>
       </div>
-      <p className="mt-1.5 text-[11px] text-shelf-text-muted">
-        {promoting
-          ? "Which console did you play it on?"
-          : "Moving a game to another console keeps its rating and play history."}
-      </p>
+      {/* The move warning only once the system actually changes. Held open in
+          every edit it cost two lines under a field most edits never touch,
+          which on a phone is height the card takes from its own scroller. The
+          promote prompt is not conditional: there the field is required and
+          empty, so the question is the point. */}
+      {(promoting || systemDirty) && (
+        <p className="mt-1.5 text-[11px] text-shelf-text-muted">
+          {promoting
+            ? "Which console did you play it on?"
+            : "Moving a game to another console keeps its rating and play history."}
+        </p>
+      )}
 
       {playing && !promoting && (
         <div className="mt-4">
