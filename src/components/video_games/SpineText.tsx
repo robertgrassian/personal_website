@@ -2,6 +2,10 @@
 
 // Renders the game name vertically on the spine, scaling down uniformly
 // so long titles shrink to fit rather than clipping.
+//
+// Sized for the detail card's spine, which is 48px wide: 2 x the --case-depth
+// on .game-card-scene. The 9px this used to be was sized for the 96px shelf
+// case, which no longer has spines at all -- the card is the only caller.
 
 import { useState, useRef, useLayoutEffect } from "react";
 
@@ -35,7 +39,7 @@ export function SpineText({ name, darkBackground = true }: SpineTextProps) {
           ref={textRef}
           // Light text on dark spines, dark text on light spines — driven by
           // fast-average-color's luminance detection of the cover art.
-          className={`text-[9px] font-semibold whitespace-nowrap tracking-tight ${darkBackground ? "text-gray-300" : "text-gray-950"}`}
+          className={`text-[18px] font-semibold whitespace-nowrap tracking-tight ${darkBackground ? "text-gray-300" : "text-gray-950"}`}
           style={{ writingMode: "vertical-rl", transform: `scale(${scale})` }}
         >
           {name}

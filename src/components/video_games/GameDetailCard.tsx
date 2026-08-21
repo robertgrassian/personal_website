@@ -155,9 +155,14 @@ export function GameDetailCard({
             </div>
           )}
 
+          {/* 96px, the size the shelf case already loaded, not the card's own
+              384px. This image is blurred, so the resolution buys nothing, and
+              asking for a second size means a second download that lands after
+              the card has opened -- the cover visibly resolving once you are
+              already looking at it. */}
           <GameCaseBackSurface
             imageUrl={source.imageUrl}
-            sizes="384px"
+            sizes="96px"
             className="game-case-back game-card-surface flex min-h-0 w-full flex-col rounded-lg shadow-2xl"
           >
             <div
