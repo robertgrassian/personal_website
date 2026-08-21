@@ -172,39 +172,51 @@
    hides whichever face is turned away from the viewer.
    --case-depth is half the case thickness — front and back each push out
    by this amount, and the spine width is 2× this value. */
-.game-case-scene {
-  --case-depth: 6px;
-  perspective: 800px;
+/* The detail card in flight: it leaves the shelf, flips, grows and lands
+   centered. --case-depth stays 6.25% of the card's width, the ratio 6px had
+   against a 96px case. perspective sits INSIDE the scaled box, so the effective
+   distance is 2400px x the current scale: foreshortening deepens as the card
+   comes toward you, which is the right direction for picking something up. */
+.game-card-scene {
+  --case-depth: 24px;
+  perspective: 2400px;
 }
-.game-case-inner {
-  transform-style: preserve-3d;
-  /* Two separate transitions: flip (transform) is slow, hover lift (translate) is fast. */
-  transition:
-    transform 0.6s ease,
-    translate 0.2s ease-out;
+.game-card-flight {
+  transform-origin: top left;
 }
-.game-case-inner.is-flipped {
-  transform: rotateY(180deg);
-}
-/* The first rotateY has to promote the case to its own compositing layer, and
-   on a phone showing ~155 cases that each hold a cover image, that promotion
-   can cost a frame or two. It is paid after the tap, so it is felt as a gap
-   between pressing a case and the flip starting.
-   :active is set on touch-down and the click handler that adds .is-flipped does
-   not run until release, so promoting here buys that work the length of the
-   press as a head start.
-   Scoped to the pressed case alone: setting will-change on all ~155 at once is
-   how you make the whole page slower instead.
-   What this does NOT cover is the flip back. :active ends at release, so by the
-   time .is-flipped is removed and the reverse rotation starts, this rule has
-   stopped matching. Keeping the promotion on .is-flipped was tried and dropped:
-   it holds a layer for as long as a card sits flipped, which is the one moment
-   nothing is animating, and de-promoting an element whose faces carry
-   backface-visibility: hidden at the instant a transition starts is a known
-   source of a one-frame flash in WebKit. Unprofiled either way -- if a device
-   timeline shows this rule buys nothing, delete it rather than widen it. */
-.game-case-scene:active .game-case-inner {
+.game-card-flight[data-phase="flight"] {
   will-change: transform;
+  /* No stray taps on a card that is still moving. */
+  pointer-events: none;
+}
+.game-card-inner {
+  position: relative;
+  transform-style: preserve-3d;
+}
+/* The front face and spines, grouped so one aria-hidden covers them. It has to
+   keep preserve-3d: a plain wrapper flattens its children into its own plane,
+   which would collapse their translateZ and rotateY. */
+.game-card-faces {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+/* At rest the card drops out of 3D entirely. Dropping the back face's own
+   rotateY(180deg) in the same breath cancels the inner's, so the swap frame is
+   pixel-identical — and it takes text inputs, the caret and iOS selection
+   handles out of a preserve-3d / backface-visibility subtree, which is the part
+   of this WebKit handles badly. */
+.game-card-inner[data-phase="rest"] {
+  transform: none;
+  transform-style: flat;
+}
+.game-card-inner[data-phase="rest"] .game-case-back {
+  transform: none;
+}
+
+/* The shelf case no longer flips: this is the hover lift and nothing else. */
+.game-case-inner {
+  transition: translate 0.2s ease-out;
 }
 .game-case-front,
 .game-case-back {
@@ -232,14 +244,8 @@
   border-radius: 0.25rem;
   /* Uses the same per-console color tokens as the no-cover-art fallback. */
   background: var(--system-fallback, #1a1a2e);
-  /* Hidden by default so perspective doesn't reveal a sliver on the card edges.
-     On flip-back, stay visible past mid-rotation (0.4s delay) then fade out. */
-  opacity: 0;
-  transition: opacity 0.15s 0.4s;
-}
-.game-case-inner.is-flipped .game-case-spine {
+  /* Only ever seen mid-rotation: the card unmounts them once it settles. */
   opacity: 1;
-  transition: opacity 0.15s;
 }
 .game-case-spine-left {
   left: 0;
@@ -488,6 +494,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* The hover lift and the detail card's flight. The flight is skipped in JS
+     too (useCardFlight); this covers the transition the lift would still run. */
+  .game-case-inner,
+  .game-card-flight,
+  .game-card-inner {
+    transition: none;
+  }
+
   .crt-osd,
   .crt-live-dot,
   .crt-picture {

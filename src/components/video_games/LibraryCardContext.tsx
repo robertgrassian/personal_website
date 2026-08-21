@@ -20,9 +20,7 @@ import type { GameCaseInput } from "./GameCase";
 // open a card, and whether that card shows the edit region is decided by
 // GameLibrary, which renders it. GameCase no longer knows about permission.
 type LibraryCard = {
-  // `origin` is where the case is on screen right now, which is what the
-  // opening animation flies from.
-  openCard: (game: GameCaseInput, origin: CardOrigin, dominantColor: string | null) => void;
+  openCard: (game: GameCaseInput, launch: CardLaunch) => void;
   // Which collection the cases on screen came from. Here rather than a
   // GameCase prop so ShelfSection stays purely presentational: it is the same
   // answer for every case in the view, and it is GameLibrary that knows it.
@@ -32,6 +30,15 @@ type LibraryCard = {
 export type CardKind = "game" | "wishlist";
 
 export type CardOrigin = { top: number; left: number; width: number; height: number };
+
+/** What the clicked case hands the card so it can fly out of it and match its
+ *  colors: where the case is on screen, and what its cover art looks like. */
+export type CardLaunch = {
+  origin: CardOrigin;
+  dominantColor: string | null;
+  // Whether that color is dark, which is what the spine text contrasts against.
+  isDark: boolean;
+};
 
 const LibraryCardContext = createContext<LibraryCard>({ openCard: () => {}, kind: "game" });
 

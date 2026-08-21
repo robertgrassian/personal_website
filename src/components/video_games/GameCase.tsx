@@ -33,10 +33,14 @@ function GameCaseImpl({ game }: GameCaseProps) {
   // its background matches the cover you just clicked. null means not yet
   // extracted or no image; the card falls back to the console color.
   const [dominantColor, setDominantColor] = useState<string | null>(null);
+  // Whether that color is dark, which decides the spine text color on the card.
+  const [isDark, setIsDark] = useState(true);
   // Ref to the <img> element inside Next.js <Image> — needed by FastAverageColor
   // to read pixel data from the rendered image via a hidden <canvas>.
   const imageRef = useRef<HTMLImageElement>(null);
-  const caseRef = useRef<HTMLButtonElement>(null);
+  // The lifted inner, not the button: on hover the card sits 8px above its own
+  // layout box, and that is where the flight has to start from.
+  const caseRef = useRef<HTMLDivElement>(null);
 
   // Extracts the dominant color once the cover image has fully loaded.
   // useCallback keeps a stable reference so it doesn't re-trigger the Image onLoad.
@@ -48,7 +52,10 @@ function GameCaseImpl({ game }: GameCaseProps) {
     // Uses a shared FAC instance with a sequential queue — see src/lib/dominant-color.ts.
     // This avoids 100+ simultaneous canvas reads janking the main thread on page load.
     extractDominantColor(img)
-      .then((result) => setDominantColor(result.hex))
+      .then((result) => {
+        setDominantColor(result.hex);
+        setIsDark(result.isDark);
+      })
       .catch(() => {});
   }, []);
 
@@ -56,12 +63,12 @@ function GameCaseImpl({ game }: GameCaseProps) {
     const el = caseRef.current;
     if (el === null) return;
     const rect = el.getBoundingClientRect();
-    openCard(
-      game,
-      { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
-      dominantColor
-    );
-  }, [openCard, game, dominantColor]);
+    openCard(game, {
+      origin: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
+      dominantColor,
+      isDark,
+    });
+  }, [openCard, game, dominantColor, isDark]);
 
   const hasImage = game.imageUrl !== "" && !imageError;
   const ratingLetter = game.rating
@@ -81,21 +88,23 @@ function GameCaseImpl({ game }: GameCaseProps) {
           desktop window dragged narrower than 640px should keep the default
           arrow rather than switching to a hand. */}
       <button
-        ref={caseRef}
         type="button"
         aria-label={`View details for ${game.name}`}
         aria-haspopup="dialog"
         data-case-id={`${kind}-${game.id}`}
-        className="game-case-scene relative block w-full touch-manipulation cursor-pointer pointer-fine:cursor-default select-none appearance-none bg-transparent border-0 p-0 text-left
+        className="relative block w-full touch-manipulation cursor-pointer pointer-fine:cursor-default select-none appearance-none bg-transparent border-0 p-0 text-left
                    rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--shelf-input-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--shelf-bg)]"
         onClick={open}
       >
         {/* Inner container — the hover lift, and the element the detail card's
-            opening animation measures, since the lift is where the card
+            opening flight measures, since the lift is where the card
             visually is. */}
-        <div className="game-case-inner h-36 relative group-hover:-translate-y-2 group-hover:shadow-xl">
+        <div
+          ref={caseRef}
+          className="game-case-inner h-36 relative group-hover:-translate-y-2 group-hover:shadow-xl"
+        >
           <div
-            className="game-case-front absolute inset-0 rounded overflow-hidden shadow-lg"
+            className="absolute inset-0 rounded overflow-hidden shadow-lg"
             data-system={!hasImage ? game.system : undefined}
             style={!hasImage ? { backgroundColor: "var(--system-fallback, #374151)" } : undefined}
           >

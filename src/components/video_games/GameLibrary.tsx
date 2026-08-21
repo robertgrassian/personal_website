@@ -15,7 +15,7 @@ import { GameDetailCard, type CardSubject } from "./GameDetailCard";
 import { ownedKey } from "./GameSearchStep";
 import { foldForSearch } from "./pipeline";
 import type { GameCaseInput } from "./GameCase";
-import { LibraryCardProvider, type CardOrigin } from "./LibraryCardContext";
+import { LibraryCardProvider, type CardLaunch, type CardOrigin } from "./LibraryCardContext";
 
 type GameLibraryProps = {
   // Every played game, rated and unrated alike — one list through one pipeline.
@@ -77,6 +77,7 @@ export function GameLibrary({
     // shelf case, and neither does a card that swaps subject in place.
     origin: CardOrigin | null;
     dominantColor: string | null;
+    isDark: boolean;
     // Arrived by answering "Played?", which pre-stages a session. Clicking a
     // case does not.
     startWithSession: boolean;
@@ -147,8 +148,8 @@ export function GameLibrary({
   // useCallback so the context value below keeps a stable identity, which is
   // what lets the React.memo on GameCase actually bite.
   const handleOpenCard = useCallback(
-    (game: GameCaseInput, origin: CardOrigin, dominantColor: string | null) => {
-      setExpanded({ kind: cardKind, id: game.id, origin, dominantColor, startWithSession: false });
+    (game: GameCaseInput, launch: CardLaunch) => {
+      setExpanded({ kind: cardKind, id: game.id, ...launch, startWithSession: false });
     },
     [cardKind]
   );
@@ -171,6 +172,7 @@ export function GameLibrary({
               id: owned.id,
               origin: null,
               dominantColor: current.dominantColor,
+              isDark: current.isDark,
               startWithSession: true,
             }
     );
@@ -379,6 +381,9 @@ export function GameLibrary({
             startWithSession={expanded.startWithSession}
             onPlayed={handlePlayed}
             dominantColor={expanded.dominantColor}
+            isDark={expanded.isDark}
+            origin={expanded.origin}
+            caseId={expanded.kind === "promote" ? null : `${expanded.kind}-${expanded.id}`}
             onClose={closeCard}
           />
         )}

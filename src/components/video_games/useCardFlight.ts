@@ -1,0 +1,206 @@
+"use client";
+
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import type { CardOrigin } from "./LibraryCardContext";
+
+const DURATION_MS = 480;
+// Quick out of the shelf, long settle at the end.
+const EASING = "cubic-bezier(0.22, 0.68, 0.24, 1)";
+
+export type FlightPhase = "flight" | "rest";
+
+type UseCardFlightArgs = {
+  // Where the case was when it was clicked. null means there is nothing to fly
+  // from (a promote, or a card that swapped subject in place), so the card
+  // fades in centered instead.
+  origin: CardOrigin | null;
+  // The source case, for hiding it while the card is out and re-measuring it
+  // on the way back. null when the card has no case behind it.
+  caseId: string | null;
+  // Called once the return flight has landed, to unmount the card.
+  onClosed: () => void;
+};
+
+function prefersReducedMotion(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function findCase(caseId: string | null): HTMLElement | null {
+  if (caseId === null) return null;
+  return document.querySelector<HTMLElement>(`[data-case-id="${CSS.escape(caseId)}"]`);
+}
+
+// The inverse transform that puts `card` exactly where `rect` is. Scale comes
+// from width alone: a card with real content is close enough to the case's 2:3
+// that the height lands within a few px, and the case is hidden on the same
+// frame so there is nothing to compare it against.
+function invertTo(rect: CardOrigin, card: DOMRect): string {
+  const scale = rect.width / card.width;
+  const dx = rect.left - card.left;
+  const dy = rect.top + rect.height / 2 - card.top - (card.height * scale) / 2;
+  return `translate(${dx}px, ${dy}px) scale(${scale})`;
+}
+
+/** Flies the detail card out of its shelf case and back again.
+ *
+ *  FLIP on the real, full-size card: it is laid out at its final size, then
+ *  transformed back onto the case and animated to identity. Nothing is ever
+ *  rendered above 1x, so text is never a scaled-up blur, and there is only one
+ *  content layout rather than a cross-fade between a small one and a big one.
+ *
+ *  Web Animations rather than CSS transitions, for three things transitions
+ *  make awkward: two elements starting on the same frame with one shared curve,
+ *  a callback at the end to drop out of 3D, and reversing a close from wherever
+ *  the open had got to. */
+export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
+  const flightRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [settled, setSettled] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  // 3D is on for both flights and off in between. `closing` re-enters it before
+  // the effect below measures, which is why it is derived rather than stored.
+  const phase: FlightPhase = settled && !closing ? "rest" : "flight";
+
+  // Latest-ref so the close effect does not re-run when the caller re-renders.
+  const onClosedRef = useRef(onClosed);
+  onClosedRef.current = onClosed;
+
+  // Outbound. Runs once: the card mounts, gets inverted onto the case before
+  // paint, then animates to where it already is.
+  useLayoutEffect(() => {
+    const card = flightRef.current;
+    const inner = innerRef.current;
+    const source = findCase(caseId);
+
+    // Hiding the source imperatively, rather than through React: a context or
+    // prop change would re-render all ~155 memoized cases in the first frames
+    // of the animation, which is the exact reconcile the memo exists to
+    // prevent, at the worst possible moment.
+    if (source !== null) source.style.visibility = "hidden";
+
+    if (card === null || inner === null || origin === null || prefersReducedMotion()) {
+      setSettled(true);
+      return () => {
+        if (source !== null) source.style.visibility = "";
+      };
+    }
+
+    // Measure the UNtransformed layout box. React re-invokes this effect in
+    // development, and the previous run leaves its invert on the card:
+    // measuring through that folds the case's position into the result, and the
+    // invert collapses to identity — the card flips but never travels.
+    card.style.transform = "";
+    inner.style.transform = "";
+
+    const invert = invertTo(origin, card.getBoundingClientRect());
+    card.style.transform = invert;
+    // The back face is what the user is meant to end up reading, so the
+    // rotation runs front-to-back: 0 here, 180 at the end.
+    inner.style.transform = "rotateY(0deg)";
+
+    const options: KeyframeAnimationOptions = {
+      duration: DURATION_MS,
+      easing: EASING,
+      fill: "none",
+    };
+    const travel = card.animate([{ transform: invert }, { transform: "none" }], options);
+    const flip = inner.animate(
+      [{ transform: "rotateY(0deg)" }, { transform: "rotateY(180deg)" }],
+      options
+    );
+
+    Promise.all([travel.finished, flip.finished])
+      .then(() => {
+        // Clear will-change before flattening: de-promoting a layer whose faces
+        // carry backface-visibility: hidden is a known one-frame flash in
+        // WebKit, and this is the order that avoids paying for it twice.
+        card.style.transform = "";
+        card.style.willChange = "";
+        inner.style.transform = "";
+        setSettled(true);
+      })
+      .catch(() => {
+        // Cancelled by a close that arrived mid-flight; that path takes over.
+      });
+
+    return () => {
+      travel.cancel();
+      flip.cancel();
+      // Cancelling does not undo the inline transforms set above, and whatever
+      // runs next has to measure a clean element.
+      card.style.transform = "";
+      inner.style.transform = "";
+      if (source !== null) source.style.visibility = "";
+    };
+    // Mount-only: `origin` is a snapshot of where the case was, and re-running
+    // this on a re-render would restart the animation from a stale rect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // React can replace the source node while the card is open — saving a rating
+  // re-sorts the shelves — which would strand the hidden case and leave two
+  // copies of it on screen.
+  useLayoutEffect(() => {
+    const source = findCase(caseId);
+    if (source !== null) source.style.visibility = "hidden";
+  });
+
+  // Inbound. Re-measures the case live rather than trusting `origin`: the page
+  // can have scrolled, and the game can have moved to another shelf.
+  useLayoutEffect(() => {
+    if (!closing) return;
+    const card = flightRef.current;
+    const inner = innerRef.current;
+    const source = findCase(caseId);
+
+    const done = () => onClosedRef.current();
+
+    if (card === null || inner === null || source === null || prefersReducedMotion()) {
+      done();
+      return;
+    }
+
+    const rect = source.getBoundingClientRect();
+    const offScreen =
+      rect.width === 0 ||
+      rect.bottom <= 0 ||
+      rect.right <= 0 ||
+      rect.top >= window.innerHeight ||
+      rect.left >= window.innerWidth;
+    if (offScreen) {
+      done();
+      return;
+    }
+
+    const invert = invertTo(rect, card.getBoundingClientRect());
+    // This render put the card back into 3D with no transform, which is
+    // rotateY(0) — the front face. It is showing the back, so pin it before the
+    // browser paints.
+    inner.style.transform = "rotateY(180deg)";
+
+    const options: KeyframeAnimationOptions = {
+      duration: DURATION_MS,
+      easing: EASING,
+      fill: "forwards",
+    };
+    const travel = card.animate([{ transform: "none" }, { transform: invert }], options);
+    const flip = inner.animate(
+      [{ transform: "rotateY(180deg)" }, { transform: "rotateY(0deg)" }],
+      options
+    );
+
+    Promise.all([travel.finished, flip.finished])
+      .then(done)
+      .catch(() => {});
+
+    return () => {
+      travel.cancel();
+      flip.cancel();
+    };
+  }, [closing, caseId]);
+
+  const close = useCallback(() => setClosing(true), []);
+
+  return { flightRef, innerRef, phase, close };
+}
