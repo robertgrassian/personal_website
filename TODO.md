@@ -41,9 +41,9 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       moment that rename is live in prod: it exists so the deploy shipping it can build against a
       production still on the old prefix.
 
-- [ ] **There probably should not be two game modals. Merge `AddGameModal` and `EditGameModal` into
-      one.** Sequence with **When adding a game, let me say I'm playing it now**, **Make library and
-      wishlist entries fully editable** and **Make viewing a game's details better**.
+- [ ] **`AddGameModal` is the last dialog left. Decide whether adding a game moves onto the detail
+      card too.** No longer a merge of two: the other dialogs were deleted 2026-08-20. Sequence with
+      **When adding a game, let me say I'm playing it now**.
       [Details](docs/todo/merge-game-modals.md)
 
 - [ ] **Audit the genre vocabulary, fix the wrong values in the database with a script, and stop
@@ -71,15 +71,12 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       actions**; possibly with a link, per **An easy way to view a game's sessions**.
       [Details](docs/todo/session-log-confirmation-toast.md)
 
-- [ ] **An easy way to view a game's sessions, and ideally edit old ones.**
-      [Details](docs/todo/view-and-edit-sessions.md)
+- [ ] **An easy way to view a game's sessions, and ideally edit old ones.** The reading surface it
+      wanted now exists: the list goes under the divider on the detail card. What is missing is
+      backend, there being no sessions GET at all. [Details](docs/todo/view-and-edit-sessions.md)
 
 - [ ] **Logging a past session should pick the whole range in one calendar popup.**
       [Details](docs/todo/past-session-date-range-picker.md)
-
-- [ ] **Make viewing a game's details better: the back of the case truncates genres and there is no
-      way to see the rest. Design is part of this task.**
-      [Details](docs/todo/game-details-view.md)
 
 - [ ] **Set up monitoring / alerting, specifically to get notified when a new user signs up for the
       game library.** Decide together with **Analytics on signups**.
@@ -100,9 +97,9 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 - [ ] **Give library games a "notes" field, like wishlist entries already have, then grow it into a
       real play journal.** [Details](docs/todo/game-notes-play-journal.md)
 
-- [ ] **Make library and wishlist entries fully editable.** The "keep the two edit modals 1:1" half
-      needs re-deciding: the wishlist dialog deliberately stopped duplicating the library's fields
-      2026-08-19. Would unblock **Audit the genre vocabulary**.
+- [ ] **Make library and wishlist entries fully editable.** Now just the shared `game_metadata`
+      question: name, genres, release date, cover art. The per-entry fields all landed by
+      2026-08-20. Would unblock **Audit the genre vocabulary**.
       [Details](docs/todo/fully-editable-entries.md)
 
 - [ ] **Fold "+ Add to wishlist" into a single "+ Add game" that picks its destination.** Collides

@@ -1,4 +1,4 @@
-# Make library and wishlist entries fully editable, and keep the two edit modals 1:1.
+# Make library and wishlist entries fully editable.
 
 _Section: **Backlog / Ideas** &middot; index: [`TODO.md`](../../TODO.md)_
 
@@ -22,12 +22,13 @@ and a wrong genre can only be fixed by `scripts/backfill_genres.py`. `EditWishli
 starred/notes/system plus promote and delete (`PATCH /api/library/me/wishlist/{id}`), and the promote
 step is still the only place a wishlist item's system gets set.
 
-_Want:_ edit essentially every field, with the same form wherever it appears. **Re-decide the "1:1
-modals" framing first**: the wishlist dialog deliberately no longer duplicates the library's fields,
-so "keep the two edit modals 1:1" may now be the wrong goal, and the question is whether starred and
-notes should move INTO `EditGameModal` as wishlist-only fields rather than the reverse. Note also
-that starred still writes on click while everything in the library dialog waits for Save, which is
-the last per-field write left in either dialog.
+**The "1:1 modals" framing is moot** (2026-08-20). There are no modals: both were deleted when the
+detail card absorbed them, and their bodies are now `GameEditFields` and `WishlistEditFields`, which
+the one card renders per subject. The same pass gave the wishlist half a **system** field
+(`updateWishlistItem` already accepted it) and made **starred** a draft behind the shared Save, so
+the last per-field write in either form is gone.
+
+_What is left:_ the shared `game_metadata` question below — name, genres, release date, cover art.
 
 _Work:_ extend `GameUpdate` past rating and system, following the same router → service → repository
 path `update_game_system` took, and extend `WishlistUpdate` past starred/notes/system. The "lift the

@@ -33,10 +33,9 @@ reopening a closed session by clearing its end date walks straight into that. De
 session of a currently-playing game also silently un-plays it, which is a visible change to the CRT
 and worth confirming in the UI rather than just doing.
 
-_Where it lives is open._ Options: a section in the edit modal (owner-only, closest to where
-sessions are created), or part of the richer game-details view that the "make viewing a game's
-details better" item is already circling — that item wants a bigger reading surface, and so
-does this. Editing pushes it toward the bigger surface: a list of rows each with two dates and a
-delete is more than the edit modal comfortably holds. Related: the "notes / play journal" item
+_Where it lives is settled_ (2026-08-20): under the divider on the detail card, which is the bigger
+reading surface this was waiting for. `GameDetailCard` carries a comment pointing back here. The edit
+modals it used to name are gone. What remains is entirely backend: the GET below, plus a real
+`SessionUpdate` and a `DELETE` for the editing half. Related: the "notes / play journal" item
 floats hanging dated entries off `play_sessions` rather than the game row, which would make this the
 same screen; and the audit-log/undo item is the safety net for a mis-clicked session delete.
