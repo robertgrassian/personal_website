@@ -7,9 +7,14 @@ import type { CardOrigin } from "./LibraryCardContext";
 // The two levers for how the flight feels. Slow enough that the case reads as
 // a case — you should have time to see the cover, the spine and the turn —
 // rather than as a panel that appeared.
-const DURATION_MS = 850;
-// Quick out of the shelf, long settle at the end.
-const EASING = "cubic-bezier(0.22, 0.68, 0.24, 1)";
+const DURATION_MS = 760;
+// Most of the time goes on the turn, not on settling. The curve this replaced,
+// cubic-bezier(0.22, 0.68, 0.24, 1), was 98.5% complete at 75% of the way
+// through: the last ~200ms moved almost nothing, which read as dragging at the
+// end AND as stutter, since near-zero motion spread over many frames shows up
+// as sub-pixel steps. This one is ~91% at the same point, so the tail carries
+// real movement.
+const EASING = "cubic-bezier(0.25, 0.1, 0.55, 1)";
 
 export type FlightPhase = "flight" | "rest";
 
