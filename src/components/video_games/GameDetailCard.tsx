@@ -77,6 +77,8 @@ export function GameDetailCard({
 }: GameDetailCardProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
+  const source = subject.kind === "game" ? subject.game : subject.item;
+
   // `close` runs the return flight and calls onClose when it lands, so every
   // way out of the card — the X, Escape, the backdrop, a delete — flies back
   // rather than vanishing.
@@ -84,9 +86,8 @@ export function GameDetailCard({
     origin,
     caseId,
     onClosed: onClose,
+    debugSubject: source.name,
   });
-
-  const source = subject.kind === "game" ? subject.game : subject.item;
   const ratingEntry =
     subject.kind === "game" && subject.game.rating
       ? RATINGS.find((r) => r.name === subject.game.rating)

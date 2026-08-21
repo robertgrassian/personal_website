@@ -40,6 +40,8 @@ type UseCardFlightArgs = {
   caseId: string | null;
   // Called once the return flight has landed, to unmount the card.
   onClosed: () => void;
+  // Names this card in the dev frame-time readout. Nothing reads it otherwise.
+  debugSubject?: string;
 };
 
 function prefersReducedMotion(): boolean {
@@ -73,7 +75,7 @@ function invertTo(rect: CardOrigin, card: DOMRect): string {
  *  make awkward: two elements starting on the same frame with one shared curve,
  *  a callback at the end to drop out of 3D, and reversing a close from wherever
  *  the open had got to. */
-export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
+export function useCardFlight({ origin, caseId, onClosed, debugSubject = "" }: UseCardFlightArgs) {
   const flightRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [settled, setSettled] = useState(false);
@@ -124,7 +126,7 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
       ...timing,
       easing: EASING_TURN,
     });
-    const stopRecording = recordFlight("open");
+    const stopRecording = recordFlight("open", debugSubject);
 
     Promise.all([travel.finished, flip.finished])
       .then(() => {
@@ -224,7 +226,7 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
       ...timing,
       easing: EASING_TURN,
     });
-    const stopRecording = recordFlight("close");
+    const stopRecording = recordFlight("close", debugSubject);
 
     Promise.all([travel.finished, flip.finished])
       .then(() => {

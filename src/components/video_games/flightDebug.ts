@@ -10,6 +10,12 @@
 
 type Sample = { label: string; frames: number[] };
 
+// Which cards have been opened already this page load. The first open of a
+// given card has to build its blurred texture at card size; every open after
+// that can reuse it. If the stutter only ever lands on a first open, the fix is
+// to pay that cost before the click rather than during it.
+const opened = new Set<string>();
+
 let enabled: boolean | null = null;
 
 function isEnabled(): boolean {
@@ -81,8 +87,9 @@ function report({ label, frames }: Sample): void {
 
 /** Starts sampling frames; the returned function stops and reports. A no-op
  *  unless this is a dev build with ?flightdebug in the URL. */
-export function recordFlight(label: string): () => void {
+export function recordFlight(label: string, subject = ""): () => void {
   if (!isEnabled()) return () => {};
+  const key = `${label}:${subject}`;
   const frames: number[] = [];
   let raf = requestAnimationFrame(function tick(t) {
     frames.push(t);
@@ -90,6 +97,16 @@ export function recordFlight(label: string): () => void {
   });
   return () => {
     cancelAnimationFrame(raf);
-    report({ label, frames });
+    // Marked here rather than on the way in: React re-invokes the effect that
+    // starts this in development, and the discarded first run would otherwise
+    // claim the "first" label and leave every real open reported as a repeat.
+    // A cancelled run never reaches this line.
+    const firstTime = !opened.has(key);
+    opened.add(key);
+    const age = Math.round(performance.now() / 1000);
+    report({
+      label: `${label} ${subject} [${firstTime ? "FIRST open" : "repeat"}, page ${age}s old]`,
+      frames,
+    });
   };
 }
