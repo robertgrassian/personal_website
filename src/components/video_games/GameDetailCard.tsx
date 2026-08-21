@@ -45,10 +45,10 @@ function formatDate(iso: string): string {
 // column is now the whole detail surface, and the owner's edit form sits on it
 // under a divider. This replaces both edit dialogs.
 //
-// The immutable half sits directly on the blurred cover, in fixed light text,
-// because the overlay under it is dark in both color schemes. The edit half
-// brings its own solid shelf-colored sheet, because every form control is
-// styled from the shelf tokens and those assume that background.
+// The blurred cover carries the whole card, form controls included. Text is
+// fixed light rather than token-driven because the overlay under it is dark in
+// both color schemes, and the shelf tokens the controls are built from are
+// re-pointed to match, in .game-card-surface.
 //
 // v2, per docs/todo/view-and-edit-sessions.md: the played-sessions list belongs
 // under the divider. It needs a sessions GET that the API does not have yet.
@@ -138,10 +138,11 @@ export function GameDetailCard({
               </div>
 
               {editable && (
-                // The shelf-colored sheet the form controls need. Their tokens
-                // carry both color schemes; the scrim above does not, which is
-                // why the divider is also a change of surface.
-                <div className="border-t border-white/15 bg-shelf-bg/95 px-5 pb-5 pt-1 backdrop-blur-sm">
+                // Same surface as the block above, just a little deeper so the
+                // fields hold their contrast against a bright cover. The shelf
+                // tokens are re-pointed for this scrim in video-games.css, so
+                // the controls need no changes of their own.
+                <div className="border-t border-white/15 bg-black/20 px-5 pb-5 pt-1">
                   {subject.kind === "wishlist" ? (
                     <WishlistEditFields
                       item={subject.item}

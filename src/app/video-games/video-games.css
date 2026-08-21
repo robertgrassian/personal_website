@@ -271,6 +271,30 @@
   --back-blur: 14px;
   --back-img-opacity: 0.5;
   --back-overlay: 0.55;
+
+  /* The whole card is the back of the case, form controls included, so the
+     shelf tokens are re-pointed here instead of every control being restyled:
+     the field, button and label classes are all built from these variables, so
+     redefining them once moves the entire form onto the scrim.
+
+     One set of values for both color schemes, because the scrim is dark in
+     both — the same reasoning the 96px back face used when it hard-coded
+     text-gray-200. White at low alpha rather than flat greys so the blurred
+     cover still reads through the fields. */
+  --shelf-text: #f3f4f6;
+  --shelf-text-muted: #d1d5db;
+  --shelf-label: #e5e7eb;
+  --shelf-label-muted: #9ca3af;
+  --shelf-plank: rgba(255, 255, 255, 0.25);
+  --shelf-input: rgba(255, 255, 255, 0.14);
+  --shelf-input-border: rgba(255, 255, 255, 0.3);
+  --shelf-input-text: #f9fafb;
+  --shelf-input-placeholder: #cbd5e1;
+  --shelf-input-ring: #fbbf24;
+  --shelf-divider: rgba(255, 255, 255, 0.2);
+  /* Focus-ring offsets resolve against this, so it has to be the color that is
+     actually behind the field rather than the page's shelf background. */
+  --shelf-bg: #1a1a2e;
 }
 
 /* ── Currently Playing CRT ──
