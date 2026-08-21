@@ -119,8 +119,16 @@ export function ModalBackdrop({
   // transition needs the element painted at its start value first, and the
   // height measurement above already writes to this node on the same frame.
   //
+  // Layout, not passive, for the same reason as the measurement above: this
+  // node is created on a SECOND commit (the portal container is set in an
+  // effect) and carries its dim class with no inline opacity, so a passive
+  // effect can let that commit paint at full dim before the animation starts
+  // from zero — the page would flash dark, then fade in from nothing. React
+  // happens to flush the passive effect before paint here, so the flash does
+  // not currently show; that is its scheduling, not a guarantee.
+  //
   // Skipped under reduced motion, where the dim simply appears.
-  useEffect(() => {
+  useMeasureEffect(() => {
     const el = ref.current;
     if (el === null || fadeMs === null) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -133,7 +141,7 @@ export function ModalBackdrop({
     // set in an effect, so a mount-only version ran while the ref was still
     // null and never animated anything. `container` is assigned once, so this
     // still runs exactly once, on the render that first has a node.
-  }, [container, fadeMs]);
+  }, [container, fadeMs, useMeasureEffect]);
 
   if (!container) return null;
 

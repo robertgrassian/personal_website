@@ -74,6 +74,16 @@ function findCase(caseId: string | null): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-case-id="${CSS.escape(caseId)}"]`);
 }
 
+// Where the case VISUALLY is, which is the lifted inner element rather than the
+// button carrying the id: a child's transform does not move its ancestor's box,
+// so on a hovered case the button's rect sits 8px below the artwork. GameCase
+// measures the inner one on the way out, so the way back has to match it or the
+// card lands slightly low and snaps as it disappears.
+function caseArtRect(source: HTMLElement): DOMRect {
+  const inner = source.querySelector<HTMLElement>(".game-case-inner");
+  return (inner ?? source).getBoundingClientRect();
+}
+
 // The inverse transform that puts `card` exactly where `rect` is. Scale comes
 // from width alone: a card with real content is close enough to the case's 2:3
 // that the height lands within a few px, and the case is hidden on the same
@@ -109,6 +119,11 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
   // Latest-ref so the close effect does not re-run when the caller re-renders.
   const onClosedRef = useRef(onClosed);
   onClosedRef.current = onClosed;
+
+  // Read by the outbound completion below, which is mount-only and so cannot
+  // see `closing` through its own closure.
+  const closingRef = useRef(false);
+  closingRef.current = closing;
 
   // Outbound. Runs once: the card mounts, gets inverted onto the case before
   // paint, then animates to where it already is.
@@ -152,6 +167,12 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
     Promise.all([travel.finished, flip.finished])
       .then(() => {
         stopKeepAlive();
+        // A close that began before this finished already owns these elements:
+        // it has its own animations running on them and clears the inline
+        // transforms when it lands. Settling here would stomp the underlying
+        // value its animation reverts to when cancelled, which is the settle
+        // flash all over again on a fast open-then-close.
+        if (closingRef.current) return;
         // Commit the rest phase BEFORE releasing the fill, so the filled value
         // hands straight over to the CSS that replaces it with no frame in
         // between. At rest the inner drops its rotateY and so does the back
@@ -221,7 +242,7 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
       return;
     }
 
-    const rect = source.getBoundingClientRect();
+    const rect = caseArtRect(source);
     const offScreen =
       rect.width === 0 ||
       rect.bottom <= 0 ||
