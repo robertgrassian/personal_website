@@ -114,7 +114,7 @@ export function GameDetailCard({
       <div
         ref={flightRef}
         data-phase={phase}
-        className="game-card-flight game-card-scene pointer-events-auto min-w-0 max-h-full w-full max-w-sm"
+        className="game-card-flight game-card-scene pointer-events-auto min-w-0 max-h-full w-full max-w-md"
       >
         {/* The element that rotates. Separate from the one that travels, so
             neither transform has to be composed into the other. */}
