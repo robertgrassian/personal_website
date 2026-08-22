@@ -2,7 +2,12 @@
 
 import { useMemo } from "react";
 import { systemLabel, type Game } from "@/lib/games";
-import { formatSessionRange, sessionLengthDays, type PlaySession } from "@/lib/sessions";
+import {
+  formatSessionRange,
+  sessionLengthDays,
+  sessionsInLibrary,
+  type PlaySession,
+} from "@/lib/sessions";
 
 type PlayHistoryListProps = {
   sessions: PlaySession[];
@@ -73,7 +78,7 @@ export function PlayHistoryList({
     return <p className="py-6 text-center text-sm text-muted">Loading play history...</p>;
   }
 
-  const rows = sessions.filter((session) => gamesById.has(session.gameId));
+  const rows = sessionsInLibrary(sessions, new Set(gamesById.keys()));
 
   return (
     <>

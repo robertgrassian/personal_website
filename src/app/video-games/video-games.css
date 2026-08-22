@@ -364,11 +364,17 @@
   --shelf-divider: rgba(255, 255, 255, 0.2);
   /* Light enough to read on the scrim, in both schemes: red-600 is barely
      legible on #1a1a2e, and that is what a `dark:`-only pairing resolved to in
-     light mode. The tint is heavier here than on the shelf because it has to
-     register against a busy blurred cover. */
-  --shelf-danger: #fca5a5;
-  --shelf-danger-tint: rgba(252, 165, 165, 0.25);
-  --shelf-danger-tint-hover: rgba(252, 165, 165, 0.36);
+     light mode.
+
+     The FILL is a dark red while the text is a light one, rather than both
+     being pale. A pale fill lightens the scrim under the label, which then
+     needs an even paler text to clear contrast, and the pair lands on pink. A
+     dark fill keeps the background dark, so the text can stay a true red:
+     red-400 on this tint is 5.1:1, where red-400 on a red-300 tint was 4.1:1
+     and only red-300 cleared it. red-500 does not clear it on any tint here. */
+  --shelf-danger: #f87171;
+  --shelf-danger-tint: rgba(220, 38, 38, 0.24);
+  --shelf-danger-tint-hover: rgba(220, 38, 38, 0.33);
   /* Focus-ring offsets resolve against this, so it has to be the color that is
      actually behind the field rather than the page's shelf background. */
   --shelf-bg: #1a1a2e;

@@ -36,6 +36,20 @@ export function sessionsByGame(sessions: PlaySession[]): Map<number, PlaySession
   return grouped;
 }
 
+/** The sessions whose game is still in the library.
+ *
+ *  Sessions and games are two separately cached reads, so they can disagree:
+ *  deleting a game purges both tags server-side, but any client holding the
+ *  session list keeps its copy until something refetches. Every surface that
+ *  shows sessions filters through here, so a count and the list beside it
+ *  cannot report different numbers.
+ *
+ *  Takes the ids rather than the games so a caller that already built a lookup
+ *  does not build a second one. */
+export function sessionsInLibrary(sessions: PlaySession[], gameIds: Set<number>): PlaySession[] {
+  return sessions.filter((session) => gameIds.has(session.gameId));
+}
+
 // Parsed as UTC, like formatDate elsewhere: a bare YYYY-MM-DD parsed as local
 // time shifts a day backwards west of Greenwich.
 function parseIso(iso: string): Date {

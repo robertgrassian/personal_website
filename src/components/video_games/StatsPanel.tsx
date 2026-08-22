@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import type { Game } from "@/lib/games";
 import { GameStats } from "./GameStats";
 import { SqlQueryPanel } from "./SqlQueryPanel";
 import { ArrowLeftIcon, CloseIcon } from "@/components/Icon";
 import { useModalChrome } from "./useModalChrome";
 import { ModalBackdrop } from "./ModalBackdrop";
+import { sessionsInLibrary } from "@/lib/sessions";
 import { PlayHistoryList } from "./PlayHistoryList";
 import type { PlayHistoryState } from "./usePlayHistory";
 
@@ -42,6 +43,16 @@ export function StatsPanel({
 }: StatsPanelProps) {
   const [activeTab, setActiveTab] = useState<PanelTab>("overview");
   const [view, setView] = useState<PanelView>("stats");
+
+  // Counted from the same filtered set the list renders, not from the raw
+  // array. Deleting a game purges both cache tags server-side, but this panel
+  // never unmounts and holds its own copy of the sessions, so the deleted
+  // game's rows vanish from the list (PlayHistoryList drops sessions whose game
+  // is gone) while the raw length kept counting them.
+  const visibleSessions = useMemo(
+    () => sessionsInLibrary(playHistory.sessions, new Set(games.map((game) => game.id))),
+    [playHistory.sessions, games]
+  );
 
   const openHistory = () => {
     onRequestHistory();
@@ -113,9 +124,9 @@ export function StatsPanel({
               </h2>
               <p className="text-xs text-muted mt-0.5">
                 {view === "history"
-                  ? playHistory.sessions.length === 1
+                  ? visibleSessions.length === 1
                     ? "1 session"
-                    : `${playHistory.sessions.length} sessions`
+                    : `${visibleSessions.length} sessions`
                   : `${games.length} games total`}
               </p>
             </div>
