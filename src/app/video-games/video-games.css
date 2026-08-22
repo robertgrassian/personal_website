@@ -369,12 +369,17 @@
      The FILL is a dark red while the text is a light one, rather than both
      being pale. A pale fill lightens the scrim under the label, which then
      needs an even paler text to clear contrast, and the pair lands on pink. A
-     dark fill keeps the background dark, so the text can stay a true red:
-     red-400 on this tint is 5.1:1, where red-400 on a red-300 tint was 4.1:1
-     and only red-300 cleared it. red-500 does not clear it on any tint here. */
-  --shelf-danger: #f87171;
-  --shelf-danger-tint: rgba(220, 38, 38, 0.24);
-  --shelf-danger-tint-hover: rgba(220, 38, 38, 0.33);
+     dark fill keeps the background dark, which is what buys the text room to
+     be a deeper red.
+
+     These are at the floor, so do not darken them further without re-measuring.
+     The label is 12px, so it needs 4.5:1; this pair is 4.86:1 at rest and
+     4.57:1 on hover. One step darker (#f25555) drops hover to 4.27:1, and
+     red-500 fails against every fill tried here, bottoming out at 4.25:1 even
+     on red-800. */
+  --shelf-danger: #f45f5f;
+  --shelf-danger-tint: rgba(153, 27, 27, 0.26);
+  --shelf-danger-tint-hover: rgba(153, 27, 27, 0.36);
   /* Focus-ring offsets resolve against this, so it has to be the color that is
      actually behind the field rather than the page's shelf background. */
   --shelf-bg: #1a1a2e;
