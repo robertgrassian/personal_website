@@ -33,11 +33,14 @@ import {
   gamesTag,
   getFollowers,
   getFollowing,
+  getSessions,
   libraryCacheTag,
+  sessionsTag,
   wishlistTag,
 } from "@/lib/libraryApi";
 import { LIBRARY_OWNER_USERNAME, RATINGS, type NewGame, type Rating } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
+import type { PlaySession } from "@/lib/sessions";
 
 /** A cache-tag builder from src/lib/libraryApi: gamesTag, wishlistTag or
  *  followsTag. Writes name the resources they actually changed. */
@@ -252,6 +255,33 @@ export async function previewGameCatalog(
   });
 }
 
+/** The rows, or a message to put on screen. Not MutateResult, which carries no
+ *  data. */
+export type PlayHistoryResult =
+  | { ok: true; sessions: PlaySession[] }
+  | { ok: false; message: string };
+
+/** Read a library's whole play history.
+ *
+ *  The one READ here, because libraryApi imports server-only and the browser
+ *  cannot call it. It takes a username where every write above refuses to: this
+ *  data is public, exactly as public as the endpoint behind it.
+ *
+ *  Errors return a message rather than throwing. getSessions throws loudly by
+ *  design, but a panel that fails to load should say so in place instead of
+ *  taking the transition down with it. */
+export async function getPlayHistory(username: string): Promise<PlayHistoryResult> {
+  if (username.trim() === "") return { ok: false, message: "Could not load the play history." };
+  try {
+    return { ok: true, sessions: await getSessions(username) };
+  } catch (err) {
+    // Logged server-side where the cause is readable; production replaces
+    // action errors with an opaque digest, so the viewer gets the instruction.
+    console.error("Loading play history failed:", err);
+    return { ok: false, message: "Could not load the play history. Try again." };
+  }
+}
+
 /** Add a game to the library (from an IGDB pick or manual entry). */
 export async function addGame(game: NewGame): Promise<MutateResult> {
   const normalized = normalizeSharedFields(game);
@@ -266,7 +296,11 @@ export async function addGame(game: NewGame): Promise<MutateResult> {
 
 /** Remove a game from the library; its play sessions cascade away with it. */
 export async function deleteGame(gameId: number): Promise<MutateResult> {
-  return rejectBadId(gameId, "delete") ?? write(() => deleteMyGame(gameId), [gamesTag]);
+  return (
+    rejectBadId(gameId, "delete") ??
+    // sessionsTag too: the cascade deletes this game's sessions.
+    write(() => deleteMyGame(gameId), [gamesTag, sessionsTag])
+  );
 }
 
 /** Add a wishlist entry (IGDB pick or manual; only name is required). */
@@ -316,6 +350,14 @@ export type GameEdits = {
   stopSessionId?: number;
   stopDate?: string;
 };
+
+/** Which cached reads one Save invalidates. Always games; the history only
+ *  when a session was logged or closed, so a rating-only Save does not purge a
+ *  list it cannot have changed. */
+function sessionEditTags(edits: GameEdits): TagFor[] {
+  const touchesSessions = edits.session !== undefined || edits.stopSessionId !== undefined;
+  return touchesSessions ? [gamesTag, sessionsTag] : [gamesTag];
+}
 
 /** Validate the edits and turn them into the calls that apply them. Shared by
  *  saveGameEdits and promoteAndSave, so a promote carrying a rating obeys
@@ -388,7 +430,7 @@ export async function saveGameEdits(gameId: number, edits: GameEdits): Promise<M
   const calls = editCalls(gameId, edits);
   if (calls === null) return { ok: false, message: "Invalid edit." };
   if (calls.length === 0) return { ok: true };
-  return writeApplied(() => runInOrder(calls), [gamesTag]);
+  return writeApplied(() => runInOrder(calls), sessionEditTags(edits));
 }
 
 /** One press of Save on a wishlist entry being promoted: the move itself, plus
@@ -431,7 +473,9 @@ export async function promoteAndSave(
     }
     // The promote landed even when the follow-ups did not.
     return { result: (await runInOrder(calls)).result, applied: true };
-  }, [gamesTag, wishlistTag]);
+    // wishlistTag on top of a normal Save: a promote MOVES a row, so the
+    // wishlist loses an entry as the library gains one.
+  }, [...sessionEditTags(edits), wishlistTag]);
 }
 
 /** Follow a user. Revalidates BOTH libraries: the caller's following list grew

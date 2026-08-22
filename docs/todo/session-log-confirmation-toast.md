@@ -2,7 +2,7 @@
 
 _Section: **Backlog / Ideas** &middot; index: [`TODO.md`](../../TODO.md)_
 
-Possibly with a "view all sessions for {game}" link in it, per **"An easy way to view a game's sessions"**.
+Possibly with a "view all sessions for {game}" link in it, per **"Editing and deleting past sessions"**.
 
 _What happens today:_ on success `saveLoggedSession` collapses the form and clears the fields
 (`EditGameModal.tsx`) and the dialog stays open. So there is _a_ signal, just not an affirmative

@@ -30,6 +30,14 @@
   --shelf-control-label: #6b7280;
   --shelf-divider: #e0dbd4;
 
+  /* --- Destructive actions and error text ---
+     A token, not a Tailwind red, because three surfaces need three values: the
+     light shelf, the dark shelf, and the card, whose scrim is dark in BOTH
+     schemes. A `dark:` variant can only describe two of them. */
+  --shelf-danger: #dc2626;
+  --shelf-danger-tint: rgba(220, 38, 38, 0.14);
+  --shelf-danger-tint-hover: rgba(220, 38, 38, 0.24);
+
   /* --- Game case system fallback colors (shown when no cover art is available) ---
      Keyed on IGDB's platform names, which is what played_games.system stores
      since migration d1a83f6c25e7 — not on the shelf label, which systemLabel()
@@ -352,6 +360,16 @@
   --shelf-input-placeholder: #cbd5e1;
   --shelf-input-ring: #fbbf24;
   --shelf-divider: rgba(255, 255, 255, 0.2);
+  /* Dark fill, light text. A pale fill lightens the scrim under the label,
+     which then needs paler text to clear contrast, and the pair lands on pink.
+
+     At the contrast floor: the 12px label needs 4.5:1 and this is 4.86:1 at
+     rest, 4.57:1 on hover. One step darker (#f25555) drops hover to 4.27:1,
+     and red-500 fails on every fill, bottoming out at 4.25:1 on red-800.
+     Re-measure before darkening. */
+  --shelf-danger: #f45f5f;
+  --shelf-danger-tint: rgba(153, 27, 27, 0.26);
+  --shelf-danger-tint-hover: rgba(153, 27, 27, 0.36);
   /* Focus-ring offsets resolve against this, so it has to be the color that is
      actually behind the field rather than the page's shelf background. */
   --shelf-bg: #1a1a2e;
@@ -710,6 +728,11 @@
     --shelf-input-text: #ededed;
     --shelf-input-placeholder: #6b6560;
     --shelf-input-ring: #f59e0b;
+
+    /* --- Destructive actions and error text --- */
+    --shelf-danger: #f87171;
+    --shelf-danger-tint: rgba(248, 113, 113, 0.16);
+    --shelf-danger-tint-hover: rgba(248, 113, 113, 0.26);
 
     /* --- Filter bar chrome --- */
     --shelf-control-label: #9ca3af;

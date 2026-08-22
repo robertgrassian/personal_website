@@ -45,6 +45,23 @@ def list_play_sessions(db: Session, game_ids: Sequence[int]) -> list[PlaySession
     return list(db.execute(select(PlaySession).where(PlaySession.game_id.in_(game_ids))).scalars())
 
 
+def list_sessions_for_user(db: Session, user_id: uuid.UUID) -> list[PlaySession]:
+    """Every session across the user's whole library, newest first.
+
+    Starts from the user, unlike list_play_sessions above, so the play-history
+    read need not fetch the library first. The id tiebreak matches
+    derive_play_state, so "newest" means the same thing in both.
+    """
+    return list(
+        db.execute(
+            select(PlaySession)
+            .join(PlayedGame, PlayedGame.id == PlaySession.game_id)
+            .where(PlayedGame.user_id == user_id)
+            .order_by(PlaySession.start_date.desc(), PlaySession.id.desc())
+        ).scalars()
+    )
+
+
 def list_wishlist_items(db: Session, user_id: uuid.UUID) -> list[tuple[WishlistGame, GameMetadata]]:
     return list(
         db.execute(

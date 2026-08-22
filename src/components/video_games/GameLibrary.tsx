@@ -10,6 +10,7 @@ import { PeopleList } from "./PeopleList";
 import type { UserSummary } from "@/lib/follows";
 import { useGameLibraryUrlState } from "./useGameLibraryUrlState";
 import { useIsConfirmedOwner, useIsLikelyOwner } from "./FollowControls";
+import { usePlayHistory } from "./usePlayHistory";
 import { AddGameModal } from "./AddGameModal";
 import { GameDetailCard, type CardSubject } from "./GameDetailCard";
 import { ownedKey } from "./GameSearchStep";
@@ -44,6 +45,17 @@ export function GameLibrary({
 }: GameLibraryProps) {
   const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+
+  // The library's play history, fetched separately from the page and only once
+  // something asks to see it. Owned here rather than inside the panel that
+  // shows it because a session logged from a game card must refresh the same
+  // copy the stats panel is reading: the panel never unmounts (it slides), so a
+  // second, private copy would sit stale for the rest of the visit.
+  const [historyRequested, setHistoryRequested] = useState(false);
+  const playHistory = usePlayHistory(historyRequested);
+  // useCallback because GameDetailCard depends on it in an effect: a fresh
+  // arrow every render would re-run that effect on every render.
+  const requestHistory = useCallback(() => setHistoryRequested(true), []);
 
   // Owner check resolves client-side after hydration (the page HTML is static
   // and shared by all viewers). false until proven otherwise, so visitors never
@@ -359,6 +371,8 @@ export function GameLibrary({
             onAddGame={handleAddGame}
             statsOpen={statsOpen}
             onStatsClose={handleStatsClose}
+            playHistory={playHistory}
+            onRequestHistory={requestHistory}
           />
         ) : (
           <>
@@ -384,6 +398,8 @@ export function GameLibrary({
             isDark={expanded.isDark}
             origin={expanded.origin}
             caseId={expanded.kind === "promote" ? null : `${expanded.kind}-${expanded.id}`}
+            playHistory={playHistory}
+            onRequestHistory={requestHistory}
             onClose={closeCard}
           />
         )}

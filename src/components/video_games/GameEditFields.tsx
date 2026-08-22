@@ -8,7 +8,7 @@ import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
 import { SessionDateFields } from "./SessionDateFields";
-import { buttonClass, ghostButtonClass, saveButtonClass } from "./formStyles";
+import { buttonClass, saveButtonClass } from "./formStyles";
 import { SuggestInput } from "./SuggestInput";
 import { RequiredField } from "./RequiredField";
 
@@ -23,11 +23,14 @@ type GameEditFieldsProps = {
   subject: EditSubject;
   // Every system already on a shelf, for the suggestions below.
   existingSystems: string[];
-  // Opened from the wishlist's "Played?", which is already an assertion that
-  // you played it: the session fields start open and dated today, so Save is
-  // live on arrival. Without this the form opened with nothing pending and a
-  // dead Save, which reads as broken when you got here by answering "yes".
+  // Opened from "Played?", which already asserts the session, so it starts
+  // dated today and Save is live: arriving by answering "yes" to a dead Save
+  // reads as broken. Promote only now; an owned game opens its play history.
   startWithSession?: boolean;
+  // Swap the card to this game's play history. `stopping` pre-stages the
+  // close, so "Stop Playing" still commits through a Save. Never on a promote,
+  // which has no game row yet.
+  onOpenHistory: (options: { stopping: boolean }) => void;
   onClose: () => void;
 };
 
@@ -44,6 +47,7 @@ export function GameEditFields({
   subject,
   existingSystems,
   startWithSession = false,
+  onOpenHistory,
   onClose,
 }: GameEditFieldsProps) {
   const { isPending, error, run } = useServerAction();
@@ -58,19 +62,13 @@ export function GameEditFields({
   const [ratingDraft, setRatingDraft] = useState<Rating | "">(savedRating);
   const [systemDraft, setSystemDraft] = useState(savedSystem);
 
-  // Session draft. The fields are always visible; filling in a start date is
-  // what makes it a pending change.
-  // A game with a session already open must not have a second one staged: an
-  // end-less session is an OPEN one, and create_my_session refuses a second
-  // (AlreadyPlayingError). "Played?" on a game you are already playing is
-  // already true, so it stages nothing and the Stop Playing control below is
-  // the meaningful action.
-  const alreadyOpen = subject.kind === "game" && subject.game.openSessionId !== null;
-  const stageSession = startWithSession && !alreadyOpen;
-  const [sessionStart, setSessionStart] = useState(stageSession ? localToday() : "");
+  // Session draft, PROMOTE ONLY: promoteAndSave creates the row and logs the
+  // playthrough in one call, so there is no id to send a session to until this
+  // Save lands. An existing game logs from the play history view instead.
+  const [sessionStart, setSessionStart] = useState(
+    startWithSession && promoting ? localToday() : ""
+  );
   const [sessionEnd, setSessionEnd] = useState("");
-  // Stopping is a pending edit like any other, not an immediate write.
-  const [stopPending, setStopPending] = useState(false);
 
   const playing =
     !promoting && subject.game.currentlyPlaying && subject.game.openSessionId !== null;
@@ -84,23 +82,17 @@ export function GameEditFields({
   // Compared trimmed, so trailing whitespace alone is not a change. Empty is
   // never a change: a game must be filed under something.
   const systemDirty = systemDraft.trim() !== savedSystem && systemDraft.trim() !== "";
-  const sessionDirty = sessionStart !== "";
+  const sessionDirty = promoting && sessionStart !== "";
   // An end with no start is not "no session", it is a session whose start the
   // user has not given yet. Without this it silently vanished on Save, because
   // sessionDirty is false and nothing was ever sent.
   const endWithoutStart = sessionEnd !== "" && sessionStart === "";
   const datesInvalid =
     endWithoutStart || (sessionEnd !== "" && sessionStart !== "" && sessionEnd < sessionStart);
-  // Staging an end-less (open) session while one is already open is the 409
-  // above. Reachable by hand even when nothing was pre-staged.
-  const wouldDoubleOpen = sessionDirty && sessionEnd === "" && alreadyOpen && !stopPending;
-
   // A promote is itself the change, so Save is live from the moment the form
   // opens — it just needs a system, which played_games requires.
-  const hasChanges = promoting
-    ? systemDraft.trim() !== ""
-    : ratingDirty || systemDirty || sessionDirty || stopPending;
-  const canSave = hasChanges && !systemMissing && !datesInvalid && !wouldDoubleOpen && !isPending;
+  const hasChanges = promoting ? systemDraft.trim() !== "" : ratingDirty || systemDirty;
+  const canSave = hasChanges && !systemMissing && !datesInvalid && !isPending;
 
   const save = () => {
     const session = sessionDirty
@@ -126,20 +118,11 @@ export function GameEditFields({
         saveGameEdits(subject.game.id, {
           ...(ratingDirty ? { rating: ratingDraft } : {}),
           ...(systemDirty ? { system: systemDraft } : {}),
-          ...(session ? { session } : {}),
-          ...(stopPending && subject.game.openSessionId !== null
-            ? { stopSessionId: subject.game.openSessionId, stopDate: localToday() }
-            : {}),
         }),
       {
-        // Stays open: revalidated data flows back into `subject`, so the drafts
-        // above converge on it and the form shows what was just saved. Only
-        // the transient draft state has to be cleared by hand.
-        onSuccess: () => {
-          setSessionStart("");
-          setSessionEnd("");
-          setStopPending(false);
-        },
+        // Stays open: revalidated data flows back into `subject`, so the form
+        // shows what was just saved. No transient draft left to clear.
+        onSuccess: () => {},
       }
     );
   };
@@ -193,29 +176,52 @@ export function GameEditFields({
           />
         </RequiredField>
       </div>
-      {playing && !promoting && (
-        <div className="mt-4">
-          <p className="text-sm text-shelf-text">
-            Playing since <span className="font-medium">{subject.game.playingSince}</span>
+      {playing && (
+        <p className="mt-4 text-sm text-shelf-text">
+          Playing since <span className="font-medium">{subject.game.playingSince}</span>
+        </p>
+      )}
+
+      {promoting ? (
+        <>
+          {/* Wider gap than the other headings: this one closes the form. */}
+          <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
+            When Did You Play It?
           </p>
-          {stopPending ? (
-            <p className="mt-2 text-xs text-shelf-text">
-              Will be marked finished today when you save.{" "}
-              <button
-                type="button"
-                onClick={() => setStopPending(false)}
-                disabled={isPending}
-                className={ghostButtonClass}
-              >
-                Undo
-              </button>
-            </p>
-          ) : (
+          {/* Inline only while promoting; see the draft state above. */}
+          <SessionDateFields
+            startDate={sessionStart}
+            endDate={sessionEnd}
+            onChangeStart={setSessionStart}
+            onChangeEnd={setSessionEnd}
+            disabled={isPending}
+            problem={
+              endWithoutStart
+                ? "Add a start date, or clear the end date."
+                : datesInvalid
+                  ? "The end date is before the start date."
+                  : null
+            }
+          />
+        </>
+      ) : (
+        // Both open the same view, Stop Playing with the close staged. Neither
+        // writes on the press, so Save still owns every write.
+        <div className="mt-5 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenHistory({ stopping: false })}
+            disabled={isPending}
+            className={buttonClass}
+          >
+            View or add play history
+          </button>
+          {playing && (
             <button
               type="button"
-              onClick={() => setStopPending(true)}
+              onClick={() => onOpenHistory({ stopping: true })}
               disabled={isPending}
-              className={`mt-2 ${buttonClass}`}
+              className={buttonClass}
             >
               Stop Playing
             </button>
@@ -223,40 +229,42 @@ export function GameEditFields({
         </div>
       )}
 
-      {/* A wider gap than the other section headings get: this one can follow
-          the Stop Playing button, and at mt-5 the heading crowded it. */}
-      <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
-        Track a Played Session
-      </p>
-      {/* Always shown rather than behind a disclosure: a session is an
-          ordinary field of this form, and one fewer press to reach it.
-          Empty by default, which is what keeps Save honest — pre-filling
-          today here would leave every game looking like it had a pending
-          change. The "Played?" path fills it in, because arriving that way
-          has already asserted the session. */}
-      <SessionDateFields
-        startDate={sessionStart}
-        endDate={sessionEnd}
-        onChangeStart={setSessionStart}
-        onChangeEnd={setSessionEnd}
-        disabled={isPending}
-        problem={
-          endWithoutStart
-            ? "Add a start date, or clear the end date."
-            : datesInvalid
-              ? "The end date is before the start date."
-              : wouldDoubleOpen
-                ? "You are already playing this. Add an end date, or stop playing first."
-                : null
-        }
-      />
-
       {/* Always present, so there is one place to look for "did this save?".
           Disabled until something is actually pending. */}
       <div className="mt-5 border-t border-shelf-plank pt-3">
-        <button type="button" onClick={save} disabled={!canSave} className={saveButtonClass}>
-          {promoting ? "Save And Move To Library" : "Save"}
-        </button>
+        {/* ml-auto puts Remove at the far edge: Save is pressed constantly and
+            adjacent is what a destructive control must not be. flex-wrap plus
+            ConfirmStep's w-full drops the prompt onto its own line. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={save} disabled={!canSave} className={saveButtonClass}>
+            {promoting ? "Save And Move To Library" : "Save"}
+          </button>
+          {!promoting && (
+            <ConfirmStep
+              triggerLabel="Remove from library"
+              confirmLabel="Remove"
+              triggerVariant="subtle"
+              triggerClassName="ml-auto"
+              onConfirm={removeGame}
+              disabled={isPending}
+              prompt={
+                <>
+                  Remove <span className="font-medium">{source.name}</span>?
+                  {subject.game.sessionCount > 0 && (
+                    <span className="text-shelf-text-muted">
+                      {" "}
+                      This also deletes{" "}
+                      {subject.game.sessionCount === 1
+                        ? "its 1 logged session"
+                        : `its ${subject.game.sessionCount} logged sessions`}
+                      .
+                    </span>
+                  )}
+                </>
+              }
+            />
+          )}
+        </div>
         {systemMissing && (
           <p className="mt-1.5 text-[11px] text-shelf-text-muted">
             {promoting
@@ -268,37 +276,11 @@ export function GameEditFields({
             where it sat when the shell owned it: this is the control that
             failed, and on a long form the foot can be off screen. */}
         {error && (
-          <p role="alert" className="mt-2 text-xs text-red-500 dark:text-red-400">
+          <p role="alert" className="mt-2 text-xs text-shelf-danger">
             {error}
           </p>
         )}
       </div>
-
-      {!promoting && (
-        <div className="mt-3 border-t border-shelf-plank pt-2">
-          <ConfirmStep
-            triggerLabel="Remove from library"
-            confirmLabel="Remove"
-            onConfirm={removeGame}
-            disabled={isPending}
-            prompt={
-              <>
-                Remove <span className="font-medium">{source.name}</span>?
-                {subject.game.sessionCount > 0 && (
-                  <span className="text-shelf-text-muted">
-                    {" "}
-                    This also deletes{" "}
-                    {subject.game.sessionCount === 1
-                      ? "its 1 logged session"
-                      : `its ${subject.game.sessionCount} logged sessions`}
-                    .
-                  </span>
-                )}
-              </>
-            }
-          />
-        </div>
-      )}
     </>
   );
 }

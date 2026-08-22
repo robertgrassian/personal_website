@@ -4,6 +4,7 @@ import "server-only";
 import { API_PREFIX, LEGACY_API_PREFIX } from "./apiPrefix";
 import type { Game } from "./games";
 import type { WishlistGame } from "./wishlist";
+import type { PlaySession } from "./sessions";
 import type { LibraryProfile } from "./profile";
 import type { UserSummary } from "./follows";
 
@@ -83,6 +84,12 @@ export function gamesTag(username: string): string {
 
 export function wishlistTag(username: string): string {
   return `${libraryCacheTag(username)}:wishlist`;
+}
+
+// Separate from gamesTag even though a session write changes both: a rating
+// edit must not purge the larger, rarely read session list.
+export function sessionsTag(username: string): string {
+  return `${libraryCacheTag(username)}:sessions`;
 }
 
 // Covers the follower/following lists AND the profile, because the profile
@@ -241,6 +248,12 @@ async function fetchUserResource<T>(
 // derived by the API.
 export function getGames(username: string): Promise<Game[]> {
   return fetchUserResource<Game[]>(username, "/games", "games", gamesTag);
+}
+
+// Every session across the library, newest first. Kept off getGames, which
+// backs the prerendered /video-games page: fetched only when a history opens.
+export function getSessions(username: string): Promise<PlaySession[]> {
+  return fetchUserResource<PlaySession[]>(username, "/sessions", "play history", sessionsTag);
 }
 
 export function getWishlist(username: string): Promise<WishlistGame[]> {

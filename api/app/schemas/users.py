@@ -90,6 +90,21 @@ class WishlistGameRead(BaseGameRead):
     notes: str
 
 
+class PlaySessionRead(CamelModel):
+    """One row of a user's play history. Mirrors ``PlaySession``
+    (src/lib/sessions.ts).
+
+    ``endDate`` is null where this module's other absent scalars are "": an open
+    session is a state the UI branches on, not a missing value, and null matches
+    SessionCreate.endDate on the write path.
+    """
+
+    id: int
+    game_id: int
+    start_date: str  # ISO date; NOT NULL in the DB, so always set
+    end_date: str | None  # ISO date, or null while the session is open
+
+
 class ProfileRead(CamelModel):
     """Public profile: username, display name, follow counts. Deliberately no
     per-viewer state (am_i_following etc.) — spec §7.2, this payload is cached

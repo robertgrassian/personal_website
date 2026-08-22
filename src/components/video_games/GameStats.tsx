@@ -13,6 +13,8 @@ type GameStatsProps = {
   // the other) — see the comment there. Sort order does NOT depend on this: the
   // comparator ranks in-progress games first however they arrive.
   currentlyPlayingGames: Game[];
+  // Undefined renders no link, for a surface with no history view.
+  onSeeAllPlayed?: () => void;
 };
 
 function BarRow({
@@ -65,16 +67,29 @@ function StatCard({
   );
 }
 
-function StatsSection({ title, children }: { title: string; children: React.ReactNode }) {
+function StatsSection({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  /** Sits right after the heading text, not across the row: at panel width a
+   *  right-aligned link reads as the panel's, not this section's. */
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <section>
-      <h3 className="text-xs font-semibold uppercase tracking-widest text-subtle mb-3">{title}</h3>
+      <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h3 className="text-xs font-semibold uppercase tracking-widest text-subtle">{title}</h3>
+        {action}
+      </div>
       {children}
     </section>
   );
 }
 
-export function GameStats({ games, currentlyPlayingGames }: GameStatsProps) {
+export function GameStats({ games, currentlyPlayingGames, onSeeAllPlayed }: GameStatsProps) {
   const stats = useMemo(() => {
     const ratingMap = new Map<string, number>(RATINGS.map((r) => [r.name, 0]));
     ratingMap.set(UNRATED_LABEL, 0);
@@ -185,7 +200,20 @@ export function GameStats({ games, currentlyPlayingGames }: GameStatsProps) {
       </StatsSection>
 
       {stats.recentlyPlayed.length > 0 && (
-        <StatsSection title="Recently Played">
+        <StatsSection
+          title="Recently Played"
+          action={
+            onSeeAllPlayed && (
+              <button
+                type="button"
+                onClick={onSeeAllPlayed}
+                className="shrink-0 text-xs font-medium text-link hover:underline cursor-pointer"
+              >
+                See all
+              </button>
+            )
+          }
+        >
           <ol className="space-y-2">
             {stats.recentlyPlayed.map((game, i) => (
               <li key={game.name} className="flex items-center gap-3">

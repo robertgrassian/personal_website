@@ -1,0 +1,28 @@
+meta {
+  name: List a user's play history
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}{{apiPrefix}}/users/{{username}}/sessions
+  body: none
+  auth: none
+}
+
+docs {
+  Every play session across this user's whole library, newest first. Public,
+  like the library it describes: the derived play state already on each game
+  (`lastPlayed`, `currentlyPlaying`, `playingSince`, `sessionCount`) comes from
+  these same rows.
+
+  Each row is `id`, `gameId`, `startDate` and `endDate`. `endDate` is null while
+  the session is open, which is what makes the game currently playing.
+
+  Deliberately a separate call rather than a field on `/users/{username}/games`:
+  that payload backs the cached library page and should not carry every session
+  row for a detail most viewers never open.
+
+  - 200 a list of sessions, `[]` for a user who has logged none
+  - 404 no such username
+}

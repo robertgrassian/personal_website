@@ -99,7 +99,7 @@ export function ModalShell({
         )}
 
         {error && (
-          <p role="alert" className="mt-3 shrink-0 text-xs text-red-500 dark:text-red-400">
+          <p role="alert" className="mt-3 shrink-0 text-xs text-shelf-danger">
             {error}
           </p>
         )}

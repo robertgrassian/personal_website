@@ -6,7 +6,10 @@ import { fieldClass, ghostButtonClass } from "./formStyles";
 
 // Date inputs size to their content rather than filling the row, so they take
 // the shared tokens plus their own padding instead of `inputClass`.
-const dateInputClass = `${fieldClass} px-2 py-1`;
+//
+// The disabled styling is load-bearing: a disabled date input drops its
+// calendar glyph and changes nothing else, so the state read as a glitch.
+const dateInputClass = `${fieldClass} px-2 py-1 disabled:opacity-50 disabled:cursor-default`;
 
 // The shared labelClass unpacked into its two jobs, because the caption line
 // now holds a Clear button beside the text. It cannot stay one <label>: button
@@ -79,6 +82,9 @@ type SessionDateFieldsProps = {
   onChangeStart: (value: string) => void;
   onChangeEnd: (value: string) => void;
   disabled: boolean;
+  /** Disables the "To" field alone, for a caller whose own control already
+   *  answered whether the session has an end (the "still playing" checkbox). */
+  endDisabled?: boolean;
   /** What is wrong with the dates right now, or null. Rendered as the fields'
    *  description so the reason a disabled Save is disabled is announced, not
    *  just shown. */
@@ -94,6 +100,7 @@ export function SessionDateFields({
   onChangeStart,
   onChangeEnd,
   disabled,
+  endDisabled = false,
   problem,
 }: SessionDateFieldsProps) {
   const startRef = useNativeValueSync(startDate, onChangeStart);
@@ -135,9 +142,9 @@ export function SessionDateFields({
           />
         </div>
         <div className={fieldColumnClass}>
-          <div className={captionRowClass}>
+          <div className={`${captionRowClass}${endDisabled ? " opacity-50" : ""}`}>
             <label htmlFor={endId}>To</label>
-            {clearable && endDate !== "" && (
+            {clearable && !endDisabled && endDate !== "" && (
               <button type="button" onClick={() => onChangeEnd("")} className={clearButtonClass}>
                 Clear
               </button>
@@ -150,7 +157,7 @@ export function SessionDateFields({
             value={endDate}
             min={startDate || undefined}
             max={localToday()}
-            disabled={disabled}
+            disabled={disabled || endDisabled}
             onChange={(e) => onChangeEnd(e.target.value)}
             aria-invalid={problem !== null}
             aria-describedby={problem === null ? undefined : problemId}
@@ -163,7 +170,7 @@ export function SessionDateFields({
           every edit. aria-describedby is pointed here only while it exists, so
           it never references a missing node. */}
       {problem !== null && (
-        <p id={problemId} className="mt-1.5 text-[11px] text-red-600 dark:text-red-400">
+        <p id={problemId} className="mt-1.5 text-[11px] text-shelf-danger">
           {problem}
         </p>
       )}

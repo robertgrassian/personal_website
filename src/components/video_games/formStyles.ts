@@ -81,10 +81,25 @@ export const ghostButtonClass =
 // The confirm half of a destructive two-step. Outlined in red rather than
 // filled: it sits next to a Cancel button, and a filled red button next to a
 // neutral one reads as the default action, which this must never be.
+//
+// Shelf tokens, not red-600/red-400: this renders on the account page's light
+// shelf AND on the card's dark scrim, and a `dark:` pairing cannot tell those
+// apart.
 export const dangerButtonClass =
-  "rounded-md border border-red-600/50 dark:border-red-400/50 px-3 py-1.5 text-sm " +
-  "text-red-600 dark:text-red-400 hover:bg-red-600/10 transition-colors cursor-pointer " +
+  "rounded-md border border-shelf-danger/60 px-3 py-1.5 text-sm " +
+  "text-shelf-danger hover:bg-shelf-danger-tint transition-colors cursor-pointer " +
   "disabled:opacity-50 disabled:cursor-default";
+
+// A destructive trigger sharing a row with Save: smaller and tinted rather than
+// outlined, so the row keeps one obvious default action.
+//
+// Padding splits on pointer type, not a breakpoint: on touch it matches Save's
+// height, with a mouse it is visibly smaller. A 24px tap target is not the
+// "smaller" anyone wanted.
+export const dangerSubtleButtonClass =
+  "rounded-md bg-shelf-danger-tint px-2.5 py-2 pointer-fine:py-1 text-xs " +
+  "text-shelf-danger hover:bg-shelf-danger-tint-hover " +
+  "transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default";
 
 // The quiet text links in the library header's viewer-controls cluster: Sign
 // in / Sign out (AuthButton) and Account. Shared so the cluster cannot drift

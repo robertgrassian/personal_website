@@ -1,10 +1,10 @@
 "use client";
 
-import { useId, useRef, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import { RATINGS, systemLabel, type Game } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
-import { CloseIcon } from "@/components/Icon";
+import { ArrowLeftIcon, CloseIcon } from "@/components/Icon";
 import { ModalFrame } from "./ModalFrame";
 import { GameCaseBackSurface } from "./GameCaseBackSurface";
 import { GameCaseSpine } from "./GameCaseSpine";
@@ -12,6 +12,9 @@ import { DURATION_MS, useCardFlight } from "./useCardFlight";
 import type { CardOrigin } from "./LibraryCardContext";
 import { GameEditFields } from "./GameEditFields";
 import { WishlistEditFields } from "./WishlistEditFields";
+import { GamePlayHistory } from "./GamePlayHistory";
+import { sessionsByGame } from "@/lib/sessions";
+import type { PlayHistoryState } from "./usePlayHistory";
 
 /** Which of the three things the card is showing. A viewer's card is NOT a
  *  fourth kind: it is `game` with the edit region simply not rendered, so
@@ -42,6 +45,11 @@ type GameDetailCardProps = {
   // The source case, hidden while the card is out and re-measured on the way
   // back. null for a promote, which has no case.
   caseId: string | null;
+  // Owned by GameLibrary so one copy serves every surface; narrowed here to
+  // the game on screen.
+  playHistory: PlayHistoryState;
+  // Triggers the fetch. See usePlayHistory.
+  onRequestHistory: () => void;
   onClose: () => void;
 };
 
@@ -61,8 +69,9 @@ function formatDate(iso: string): string {
 // both color schemes, and the shelf tokens the controls are built from are
 // re-pointed to match, in .game-card-surface.
 //
-// v2, per docs/todo/view-and-edit-sessions.md: the played-sessions list belongs
-// under the divider. It needs a sessions GET that the API does not have yet.
+// Two faces, not two dialogs: the play history swaps this card's scrolling
+// region for a session list plus an add form. A second ModalFrame would mean
+// two focus traps, two Escape handlers and a backdrop over a backdrop.
 export function GameDetailCard({
   subject,
   canEdit,
@@ -73,11 +82,34 @@ export function GameDetailCard({
   isDark,
   origin,
   caseId,
+  playHistory,
+  onRequestHistory,
   onClose,
 }: GameDetailCardProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const source = subject.kind === "game" ? subject.game : subject.item;
+
+  // null = the detail face. `stopping` remembers which button opened the
+  // history, so "Stop Playing" arrives with the close staged. Answering
+  // "Played?" on a game already owned opens straight into it: that IS a
+  // session.
+  const [history, setHistory] = useState<{ stopping: boolean } | null>(
+    startWithSession && subject.kind === "game" ? { stopping: false } : null
+  );
+  const openHistory = ({ stopping }: { stopping: boolean }) => {
+    onRequestHistory();
+    setHistory({ stopping });
+  };
+
+  // The initializer covers a card that MOUNTS on "Played?". This covers the
+  // other way in: for a game already owned the subject swaps from wishlist to
+  // game IN PLACE, so nothing remounts and no initializer re-runs.
+  useEffect(() => {
+    if (!startWithSession || subject.kind !== "game") return;
+    onRequestHistory();
+    setHistory({ stopping: false });
+  }, [startWithSession, subject.kind, onRequestHistory]);
 
   // `close` runs the return flight and calls onClose when it lands, so every
   // way out of the card — the X, Escape, the backdrop, a delete — flies back
@@ -202,13 +234,33 @@ export function GameDetailCard({
               aria-labelledby={titleId}
               className="relative z-10 flex min-h-0 flex-1 flex-col focus:outline-none"
             >
-              <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-4">
-                <h2 id={titleId} className="min-w-0 text-lg font-bold leading-tight text-white">
+              {/* Three slots, the left one always present and as wide as the
+                  close button, so the title stays centred whether or not the
+                  back arrow shows. The negative margins buy a 44px touch target
+                  without growing the header row. */}
+              <div className="flex shrink-0 items-start gap-2 px-5 pt-4">
+                <div className="-my-2 -ml-2 flex h-11 w-11 shrink-0 items-center justify-center sm:-my-1 sm:-ml-1 sm:h-9 sm:w-9">
+                  {history !== null && (
+                    <button
+                      type="button"
+                      onClick={() => setHistory(null)}
+                      aria-label="Back to game details"
+                      className="flex h-full w-full items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                    >
+                      <ArrowLeftIcon className="h-6 w-6 sm:h-5 sm:w-5" aria-hidden />
+                    </button>
+                  )}
+                </div>
+                {/* min-w-0 so a long title wraps instead of pushing the close
+                    button off the card. */}
+                <h2
+                  id={titleId}
+                  className="min-w-0 flex-1 text-center text-lg font-bold leading-tight text-white"
+                >
                   {source.name}
                 </h2>
-                {/* 44px touch target on phones. The negative margins eat back into the
-                  header padding, so the bigger button neither moves the icon nor
-                  grows the header row. */}
+                {/* 44px touch target on phones; the negative margins keep it
+                    from growing the header row. */}
                 <button
                   type="button"
                   onClick={close}
@@ -222,58 +274,82 @@ export function GameDetailCard({
               {/* The card's one scrolling part. overscroll-contain keeps a flick
                 at the end of the form off the library behind it. */}
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
-                <div className="px-5 pb-4 pt-2">
-                  <p className="text-sm font-medium text-gray-100">{systemLabel(source.system)}</p>
-                  <p className="mt-0.5 text-xs text-gray-300">
-                    Released {formatDate(source.releaseDate)}
-                  </p>
-                  {ratingEntry && (
-                    <p className="mt-2 text-sm font-semibold text-gray-100">★ {ratingEntry.name}</p>
-                  )}
-                  {starred && (
-                    <p className="mt-2 text-sm font-semibold text-amber-300">★ Starred</p>
-                  )}
-                  {/* Every genre, wrapped. The 96px face could show two and
+                {history !== null && subject.kind === "game" ? (
+                  // Reached only from the owner-only region below, so no
+                  // permission check here. Sessions are narrowed from the one
+                  // whole-library fetch, so this costs no extra request.
+                  <div className="px-5 pb-4 pt-1">
+                    <GamePlayHistory
+                      game={subject.game}
+                      sessions={sessionsByGame(playHistory.sessions).get(subject.game.id) ?? []}
+                      isLoading={playHistory.isLoading}
+                      error={playHistory.error}
+                      startToday={startWithSession}
+                      startStopping={history.stopping}
+                      onSaved={playHistory.refresh}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div className="px-5 pb-4 pt-2">
+                      <p className="text-sm font-medium text-gray-100">
+                        {systemLabel(source.system)}
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-300">
+                        Released {formatDate(source.releaseDate)}
+                      </p>
+                      {ratingEntry && (
+                        <p className="mt-2 text-sm font-semibold text-gray-100">
+                          ★ {ratingEntry.name}
+                        </p>
+                      )}
+                      {starred && (
+                        <p className="mt-2 text-sm font-semibold text-amber-300">★ Starred</p>
+                      )}
+                      {/* Every genre, wrapped. The 96px face could show two and
                     counted the rest in text you could not open, which is the
                     whole reason this surface exists. */}
-                  {source.genres.length > 0 && (
-                    <ul className="mt-3 flex flex-wrap gap-1.5">
-                      {source.genres.map((genre) => (
-                        <li
-                          key={genre}
-                          className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] text-gray-100"
-                        >
-                          {genre}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                      {source.genres.length > 0 && (
+                        <ul className="mt-3 flex flex-wrap gap-1.5">
+                          {source.genres.map((genre) => (
+                            <li
+                              key={genre}
+                              className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] text-gray-100"
+                            >
+                              {genre}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
 
-                {editable && (
-                  // One surface all the way down. The fields carry their own
-                  // translucent backgrounds (the shelf tokens are re-pointed
-                  // for this scrim in video-games.css), so a second, darker
-                  // panel behind them only split the card into two halves. If
-                  // a bright cover ever costs the labels their contrast,
-                  // --back-overlay is the lever, not another layer.
-                  <div className="border-t border-white/15 px-5 pb-4 pt-1">
-                    {subject.kind === "wishlist" ? (
-                      <WishlistEditFields
-                        item={subject.item}
-                        existingSystems={existingSystems}
-                        onPlayed={onPlayed}
-                        onClose={close}
-                      />
-                    ) : (
-                      <GameEditFields
-                        subject={subject}
-                        existingSystems={existingSystems}
-                        startWithSession={startWithSession}
-                        onClose={close}
-                      />
+                    {editable && (
+                      // One surface all the way down. The fields carry their own
+                      // translucent backgrounds (the shelf tokens are re-pointed
+                      // for this scrim in video-games.css), so a second, darker
+                      // panel behind them only split the card into two halves. If
+                      // a bright cover ever costs the labels their contrast,
+                      // --back-overlay is the lever, not another layer.
+                      <div className="border-t border-white/15 px-5 pb-4 pt-1">
+                        {subject.kind === "wishlist" ? (
+                          <WishlistEditFields
+                            item={subject.item}
+                            existingSystems={existingSystems}
+                            onPlayed={onPlayed}
+                            onClose={close}
+                          />
+                        ) : (
+                          <GameEditFields
+                            subject={subject}
+                            existingSystems={existingSystems}
+                            startWithSession={startWithSession}
+                            onOpenHistory={openHistory}
+                            onClose={close}
+                          />
+                        )}
+                      </div>
                     )}
-                  </div>
+                  </>
                 )}
               </div>
             </div>
