@@ -22,8 +22,8 @@ import {
   FollowCountLinksFallback,
 } from "@/components/video_games/FollowCountLinks";
 import { SignupCta } from "@/components/video_games/SignupCta";
-import { FeedbackFooter } from "@/components/video_games/FeedbackFooter";
 import { headerLinkClass } from "@/components/video_games/formStyles";
+import { NEW_ISSUE_URL } from "@/lib/feedback";
 
 // One library page, two routes: /video-games (Robert's shelf, at its stable
 // URL) and /video-games/u/[username] (anyone's). Extracted so the two can never
@@ -203,6 +203,20 @@ export async function LibraryPage({
                 the identity block. */}
             <div className="order-first flex flex-wrap items-center gap-x-3 gap-y-1 sm:order-none sm:flex-nowrap">
               <BackToMyLibrary />
+              {/* Feedback goes here rather than in a page footer: a library is
+                  long, and someone who just hit a bug is not going to scroll
+                  past every shelf to report it. Plain <a>, not next/link,
+                  because the target is off-site. */}
+              <a
+                href={NEW_ISSUE_URL}
+                target="_blank"
+                // Without noopener the opened tab holds a window.opener handle
+                // back to this one and can navigate it elsewhere.
+                rel="noopener noreferrer"
+                className={headerLinkClass}
+              >
+                Suggestion/Issue?
+              </a>
               {/* Always rendered, hidden from signed-out visitors by CSS on the
                   pre-paint flag — the same mechanism AuthButton uses, so the
                   cluster never pops in a beat after paint. The page itself
@@ -227,10 +241,6 @@ export async function LibraryPage({
               following={following}
             />
           </Suspense>
-
-          {/* Outside the Suspense boundary above: the footer reads no search
-              params, so nothing about it should wait on GameLibrary. */}
-          <FeedbackFooter />
         </div>
       </FollowStateProvider>
     </main>
