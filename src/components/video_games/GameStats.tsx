@@ -13,8 +13,7 @@ type GameStatsProps = {
   // the other) — see the comment there. Sort order does NOT depend on this: the
   // comparator ranks in-progress games first however they arrive.
   currentlyPlayingGames: Game[];
-  // Opens the full play history. Undefined renders no link, which is what a
-  // surface without a history view (there is none today) would get.
+  // Undefined renders no link, for a surface with no history view.
   onSeeAllPlayed?: () => void;
 };
 
@@ -74,11 +73,8 @@ function StatsSection({
   children,
 }: {
   title: string;
-  /** Optional control, placed immediately after the heading text rather than
-   *  across the row from it: at panel width a right-aligned link reads as
-   *  belonging to the panel, not to this section. Only "Recently Played" uses
-   *  one; the heading keeps its own margin when there is none, so the other
-   *  sections render exactly as before. */
+  /** Sits right after the heading text, not across the row: at panel width a
+   *  right-aligned link reads as the panel's, not this section's. */
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {

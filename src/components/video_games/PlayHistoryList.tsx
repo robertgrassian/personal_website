@@ -11,27 +11,24 @@ import {
 
 type PlayHistoryListProps = {
   sessions: PlaySession[];
-  // Every game in the library, to put a name against each session's gameId.
-  // The whole array rather than a prebuilt map: the caller has it in hand and
-  // this component is the only place that needs the lookup.
+  // To put a name against each session's gameId. The whole array because the
+  // caller has it and this is the only place that needs the lookup.
   games: Game[];
   isLoading: boolean;
   error: string | null;
-  // What to say when there are no sessions at all. Differs by surface: an owner
-  // who has logged nothing is being invited to start, a visitor is being told
-  // there is nothing here.
+  // Differs by surface: an owner is invited to start, a visitor is told there
+  // is nothing here.
   emptyMessage: string;
 };
 
 // One session as a row: what was played, when, and for how long.
 //
-// The per-game view has its own row rather than reusing this one: it is on the
-// card's blurred cover and takes the shelf tokens, and it never names the game,
-// which is the card you are already looking at. The formatting both share lives
-// in lib/sessions.ts, which is the part worth keeping in step.
+// The per-game view has its own row: it sits on the card's scrim, takes the
+// shelf tokens, and never names the game. The shared part is the formatting, in
+// lib/sessions.ts.
 //
-// Not a table. The three values are one sentence about one session, and a table
-// would need a horizontal scroller inside a 560px panel to hold them.
+// Not a table: three values are one sentence, and a table would need a
+// horizontal scroller inside a 560px panel.
 function SessionRow({
   session,
   gameName,
@@ -68,10 +65,7 @@ export function PlayHistoryList({
   error,
   emptyMessage,
 }: PlayHistoryListProps) {
-  // Rebuilt only when the library changes, not on every render of a scrolling
-  // list. A session naming a game that is gone is skipped below rather than
-  // rendered nameless: the two reads are separately cached, so a delete can
-  // land in one before the other.
+  // Rebuilt only when the library changes, not on every render of a long list.
   const gamesById = useMemo(() => new Map(games.map((game) => [game.id, game])), [games]);
 
   if (isLoading && sessions.length === 0) {

@@ -37,9 +37,8 @@ type ConfirmStepProps = {
   confirmDisabled?: boolean;
   /** Extra classes for the trigger, for the callers that need `mt-3 block`. */
   triggerClassName?: string;
-  /** How the trigger looks. "outlined" is the standalone default; "subtle" is
-   *  the smaller tinted one, for a trigger sharing a row with a Save button
-   *  that has to stay the row's obvious default action. */
+  /** "outlined" standalone; "subtle" is smaller and tinted, for a trigger
+   *  sharing a row with a Save that must stay the default action. */
   triggerVariant?: "outlined" | "subtle";
 };
 

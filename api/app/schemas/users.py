@@ -94,14 +94,9 @@ class PlaySessionRead(CamelModel):
     """One row of a user's play history. Mirrors ``PlaySession``
     (src/lib/sessions.ts).
 
-    ``endDate`` is null, not "", where every other absent scalar in this module
-    is "": an open session is a real state the UI branches on ("currently
-    playing"), not a missing value, and null is the same shape the write path
-    already uses for it (SessionCreate.endDate).
-
-    ``gameId`` is what lets one whole-library fetch serve both the per-game
-    history and the across-games one, the way the filter pipeline narrows the
-    games array in the browser.
+    ``endDate`` is null where this module's other absent scalars are "": an open
+    session is a state the UI branches on, not a missing value, and null matches
+    SessionCreate.endDate on the write path.
     """
 
     id: int

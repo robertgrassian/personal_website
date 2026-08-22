@@ -255,37 +255,28 @@ export async function previewGameCatalog(
   });
 }
 
-/** The answer to "load this library's play history": the rows, or a message to
- *  put on screen. Not MutateResult — that shape carries no data, and this is
- *  the one read in this file. */
+/** The rows, or a message to put on screen. Not MutateResult, which carries no
+ *  data. */
 export type PlayHistoryResult =
   | { ok: true; sessions: PlaySession[] }
   | { ok: false; message: string };
 
 /** Read a library's whole play history.
  *
- *  The one READ among this file's writes, and it is here for a different reason
- *  than they are: libraryApi imports server-only, so the browser cannot call it
- *  and a Server Action is the way across. The data itself is public, exactly as
- *  public as GET /users/{username}/sessions, so this takes a username argument
- *  where every write above deliberately refuses to.
+ *  The one READ here, because libraryApi imports server-only and the browser
+ *  cannot call it. It takes a username where every write above refuses to: this
+ *  data is public, exactly as public as the endpoint behind it.
  *
- *  Fetched on demand rather than with the page: the library payload is
- *  prerendered and cached, and carrying every session row would grow it for a
- *  detail most viewers never open. The read is tagged, so repeat opens are
- *  served from the cache until a session write purges it.
- *
- *  Errors come back as a message rather than thrown. getSessions throws loudly
- *  by design (an unreachable API should be obvious), but a panel that fails to
- *  load should say so in place, not take the transition down with it. */
+ *  Errors return a message rather than throwing. getSessions throws loudly by
+ *  design, but a panel that fails to load should say so in place instead of
+ *  taking the transition down with it. */
 export async function getPlayHistory(username: string): Promise<PlayHistoryResult> {
   if (username.trim() === "") return { ok: false, message: "Could not load the play history." };
   try {
     return { ok: true, sessions: await getSessions(username) };
   } catch (err) {
-    // Logged server-side where the real cause is readable; the viewer gets the
-    // instruction, since Next replaces action errors with an opaque digest in
-    // production anyway.
+    // Logged server-side where the cause is readable; production replaces
+    // action errors with an opaque digest, so the viewer gets the instruction.
     console.error("Loading play history failed:", err);
     return { ok: false, message: "Could not load the play history. Try again." };
   }
@@ -307,8 +298,7 @@ export async function addGame(game: NewGame): Promise<MutateResult> {
 export async function deleteGame(gameId: number): Promise<MutateResult> {
   return (
     rejectBadId(gameId, "delete") ??
-    // sessionsTag as well as gamesTag: the cascade deletes this game's sessions,
-    // so a cached history would keep listing a game that is gone.
+    // sessionsTag too: the cascade deletes this game's sessions.
     write(() => deleteMyGame(gameId), [gamesTag, sessionsTag])
   );
 }
@@ -361,10 +351,9 @@ export type GameEdits = {
   stopDate?: string;
 };
 
-/** Which cached reads one press of Save invalidates. Always the games payload
- *  (any edit here changes its derived play state at minimum); the history too,
- *  but only when a session was actually logged or closed — a rating-only Save
- *  must not purge the larger session list it cannot have changed. */
+/** Which cached reads one Save invalidates. Always games; the history only
+ *  when a session was logged or closed, so a rating-only Save does not purge a
+ *  list it cannot have changed. */
 function sessionEditTags(edits: GameEdits): TagFor[] {
   const touchesSessions = edits.session !== undefined || edits.stopSessionId !== undefined;
   return touchesSessions ? [gamesTag, sessionsTag] : [gamesTag];
@@ -484,8 +473,8 @@ export async function promoteAndSave(
     }
     // The promote landed even when the follow-ups did not.
     return { result: (await runInOrder(calls)).result, applied: true };
-    // wishlistTag on top of what an ordinary Save purges: a promote MOVES a row
-    // between resources, so the wishlist loses an entry as the library gains one.
+    // wishlistTag on top of a normal Save: a promote MOVES a row, so the
+    // wishlist loses an entry as the library gains one.
   }, [...sessionEditTags(edits), wishlistTag]);
 }
 

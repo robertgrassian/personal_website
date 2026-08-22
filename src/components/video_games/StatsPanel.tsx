@@ -19,18 +19,16 @@ type StatsPanelProps = {
   onClose: () => void;
   // The library's sessions, owned by GameLibrary. See usePlayHistory.
   playHistory: PlayHistoryState;
-  // Called the first time the history view is opened, which is what triggers
-  // the fetch. Separate from the view state below because the request must
-  // outlive a back-press: going back and forward again must not refetch.
+  // Triggers the fetch. Separate from the view state so a back-press does not
+  // undo it and a second visit does not refetch.
   onRequestHistory: () => void;
 };
 
 type PanelTab = "overview" | "query";
 
-// The history REPLACES the panel's tabs rather than becoming a third one: it is
-// a drill-down from a specific list inside Overview, and a tab would suggest it
-// sits alongside them. Same shell either way, so the panel keeps its size,
-// scroll lock and focus handling.
+// The history REPLACES the tabs rather than becoming a third one: it is a
+// drill-down from one list inside Overview, not a peer of them. Same shell, so
+// the panel keeps its size, scroll lock and focus handling.
 type PanelView = "stats" | "history";
 
 export function StatsPanel({
@@ -44,11 +42,9 @@ export function StatsPanel({
   const [activeTab, setActiveTab] = useState<PanelTab>("overview");
   const [view, setView] = useState<PanelView>("stats");
 
-  // Counted from the same filtered set the list renders, not from the raw
-  // array. Deleting a game purges both cache tags server-side, but this panel
-  // never unmounts and holds its own copy of the sessions, so the deleted
-  // game's rows vanish from the list (PlayHistoryList drops sessions whose game
-  // is gone) while the raw length kept counting them.
+  // The same set the list renders, not the raw array: this panel never
+  // unmounts, so after a game is deleted its rows leave the list while the raw
+  // length would go on counting them.
   const visibleSessions = useMemo(
     () => sessionsInLibrary(playHistory.sessions, new Set(games.map((game) => game.id))),
     [playHistory.sessions, games]
@@ -61,8 +57,7 @@ export function StatsPanel({
 
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Reset to the default tab AND view when the panel closes, so re-opening
-  // always starts on Overview rather than wherever the last visit ended.
+  // Re-opening starts on Overview rather than where the last visit ended.
   useEffect(() => {
     if (!isOpen) {
       setActiveTab("overview");
@@ -96,8 +91,8 @@ export function StatsPanel({
         className={`fixed top-[var(--nav-offset)] right-0 z-40 h-[calc(100%-var(--nav-offset))] flex flex-col pb-[var(--safe-bottom)] pl-[var(--safe-left)] pr-[var(--safe-right)] bg-background border-l border-divider shadow-2xl transition-[transform,width] duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         } ${
-          // The wide width belongs to the query tab alone, so the history view
-          // keeps the panel's normal size whatever tab it was opened over.
+          // The wide width is the query tab's alone, so the history keeps the
+          // normal size whatever tab it was opened over.
           view === "stats" && activeTab === "query"
             ? "w-full sm:w-[min(90vw,1000px)]"
             : "w-full sm:w-[560px]"
@@ -107,8 +102,8 @@ export function StatsPanel({
         <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-divider shrink-0">
           <div className="flex min-w-0 items-center gap-2">
             {view === "history" && (
-              // -ml-2 eats into the header padding so the bigger touch target
-              // does not shift the title off the panel's left edge.
+              // -ml-2 eats into the header padding so the touch target does not
+              // shift the title.
               <button
                 type="button"
                 onClick={() => setView("stats")}
@@ -142,8 +137,7 @@ export function StatsPanel({
           </button>
         </div>
 
-        {/* Tab strip. Hidden in the history view, which is a drill-down out of
-            Overview rather than a peer of these tabs. */}
+        {/* Tab strip, hidden in the history view. */}
         <div
           className={`flex border-b border-divider px-6 shrink-0 ${view === "history" ? "hidden" : ""}`}
         >
@@ -165,8 +159,8 @@ export function StatsPanel({
 
         {/* Scrollable content — both panels stay mounted to preserve query state across tab switches */}
         <div className="overflow-y-auto flex-1 px-6 py-6">
-          {/* The stats views stay mounted under the history so the SQL panel's
-              query and the scroll position survive a trip through it. */}
+          {/* Stats stay mounted so the SQL query survives a trip through the
+              history. */}
           <div className={view === "history" ? "" : "hidden"}>
             <PlayHistoryList
               sessions={playHistory.sessions}

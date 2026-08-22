@@ -10,26 +10,22 @@ import { buttonClass, ghostButtonClass, saveButtonClass } from "./formStyles";
 
 type GamePlayHistoryProps = {
   game: Game;
-  // This game's sessions, newest first. Filtered by the caller out of the one
-  // whole-library fetch, so opening this view costs no extra request.
+  // Newest first, narrowed by the caller out of the one whole-library fetch,
+  // so opening this view costs no extra request.
   sessions: PlaySession[];
   isLoading: boolean;
   error: string | null;
-  // Arrived by answering "Played?" on a wishlist card, which has already
-  // asserted the session: the dates start filled in and Save is live.
+  // Arrived by "Played?", which already asserts the session: dates start
+  // filled and Save is live.
   startToday: boolean;
-  // Arrived by pressing "Stop playing", which stages the close but does not
-  // write it. Save is still what commits.
+  // Arrived by "Stop playing", which stages the close. Save still commits it.
   startStopping: boolean;
-  // Re-read the history after a successful save, so the row just written shows
-  // up in the list above the form.
+  // Re-read after a save, so the new row appears in the list above.
   onSaved: () => void;
 };
 
-// One logged session, on the card's own surface. Deliberately not
-// PlayHistoryList: that one is built from the site tokens for the stats panel
-// and names the game on every row, neither of which is right here, where the
-// game is the card you are looking at and the tokens are the shelf's.
+// One logged session, on the card's scrim. Not PlayHistoryList: that one uses
+// site tokens and names the game on every row.
 function SessionRow({ session }: { session: PlaySession }) {
   const days = sessionLengthDays(session);
   return (
@@ -42,14 +38,12 @@ function SessionRow({ session }: { session: PlaySession }) {
   );
 }
 
-// A single game's play history, and the form that adds to it. Reached from the
-// button in GameEditFields, which is inside the owner-only edit region, so this
-// whole view is owner-only by construction.
+// A single game's play history, and the form that adds to it. Reached only from
+// GameEditFields' owner-only region, so it needs no permission check.
 //
-// It has its own Save rather than sharing the card's: the rating and system
-// above it are edits to the game row, and these are inserts into a different
-// table. One button committing both would have to explain a half-failure of two
-// unrelated things.
+// Its own Save, not the card's: rating and system edit the game row, these
+// insert into another table, and one button would have to explain a half
+// failure of two unrelated things.
 export function GamePlayHistory({
   game,
   sessions,
@@ -66,24 +60,20 @@ export function GamePlayHistory({
 
   const [startDate, setStartDate] = useState(startToday && !alreadyOpen ? localToday() : "");
   const [endDate, setEndDate] = useState("");
-  // The explicit form of "this session has no end yet". An empty end date is
-  // what actually reaches the API, but leaving a field blank is not an
-  // instruction anyone can see they gave, and it read as "I haven't filled that
-  // in yet" rather than "I'm still playing".
+  // The explicit form of "no end yet". An empty end date is still what reaches
+  // the API; a blank field just is not an instruction anyone can see they gave.
   const [stillPlaying, setStillPlaying] = useState(false);
-  // Closing the open session is a pending edit like any other, not an
-  // immediate write.
+  // A pending edit like any other, not an immediate write.
   const [stopPending, setStopPending] = useState(startStopping && alreadyOpen);
 
   const sessionDirty = startDate !== "";
   const endWithoutStart = endDate !== "" && startDate === "";
-  // With the checkbox above, a blank end date is no longer a silent "still
-  // playing": say which one you meant.
+  // With the checkbox, a blank end date no longer silently means "still
+  // playing": say which you meant.
   const needsEnd = sessionDirty && !stillPlaying && endDate === "";
   const datesInvalid = sessionDirty && !stillPlaying && endDate !== "" && endDate < startDate;
-  // A game may have only one open session (create_my_session 409s otherwise).
-  // Staging the stop first is what makes "finished that run, starting another"
-  // legal, and the actions layer runs the close before the insert.
+  // One open session per game (create_my_session 409s otherwise). Staging the
+  // stop first is legal because the actions layer closes before it inserts.
   const wouldDoubleOpen = sessionDirty && stillPlaying && alreadyOpen && !stopPending;
 
   const problem = endWithoutStart
@@ -111,8 +101,7 @@ export function GamePlayHistory({
             : {}),
         }),
       {
-        // Stays on this view: the point of saving here is to see the row appear
-        // in the list above, so only the drafts are cleared.
+        // Stays on this view so the new row is visible; clear the drafts only.
         onSuccess: () => {
           setStartDate("");
           setEndDate("");
@@ -184,21 +173,17 @@ export function GamePlayHistory({
         endDate={stillPlaying ? "" : endDate}
         onChangeStart={setStartDate}
         onChangeEnd={setEndDate}
-        // The end date is not a thing you can answer while the checkbox says
-        // there is no end yet, so the field goes with the answer.
+        // No end date to give while the checkbox says there is none.
         disabled={isPending}
         endDisabled={stillPlaying}
         problem={problem}
       />
 
-      {/* The label wraps the input, so the whole row is the tap target; py-1.5
-          is what makes that row big enough to hit on a phone.
+      {/* The label wraps the input, so the row is the tap target; py-1.5 makes
+          it big enough on a phone.
 
-          accent-amber-400 is a fixed value rather than the --link token on
-          purpose. This sits on the card's blurred cover, which is dark in BOTH
-          color schemes (see .game-card-surface), so light mode's amber-700
-          would be dark-on-dark. Same reason the card's other accents are
-          hard-coded light. */}
+          Fixed amber, not --link: this scrim is dark in BOTH schemes (see
+          .game-card-surface), so light mode's amber-700 would be dark-on-dark. */}
       <label className="mt-2 flex cursor-pointer items-center gap-2 py-1.5 text-sm text-shelf-text">
         <input
           type="checkbox"

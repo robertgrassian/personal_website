@@ -31,11 +31,9 @@
   --shelf-divider: #e0dbd4;
 
   /* --- Destructive actions and error text ---
-     A token rather than a Tailwind red literal because this palette is used on
-     three surfaces with different backgrounds: the light shelf, the dark shelf,
-     and the game card, whose scrim is dark in BOTH schemes. A `dark:` variant
-     can only describe two of those, so on the card it picked the light-mode red
-     and put it on a dark background. */
+     A token, not a Tailwind red, because three surfaces need three values: the
+     light shelf, the dark shelf, and the card, whose scrim is dark in BOTH
+     schemes. A `dark:` variant can only describe two of them. */
   --shelf-danger: #dc2626;
   --shelf-danger-tint: rgba(220, 38, 38, 0.14);
   --shelf-danger-tint-hover: rgba(220, 38, 38, 0.24);
@@ -362,21 +360,13 @@
   --shelf-input-placeholder: #cbd5e1;
   --shelf-input-ring: #fbbf24;
   --shelf-divider: rgba(255, 255, 255, 0.2);
-  /* Light enough to read on the scrim, in both schemes: red-600 is barely
-     legible on #1a1a2e, and that is what a `dark:`-only pairing resolved to in
-     light mode.
+  /* Dark fill, light text. A pale fill lightens the scrim under the label,
+     which then needs paler text to clear contrast, and the pair lands on pink.
 
-     The FILL is a dark red while the text is a light one, rather than both
-     being pale. A pale fill lightens the scrim under the label, which then
-     needs an even paler text to clear contrast, and the pair lands on pink. A
-     dark fill keeps the background dark, which is what buys the text room to
-     be a deeper red.
-
-     These are at the floor, so do not darken them further without re-measuring.
-     The label is 12px, so it needs 4.5:1; this pair is 4.86:1 at rest and
-     4.57:1 on hover. One step darker (#f25555) drops hover to 4.27:1, and
-     red-500 fails against every fill tried here, bottoming out at 4.25:1 even
-     on red-800. */
+     At the contrast floor: the 12px label needs 4.5:1 and this is 4.86:1 at
+     rest, 4.57:1 on hover. One step darker (#f25555) drops hover to 4.27:1,
+     and red-500 fails on every fill, bottoming out at 4.25:1 on red-800.
+     Re-measure before darkening. */
   --shelf-danger: #f45f5f;
   --shelf-danger-tint: rgba(153, 27, 27, 0.26);
   --shelf-danger-tint-hover: rgba(153, 27, 27, 0.36);

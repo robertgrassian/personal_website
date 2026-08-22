@@ -23,17 +23,13 @@ type GameEditFieldsProps = {
   subject: EditSubject;
   // Every system already on a shelf, for the suggestions below.
   existingSystems: string[];
-  // Opened from the wishlist's "Played?", which is already an assertion that
-  // you played it, so the session starts dated today and Save is live on
-  // arrival. Without this the form opened with nothing pending and a dead Save,
-  // which reads as broken when you got here by answering "yes". Only a promote
-  // uses it here now: for a game already in the library the card opens straight
-  // into its play history instead.
+  // Opened from "Played?", which already asserts the session, so it starts
+  // dated today and Save is live: arriving by answering "yes" to a dead Save
+  // reads as broken. Promote only now; an owned game opens its play history.
   startWithSession?: boolean;
-  // Swap the card over to this game's play history. `stopping` pre-stages
-  // closing the open session there, so "Stop Playing" lands on the same Save as
-  // everything else rather than writing on the press. Never called on a
-  // promote, which has no game row to hang sessions off yet.
+  // Swap the card to this game's play history. `stopping` pre-stages the
+  // close, so "Stop Playing" still commits through a Save. Never on a promote,
+  // which has no game row yet.
   onOpenHistory: (options: { stopping: boolean }) => void;
   onClose: () => void;
 };
@@ -66,14 +62,9 @@ export function GameEditFields({
   const [ratingDraft, setRatingDraft] = useState<Rating | "">(savedRating);
   const [systemDraft, setSystemDraft] = useState(savedSystem);
 
-  // Session draft, PROMOTE ONLY. A promote has no game row yet, so its session
-  // cannot be logged from anywhere but this form: promoteAndSave creates the
-  // row and logs the playthrough in one call. An existing game sends both to
-  // the play history view instead, which is why the fields below render only
-  // while promoting.
-  //
-  // Arriving by "Played?" is itself the assertion that you played it, so the
-  // dates start filled and Save is live on arrival.
+  // Session draft, PROMOTE ONLY: promoteAndSave creates the row and logs the
+  // playthrough in one call, so there is no id to send a session to until this
+  // Save lands. An existing game logs from the play history view instead.
   const [sessionStart, setSessionStart] = useState(
     startWithSession && promoting ? localToday() : ""
   );
@@ -129,10 +120,8 @@ export function GameEditFields({
           ...(systemDirty ? { system: systemDraft } : {}),
         }),
       {
-        // Stays open: revalidated data flows back into `subject`, so the drafts
-        // above converge on it and the form shows what was just saved. Nothing
-        // to clear by hand any more, now that the session drafts have moved to
-        // the play history view.
+        // Stays open: revalidated data flows back into `subject`, so the form
+        // shows what was just saved. No transient draft left to clear.
         onSuccess: () => {},
       }
     );
@@ -195,15 +184,11 @@ export function GameEditFields({
 
       {promoting ? (
         <>
-          {/* A wider gap than the other section headings get: this one closes
-              the form, and at mt-5 the heading crowded the field above it. */}
+          {/* Wider gap than the other headings: this one closes the form. */}
           <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
             When Did You Play It?
           </p>
-          {/* Inline only while promoting, because promoteAndSave creates the
-              game row and logs the playthrough in ONE call: there is no id to
-              send a session to until this Save lands. An existing game gets the
-              buttons below instead, and logs from the play history view. */}
+          {/* Inline only while promoting; see the draft state above. */}
           <SessionDateFields
             startDate={sessionStart}
             endDate={sessionEnd}
@@ -220,9 +205,8 @@ export function GameEditFields({
           />
         </>
       ) : (
-        // Both open the same view; Stop Playing just arrives with the close
-        // already staged. Neither writes anything on the press, so the rule that
-        // Save owns every write survives the trip.
+        // Both open the same view, Stop Playing with the close staged. Neither
+        // writes on the press, so Save still owns every write.
         <div className="mt-5 flex flex-wrap gap-2">
           <button
             type="button"
@@ -248,13 +232,9 @@ export function GameEditFields({
       {/* Always present, so there is one place to look for "did this save?".
           Disabled until something is actually pending. */}
       <div className="mt-5 border-t border-shelf-plank pt-3">
-        {/* Save and Remove share a row, with Remove pushed to the far edge by
-            ml-auto. Adjacent is what the destructive one must not be: Save is
-            pressed constantly and this card is narrow, so the gap is the cheap
-            half of the protection and ConfirmStep is the other half.
-            flex-wrap plus the w-full on ConfirmStep's confirming state is what
-            lets the prompt drop onto its own line instead of being squeezed
-            beside Save. */}
+        {/* ml-auto puts Remove at the far edge: Save is pressed constantly and
+            adjacent is what a destructive control must not be. flex-wrap plus
+            ConfirmStep's w-full drops the prompt onto its own line. */}
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={save} disabled={!canSave} className={saveButtonClass}>
             {promoting ? "Save And Move To Library" : "Save"}

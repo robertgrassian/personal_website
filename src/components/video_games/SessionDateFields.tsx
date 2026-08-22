@@ -7,10 +7,8 @@ import { fieldClass, ghostButtonClass } from "./formStyles";
 // Date inputs size to their content rather than filling the row, so they take
 // the shared tokens plus their own padding instead of `inputClass`.
 //
-// The disabled styling is load-bearing, not decoration. A disabled date input
-// drops its calendar glyph and changes nothing else, so "you cannot answer this
-// right now" was being signalled by a small icon going missing — which reads as
-// a rendering glitch rather than as a state.
+// The disabled styling is load-bearing: a disabled date input drops its
+// calendar glyph and changes nothing else, so the state read as a glitch.
 const dateInputClass = `${fieldClass} px-2 py-1 disabled:opacity-50 disabled:cursor-default`;
 
 // The shared labelClass unpacked into its two jobs, because the caption line
@@ -84,10 +82,8 @@ type SessionDateFieldsProps = {
   onChangeStart: (value: string) => void;
   onChangeEnd: (value: string) => void;
   disabled: boolean;
-  /** Disables the "To" field alone, for a caller whose own control has already
-   *  answered "does this session have an end?" — the play history's "I'm still
-   *  playing this" checkbox. Optional: the edit form has no such control and
-   *  leaves both fields live. */
+  /** Disables the "To" field alone, for a caller whose own control already
+   *  answered whether the session has an end (the "still playing" checkbox). */
   endDisabled?: boolean;
   /** What is wrong with the dates right now, or null. Rendered as the fields'
    *  description so the reason a disabled Save is disabled is announced, not

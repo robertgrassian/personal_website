@@ -1,31 +1,21 @@
-/** A play session: one stretch of time you spent with a game.
+/** A play session: one stretch of time you spent with a game. Mirrors
+ *  `PlaySessionRead` (api/app/schemas/users.py).
  *
- * Mirrors `PlaySessionRead` (api/app/schemas/users.py) field for field, same
- * contract as Game and WishlistGame — camelCase on the wire, no translation
- * layer.
- *
- * The type lives here rather than in games.ts because a session belongs to the
- * library but is not part of a Game: `Game` carries the DERIVED play state
- * (currentlyPlaying, lastPlayed, sessionCount) and these are the rows it was
- * derived from, fetched separately and on demand.
- */
+ *  Not in games.ts because `Game` carries the play state DERIVED from these
+ *  rows, while these are the rows themselves, fetched separately. */
 export type PlaySession = {
   id: number;
   // Which library entry this session belongs to: Game["id"], not the IGDB id.
   gameId: number;
   startDate: string; // ISO YYYY-MM-DD, always set
-  // null while the session is open, which is what makes the game currently
-  // playing. Note this is null and not "" — unlike every optional string on
-  // Game, where "" means unset. An open session is a state, not a gap.
+  // null while open, which is what makes the game currently playing. Not ""
+  // like Game's optional strings: an open session is a state, not a gap.
   endDate: string | null;
 };
 
-/** Group a whole library's sessions by game, preserving the newest-first order
- *  the API returned them in.
- *
- *  One fetch serves both the across-games history and any per-game slice of it,
- *  the same way pipeline.ts narrows the games array in the browser rather than
- *  asking the API for a subset. */
+/** Group a library's sessions by game, keeping the API's newest-first order.
+ *  One fetch then serves both histories, the way pipeline.ts narrows the games
+ *  array rather than asking the API for a subset. */
 export function sessionsByGame(sessions: PlaySession[]): Map<number, PlaySession[]> {
   const grouped = new Map<number, PlaySession[]>();
   for (const session of sessions) {
@@ -38,20 +28,15 @@ export function sessionsByGame(sessions: PlaySession[]): Map<number, PlaySession
 
 /** The sessions whose game is still in the library.
  *
- *  Sessions and games are two separately cached reads, so they can disagree:
- *  deleting a game purges both tags server-side, but any client holding the
- *  session list keeps its copy until something refetches. Every surface that
- *  shows sessions filters through here, so a count and the list beside it
- *  cannot report different numbers.
- *
- *  Takes the ids rather than the games so a caller that already built a lookup
- *  does not build a second one. */
+ *  Games and sessions are separately cached, so a client can hold sessions for
+ *  a game it no longer lists. Every surface filters through here, so a count
+ *  and the list beside it cannot disagree. */
 export function sessionsInLibrary(sessions: PlaySession[], gameIds: Set<number>): PlaySession[] {
   return sessions.filter((session) => gameIds.has(session.gameId));
 }
 
-// Parsed as UTC, like formatDate elsewhere: a bare YYYY-MM-DD parsed as local
-// time shifts a day backwards west of Greenwich.
+// UTC: a bare YYYY-MM-DD parsed as local time shifts a day backwards west of
+// Greenwich.
 function parseIso(iso: string): Date {
   return new Date(iso + "T00:00:00Z");
 }
@@ -65,11 +50,9 @@ function formatDay(iso: string, withYear: boolean): string {
   });
 }
 
-/** A session as one line of text: "Jul 2 – Jul 19, 2026", "Jul 2, 2026" for a
- *  single day, or "Since Jul 2, 2026" while it is still open.
- *
- *  The year is printed once when both ends share it and on both ends when they
- *  do not, so a session spanning New Year still reads unambiguously. */
+/** "Jul 2 – Jul 19, 2026", "Jul 2, 2026" for a single day, or "Since Jul 2,
+ *  2026" while open. The year repeats only when the ends differ, so a session
+ *  spanning New Year still reads unambiguously. */
 export function formatSessionRange(session: PlaySession): string {
   const startYear = session.startDate.slice(0, 4);
   if (session.endDate === null) return `Since ${formatDay(session.startDate, true)}`;
@@ -78,8 +61,8 @@ export function formatSessionRange(session: PlaySession): string {
   return `${formatDay(session.startDate, !sameYear)} – ${formatDay(session.endDate, true)}`;
 }
 
-/** How many days a session covers, counting both ends, or null while it is
- *  open. A one-day session is 1, not 0. */
+/** Days covered, counting both ends (a one-day session is 1), or null while
+ *  the session is open. */
 export function sessionLengthDays(session: PlaySession): number | null {
   if (session.endDate === null) return null;
   const ms = parseIso(session.endDate).getTime() - parseIso(session.startDate).getTime();

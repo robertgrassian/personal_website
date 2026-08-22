@@ -45,11 +45,10 @@ type GameDetailCardProps = {
   // The source case, hidden while the card is out and re-measured on the way
   // back. null for a promote, which has no case.
   caseId: string | null;
-  // The library's sessions, owned by GameLibrary so one copy serves every
-  // surface that shows them. This card narrows it to the game on screen.
+  // Owned by GameLibrary so one copy serves every surface; narrowed here to
+  // the game on screen.
   playHistory: PlayHistoryState;
-  // Called when the history view is first opened, which is what triggers the
-  // fetch. See usePlayHistory.
+  // Triggers the fetch. See usePlayHistory.
   onRequestHistory: () => void;
   onClose: () => void;
 };
@@ -71,9 +70,8 @@ function formatDate(iso: string): string {
 // re-pointed to match, in .game-card-surface.
 //
 // Two faces, not two dialogs: the play history swaps this card's scrolling
-// region for a session list plus an add form, reached from a button in
-// GameEditFields. Stacking a second ModalFrame on this one would mean two focus
-// traps, two Escape handlers and a backdrop over a backdrop.
+// region for a session list plus an add form. A second ModalFrame would mean
+// two focus traps, two Escape handlers and a backdrop over a backdrop.
 export function GameDetailCard({
   subject,
   canEdit,
@@ -92,14 +90,10 @@ export function GameDetailCard({
   const titleId = useId();
   const source = subject.kind === "game" ? subject.game : subject.item;
 
-  // Which face of the card is showing. The history REPLACES the detail rather
-  // than opening over it: this card is already a ModalFrame with a focus trap
-  // and a return flight, and a second dialog on top would mean two Escape
-  // handlers and a backdrop over a backdrop. `stopping` remembers which button
-  // opened it, so "Stop Playing" arrives with the close staged.
-  //
-  // null = showing the detail. Answering "Played?" on a game already in the
-  // library opens straight into it, since that answer IS a session.
+  // null = the detail face. `stopping` remembers which button opened the
+  // history, so "Stop Playing" arrives with the close staged. Answering
+  // "Played?" on a game already owned opens straight into it: that IS a
+  // session.
   const [history, setHistory] = useState<{ stopping: boolean } | null>(
     startWithSession && subject.kind === "game" ? { stopping: false } : null
   );
@@ -108,11 +102,9 @@ export function GameDetailCard({
     setHistory({ stopping });
   };
 
-  // The initializer above covers a card that MOUNTS on "Played?". This covers
-  // the other way in: answering "Played?" for a game already in the library
-  // swaps this card's subject from wishlist to game in place, deliberately
-  // keeping it on screen, so the component never remounts and no initializer
-  // re-runs. Without this the answer staged nothing at all.
+  // The initializer covers a card that MOUNTS on "Played?". This covers the
+  // other way in: for a game already owned the subject swaps from wishlist to
+  // game IN PLACE, so nothing remounts and no initializer re-runs.
   useEffect(() => {
     if (!startWithSession || subject.kind !== "game") return;
     onRequestHistory();
@@ -242,14 +234,10 @@ export function GameDetailCard({
               aria-labelledby={titleId}
               className="relative z-10 flex min-h-0 flex-1 flex-col focus:outline-none"
             >
-              {/* Three slots, with the left one always present and exactly as
-                  wide as the close button on the right. That balance is what
-                  keeps the title optically centred whether or not the back
-                  arrow is showing, so it does not jump sideways when the card
-                  swaps to its play history.
-
-                  The negative margins on both side slots let the buttons carry
-                  a 44px touch target without the header row growing to fit it. */}
+              {/* Three slots, the left one always present and as wide as the
+                  close button, so the title stays centred whether or not the
+                  back arrow shows. The negative margins buy a 44px touch target
+                  without growing the header row. */}
               <div className="flex shrink-0 items-start gap-2 px-5 pt-4">
                 <div className="-my-2 -ml-2 flex h-11 w-11 shrink-0 items-center justify-center sm:-my-1 sm:-ml-1 sm:h-9 sm:w-9">
                   {history !== null && (
@@ -263,17 +251,16 @@ export function GameDetailCard({
                     </button>
                   )}
                 </div>
-                {/* min-w-0 so a long unbroken title wraps inside the slot
-                    instead of pushing the close button off the card. */}
+                {/* min-w-0 so a long title wraps instead of pushing the close
+                    button off the card. */}
                 <h2
                   id={titleId}
                   className="min-w-0 flex-1 text-center text-lg font-bold leading-tight text-white"
                 >
                   {source.name}
                 </h2>
-                {/* 44px touch target on phones. The negative margins eat back into the
-                  header padding, so the bigger button neither moves the icon nor
-                  grows the header row. */}
+                {/* 44px touch target on phones; the negative margins keep it
+                    from growing the header row. */}
                 <button
                   type="button"
                   onClick={close}
@@ -288,11 +275,9 @@ export function GameDetailCard({
                 at the end of the form off the library behind it. */}
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
                 {history !== null && subject.kind === "game" ? (
-                  // The history is reached only from the owner-only edit region
-                  // below, so it needs no permission check of its own. Sessions
-                  // are narrowed from the one whole-library fetch rather than
-                  // asking the API for this game's, so opening a card costs no
-                  // request at all after the first.
+                  // Reached only from the owner-only region below, so no
+                  // permission check here. Sessions are narrowed from the one
+                  // whole-library fetch, so this costs no extra request.
                   <div className="px-5 pb-4 pt-1">
                     <GamePlayHistory
                       game={subject.game}

@@ -98,9 +98,8 @@ export function useIsLikelyOwner(): boolean {
   return useContext(FollowStateContext)?.relationship === "me";
 }
 
-// Whose library is on screen, for the reads that need to name it. Not an
-// ownership question like the two above, so it answers for every viewer; ""
-// only when there is no provider, which no library route has.
+// Whose library is on screen, for the reads that name it. Not an ownership
+// question, so it answers for every viewer; "" only without a provider.
 export function useLibraryOwnerUsername(): string {
   return useContext(FollowStateContext)?.ownerUsername ?? "";
 }
