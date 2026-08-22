@@ -98,6 +98,13 @@ export function useIsLikelyOwner(): boolean {
   return useContext(FollowStateContext)?.relationship === "me";
 }
 
+// Whose library is on screen, for the reads that need to name it. Not an
+// ownership question like the two above, so it answers for every viewer; ""
+// only when there is no provider, which no library route has.
+export function useLibraryOwnerUsername(): string {
+  return useContext(FollowStateContext)?.ownerUsername ?? "";
+}
+
 // "unknown" covers both signed-out and not-yet-resolved; "me" is your own
 // library. Neither gets controls, and rendering nothing until the answer
 // arrives is what stops a Follow button flashing on your own page.

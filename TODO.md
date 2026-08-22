@@ -70,12 +70,12 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 - [ ] **Show a confirmation toast after logging a session, so you know it worked.** A site-wide
       primitive decision, not a local one. Wanted first by **An audit log of important library
-      actions**; possibly with a link, per **An easy way to view a game's sessions**.
+      actions**; possibly with a link, per **Editing and deleting past sessions**.
       [Details](docs/todo/session-log-confirmation-toast.md)
 
-- [ ] **An easy way to view a game's sessions, and ideally edit old ones.** The reading surface it
-      wanted now exists: the list goes under the divider on the detail card. What is missing is
-      backend, there being no sessions GET at all. [Details](docs/todo/view-and-edit-sessions.md)
+- [ ] **Editing and deleting past sessions.** Viewing them shipped 2026-08-22, in both places it
+      was wanted. What is left is backend: `PATCH /me/sessions/{id}` only closes, so a real
+      `SessionUpdate` and a `DELETE` do not exist. [Details](docs/todo/view-and-edit-sessions.md)
 
 - [ ] **Logging a past session should pick the whole range in one calendar popup.**
       [Details](docs/todo/past-session-date-range-picker.md)

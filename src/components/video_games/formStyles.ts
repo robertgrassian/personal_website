@@ -81,10 +81,31 @@ export const ghostButtonClass =
 // The confirm half of a destructive two-step. Outlined in red rather than
 // filled: it sits next to a Cancel button, and a filled red button next to a
 // neutral one reads as the default action, which this must never be.
+//
+// Shelf tokens, not red-600/red-400. This renders on the account page's light
+// shelf AND on the game card's dark scrim, and a `dark:` pairing cannot tell
+// those apart: light mode put red-600 on #1a1a2e.
 export const dangerButtonClass =
-  "rounded-md border border-red-600/50 dark:border-red-400/50 px-3 py-1.5 text-sm " +
-  "text-red-600 dark:text-red-400 hover:bg-red-600/10 transition-colors cursor-pointer " +
+  "rounded-md border border-shelf-danger/60 px-3 py-1.5 text-sm " +
+  "text-shelf-danger hover:bg-shelf-danger-tint transition-colors cursor-pointer " +
   "disabled:opacity-50 disabled:cursor-default";
+
+// A destructive trigger that shares a row with Save: smaller, and filled at low
+// alpha rather than outlined. The tint carries the "this one is destructive"
+// signal that a border was carrying, at less visual weight than the filled Save
+// beside it, so the row still has one obvious default action.
+//
+// The tint is a token, so each surface sets its own alpha: heavier on the game
+// card, where it competes with a blurred cover, than on the flat shelf.
+//
+// The padding splits on pointer type, not on a breakpoint: "a tad smaller" is a
+// look, and shrinking the tap target to 24px on a phone is not part of it. On
+// touch it matches the Save button's height exactly; with a mouse it is visibly
+// the smaller of the two.
+export const dangerSubtleButtonClass =
+  "rounded-md bg-shelf-danger-tint px-2.5 py-2 pointer-fine:py-1 text-xs " +
+  "text-shelf-danger hover:bg-shelf-danger-tint-hover " +
+  "transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default";
 
 // The quiet text links in the library header's viewer-controls cluster: Sign
 // in / Sign out (AuthButton) and Account. Shared so the cluster cannot drift

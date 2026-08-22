@@ -33,11 +33,14 @@ import {
   gamesTag,
   getFollowers,
   getFollowing,
+  getSessions,
   libraryCacheTag,
+  sessionsTag,
   wishlistTag,
 } from "@/lib/libraryApi";
 import { LIBRARY_OWNER_USERNAME, RATINGS, type NewGame, type Rating } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
+import type { PlaySession } from "@/lib/sessions";
 
 /** A cache-tag builder from src/lib/libraryApi: gamesTag, wishlistTag or
  *  followsTag. Writes name the resources they actually changed. */
@@ -252,6 +255,42 @@ export async function previewGameCatalog(
   });
 }
 
+/** The answer to "load this library's play history": the rows, or a message to
+ *  put on screen. Not MutateResult — that shape carries no data, and this is
+ *  the one read in this file. */
+export type PlayHistoryResult =
+  | { ok: true; sessions: PlaySession[] }
+  | { ok: false; message: string };
+
+/** Read a library's whole play history.
+ *
+ *  The one READ among this file's writes, and it is here for a different reason
+ *  than they are: libraryApi imports server-only, so the browser cannot call it
+ *  and a Server Action is the way across. The data itself is public, exactly as
+ *  public as GET /users/{username}/sessions, so this takes a username argument
+ *  where every write above deliberately refuses to.
+ *
+ *  Fetched on demand rather than with the page: the library payload is
+ *  prerendered and cached, and carrying every session row would grow it for a
+ *  detail most viewers never open. The read is tagged, so repeat opens are
+ *  served from the cache until a session write purges it.
+ *
+ *  Errors come back as a message rather than thrown. getSessions throws loudly
+ *  by design (an unreachable API should be obvious), but a panel that fails to
+ *  load should say so in place, not take the transition down with it. */
+export async function getPlayHistory(username: string): Promise<PlayHistoryResult> {
+  if (username.trim() === "") return { ok: false, message: "Could not load the play history." };
+  try {
+    return { ok: true, sessions: await getSessions(username) };
+  } catch (err) {
+    // Logged server-side where the real cause is readable; the viewer gets the
+    // instruction, since Next replaces action errors with an opaque digest in
+    // production anyway.
+    console.error("Loading play history failed:", err);
+    return { ok: false, message: "Could not load the play history. Try again." };
+  }
+}
+
 /** Add a game to the library (from an IGDB pick or manual entry). */
 export async function addGame(game: NewGame): Promise<MutateResult> {
   const normalized = normalizeSharedFields(game);
@@ -266,7 +305,12 @@ export async function addGame(game: NewGame): Promise<MutateResult> {
 
 /** Remove a game from the library; its play sessions cascade away with it. */
 export async function deleteGame(gameId: number): Promise<MutateResult> {
-  return rejectBadId(gameId, "delete") ?? write(() => deleteMyGame(gameId), [gamesTag]);
+  return (
+    rejectBadId(gameId, "delete") ??
+    // sessionsTag as well as gamesTag: the cascade deletes this game's sessions,
+    // so a cached history would keep listing a game that is gone.
+    write(() => deleteMyGame(gameId), [gamesTag, sessionsTag])
+  );
 }
 
 /** Add a wishlist entry (IGDB pick or manual; only name is required). */
@@ -316,6 +360,15 @@ export type GameEdits = {
   stopSessionId?: number;
   stopDate?: string;
 };
+
+/** Which cached reads one press of Save invalidates. Always the games payload
+ *  (any edit here changes its derived play state at minimum); the history too,
+ *  but only when a session was actually logged or closed — a rating-only Save
+ *  must not purge the larger session list it cannot have changed. */
+function sessionEditTags(edits: GameEdits): TagFor[] {
+  const touchesSessions = edits.session !== undefined || edits.stopSessionId !== undefined;
+  return touchesSessions ? [gamesTag, sessionsTag] : [gamesTag];
+}
 
 /** Validate the edits and turn them into the calls that apply them. Shared by
  *  saveGameEdits and promoteAndSave, so a promote carrying a rating obeys
@@ -388,7 +441,7 @@ export async function saveGameEdits(gameId: number, edits: GameEdits): Promise<M
   const calls = editCalls(gameId, edits);
   if (calls === null) return { ok: false, message: "Invalid edit." };
   if (calls.length === 0) return { ok: true };
-  return writeApplied(() => runInOrder(calls), [gamesTag]);
+  return writeApplied(() => runInOrder(calls), sessionEditTags(edits));
 }
 
 /** One press of Save on a wishlist entry being promoted: the move itself, plus
@@ -431,7 +484,9 @@ export async function promoteAndSave(
     }
     // The promote landed even when the follow-ups did not.
     return { result: (await runInOrder(calls)).result, applied: true };
-  }, [gamesTag, wishlistTag]);
+    // wishlistTag on top of what an ordinary Save purges: a promote MOVES a row
+    // between resources, so the wishlist loses an entry as the library gains one.
+  }, [...sessionEditTags(edits), wishlistTag]);
 }
 
 /** Follow a user. Revalidates BOTH libraries: the caller's following list grew

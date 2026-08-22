@@ -167,7 +167,7 @@ export function GameSearchStep({
         <p className="mt-3 shrink-0 text-xs text-shelf-text-muted italic">Searching…</p>
       )}
       {searchError && (
-        <p role="alert" className="mt-3 shrink-0 text-xs text-red-500 dark:text-red-400">
+        <p role="alert" className="mt-3 shrink-0 text-xs text-shelf-danger">
           {searchError}
         </p>
       )}

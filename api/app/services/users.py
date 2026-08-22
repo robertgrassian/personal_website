@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import DomainError
 from app.models import GameMetadata, PlayedGame, PlaySession, WishlistGame
 from app.repositories import users as users_repo
-from app.schemas.users import GameRead, ProfileRead, WishlistGameRead
+from app.schemas.users import GameRead, PlaySessionRead, ProfileRead, WishlistGameRead
 
 
 class UserNotFoundError(DomainError):
@@ -139,6 +139,32 @@ def get_user_games(db: Session, username: str) -> list[GameRead]:
     return [
         to_game_read(game, meta, derive_play_state(sessions_by_game.get(game.id, [])))
         for game, meta in entries
+    ]
+
+
+def get_user_sessions(db: Session, username: str) -> list[PlaySessionRead]:
+    """The user's whole play history, newest first.
+
+    Public for the same reason the library is: the derived play state already
+    on GameRead (last_played, currently_playing, playing_since, session_count)
+    is computed from these very rows, so the raw list adds when and how often,
+    not which games.
+
+    Deliberately NOT folded into get_user_games. That payload is the
+    prerendered, cached library page, and carrying every session row would
+    inflate it for a detail most viewers never open.
+    """
+    profile = _require_profile(db, username)
+    return [
+        PlaySessionRead(
+            id=session.id,
+            game_id=session.game_id,
+            start_date=session.start_date.isoformat(),
+            # None, not "", unlike the other absent scalars here: an open
+            # session is a state, not a missing value. See PlaySessionRead.
+            end_date=session.end_date.isoformat() if session.end_date is not None else None,
+        )
+        for session in users_repo.list_sessions_for_user(db, profile.id)
     ]
 
 

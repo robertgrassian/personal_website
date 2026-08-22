@@ -97,3 +97,18 @@ export function CloseIcon({ className, ...rest }: IconProps) {
     </svg>
   );
 }
+
+export function ArrowLeftIcon({ className, ...rest }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      className={className}
+      {...rest}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5m0 0l7 7m-7-7l7-7" />
+    </svg>
+  );
+}

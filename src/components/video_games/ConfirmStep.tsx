@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { buttonClass, dangerButtonClass } from "./formStyles";
+import { buttonClass, dangerButtonClass, dangerSubtleButtonClass } from "./formStyles";
 
 // A destructive action behind a two-step confirm: a quiet red link that swaps
 // itself for a prompt plus Remove / Cancel.
@@ -37,6 +37,10 @@ type ConfirmStepProps = {
   confirmDisabled?: boolean;
   /** Extra classes for the trigger, for the callers that need `mt-3 block`. */
   triggerClassName?: string;
+  /** How the trigger looks. "outlined" is the standalone default; "subtle" is
+   *  the smaller tinted one, for a trigger sharing a row with a Save button
+   *  that has to stay the row's obvious default action. */
+  triggerVariant?: "outlined" | "subtle";
 };
 
 export function ConfirmStep({
@@ -48,6 +52,7 @@ export function ConfirmStep({
   disabled = false,
   confirmDisabled = false,
   triggerClassName = "",
+  triggerVariant = "outlined",
 }: ConfirmStepProps) {
   const [confirming, setConfirming] = useState(false);
 
@@ -57,7 +62,9 @@ export function ConfirmStep({
         type="button"
         onClick={() => setConfirming(true)}
         disabled={disabled}
-        className={`${triggerClassName} ${dangerButtonClass}`.trim()}
+        className={`${triggerClassName} ${
+          triggerVariant === "subtle" ? dangerSubtleButtonClass : dangerButtonClass
+        }`.trim()}
       >
         {triggerLabel}
       </button>
@@ -65,7 +72,7 @@ export function ConfirmStep({
   }
 
   return (
-    <div className="mt-3">
+    <div className="mt-3 w-full">
       <p className="text-sm text-shelf-text">{prompt}</p>
       <div className="mt-2 flex gap-2">
         <button

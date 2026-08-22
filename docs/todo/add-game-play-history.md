@@ -3,7 +3,7 @@
 _Section: **Up Next** &middot; Promoted by request 2026-08-09. &middot; index: [`TODO.md`](../../TODO.md)_
 
 Two asks, one surface. **(1)** A one-tap control (a check mark was the suggestion) that marks the
-game currently playing as it is added, instead of adding it and then opening its pencil. **(2)** The
+game currently playing as it is added, instead of adding it and then opening its edit. **(2)** The
 fuller version: the same form can also record a past playthrough, so adding a game you finished
 years ago captures when. **Do not call it a "session" in the UI** — that is the database's word, and
 nothing user-facing uses it today. "Playing this now" plus something like "I've played this before"
