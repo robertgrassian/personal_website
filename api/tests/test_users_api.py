@@ -49,6 +49,7 @@ GAME_KEYS = {
     "openSessionId",
     "sessionCount",
 }
+SESSION_KEYS = {"id", "gameId", "startDate", "endDate"}
 WISHLIST_KEYS = {
     "id",
     "name",
@@ -94,6 +95,19 @@ def wishlist_names(username: str) -> list[str]:
             username=username,
         )
     ]
+
+
+def session_rows(username: str) -> list[tuple]:
+    """(id, start_date, end_date) for every session in the user's library, in
+    the order the endpoint promises: newest first, id breaking a same-day tie."""
+    return _rows(
+        """SELECT s.id, s.start_date, s.end_date FROM play_sessions s
+             JOIN played_games p ON p.id = s.game_id
+             JOIN profiles pr ON pr.id = p.user_id
+            WHERE pr.username = :username
+            ORDER BY s.start_date DESC, s.id DESC""",
+        username=username,
+    )
 
 
 def session_names(username: str, *, open_only: bool) -> set[str]:
@@ -187,6 +201,41 @@ def test_game_without_sessions_has_empty_play_state(client: TestClient) -> None:
 
 
 @requires_db
+def test_sessions_returns_whole_history_newest_first(client: TestClient) -> None:
+    response = client.get("/api/library/users/rgrassian/sessions")
+    assert response.status_code == 200
+    sessions = response.json()
+    assert sessions, "seeded library has no sessions; the assertions below would be vacuous"
+    for session in sessions:
+        assert set(session) == SESSION_KEYS
+    # Count and ordering in one, derived rather than pinned.
+    expected = session_rows("rgrassian")
+    assert [s["id"] for s in sessions] == [row[0] for row in expected]
+    assert [s["startDate"] for s in sessions] == [row[1].isoformat() for row in expected]
+
+
+@requires_db
+def test_open_sessions_have_a_null_end_date(client: TestClient) -> None:
+    # The one place this payload breaks the module's ""-for-absent convention,
+    # and the distinction the UI branches on: null end date == still playing.
+    sessions = client.get("/api/library/users/rgrassian/sessions").json()
+    games = client.get("/api/library/users/rgrassian/games").json()
+    open_game_ids = {g["id"] for g in games if g["currentlyPlaying"]}
+    assert {s["gameId"] for s in sessions if s["endDate"] is None} == open_game_ids
+    for session in sessions:
+        assert session["endDate"] is None or session["endDate"] >= session["startDate"]
+
+
+@requires_db
+def test_session_game_ids_all_belong_to_the_library(client: TestClient) -> None:
+    # A dropped user_id filter would show up here as a session pointing at a
+    # game the library read never returned.
+    sessions = client.get("/api/library/users/rgrassian/sessions").json()
+    library_ids = {g["id"] for g in client.get("/api/library/users/rgrassian/games").json()}
+    assert {s["gameId"] for s in sessions} <= library_ids
+
+
+@requires_db
 def test_username_lookup_is_case_insensitive(client: TestClient) -> None:
     # citext username: /users/Rgrassian resolves to the same profile, so it
     # must return the same library the lowercase spelling does.
@@ -246,6 +295,7 @@ def test_profile_returns_public_fields_and_counts(client: TestClient) -> None:
         "/api/library/users/nobody",
         "/api/library/users/nobody/games",
         "/api/library/users/nobody/wishlist",
+        "/api/library/users/nobody/sessions",
         "/api/library/users/nobody/followers",
         "/api/library/users/nobody/following",
     ],
@@ -347,10 +397,13 @@ def test_empty_library_is_empty_lists_not_404(
     assert client.get(f"/api/library/users/{username}").status_code == 200
     games = client.get(f"/api/library/users/{username}/games")
     wishlist = client.get(f"/api/library/users/{username}/wishlist")
+    sessions = client.get(f"/api/library/users/{username}/sessions")
     assert games.status_code == 200
     assert wishlist.status_code == 200
+    assert sessions.status_code == 200
     assert games.json() == []
     assert wishlist.json() == []
+    assert sessions.json() == []
 
 
 @requires_db
@@ -363,6 +416,13 @@ def test_second_users_games_are_their_own(client: TestClient, other_user: str) -
 def test_second_users_wishlist_is_their_own(client: TestClient, other_user: str) -> None:
     items = client.get(f"/api/library/users/{other_user}/wishlist").json()
     assert [i["name"] for i in items] == ["Solo Wish"]
+
+
+@requires_db
+def test_second_users_sessions_are_their_own(client: TestClient, other_user: str) -> None:
+    # other_user's game is created without a session, so their history must be
+    # empty even though the seeded library next door is full of them.
+    assert client.get(f"/api/library/users/{other_user}/sessions").json() == []
 
 
 @requires_db

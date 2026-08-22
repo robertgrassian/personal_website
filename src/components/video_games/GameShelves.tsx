@@ -24,6 +24,7 @@ import {
   groupWishlist,
   sortWishlist,
 } from "./pipeline";
+import type { PlayHistoryState } from "./usePlayHistory";
 import { useFilterOptions } from "./useFilterOptions";
 import { useKeepResultsInView } from "./useKeepResultsInView";
 import { useHideOnScrollDown } from "./useHideOnScrollDown";
@@ -78,6 +79,11 @@ type GameShelvesProps = {
   // strip up there, while the panel it opens belongs down here.
   statsOpen: boolean;
   onStatsClose: () => void;
+  // Both forwarded straight to the stats panel, which is the only thing down
+  // here that reads them. Owned by GameLibrary so one copy serves every
+  // surface that shows sessions.
+  playHistory: PlayHistoryState;
+  onRequestHistory: () => void;
 };
 
 // The shelf half of the library: filter chrome, the filter/group/sort pipeline,
@@ -95,6 +101,8 @@ export function GameShelves({
   onAddGame,
   statsOpen,
   onStatsClose,
+  playHistory,
+  onRequestHistory,
 }: GameShelvesProps) {
   const {
     groupBy,
@@ -472,6 +480,8 @@ export function GameShelves({
           currentlyPlayingGames={currentlyPlayingGames}
           isOpen={statsVisible}
           onClose={onStatsClose}
+          playHistory={playHistory}
+          onRequestHistory={onRequestHistory}
         />
       )}
     </>

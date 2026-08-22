@@ -36,6 +36,11 @@ Whatever replaces these inputs inherits both the moment it is controlled. Emptyi
 stay reachable in-app, since "leave 'To' empty" is the documented way to log a session that is still
 open.
 
+**An "I'm still playing this" checkbox now expresses "no end yet"** (2026-08-22, in
+`GamePlayHistory`): it disables the To field via the new `endDisabled` prop rather than relying on
+anyone noticing a blank. A replacement does not have to invent that state, but it does have to keep
+working with a caller that switches the end off entirely.
+
 _The constraint that rules out a stock range picker:_ the end date is optional on purpose. "Leave
 'To' empty if you're still playing it" logs a backdated session that is still open, which is what
 makes the game currently-playing. Most range pickers model a range as two required endpoints, so

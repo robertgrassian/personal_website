@@ -9,7 +9,7 @@ error shape.
 from fastapi import APIRouter
 
 from app.core.db import DbSession
-from app.schemas.users import GameRead, ProfileRead, UserSummary, WishlistGameRead
+from app.schemas.users import GameRead, PlaySessionRead, ProfileRead, UserSummary, WishlistGameRead
 from app.services import follows as follows_service
 from app.services import users as users_service
 
@@ -24,6 +24,13 @@ def read_user_games(username: str, db: DbSession) -> list[GameRead]:
 @router.get("/users/{username}/wishlist")
 def read_user_wishlist(username: str, db: DbSession) -> list[WishlistGameRead]:
     return users_service.get_user_wishlist(db, username)
+
+
+@router.get("/users/{username}/sessions")
+def read_user_sessions(username: str, db: DbSession) -> list[PlaySessionRead]:
+    """This user's play history across every game, newest first. Public, like
+    the library it describes."""
+    return users_service.get_user_sessions(db, username)
 
 
 @router.get("/users/{username}/followers")
