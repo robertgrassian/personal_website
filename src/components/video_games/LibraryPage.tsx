@@ -22,6 +22,7 @@ import {
   FollowCountLinksFallback,
 } from "@/components/video_games/FollowCountLinks";
 import { SignupCta } from "@/components/video_games/SignupCta";
+import { FeedbackFooter } from "@/components/video_games/FeedbackFooter";
 import { headerLinkClass } from "@/components/video_games/formStyles";
 
 // One library page, two routes: /video-games (Robert's shelf, at its stable
@@ -226,6 +227,10 @@ export async function LibraryPage({
               following={following}
             />
           </Suspense>
+
+          {/* Outside the Suspense boundary above: the footer reads no search
+              params, so nothing about it should wait on GameLibrary. */}
+          <FeedbackFooter />
         </div>
       </FollowStateProvider>
     </main>
