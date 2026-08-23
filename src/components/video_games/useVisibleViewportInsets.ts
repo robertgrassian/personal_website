@@ -1,50 +1,28 @@
 import { useEffect, useState } from "react";
+import {
+  createBandTracker,
+  insetsFrom,
+  type Band,
+  type VisibleViewportInsets,
+} from "./keyboardBand";
+
+export type { VisibleViewportInsets };
 
 // Quiet long enough to call the keyboard finished, at which point whatever the
-// viewport now says is final and is committed unconditionally. Comfortably past
-// the ~250ms iOS spends animating plus the scroll that lands after it.
+// viewport now says is final and is believed. Comfortably past the ~250ms iOS
+// spends animating plus the scroll that lands after it.
 const BURST_END_MS = 400;
 
-/** How far the visible band is inset from the layout viewport, in px. */
-export type VisibleViewportInsets = { top: number; bottom: number };
-
-// The visible band, straight from the browser.
-//
 // clientHeight, not innerHeight: innerHeight follows the visual viewport on the
 // browsers that matter here, so it would report the band's own height and both
 // insets would come out as zero.
-type Band = { offsetTop: number; height: number };
+function layoutHeight(): number {
+  return typeof document === "undefined" ? 0 : document.documentElement.clientHeight;
+}
 
 function readBand(): Band | null {
   const viewport = typeof window === "undefined" ? null : window.visualViewport;
   return viewport ? { offsetTop: Math.max(0, viewport.offsetTop), height: viewport.height } : null;
-}
-
-// Insets for a band, optionally pretending it has not slid.
-//
-// `slide` null believes the band's own offset, which is measured fact. A number
-// holds it at a remembered value instead, which is a guess about a slide still
-// in flight: see the effect below.
-//
-// A guess is capped at the point where it would push the dialog BELOW where it
-// sits with no keyboard at all. Without that cap a slide remembered from before
-// the keyboard started retracting rode the dialog down past its resting place
-// and then snapped it back. Fact is never capped: a band that really has
-// settled low is where the dialog belongs, however far down that is.
-function insetsFrom(band: Band | null, slide: number | null): VisibleViewportInsets {
-  if (!band) return { top: 0, bottom: 0 };
-  const layout = document.documentElement.clientHeight;
-  const raw =
-    slide === null ? band.offsetTop : Math.max(0, Math.min(slide, (layout - band.height) / 2));
-  // Whole pixels. visualViewport reports fractions on real devices, and halving
-  // one above makes more of them; without this, two readings a hundredth apart
-  // count as a move and restart the frame's 200ms transition.
-  //
-  // A guess floors rather than rounds, because the cap above is a bound: at an
-  // exact half, rounding to nearest lands a pixel past it and the dialog dips
-  // below its resting place before settling back.
-  const top = slide === null ? Math.round(raw) : Math.floor(raw);
-  return { top, bottom: Math.max(0, Math.round(layout - top - band.height)) };
 }
 
 /** Measure the strips of the layout viewport the user cannot currently see.
@@ -66,72 +44,57 @@ function insetsFrom(band: Band | null, slide: number | null): VisibleViewportIns
  *  Both are 0 with no keyboard and where `visualViewport` is unsupported, so a
  *  caller adding them changes nothing until there is something to correct for.
  *
- *  Moves once per keyboard rather than once per event: see the effect. A caller
- *  can treat each change as a finished position and animate to it.
+ *  Moves once per keyboard rather than once per event. The rules for that live
+ *  in keyboardBand.ts, which is where they are tested; this only decides when to
+ *  ask. A caller can treat each change as a finished position and animate to it.
  */
 export function useVisibleViewportInsets(): VisibleViewportInsets {
   // Measured during the first render, not after it. The alternative, starting
   // at zero and correcting in an effect, is a real position change, and
-  // ModalShell transitions those: a dialog mounted while the keyboard is
+  // ModalFrame transitions those: a dialog mounted while the keyboard is
   // already up would animate in from where it does not belong.
   //
   // Only safe because every caller mounts on interaction and is never server
   // rendered. A server-rendered one would hydrate against the zeroes the server
   // sent and mismatch.
-  const [insets, setInsets] = useState<VisibleViewportInsets>(() => insetsFrom(readBand(), null));
+  const [insets, setInsets] = useState<VisibleViewportInsets>(() =>
+    insetsFrom(readBand(), null, layoutHeight())
+  );
 
   useEffect(() => {
     const viewport = window.visualViewport;
     if (!viewport) return;
 
-    // The two halves of the band move for different reasons and are believed on
-    // different terms.
-    //
-    // Its HEIGHT is the keyboard: a big, persistent change, and the one the
-    // dialog has to get out of the way of. Followed immediately, so the dialog
-    // still leaves as the keyboard arrives.
-    //
-    // Its OFFSET is the browser sliding the band around hunting for the focused
-    // field. That is transient, usually back at 0 by the time everything
-    // settles, and following it is what walked the dialog around: down 55px on
-    // a slide, up again when it sprang back. So the last settled offset is held
-    // through the burst and only re-read once the viewport has been quiet.
-    //
-    // Direction was the previous attempt at this and had an ordering assumption
-    // in it: the first change of a burst set the direction every later one was
-    // judged against, so when iOS led with the reveal scroll instead of the
-    // resize, "down" won and the real move up was held for the full 400ms. The
-    // dialog dropped low, sat there, then popped up. Which quantity moved does
-    // not depend on what order they arrive in.
-    let settledSlide = readBand()?.offsetTop ?? 0;
+    const tracker = createBandTracker(readBand()?.offsetTop ?? 0);
     let frame = 0;
     let burstTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const apply = (slide: number | null) => {
-      const next = insetsFrom(readBand(), slide);
+    const apply = (next: VisibleViewportInsets) =>
       // Same object when nothing moved, so a scroll that does not change the
-      // band cannot re-render every open dialog.
+      // band cannot re-render every open dialog. Pure, because React may invoke
+      // an updater more than once for a single update.
       setInsets((previous) =>
         previous.top === next.top && previous.bottom === next.bottom ? previous : next
       );
-    };
 
-    // A frame, not a settle timer. The 120ms one this replaced was trying to
-    // swallow an opposing pair that is now separated by quantity instead, and
-    // all it did besides was delay the dialog leaving by 120ms.
+    // A frame, not a settle timer. A 120ms one here used to try to swallow the
+    // opposing pair that keyboardBand separates by quantity instead, and all it
+    // did besides was delay the dialog leaving by 120ms.
     const onViewportChange = () => {
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => apply(settledSlide));
+      frame = requestAnimationFrame(() => apply(tracker.moving(readBand(), layoutHeight())));
       clearTimeout(burstTimer);
-      burstTimer = setTimeout(() => {
-        settledSlide = readBand()?.offsetTop ?? 0;
-        apply(null);
-      }, BURST_END_MS);
+      burstTimer = setTimeout(
+        () => apply(tracker.settled(readBand(), layoutHeight())),
+        BURST_END_MS
+      );
     };
 
     // Catches a viewport that moved between the first render's reading and this
-    // effect. Believes the offset: nothing is in flight to hold it through.
-    apply(null);
+    // effect. Settled, not moving: nothing is in flight to hold an offset
+    // through.
+    apply(tracker.settled(readBand(), layoutHeight()));
+
     // Both events, not just resize: the keyboard opening is a resize, but the
     // browser scrolling the band down onto the focused field is a scroll, and
     // listening for only one of them leaves the measurement stale for the
