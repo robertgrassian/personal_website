@@ -60,7 +60,14 @@ export function ViewportRecorder() {
       })
       .catch((e) => setSent(`failed ${e}`));
   };
-  sendRef.current = send;
+  // Assigned in an effect, not during render: writing a ref while rendering is
+  // a side effect in the render phase, which StrictMode double-invokes. Same
+  // latest-ref pattern useModalChrome uses, and for the same reason — the
+  // auto-send effect below fires 1.5s later and must call the current `send`
+  // without listing a function that is rebuilt on every sample as a dependency.
+  useEffect(() => {
+    sendRef.current = send;
+  });
 
   // Sending clears the log, so this effect re-runs against an empty one and
   // stops. Each burst therefore arrives on its own, numbered in order.
