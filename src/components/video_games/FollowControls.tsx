@@ -1,9 +1,10 @@
 "use client";
 
 // Per-viewer library controls: a Follow / Following toggle beside the heading,
-// and a way back to your own library once a follower list has taken you
-// somewhere else. Both depend on who is looking, so both resolve after
-// hydration (see useViewerRelationship) and neither appears in the cached HTML.
+// and a way back to your own library, in the header menu, once a follower list
+// has taken you somewhere else. Both depend on who is looking, so both resolve
+// after hydration (see useViewerRelationship) and neither appears in the cached
+// HTML.
 //
 // They sit in different corners of the header but need the SAME answer, so the
 // fetch lives in a provider and each control reads it from context rather than
@@ -20,6 +21,7 @@ import Link from "next/link";
 import { createContext, useContext, type ReactNode } from "react";
 import { CheckIcon } from "@/components/Icon";
 import { useServerAction } from "./useServerAction";
+import { headerMenuItemClass } from "./formStyles";
 import { followUserAction, unfollowUserAction } from "@/app/video-games/actions";
 import {
   useViewerRelationship,
@@ -183,11 +185,11 @@ export function BackToMyLibrary() {
 
   // /library is already a force-dynamic resolver that redirects a signed-in
   // viewer to their own shelf, so this needs no username of its own.
+  //
+  // The shared class rather than the copy that used to live here: this is a row
+  // of the header menu like Account and Sign out, and the two drifted once.
   return (
-    <Link
-      href="/library"
-      className="text-sm whitespace-nowrap text-shelf-text-muted hover:text-link underline underline-offset-4 transition-colors duration-150"
-    >
+    <Link href="/library" className={headerMenuItemClass}>
       Back to my library
     </Link>
   );
