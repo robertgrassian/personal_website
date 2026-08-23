@@ -134,15 +134,15 @@ export function nextHideOnScrollState(
   // changed rather than from before it.
   const run = state.lastScrollY - state.anchor;
   let anchor = run !== 0 && Math.sign(step) !== Math.sign(run) ? state.lastScrollY : state.anchor;
+  const descending = step > 0;
 
   // Spend the budget before anything counts as the user scrolling down.
-  if (step > 0 && chromeDebt > 0) {
+  if (descending && chromeDebt > 0) {
     const absorbed = Math.min(chromeDebt, step);
     chromeDebt -= absorbed;
     anchor += absorbed;
   }
   const travelled = scrollY - anchor;
-  const descending = step > 0;
   const moved = { ...carried, chromeDebt, wasDescending: descending };
 
   // Scrolling up means the user is reaching for the controls.
@@ -153,34 +153,4 @@ export function nextHideOnScrollState(
     return { ...moved, visible: false, anchor: scrollY };
   }
   return { ...moved, anchor };
-}
-
-// --- on-device trace --------------------------------------------------------
-//
-// Off unless ViewportRecorder turns it on, so this costs one null check per
-// scroll event in production. It exists because the only place this bug happens
-// is a phone with no console. Delete it once the fix is confirmed on a device.
-
-export type ScrollTraceRow = {
-  t: number;
-  step: number;
-  heightChange: number;
-  debt: number;
-  visible: boolean;
-};
-
-let trace: ScrollTraceRow[] | null = null;
-
-export function enableScrollTrace(): void {
-  trace ??= [];
-}
-
-export function readScrollTrace(): ScrollTraceRow[] {
-  return trace ?? [];
-}
-
-export function recordScrollTrace(row: ScrollTraceRow): void {
-  if (!trace) return;
-  trace.push(row);
-  if (trace.length > 30) trace.shift();
 }

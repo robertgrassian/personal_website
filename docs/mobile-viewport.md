@@ -145,6 +145,30 @@ Stage two makes `ModalBackdrop` an absolutely positioned descendant of a fixed
 because WebKit clips fixed layers. **Checked on the device: the backdrop still
 dims to the bottom edge**, so the clip does not apply through this arrangement.
 
+## The scroll position lies too
+
+Not only the viewport. The sticky library header hides on scroll down, and
+`useHideOnScrollDown` decided that from `window.scrollY` alone, on the unstated
+assumption that it only ever moves the way the finger did. It does not: a
+toolbar sliding in resizes the viewport, and the browser then moves the document
+to pay for the space it took. Those pixels arrive as ordinary scroll events
+pointing against the finger, over the following frames, and they hid the bar in
+the middle of a fast scroll up.
+
+Three things that took a device to learn, all now in `hideOnScroll.ts`:
+
+- **The toolbar is the better signal.** It answers the same reach-up gesture the
+  header does, using velocity JavaScript cannot see, and it publishes the answer
+  by resizing the viewport. Reading that beats re-deriving intent from deltas.
+- **Suppress with a budget, not a timer.** A timer bans every instance of the
+  decision for its duration. Half a second of "will not hide" was instantly
+  obvious on the device. A budget is denominated in the pixels it distrusts, so
+  a real gesture spends it and carries on.
+- **Anything that resets accumulated state must be gated on direction.** The
+  branch that shows the bar also clears its anchor and its descending run.
+  Reached by a stray one-pixel resize during a scroll down, it restarted the
+  hide every time it fired, which reads as the bar refusing to leave.
+
 ## Not everything is fixable
 
 Firefox visibly slides the whole page as the keyboard opens, and **nothing in
@@ -173,10 +197,9 @@ document. Reading them together is the whole point — the same visible symptom
 has a different cause in each column.
 
 With no dialog open, `top`/`h` fall back to the sticky library header, so the
-same capture covers its hide-on-scroll (`hideOnScroll.ts`). That is the way to
-tell a header that genuinely changed its mind (`top` slides the full height and
-back, over several frames) from a one-frame paint artifact, and to see whether
-`scrollY` ran backwards against the finger while it happened.
+same capture covers its hide-on-scroll. A header that genuinely changed its mind
+slides the full height and back over several frames; a paint artifact does not
+move `top` at all.
 
 `?debug` also makes the viewer the library's owner, so the owner-only fields
 (which is where the keyboard lives) can be reached from a device that cannot
