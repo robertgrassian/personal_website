@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "re
 import {
   initialHideOnScrollState,
   nextHideOnScrollState,
+  recordScrollTrace,
   type HideOnScrollState,
   type ScrollReading,
 } from "./hideOnScroll";
@@ -37,6 +38,7 @@ export function useHideOnScrollDown(ref: RefObject<HTMLElement | null>): boolean
       // Rounded: some devices report a fractional innerHeight that drifts by
       // hundredths, which would read as a resize on every sample.
       viewportHeight: Math.round(window.innerHeight),
+      now: performance.now(),
     });
 
     const handleScroll = () => {
@@ -44,6 +46,13 @@ export function useHideOnScrollDown(ref: RefObject<HTMLElement | null>): boolean
       const previous = stateRef.current ?? initialHideOnScrollState(reading);
       const next = nextHideOnScrollState(previous, reading, stickyThresholdRef.current);
       stateRef.current = next;
+      recordScrollTrace({
+        t: Math.round(reading.now),
+        step: Math.round(reading.scrollY - previous.lastScrollY),
+        heightChange: reading.viewportHeight - previous.lastViewportHeight,
+        debt: Math.round(next.chromeDebt),
+        visible: next.visible,
+      });
       // Only on a change: this runs on every scroll event, and React would
       // otherwise be asked to check a re-render sixty times a second.
       if (next.visible !== previous.visible) setVisible(next.visible);

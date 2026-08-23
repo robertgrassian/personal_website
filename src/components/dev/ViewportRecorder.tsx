@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDebugMode } from "@/lib/debugMode";
+import { enableScrollTrace, readScrollTrace } from "@/components/video_games/hideOnScroll";
 import { useViewportLog } from "./useViewportLog";
 
 // A viewport recorder for debugging layout on a real phone, where there is no
@@ -52,6 +53,16 @@ export function ViewportRecorder() {
     []
   );
   const { samples, clear } = useViewportLog({ card: findCard, anchor: findAnchor, enabled: on });
+
+  // The sticky header decides in a scroll handler, off any frame this records,
+  // so its own reasoning has to be asked for rather than measured. Turning the
+  // trace on here is what keeps it free on every other page load.
+  useEffect(() => {
+    if (on) enableScrollTrace();
+  }, [on]);
+  // Read during render rather than held in state: `samples` already re-renders
+  // this on every frame the page is busy, which is exactly when it changed.
+  const scrollTrace = readScrollTrace();
 
   const dump = [
     "t\ttop\th\tanchor\toffTop\tband\tlayout\tscrollY",
@@ -167,6 +178,42 @@ export function ViewportRecorder() {
         className="mb-2 h-24 w-full rounded bg-black p-2 font-mono text-[10px] text-lime-300"
       />
 
+      {/* The header's own decisions. `step` is what scrollY did, `Δh` is the
+          browser resizing its own chrome, `debt` is how many of those pixels
+          are still being discounted, `bar` is what came out. A row where the
+          bar goes down while step is positive is the bug. */}
+      <table className="mb-3 w-full tabular-nums">
+        <thead className="bg-black text-lime-500">
+          <tr>
+            <th className="text-left">t</th>
+            <th className="text-right">step</th>
+            <th className="text-right">Δh</th>
+            <th className="text-right">debt</th>
+            <th className="text-left">bar</th>
+          </tr>
+        </thead>
+        <tbody>
+          {scrollTrace.map((row, i) => (
+            <tr
+              key={i}
+              className={
+                scrollTrace[i - 1] && scrollTrace[i - 1].visible !== row.visible
+                  ? "text-fuchsia-300"
+                  : undefined
+              }
+            >
+              <td>{row.t}</td>
+              <td className="text-right">{row.step > 0 ? `+${row.step}` : row.step}</td>
+              <td className="text-right">
+                {row.heightChange > 0 ? `+${row.heightChange}` : row.heightChange}
+              </td>
+              <td className="text-right">{row.debt}</td>
+              <td>{row.visible ? "down" : "UP"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
       <table className="w-full tabular-nums">
         <thead className="sticky top-0 bg-black text-lime-500">
           <tr>
@@ -225,8 +272,9 @@ export function ViewportRecorder() {
         </tbody>
       </table>
       <p className="mt-2 font-sans">
-        Pink rows: the library moved. Amber: the card resized. Blue: the card moved. With no card
-        open, top/h are the sticky library header.
+        Top table: the sticky header’s hide-on-scroll, pink where it changed its mind. Below, pink
+        rows are the library moving, amber the card resizing, blue the card moving. With no card
+        open, top/h are the sticky header.
       </p>
     </div>
   );
