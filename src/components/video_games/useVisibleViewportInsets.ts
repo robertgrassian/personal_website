@@ -1,17 +1,7 @@
 import { useEffect, useState } from "react";
-import {
-  createBandTracker,
-  insetsFrom,
-  type Band,
-  type VisibleViewportInsets,
-} from "./keyboardBand";
+import { insetsFrom, type Band, type VisibleViewportInsets } from "./keyboardBand";
 
 export type { VisibleViewportInsets };
-
-// Quiet long enough to call the keyboard finished, at which point whatever the
-// viewport now says is final and is believed. Comfortably past the ~250ms iOS
-// spends animating plus the scroll that lands after it.
-const BURST_END_MS = 400;
 
 // clientHeight, not innerHeight: innerHeight follows the visual viewport on the
 // browsers that matter here, so it would report the band's own height and both
@@ -29,13 +19,13 @@ function readBand(): Band | null {
  *
  *  With a software keyboard open there are two viewports. The LAYOUT viewport
  *  (what `position: fixed`, `inset-0`, `100vh` and `100dvh` resolve against)
- *  keeps its full-screen height; the VISUAL viewport shrinks to the band above
- *  the keyboard and slides around inside the layout one, which is also how the
- *  browser reveals the field you just tapped. `useKeepResultsInView` reads the
- *  same offset to land the sticky filter bar somewhere visible.
+ *  can sit partly off screen; the VISUAL viewport is the band the user actually
+ *  sees, and it slides around inside the layout one, which is how the browser
+ *  reveals the field you just tapped. `useKeepResultsInView` reads the same
+ *  offset to land the sticky filter bar somewhere visible.
  *
  *  So an `inset-0` overlay is not wrong about the screen, it is right about a
- *  box the keyboard has taken half of: a dialog centered in it is centered
+ *  box part of which is not on it: a dialog centered in that box is centered
  *  partly out of sight. Returning the two strips rather than a box lets the
  *  caller keep its `fixed inset-0` element exactly as it is and pad the hidden
  *  parts away, which matters here because that element's insets are already
@@ -43,10 +33,9 @@ function readBand(): Band | null {
  *
  *  Both are 0 with no keyboard and where `visualViewport` is unsupported, so a
  *  caller adding them changes nothing until there is something to correct for.
- *
- *  Moves once per keyboard rather than once per event. The rules for that live
- *  in keyboardBand.ts, which is where they are tested; this only decides when to
- *  ask. A caller can treat each change as a finished position and animate to it.
+ *  On iOS 26 they are 0 even WITH one, because it shrinks the layout viewport to
+ *  the space above the keyboard and there is nothing left to correct; the
+ *  measurement stays because older iOS and Android do not.
  */
 export function useVisibleViewportInsets(): VisibleViewportInsets {
   // Measured during the first render, not after it. The alternative, starting
@@ -58,52 +47,46 @@ export function useVisibleViewportInsets(): VisibleViewportInsets {
   // rendered. A server-rendered one would hydrate against the zeroes the server
   // sent and mismatch.
   const [insets, setInsets] = useState<VisibleViewportInsets>(() =>
-    insetsFrom(readBand(), null, layoutHeight())
+    insetsFrom(readBand(), layoutHeight())
   );
 
   useEffect(() => {
     const viewport = window.visualViewport;
     if (!viewport) return;
 
-    const tracker = createBandTracker(readBand()?.offsetTop ?? 0);
     let frame = 0;
-    let burstTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const apply = (next: VisibleViewportInsets) =>
+    const apply = () => {
+      const next = insetsFrom(readBand(), layoutHeight());
       // Same object when nothing moved, so a scroll that does not change the
       // band cannot re-render every open dialog. Pure, because React may invoke
       // an updater more than once for a single update.
       setInsets((previous) =>
         previous.top === next.top && previous.bottom === next.bottom ? previous : next
       );
+    };
 
-    // A frame, not a settle timer. A 120ms one here used to try to swallow the
-    // opposing pair that keyboardBand separates by quantity instead, and all it
-    // did besides was delay the dialog leaving by 120ms.
+    // A frame, not a settle timer. Every reading is believed as it arrives: see
+    // keyboardBand.ts for why holding one back is what caused the wobble rather
+    // than what smoothed it. Coalescing to a frame is only to avoid measuring
+    // twice for a resize and a scroll that land together.
     const onViewportChange = () => {
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => apply(tracker.moving(readBand(), layoutHeight())));
-      clearTimeout(burstTimer);
-      burstTimer = setTimeout(
-        () => apply(tracker.settled(readBand(), layoutHeight())),
-        BURST_END_MS
-      );
+      frame = requestAnimationFrame(apply);
     };
 
     // Catches a viewport that moved between the first render's reading and this
-    // effect. Settled, not moving: nothing is in flight to hold an offset
-    // through.
-    apply(tracker.settled(readBand(), layoutHeight()));
+    // effect.
+    apply();
 
     // Both events, not just resize: the keyboard opening is a resize, but the
-    // browser scrolling the band down onto the focused field is a scroll, and
+    // browser sliding the band onto the focused field is a scroll, and
     // listening for only one of them leaves the measurement stale for the
     // other. That staleness is why an earlier attempt at this was reverted.
     viewport.addEventListener("resize", onViewportChange);
     viewport.addEventListener("scroll", onViewportChange);
     return () => {
       cancelAnimationFrame(frame);
-      clearTimeout(burstTimer);
       viewport.removeEventListener("resize", onViewportChange);
       viewport.removeEventListener("scroll", onViewportChange);
     };

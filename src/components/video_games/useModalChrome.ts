@@ -14,6 +14,75 @@ import { useEffect, useRef, type RefObject } from "react";
 // Generic over the focus target's element type so callers can pass a
 // `useRef<HTMLButtonElement>`/`useRef<HTMLInputElement>` without a variance
 // cast.
+
+let depth = 0;
+
+// Hold the page still for as long as a dialog is open, and put it back
+// afterwards.
+//
+// `overflow: hidden` stops a finger, not iOS. Focusing a field inside the
+// dialog makes WebKit scroll the document to "reveal" it -- 206px, measured --
+// and the field is inside a `position: fixed` element, so that scroll reveals
+// nothing at all. What it moves is the library behind the dialog, which rises
+// and STAYS risen, leaving the shelf case the card flies back to somewhere
+// other than where it was clicked. Taking the document out of flow removes the
+// scroll range that reveal needs, so there is nothing for it to scroll, and the
+// negative `top` is what keeps the page looking unmoved while it is out of it.
+//
+// The gentler version -- keep the document in flow and put back any scroll it
+// takes -- was tried and reverted. It cannot see the scroll it needs to undo:
+// Safari and Chrome answer a focused field by SLIDING the visual viewport
+// (offsetTop 209 and 203, layout viewport untouched) and then convert that
+// slide into a real document scroll when the keyboard leaves, which arrives as
+// a visualViewport event and never as a window `scroll`. The library ended up
+// 209px high for good and the card landed on a case that was no longer there.
+//
+// Known residue: Safari renders ONE frame of the page displaced by the scroll
+// position at dialog open, because it reports a scroll it has not yet applied
+// to layout, so `top` and the document's own offset both count for that frame.
+// `scrollY` already reads 0 there, which is why scrolling to 0 first (below)
+// fixes Firefox and cannot fix Safari. One frame, against a permanently
+// displaced library: the trade goes this way round.
+function lockScroll(): () => void {
+  // Depth, not a plain lock: two dialogs can overlap (the stats panel stays
+  // mounted while other things open over it), and the inner one must not
+  // re-read a scroll position of 0 from an already-fixed body and then restore
+  // the page to the top when it closes. Only the outermost lock touches the
+  // body at all.
+  depth += 1;
+  if (depth > 1) {
+    return () => {
+      depth -= 1;
+    };
+  }
+
+  const body = document.body;
+  const scrollY = window.scrollY;
+  const previous = body.style.cssText;
+
+  body.style.position = "fixed";
+  body.style.top = `-${scrollY}px`;
+  body.style.left = "0";
+  body.style.right = "0";
+  body.style.width = "100%";
+  body.style.overflow = "hidden";
+  // In the same tick: until the document lays out again it is still scrolled,
+  // and the negative `top` above counts a second time. This is what removed
+  // that frame in Firefox.
+  window.scrollTo(0, 0);
+
+  return () => {
+    depth -= 1;
+    // cssText, not six assignments: it restores exactly what was there,
+    // including nothing, rather than a hardcoded default.
+    body.style.cssText = previous;
+    // The browser forgot the scroll position while the body was out of flow, so
+    // it has to be put back by hand. Instant: a smooth scroll here would
+    // animate the page under a dialog that has already gone.
+    window.scrollTo(0, scrollY);
+  };
+}
+
 export function useModalChrome<T extends HTMLElement>(
   onClose: () => void,
   initialFocusRef: RefObject<T | null>,
@@ -29,8 +98,7 @@ export function useModalChrome<T extends HTMLElement>(
   useEffect(() => {
     if (!enabled) return;
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlockScroll = lockScroll();
     // Remember what opened the dialog so focus can return to it on close
     // instead of dropping to <body>.
     const previouslyFocused = document.activeElement;
@@ -41,7 +109,7 @@ export function useModalChrome<T extends HTMLElement>(
     };
     window.addEventListener("keydown", handleKey);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      unlockScroll();
       window.removeEventListener("keydown", handleKey);
       // isConnected guards against the opener having been unmounted (e.g. the
       // game moved shelves after a rating change re-rendered the grid).

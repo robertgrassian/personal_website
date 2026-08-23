@@ -1,10 +1,10 @@
-// What position a dialog should take while a software keyboard comes and goes.
+// What part of the layout viewport a software keyboard has taken, so a dialog
+// centred in that viewport can pad it away.
 //
 // Split out of useVisibleViewportInsets so it can be tested: everything here is
 // pure and takes its measurements as arguments, so keyboardBand.test.ts can
 // replay whole keyboard bursts with no browser, no timers and no React. The
-// hook keeps only the plumbing (which events to listen to, when a burst has
-// ended), which is what is left once the decisions live here.
+// hook keeps only the plumbing, which is which events to listen to.
 
 /** The part of the layout viewport the user can currently see. */
 export type Band = { offsetTop: number; height: number };
@@ -12,66 +12,26 @@ export type Band = { offsetTop: number; height: number };
 /** How far the visible band is inset from the layout viewport, in px. */
 export type VisibleViewportInsets = { top: number; bottom: number };
 
-/** Insets for a band, optionally pretending it has not slid.
+/** Insets for a band.
  *
- *  `slide` null believes the band's own offset, which is measured fact. A
- *  number holds it at a remembered value instead, which is a guess about a
- *  slide still in flight: see `createBandTracker`.
+ *  Every reading is believed on sight. Four earlier attempts held one half or
+ *  the other back through a burst, on the theory that the offset is a transient
+ *  hunt for the focused field and settles back at 0. A capture from the device
+ *  says otherwise: focusing a field in the card moves the band to offsetTop 42
+ *  and it STAYS there for as long as the keyboard is up, so holding it is not
+ *  smoothing over a transient — it is being wrong for the length of the hold,
+ *  and then correcting, which is the wobble those attempts were chasing.
  *
- *  A guess is capped where it would push the dialog BELOW where it sits with no
- *  keyboard at all. Without that cap, a slide remembered from before the
- *  keyboard began retracting rode the dialog down past its resting place and
- *  then snapped it back. Fact is never capped: a band that really has settled
- *  low is where the dialog belongs, however far down that is.
- */
-export function insetsFrom(
-  band: Band | null,
-  slide: number | null,
-  layout: number
-): VisibleViewportInsets {
+ *  The same capture explains why the height half needs no rule either. iOS now
+ *  shrinks the LAYOUT viewport with the keyboard (layout 733 -> 471 against a
+ *  band of 429), so the strip below the band comes out at 0 and the top inset
+ *  carries the whole correction.
+ *
+ *  Whole pixels: visualViewport reports fractions on real devices, and without
+ *  rounding two readings a hundredth apart count as a move and restart the
+ *  frame's padding transition. */
+export function insetsFrom(band: Band | null, layout: number): VisibleViewportInsets {
   if (!band) return { top: 0, bottom: 0 };
-  const raw =
-    slide === null ? band.offsetTop : Math.max(0, Math.min(slide, (layout - band.height) / 2));
-  // Whole pixels. visualViewport reports fractions on real devices and the cap
-  // halves one, so without this two readings a hundredth apart count as a move
-  // and restart the frame's transition. A guess floors rather than rounds,
-  // because the cap is a bound: at an exact half, rounding to nearest lands a
-  // pixel past it and puts the dip straight back.
-  const top = slide === null ? Math.round(raw) : Math.floor(raw);
+  const top = Math.round(band.offsetTop);
   return { top, bottom: Math.max(0, Math.round(layout - top - band.height)) };
-}
-
-export type BandTracker = {
-  /** The viewport is still moving: the slide cannot be believed yet. */
-  moving: (band: Band | null, layout: number) => VisibleViewportInsets;
-  /** The viewport has gone quiet: believe what it says, and remember it. */
-  settled: (band: Band | null, layout: number) => VisibleViewportInsets;
-};
-
-/** Decide the insets for each reading in a burst of viewport activity.
- *
- *  The band's two halves move for different reasons and are believed on
- *  different terms. Its HEIGHT is the keyboard: a big, persistent change, and
- *  the one the dialog has to get out of the way of, so it is followed
- *  immediately and the dialog leaves as the keyboard arrives. Its OFFSET is the
- *  browser sliding the band around hunting for the focused field: transient,
- *  usually back at 0 once things settle, and following it is what walked the
- *  dialog about. So the last settled offset is held through the burst and only
- *  re-read once the viewport is quiet.
- *
- *  Splitting on WHICH quantity moved rather than on which direction the dialog
- *  went is what makes this independent of the order the events arrive in. An
- *  earlier attempt judged every later change against the direction of the first
- *  one, so when iOS led with the reveal scroll instead of the keyboard resize,
- *  "down" won and the real move up was held for the whole burst.
- */
-export function createBandTracker(initialSlide: number): BandTracker {
-  let settledSlide = initialSlide;
-  return {
-    moving: (band, layout) => insetsFrom(band, settledSlide, layout),
-    settled: (band, layout) => {
-      settledSlide = band?.offsetTop ?? 0;
-      return insetsFrom(band, null, layout);
-    },
-  };
 }
