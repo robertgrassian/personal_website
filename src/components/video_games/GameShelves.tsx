@@ -339,10 +339,13 @@ export function GameShelves({
           the standalone `translate` property, so a list without it kills the
           slide. `visibility` transitions discretely, holding `visible` for the
           whole slide-out and flipping the instant it slides back in, so the
-          controls stay hidden from the tab order exactly while off screen. */}
+          controls stay hidden from the tab order exactly while off screen.
+          200ms both ways, matching the pace of the browser's own toolbar. The
+          exit was 300ms on the theory that getting out of the way could be
+          leisurely; on a device it just read as slow. */}
       <div
         ref={headerRef}
-        className={`sticky top-[var(--nav-offset)] z-20 bg-shelf-bg/95 backdrop-blur-sm rounded-b-lg shelf-filter-bar transition-[translate,visibility] duration-300 ${headerVisible ? "translate-y-0" : "-translate-y-full invisible pointer-events-none"}`}
+        className={`sticky top-[var(--nav-offset)] z-20 bg-shelf-bg/95 backdrop-blur-sm rounded-b-lg shelf-filter-bar transition-[translate,visibility] duration-200 ${headerVisible ? "translate-y-0" : "-translate-y-full invisible pointer-events-none"}`}
       >
         {tabs}
 

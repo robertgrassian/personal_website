@@ -35,7 +35,16 @@ export function ViewportRecorder() {
   // every sample.
   const sendRef = useRef<(label: string) => void>(() => {});
 
-  const findCard = useCallback(() => document.querySelector(".game-card-flight"), []);
+  // The card while one is flying, otherwise the sticky library header, whose
+  // mobile hide-on-scroll is the other thing here that moves against the
+  // viewport. With no card open the `top` column is the header's position,
+  // which is what tells a spurious state flip (it slides all the way out and
+  // back) apart from a one-frame paint artifact.
+  const findCard = useCallback(
+    () =>
+      document.querySelector(".game-card-flight") ?? document.querySelector(".shelf-filter-bar"),
+    []
+  );
   // Any shelf case will do: they all move together, and the first one exists for
   // the whole session whether or not a card is open.
   const findAnchor = useCallback(
@@ -216,7 +225,8 @@ export function ViewportRecorder() {
         </tbody>
       </table>
       <p className="mt-2 font-sans">
-        Pink rows: the library moved. Amber: the card resized. Blue: the card moved.
+        Pink rows: the library moved. Amber: the card resized. Blue: the card moved. With no card
+        open, top/h are the sticky library header.
       </p>
     </div>
   );
