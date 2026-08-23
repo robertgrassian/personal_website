@@ -38,7 +38,7 @@ const BURST_END_MS = 400; // must match useVisibleViewportInsets
  *  as the burst window is a settle, and so is the end of the sequence. */
 function replay(steps: Step[], startBand?: Band, layout = LAYOUT): number[] {
   const start: Band = startBand ?? { offsetTop: 0, height: layout };
-  const tracker = createBandTracker(start.offsetTop);
+  const tracker = createBandTracker(start.offsetTop, start.height);
   let last = insetsFrom(start, null, layout);
   const seen = [centre(last, layout)];
 
@@ -171,7 +171,10 @@ test("a slide that has settled is remembered into the next burst", () => {
   // The gap of 500 is what makes the first reading settle before the rest.
   const seen = replay([step(480, 110, 500), step(500, 110, 100), step(520, 110)]);
   assert.ok(reversals(seen) <= 1, `expected one correction at most, got ${JSON.stringify(seen)}`);
-  assert.deepEqual(seen, [422, 240, 350, 360, 370]);
+  // The band grows across these, and growth waits for the settle, so the
+  // intermediate 360 this used to render is superseded by 520 before anything
+  // is committed. Same start, same end, one fewer move.
+  assert.deepEqual(seen, [422, 240, 350, 370]);
 });
 
 test("sub-pixel jitter is not a move", () => {
@@ -186,6 +189,43 @@ test("sub-pixel jitter is not a move", () => {
 
 test("no keyboard means no movement", () => {
   assert.deepEqual(replay([step(LAYOUT, 0)]), [422]);
+});
+
+// --- the accessory bar -------------------------------------------------------
+
+// iOS puts a suggestion pill above the keyboard and takes it away again on its
+// own, after everything has settled. Each toggle is worth about this much band.
+const PILL = 44;
+
+test("the accessory bar coming and going moves nothing", () => {
+  // The reported symptom, from a real capture: layout 667, band 365, offset 0.
+  // Following the growth walked the card down half a pill and back up again.
+  const layout = 667;
+  const seen = replay(
+    [step(365, 0, 600), step(365 + PILL, 0, 250), step(365, 0, 600)],
+    { offsetTop: 0, height: layout },
+    layout
+  );
+  assert.equal(reversals(seen), 0, `wobbled: ${JSON.stringify(seen)}`);
+  assert.deepEqual(seen.map(Math.round), [334, 183]);
+});
+
+test("a pill that appears late and stays is followed, once", () => {
+  const layout = 667;
+  const seen = replay(
+    [step(365 + PILL, 0, 600), step(365, 0, 600)],
+    { offsetTop: 0, height: layout },
+    layout
+  );
+  // Shrinking can hide the dialog, so it is followed: two moves, both upward.
+  assert.equal(reversals(seen), 0, `wobbled: ${JSON.stringify(seen)}`);
+  assert.deepEqual(seen.map(Math.round), [334, 205, 183]);
+});
+
+test("a band that grows is still believed once the viewport is quiet", () => {
+  // Growth is deferred, not discarded: a dismissed keyboard must still land.
+  const seen = replay([step(480, 0, 600), step(LAYOUT, 0, 600)]);
+  assert.equal(seen[seen.length - 1], LAYOUT / 2);
 });
 
 // --- randomised bursts ------------------------------------------------------

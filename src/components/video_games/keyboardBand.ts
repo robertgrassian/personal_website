@@ -50,6 +50,10 @@ export type BandTracker = {
 
 /** Decide the insets for each reading in a burst of viewport activity.
  *
+ *  Neither half of the band is believed on sight. An offset is held until the
+ *  viewport is quiet because it is usually transient; a height is followed only
+ *  when it SHRINKS, because only shrinking can hide the dialog.
+ *
  *  The band's two halves move for different reasons and are believed on
  *  different terms. Its HEIGHT is the keyboard: a big, persistent change, and
  *  the one the dialog has to get out of the way of, so it is followed
@@ -65,12 +69,30 @@ export type BandTracker = {
  *  one, so when iOS led with the reveal scroll instead of the keyboard resize,
  *  "down" won and the real move up was held for the whole burst.
  */
-export function createBandTracker(initialSlide: number): BandTracker {
+export function createBandTracker(initialSlide: number, initialHeight: number): BandTracker {
   let settledSlide = initialSlide;
+  let settledHeight = initialHeight;
   return {
-    moving: (band, layout) => insetsFrom(band, settledSlide, layout),
+    moving: (band, layout) => {
+      // A band that has GROWN cannot hide the dialog: whatever fitted in the
+      // smaller one fits in the bigger one too, in the same place. So growth is
+      // deferred to the settle, and only shrinkage is followed at once.
+      //
+      // This is what iOS's accessory bar costs. It appears and disappears on its
+      // own after the keyboard has already settled, each toggle worth about 44px
+      // of band, and following the growth walked the card down half of that and
+      // back up again a moment later: "it pops up fine, then the very top jumps
+      // down a bit, then back up". Deferring it means the pair cancels and
+      // nothing moves at all. A keyboard being dismissed is also growth, so that
+      // move now lands at the settle rather than immediately, which is the cost.
+      const held = band
+        ? { offsetTop: band.offsetTop, height: Math.min(band.height, settledHeight) }
+        : null;
+      return insetsFrom(held, settledSlide, layout);
+    },
     settled: (band, layout) => {
       settledSlide = band?.offsetTop ?? 0;
+      settledHeight = band?.height ?? layout;
       return insetsFrom(band, null, layout);
     },
   };

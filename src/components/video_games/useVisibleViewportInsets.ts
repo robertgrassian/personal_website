@@ -65,7 +65,8 @@ export function useVisibleViewportInsets(): VisibleViewportInsets {
     const viewport = window.visualViewport;
     if (!viewport) return;
 
-    const tracker = createBandTracker(readBand()?.offsetTop ?? 0);
+    const start = readBand();
+    const tracker = createBandTracker(start?.offsetTop ?? 0, start?.height ?? layoutHeight());
     let frame = 0;
     let burstTimer: ReturnType<typeof setTimeout> | undefined;
 
