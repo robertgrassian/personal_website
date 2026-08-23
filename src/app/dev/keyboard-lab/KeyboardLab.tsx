@@ -159,7 +159,12 @@ export function KeyboardLab() {
 
         <p className="rounded bg-gray-100 p-2 font-mono text-xs dark:bg-gray-800">
           <span className="font-sans font-medium">came to rest at </span>
-          {rests.map((r) => `top ${r.top} h ${r.height}`).join("  \u2192  ") || "nothing yet"}
+          {rests
+            .map(
+              (r) =>
+                `top ${r.top} h ${r.height} [band ${r.bandHeight} off ${r.offsetTop} lay ${r.layout} y ${r.scrollY}]`
+            )
+            .join("  \u2192  ") || "nothing yet"}
         </p>
         <p className="font-medium">
           {moves} move{moves === 1 ? "" : "s"}, {resizes} resize{resizes === 1 ? "" : "s"}

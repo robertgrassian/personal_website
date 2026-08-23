@@ -74,7 +74,12 @@ export function RectLogOverlay() {
 
       <p className="mb-2 rounded bg-lime-300/10 p-2">
         <span className="font-sans">came to rest at </span>
-        {rests.map((r) => `top ${r.top} h ${r.height}`).join("  →  ") || "nothing yet"}
+        {rests
+          .map(
+            (r) =>
+              `top ${r.top} h ${r.height} [band ${r.bandHeight} off ${r.offsetTop} lay ${r.layout} y ${r.scrollY}]`
+          )
+          .join("  \u2192  ") || "nothing yet"}
       </p>
       <p className="mb-2 font-sans">
         {moves} move{moves === 1 ? "" : "s"}, {resizes} resize{resizes === 1 ? "" : "s"}. A move is
