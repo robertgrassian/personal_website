@@ -44,7 +44,7 @@ export function RectLogOverlay() {
     () => document.querySelector("[data-case-id] .game-case-inner"),
     []
   );
-  const { samples, clear } = useRectLog({ card: findCard, anchor: findAnchor });
+  const { samples, clear } = useRectLog({ card: findCard, anchor: findAnchor, enabled: on });
 
   const dump = [
     "t\ttop\th\tanchor\toffTop\tband\tlayout\tscrollY",

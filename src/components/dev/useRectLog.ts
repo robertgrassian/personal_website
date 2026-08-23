@@ -35,14 +35,19 @@ const WATCH_MS = 3000;
 type Targets = {
   card: () => Element | null;
   anchor: () => Element | null;
+  /** Off unless ?rectlog=1. Sampling regardless would put a React state update
+   *  on every frame of the animations this exists to measure, which is both
+   *  waste on every local page load and a confound in the measurement. */
+  enabled: boolean;
 };
 
-export function useRectLog({ card, anchor }: Targets) {
+export function useRectLog({ card, anchor, enabled }: Targets) {
   const [samples, setSamples] = useState<RectSample[]>([]);
   const originRef = useRef(0);
   const lastRef = useRef<string>("");
 
   useEffect(() => {
+    if (!enabled) return;
     let raf = 0;
     let until = 0;
 
@@ -121,7 +126,7 @@ export function useRectLog({ card, anchor }: Targets) {
       window.removeEventListener("pointerdown", kick);
       window.removeEventListener("scroll", kick);
     };
-  }, [card, anchor]);
+  }, [card, anchor, enabled]);
 
   return { samples, clear: () => setSamples([]) };
 }

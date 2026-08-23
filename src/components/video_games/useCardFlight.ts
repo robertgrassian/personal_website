@@ -273,10 +273,17 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
     // what makes every close land on the same proportions, whatever the keyboard
     // was doing.
     const before = card.getBoundingClientRect();
+    // The height that lands exactly on the case, derived from the case rather
+    // than from the card's content. `invertTo` scales by width alone, so the
+    // landing is only case-shaped while the card's ratio matches the case's;
+    // this makes that true by construction, at any keyboard state, in any
+    // orientation. At rest the two already agree to within a pixel (a 342x518
+    // card against a 96x144 case), so an ordinary close is unchanged.
+    //
+    // maxHeight because `max-h-full` is what the keyboard clamps through, and
+    // an inline height cannot beat it.
     card.style.maxHeight = "none";
-    // Bounded by the screen because the clamp is what was keeping a card with
-    // more content than fits from being arbitrarily tall.
-    const height = Math.min(card.getBoundingClientRect().height, window.screen.height);
+    const height = (rect.height * before.width) / rect.width;
 
     card.style.position = "fixed";
     // The top edge, not the centre: the card grows downward from where it

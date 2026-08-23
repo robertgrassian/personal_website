@@ -66,14 +66,21 @@ document to "reveal" a focused field — 206px, measured — and when that field
 inside a `position: fixed` dialog the scroll reveals nothing at all. What it
 moves is the page behind the dialog, which rises and stays risen.
 
-`useModalChrome.ts` therefore takes the body out of flow
+`scrollLock.ts` therefore takes the body out of flow
 (`position: fixed; top: -scrollY`), which removes the scroll range the reveal
-needs. Two things about it are load-bearing:
+needs. Three things about it are load-bearing:
 
 - **`window.scrollTo(0, 0)` in the same tick.** Until the document lays out
   again it is still scrolled, and the negative `top` counts a second time.
-- **A depth counter**, so a second dialog does not read a scroll position of 0
-  from an already-fixed body and restore the page to the top when it closes.
+- **A depth counter in module state**, acting only on the transitions to and
+  from 0. The surfaces that lock are not released in the order they were taken:
+  `StatsPanel` and `FilterSheet` stay mounted and lock by flipping `enabled`, so
+  an outer one can release while an inner dialog is still open.
+- **`pageScrollY()` and `scrollPageTo()` instead of `window`.** A locked page has
+  no scroll range, so `window.scrollY` reads 0 and `window.scrollTo` does
+  nothing; scrolling means moving `top`. `useKeepResultsInView` is the caller
+  that needs this, because on a phone filters are changed from inside
+  `FilterSheet`, which holds the lock.
 
 ### Tried and rejected
 
@@ -112,6 +119,15 @@ fits above it (365px against a resting 518px), and a FLIP flight that scales by
 width alone will then fly it home at two thirds of its proper height — a case
 cropped top and bottom. Dropping the clamp before measuring is what makes every
 close land on the same proportions.
+
+## Open question
+
+The lock makes `ModalBackdrop` an absolutely positioned descendant of a fixed
+`<body>`, and that component is `position: absolute` in document space precisely
+because WebKit clips fixed layers to a stale layout viewport and leaves an
+undimmed strip at the bottom. Whether the clip applies through this arrangement
+is **not verified**. To check: scroll until the URL bar collapses to the pill,
+open any dialog, and look at the bottom strip.
 
 ## Not everything is fixable
 
