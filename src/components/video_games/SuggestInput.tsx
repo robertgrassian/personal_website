@@ -29,8 +29,9 @@ function scrollParent(element: HTMLElement): HTMLElement | null {
 // The native call walks every scrollable ancestor, and on iOS with a keyboard
 // up that includes the visual viewport. Moving that fires the events
 // useVisibleViewportInsets listens to, which repads ModalFrame, which re-runs
-// the effect that called this: the dialog hopped up, down and back up as the
-// loop converged. Setting one element's scrollTop cannot start it.
+// the effect that called this. Setting one element's scrollTop cannot start
+// that loop. Note this was NOT the cause of the dialog hopping about on iOS,
+// though it was committed as such: that reproduces with this call removed.
 function scrollIntoViewWithin(element: HTMLElement, container: HTMLElement): void {
   const box = element.getBoundingClientRect();
   const view = container.getBoundingClientRect();
