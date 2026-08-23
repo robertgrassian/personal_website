@@ -108,6 +108,21 @@ test("with no toolbar to read, the scroll rule still brings the bar back", () =>
   assert.deepEqual(replay([1994, 1988, 1982], hidden(2000)), [false, true, true]);
 });
 
+test("a pixel of rounding noise does not restart the hide", () => {
+  // A 1px shrink used to take the toolbar branch, which resets the anchor and
+  // the descending run. Landing repeatedly during a scroll down, that read as
+  // the bar refusing to leave.
+  const visible = replay([1020, { y: 1040, h: VIEWPORT - 1 }, { y: 1060 }], shown(1000));
+  assert.deepEqual(visible, [true, false, false]);
+});
+
+test("a shrink on a sample the finger drove down is not a toolbar arriving", () => {
+  // The toolbar cannot be sliding in while the page is going down. Believing it
+  // was is the other half of the same stall.
+  const visible = replay([1020, { y: 1040, h: VIEWPORT - 20 }, { y: 1060 }], shown(1000));
+  assert.deepEqual(visible, [true, false, false]);
+});
+
 // --- the reported bug -------------------------------------------------------
 
 test("a toolbar jump mid-fling does not hide the bar again", () => {

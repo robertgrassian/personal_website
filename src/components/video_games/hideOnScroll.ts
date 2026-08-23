@@ -12,6 +12,10 @@ const MIN_SCROLL_DELTA = 10;
 // scrolling.
 const MAX_CHROME_DEBT = 200;
 
+// The smallest viewport shrink worth reading as a toolbar. Below this it is
+// rounding, and treating it as chrome resets the whole descending run.
+const MIN_TOOLBAR_SHRINK = 2;
+
 // The largest viewport shrink still credible as a browser toolbar. Anything
 // bigger is a keyboard or an orientation change, which say nothing about which
 // way the user is scrolling.
@@ -94,24 +98,29 @@ export function nextHideOnScrollState(
   // Signed, and the sign is the whole point: a viewport that SHRANK lost the
   // space to a toolbar sliding in, one that grew got it back.
   const heightChange = viewportHeight - state.lastViewportHeight;
+  const step = scrollY - state.lastScrollY;
   const carried = { ...state, lastScrollY: scrollY, lastViewportHeight: viewportHeight };
 
-  // The toolbar arriving. Come down with it, and bank the space it took.
-  if (heightChange < 0 && -heightChange <= MAX_TOOLBAR_HEIGHT) {
-    return {
-      ...carried,
-      visible: true,
-      anchor: scrollY,
-      wasDescending: false,
-      chromeDebt: Math.min(state.chromeDebt - heightChange, MAX_CHROME_DEBT),
-    };
+  // Budget bookkeeping first, and separately from the decision below, because
+  // what the browser owes the page is true whatever the finger did on this
+  // sample. A shrink banks the space taken; the toolbar LEAVING forgives it,
+  // since only a scroll down makes that happen and anything still owed then
+  // points the same way the finger does.
+  let chromeDebt = state.chromeDebt;
+  if (heightChange > 0) chromeDebt = 0;
+  else if (-heightChange <= MAX_TOOLBAR_HEIGHT) {
+    chromeDebt = Math.min(chromeDebt - heightChange, MAX_CHROME_DEBT);
   }
 
-  // The toolbar leaving. Only a scroll DOWN makes that happen, so anything
-  // still owed now points the same way the finger does and cannot make the
-  // decision wrong. Forgive it, rather than making a real scroll down pay it
-  // off before the bar will go.
-  let chromeDebt = heightChange > 0 ? 0 : state.chromeDebt;
+  // Come down with the toolbar. Two conditions beyond its size, and both exist
+  // because this branch resets the anchor AND the descending run: a shrink
+  // smaller than MIN_TOOLBAR_SHRINK is rounding noise, and a shrink on a sample
+  // the finger drove DOWN is not a toolbar arriving. Either one, landing in the
+  // middle of a scroll down, restarted the hide from zero every time it
+  // occurred, which reads as the bar refusing to leave.
+  if (heightChange <= -MIN_TOOLBAR_SHRINK && -heightChange <= MAX_TOOLBAR_HEIGHT && step <= 0) {
+    return { ...carried, chromeDebt, visible: true, anchor: scrollY, wasDescending: false };
+  }
 
   // Above the point where sticky engages: always show, and keep the anchor
   // current so the delta starts fresh on re-entering the sticky zone.
@@ -119,7 +128,6 @@ export function nextHideOnScrollState(
     return { ...carried, chromeDebt, visible: true, anchor: scrollY, wasDescending: false };
   }
 
-  const step = scrollY - state.lastScrollY;
   if (step === 0) return { ...carried, chromeDebt };
 
   // A reversal starts a new run, so travel is measured from where the direction
