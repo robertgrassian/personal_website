@@ -22,15 +22,29 @@ function readBand(): Band | null {
 
 // Insets for a band, optionally pretending it has not slid.
 //
-// `slide` null believes the band's own offset. A number holds it at that value
-// instead, which is how a mid-keyboard reading is used: see the effect below.
-// Clamped, so a slide held over from a taller band cannot outlive it and push
-// the panel past the bottom of a shorter one.
+// `slide` null believes the band's own offset, which is measured fact. A number
+// holds it at a remembered value instead, which is a guess about a slide still
+// in flight: see the effect below.
+//
+// A guess is capped at the point where it would push the dialog BELOW where it
+// sits with no keyboard at all. Without that cap a slide remembered from before
+// the keyboard started retracting rode the dialog down past its resting place
+// and then snapped it back. Fact is never capped: a band that really has
+// settled low is where the dialog belongs, however far down that is.
 function insetsFrom(band: Band | null, slide: number | null): VisibleViewportInsets {
   if (!band) return { top: 0, bottom: 0 };
   const layout = document.documentElement.clientHeight;
-  const top = slide === null ? band.offsetTop : Math.min(slide, Math.max(0, layout - band.height));
-  return { top, bottom: Math.max(0, layout - top - band.height) };
+  const raw =
+    slide === null ? band.offsetTop : Math.max(0, Math.min(slide, (layout - band.height) / 2));
+  // Whole pixels. visualViewport reports fractions on real devices, and halving
+  // one above makes more of them; without this, two readings a hundredth apart
+  // count as a move and restart the frame's 200ms transition.
+  //
+  // A guess floors rather than rounds, because the cap above is a bound: at an
+  // exact half, rounding to nearest lands a pixel past it and the dialog dips
+  // below its resting place before settling back.
+  const top = slide === null ? Math.round(raw) : Math.floor(raw);
+  return { top, bottom: Math.max(0, Math.round(layout - top - band.height)) };
 }
 
 /** Measure the strips of the layout viewport the user cannot currently see.
