@@ -22,10 +22,15 @@ import { createPortal } from "react-dom";
 //
 // The tradeoff is that it scrolls with the page. Spanning the whole document
 // means scrolling still leaves it covered, but rubber-band overscroll past
-// either end can pull it off the edge, and the scroll lock that would prevent
-// that is itself broken (docs/todo/modal-scroll-lock.md). Fixing the lock
-// closes this; a fixed backdrop is not the answer, since that is what iOS
-// clips.
+// either end could pull it off the edge. useModalChrome's lock now takes the
+// document out of flow for as long as a dialog is open, so there is no scroll
+// range left to rubber-band against, which is what closes that. A fixed
+// backdrop is still not the answer, since that is what iOS clips.
+//
+// That lock's second stage does make this an absolutely positioned descendant of
+// a fixed <body>, which is the arrangement described above as clipped. Checked
+// on a device with the URL bar collapsed to the pill: the dim still reaches the
+// bottom edge, so the clip does not apply through it.
 // Linear, so the dim comes and goes at one steady rate. An eased curve is
 // front-loaded, and using the same one in both directions does not mirror it:
 // opening would rush to dark and closing would rush to clear, so the two would

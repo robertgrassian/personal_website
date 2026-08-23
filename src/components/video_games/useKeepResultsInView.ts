@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from "react";
+import { pageScrollY, scrollPageTo } from "./scrollLock";
 
 // Breathing room between the bottom of the sticky chrome and the top of the
 // results, so the first shelf does not sit flush against the filter bar.
@@ -92,7 +93,13 @@ export function useKeepResultsInView(
       // also what prefers-reduced-motion would have forced anyway.
       //
       // `top - safeTop` is negative here, which is what makes this upward-only.
-      window.scrollTo({ top: window.scrollY + top - safeTop, behavior: "auto" });
+      //
+      // Through scrollLock, not `window`: on a phone the filters are changed
+      // from inside FilterSheet, which holds the scroll lock, and a locked page
+      // is out of flow — `window.scrollY` reads 0 and `window.scrollTo` has no
+      // range to move. That would leave the one surviving shelf under the nav,
+      // which is the exact bug this hook exists to prevent.
+      scrollPageTo(pageScrollY() + top - safeTop);
     });
     return () => cancelAnimationFrame(frame);
   }, [signature, resultsRef, chromeRef]);

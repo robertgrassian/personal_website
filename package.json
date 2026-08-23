@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --test \"src/**/*.test.ts\"",
+    "test": "node --experimental-strip-types --test \"src/**/*.test.ts\"",
     "prepare": "husky"
   },
   "dependencies": {

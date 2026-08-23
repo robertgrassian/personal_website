@@ -25,7 +25,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22, not 20: `npm test` runs TypeScript directly under `node --test`
+          # via --experimental-strip-types, which does not exist before 22.6.
+          node-version: 22
           cache: "npm"
 
       - name: Install dependencies
@@ -36,6 +38,11 @@ jobs:
 
       - name: Typecheck
         run: npx tsc --noEmit
+
+      # The frontend suite ran nowhere until now, which is part of how six wrong
+      # fixes to the same bug shipped past a green CI.
+      - name: Test
+        run: npm test
 
   # The Python half of the toolchain (spec decision #8). Separate job so it runs
   # in parallel with `build` and its failures are attributable at a glance.

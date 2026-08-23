@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
+import { ViewportRecorder } from "@/components/dev/ViewportRecorder";
 import { authFlagScript } from "@/lib/authFlag";
 
 const geistSans = Geist({
@@ -23,6 +24,12 @@ const geistMono = Geist_Mono({
 // This shipped as an attempted fix for the modal backdrop's uncovered strip
 // and did not fix it; see ModalBackdrop.tsx for what did. Kept because
 // handling the safe areas is correct on its own terms.
+//
+// Not `interactiveWidget`, which is the obvious next reach when a software
+// keyboard reshapes the viewport under a dialog: WebKit does not implement it.
+// Captures from three browsers on an iPhone were identical with
+// "overlays-content" set and unset, so it is documented here rather than left
+// in the file looking load-bearing. See useModalChrome for what does work.
 export const viewport: Viewport = {
   viewportFit: "cover",
 };
@@ -38,6 +45,8 @@ export const metadata: Metadata = {
 
 // Module scope: built once per server process, not per request.
 const AUTH_FLAG_SCRIPT = authFlagScript(process.env.NEXT_PUBLIC_SUPABASE_URL);
+
+const IS_LOCAL = process.env.VERCEL !== "1";
 
 export default function RootLayout({
   children,
@@ -58,6 +67,17 @@ export default function RootLayout({
         {AUTH_FLAG_SCRIPT && <script dangerouslySetInnerHTML={{ __html: AUTH_FLAG_SCRIPT }} />}
         <Nav />
         {children}
+        {/* Viewport recorder for debugging layout on a real phone, and inert
+            without ?debug in the URL. See docs/mobile-viewport.md.
+
+            VERCEL, not NODE_ENV: it has to be available against a local
+            production build, since StrictMode's double-mounted effects are a
+            real source of one-frame artifacts and ruling them out means
+            building without it. Vercel sets VERCEL=1 in every deployed
+            environment, so this renders only on a machine running the app
+            locally, and the condition resolves at build time. Read here in a
+            Server Component, so the unprefixed name is the right one. */}
+        {IS_LOCAL && <ViewportRecorder />}
       </body>
     </html>
   );

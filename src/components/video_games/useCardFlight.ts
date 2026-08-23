@@ -254,6 +254,49 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
       return;
     }
 
+    // Pin the card to a fixed px box, at the size a case is, out of the frame's
+    // grid. Two problems, one snapshot.
+    //
+    // The POSITION half: closing blurs the field, so the keyboard leaves at the
+    // same moment the flight starts, and iOS resizes the LAYOUT viewport when it
+    // goes (measured: 389 back to 651). The frame is `fixed inset-0`, so it grew
+    // with it and re-centred the card mid-flight, while the animation below is a
+    // transform measured before the growth: the card landed below the case and
+    // snapped up as it unmounted. A fixed box in px cannot be re-centred by any
+    // of that, because the layout viewport grows downward from an origin that
+    // does not move.
+    //
+    // The SIZE half: a keyboard clamps the card to what fits above it (365
+    // against a resting 518), and the flight scales by width alone, so a card
+    // closed from that state flew back at two thirds of a case's height and read
+    // as a case cropped top and bottom. Dropping the clamp before measuring is
+    // what makes every close land on the same proportions, whatever the keyboard
+    // was doing.
+    const before = card.getBoundingClientRect();
+    // The height that lands exactly on the case, derived from the case rather
+    // than from the card's content. `invertTo` scales by width alone, so the
+    // landing is only case-shaped while the card's ratio matches the case's;
+    // this makes that true by construction, at any keyboard state, in any
+    // orientation. At rest the two already agree to within a pixel (a 342x518
+    // card against a 96x144 case), so an ordinary close is unchanged.
+    //
+    // maxHeight because `max-h-full` is what the keyboard clamps through, and
+    // an inline height cannot beat it.
+    card.style.maxHeight = "none";
+    const height = (rect.height * before.width) / rect.width;
+
+    card.style.position = "fixed";
+    // The top edge, not the centre: the card grows downward from where it
+    // already is rather than jumping up to meet its own new middle.
+    card.style.top = `${before.top}px`;
+    card.style.left = `${before.left}px`;
+    card.style.width = `${before.width}px`;
+    card.style.height = `${height}px`;
+    card.style.maxWidth = "none";
+    card.style.margin = "0";
+
+    // Re-read rather than assume: this is the pinned box, and it is what the
+    // animation below has to be measured against.
     const invert = invertTo(rect, card.getBoundingClientRect());
     // This render put the card back into 3D with no transform, which is
     // rotateY(0) — the front face. It is showing the back, so pin it before the
@@ -282,6 +325,17 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
       stopKeepAlive();
       travel.cancel();
       flip.cancel();
+      // Only reached if the close was cancelled rather than landing, and
+      // whatever runs next has to measure a card that is back in the frame's
+      // grid.
+      card.style.position = "";
+      card.style.top = "";
+      card.style.left = "";
+      card.style.width = "";
+      card.style.height = "";
+      card.style.maxWidth = "";
+      card.style.maxHeight = "";
+      card.style.margin = "";
     };
   }, [closing, caseId]);
 

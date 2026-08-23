@@ -47,6 +47,7 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | Can this viewer edit?                  | `FollowControls.tsx` (two hooks), `useViewerRelationship.ts`, `ownedLibrary.ts`                         |
 | Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                                            |
 | Library styles                         | `src/app/video-games/video-games.css`; site tokens in `src/app/globals.css`                             |
+| Mobile keyboard / viewport behavior    | [`docs/mobile-viewport.md`](../docs/mobile-viewport.md); `keyboardBand.ts`, `useModalChrome.ts`         |
 | API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)                                |
 | API endpoint reference, runnable       | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)                            |
 | Migrations                             | `api/alembic/versions/`                                                                                 |
@@ -78,6 +79,13 @@ Dead code worth knowing about: `src/components/video_games/CurrentlyPlaying.tsx`
 - **The game library owns the `/video-games` prefix.** Everything belonging to it nests there, including per-user libraries at `/video-games/u/[username]` (moved off a top-level `/u/` 2026-07-29, redirect in `next.config.ts`). New library surfaces go under that prefix rather than at the top level. Auth is the deliberate exception: `/onboarding` and `/auth/*` stay top-level because identity is site-wide, not the library's.
 - **Always support both light and dark mode.** The site uses `@media (prefers-color-scheme: dark)` CSS variables in `globals.css` and Tailwind `dark:` variants in components — both must be addressed for any new UI. Never add color classes that only work in one mode.
 - **Nav height is one variable.** `--nav-height` in `globals.css` (`:root`) is the bar itself, consumed as `h-[var(--nav-height)]` in `Nav.tsx`. `--nav-offset` is that plus `--safe-top`, which is where the bar actually ends, consumed as `top-[var(--nav-offset)]` in `GameShelves.tsx` (the sticky library header, which holds the view tabs and `FilterBar`) and `StatsPanel.tsx`. Change the height in one place and all three follow.
+- **Anything touching a software keyboard, a scroll lock, or a dialog's position
+  starts at [`docs/mobile-viewport.md`](../docs/mobile-viewport.md).** It carries what
+  device captures established, including several fixes that were tried, shipped and
+  wrong: the same family of bugs was fixed six times from theory before anything was
+  measured. Two of its conclusions are easy to re-break — the browsers on one phone
+  use opposite viewport models, and every viewport reading must be believed as it
+  arrives rather than held for a settle.
 - **The page owns the device safe areas.** `layout.tsx` exports `viewport: { viewportFit: "cover" }`, so iOS stops insetting the page out of the notch and home-indicator strips: page content reaches the screen edges, which is what `ModalBackdrop` relies on to dim them. A `fixed` overlay does not, whatever its insets say: WebKit clips fixed layers to a layout viewport that goes stale when the URL bar shrinks, which is why the backdrop is document-positioned. The cost is that anything pinned to a viewport edge must pad itself back out, via the four `--safe-*` tokens in `globals.css` (all four: covering un-insets left and right too, which matters in landscape). Today that is `Nav`, `StatsPanel`, `ModalShell` and the homepage tiles. `FilterSheet` predates the change and pads its action row with a raw `max(1rem, env(safe-area-inset-bottom))`, so it must not be padded again.
 - **Owner affordances that CREATE a row use `useIsConfirmedOwner`, never `useIsLikelyOwner`.** The
   latter includes a cached guess that can be wrong for one round trip, which is fine where the

@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from "react";
+import { lockScroll, preventRevealScroll } from "./scrollLock";
 
 // Shared chrome for the owner dialogs. Locks body scroll, moves focus into the
 // dialog (to initialFocusRef), closes on Escape, and restores focus to whatever
@@ -14,6 +15,40 @@ import { useEffect, useRef, type RefObject } from "react";
 // Generic over the focus target's element type so callers can pass a
 // `useRef<HTMLButtonElement>`/`useRef<HTMLInputElement>` without a variance
 // cast.
+
+// How long to wait for the click a focus belongs to before escalating anyway.
+// Long enough to outlast a slow tap, short enough to beat the reveal scroll that
+// escalating exists to prevent — and if it loses that race, stage two undoes the
+// scroll rather than freezing it (see scrollLock).
+const FOCUS_WITHOUT_CLICK_MS = 400;
+
+// Whether focusing this element will raise a software keyboard. Deliberately
+// narrow: a `select` opens a picker rather than a keyboard, and the button-like
+// input types raise nothing at all, so none of them should pay for stage two of
+// the lock.
+const NO_KEYBOARD_INPUT_TYPES = new Set([
+  "button",
+  "checkbox",
+  "color",
+  "file",
+  "hidden",
+  "image",
+  "radio",
+  "range",
+  "reset",
+  "submit",
+]);
+
+function wantsKeyboard(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  if (target instanceof HTMLTextAreaElement) return true;
+  return target instanceof HTMLInputElement && !NO_KEYBOARD_INPUT_TYPES.has(target.type);
+}
+
+// The scroll lock lives in scrollLock.ts, because anything that still needs to
+// scroll the page has to go through it: a locked page is out of flow and
+// `window.scrollTo` has nothing to move.
 export function useModalChrome<T extends HTMLElement>(
   onClose: () => void,
   initialFocusRef: RefObject<T | null>,
@@ -29,8 +64,37 @@ export function useModalChrome<T extends HTMLElement>(
   useEffect(() => {
     if (!enabled) return;
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlockScroll = lockScroll();
+
+    // Stage two of the lock, deferred to the thing that needs it. Focus alone is
+    // not the trigger: a dialog focuses something the moment it opens, and the
+    // checkboxes and radios inside one raise no keyboard, while escalating
+    // costs Safari its collapsed URL bar for as long as the dialog is up.
+    //
+    // And not on the focus itself either. A touch focuses the field between its
+    // own pointerdown and its click, and escalating there re-lays out the
+    // document, after which WebKit does not deliver that click at all: tapping
+    // the System field focused it but never opened its suggestion list, and it
+    // took a second tap. So it waits for the click that focus belongs to, with a
+    // timeout for the focus that never has one (Tab, or a programmatic focus).
+    let pendingEscalation: ReturnType<typeof setTimeout> | undefined;
+
+    const escalateNow = () => {
+      if (pendingEscalation === undefined) return;
+      clearTimeout(pendingEscalation);
+      pendingEscalation = undefined;
+      preventRevealScroll();
+    };
+
+    const onFocusIn = (e: FocusEvent) => {
+      if (!wantsKeyboard(e.target) || pendingEscalation !== undefined) return;
+      pendingEscalation = setTimeout(escalateNow, FOCUS_WITHOUT_CLICK_MS);
+    };
+    // Bubble phase, so it runs after the focused control's own click handler in
+    // the same dispatch: by then the click has been delivered and the layout is
+    // free to change.
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("click", escalateNow);
     // Remember what opened the dialog so focus can return to it on close
     // instead of dropping to <body>.
     const previouslyFocused = document.activeElement;
@@ -41,7 +105,10 @@ export function useModalChrome<T extends HTMLElement>(
     };
     window.addEventListener("keydown", handleKey);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      clearTimeout(pendingEscalation);
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("click", escalateNow);
+      unlockScroll();
       window.removeEventListener("keydown", handleKey);
       // isConnected guards against the opener having been unmounted (e.g. the
       // game moved shelves after a rating change re-rendered the grid).

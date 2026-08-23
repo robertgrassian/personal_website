@@ -113,7 +113,11 @@ export async function LibraryPage({
           and CrtTv ship no extra JavaScript, and when `relationship` resolves
           React re-renders only the provider, since this server parent created
           the child elements. */}
-      <FollowStateProvider ownerUsername={profile.username}>
+      {/* allowDebug is read here, in a Server Component, where the unprefixed
+          name exists. Vercel sets VERCEL=1 in every deployed environment, so
+          this is true only for an app running on someone's own machine, and the
+          value is baked into the prerender at build time. */}
+      <FollowStateProvider ownerUsername={profile.username} allowDebug={process.env.VERCEL !== "1"}>
         {/* py-6 on phones, the full py-12 from sm up. The library's first row
             of covers was landing just below the fold on a 390px viewport, and
             this is the cheapest 24px of the ~170 that came back. */}
