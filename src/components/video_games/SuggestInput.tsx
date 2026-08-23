@@ -180,7 +180,7 @@ export function SuggestInput({
   // Re-run when the keyboard moves, not only on opening: tapping the field
   // opens the list and THEN raises the keyboard, which shrinks the dialog under
   // a list that has already been placed, leaving it clipped below the fold.
-  const hidden = useVisibleViewportInsets();
+  const hidden = useVisibleViewportInsets("list");
   useEffect(() => {
     if (!listOpen) return;
     const scroll = () => {

@@ -1,10 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { recordViewportSample } from "./viewportDebug";
 
-// How long the viewport must hold still before its geometry is believed. Long
-// enough to swallow the gap between the keyboard's `resize` and the `scroll`
-// that follows it, short enough that the dialog is already moving as the
-// keyboard finishes animating (iOS runs that in roughly 250ms).
+// How long the viewport must hold still before a reading is believed. Only
+// coalesces events inside one frame's worth of activity now; the pair of
+// opposing readings a keyboard produces is handled by direction, below.
 const SETTLE_MS = 120;
+
+// Quiet long enough to call the keyboard finished, at which point whatever the
+// viewport now says is final and is committed unconditionally. Comfortably past
+// the ~250ms iOS spends animating plus the scroll that lands after it.
+const BURST_END_MS = 400;
 
 /** How far the visible band is inset from the layout viewport, in px. */
 export type VisibleViewportInsets = { top: number; bottom: number };
@@ -23,6 +28,13 @@ function measureInsets(): VisibleViewportInsets {
     top: Math.max(0, viewport.offsetTop),
     bottom: Math.max(0, layoutHeight - viewport.offsetTop - viewport.height),
   };
+}
+
+// Where a panel centered in the padded frame ends up, in layout-viewport
+// coordinates. Derived from the insets rather than measured separately, so it
+// cannot disagree with what ModalFrame's padding actually does.
+function centerOf({ top, bottom }: VisibleViewportInsets): number {
+  return top + (document.documentElement.clientHeight - top - bottom) / 2;
 }
 
 /** Measure the strips of the layout viewport the user cannot currently see.
@@ -47,7 +59,7 @@ function measureInsets(): VisibleViewportInsets {
  *  Reports the settled geometry, not every intermediate one: see SETTLE_MS. A
  *  caller can treat each change as a finished position and animate to it.
  */
-export function useVisibleViewportInsets(): VisibleViewportInsets {
+export function useVisibleViewportInsets(debugLabel?: string): VisibleViewportInsets {
   // Measured during the first render, not after it. The alternative, starting
   // at zero and correcting in an effect, is a real position change, and
   // ModalShell transitions those: a dialog mounted while the keyboard is
@@ -58,32 +70,64 @@ export function useVisibleViewportInsets(): VisibleViewportInsets {
   // sent and mismatch.
   const [insets, setInsets] = useState<VisibleViewportInsets>(measureInsets);
 
+  // Mirrors `insets` so the commit logic can read the current value without
+  // running inside a setState updater. React may invoke an updater more than
+  // once for one update, so an updater is the wrong place for the ref writes
+  // and the debug record below.
+  const insetsRef = useRef(insets);
+
   useEffect(() => {
     const viewport = window.visualViewport;
     if (!viewport) return;
 
-    // Commit once the viewport has held still for SETTLE_MS, rather than once
-    // per frame. Raising the keyboard reports its result in two steps that pull
-    // in opposite directions -- a `resize` to the short band, then a `scroll`
-    // sliding that band down onto the focused field -- and committing each one
-    // moved the dialog up and then back down, which read as a bug. Waiting for
-    // the pair means one move, after the keyboard animation it belongs to.
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    // Which way the dialog moved when this burst of viewport activity started.
+    // 0 between bursts. Raising a keyboard reports its result in steps that
+    // pull in opposite directions: a `resize` to the short band, then a
+    // `scroll` sliding that band down onto the focused field, then often a
+    // spring back. Committing each one walked the dialog up, down and back up.
+    //
+    // A settle timer alone cannot fix that, which is what the previous attempt
+    // assumed: the steps are as far apart as the keyboard animation is long, so
+    // any timer short enough to keep the dialog responsive is too short to span
+    // them. Direction does not care how they are spaced. The first move goes
+    // through immediately, so the dialog still leaves with the keyboard; a
+    // later step that would send it back the other way is held until the
+    // viewport is quiet, and by then it has usually been undone anyway.
+    let burstDirection = 0;
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    let burstTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const commit = (final: boolean) => {
+      const next = measureInsets();
+      const previous = insetsRef.current;
+      // Same object when nothing moved, so a scroll that does not change the
+      // band cannot re-render every open dialog.
+      if (previous.top === next.top && previous.bottom === next.bottom) return;
+
+      const direction = Math.sign(centerOf(next) - centerOf(previous));
+      if (!final && burstDirection !== 0 && direction !== 0 && direction !== burstDirection) {
+        return; // a reversal mid-burst: hold, and let the burst's end decide
+      }
+      if (burstDirection === 0) burstDirection = direction;
+
+      insetsRef.current = next;
+      setInsets(next);
+      recordViewportSample("commit", debugLabel);
+    };
+
     const measure = (delay = SETTLE_MS) => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        const { top, bottom } = measureInsets();
-        // Same object when nothing moved, so a scroll that does not change the
-        // band cannot re-render every open dialog.
-        setInsets((previous) =>
-          previous.top === top && previous.bottom === bottom ? previous : { top, bottom }
-        );
-      }, delay);
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => commit(false), delay);
+      clearTimeout(burstTimer);
+      burstTimer = setTimeout(() => {
+        burstDirection = 0;
+        commit(true);
+      }, BURST_END_MS);
     };
 
     // Immediately, not after SETTLE_MS: this only catches a viewport that moved
     // between the first render's reading and this effect.
-    measure(0);
+    commit(true);
     // Wrapped rather than passed straight in: a listener is handed the event as
     // its first argument, which would land where `delay` goes.
     const onViewportChange = () => measure();
@@ -94,11 +138,12 @@ export function useVisibleViewportInsets(): VisibleViewportInsets {
     viewport.addEventListener("resize", onViewportChange);
     viewport.addEventListener("scroll", onViewportChange);
     return () => {
-      clearTimeout(timer);
+      clearTimeout(settleTimer);
+      clearTimeout(burstTimer);
       viewport.removeEventListener("resize", onViewportChange);
       viewport.removeEventListener("scroll", onViewportChange);
     };
-  }, []);
+  }, [debugLabel]);
 
   return insets;
 }

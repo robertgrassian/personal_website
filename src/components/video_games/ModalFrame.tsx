@@ -4,6 +4,7 @@ import { type CSSProperties, type ReactNode, type RefObject } from "react";
 import { useModalChrome } from "./useModalChrome";
 import { ModalBackdrop } from "./ModalBackdrop";
 import { useVisibleViewportInsets } from "./useVisibleViewportInsets";
+import { ViewportDebugOverlay } from "./ViewportDebugOverlay";
 
 // Everything a dialog needs AROUND its panel: scroll lock, focus in/out, Escape,
 // the backdrop, and a centering frame that stays clear of the notch, the home
@@ -40,7 +41,7 @@ export function ModalFrame({
 
   // How much of the frame the software keyboard has taken, which is padded
   // away below so the panel centers in what is left. Both are 0 without one.
-  const hidden = useVisibleViewportInsets();
+  const hidden = useVisibleViewportInsets("frame");
 
   return (
     // The z contract, which now spans three files: backdrop z-30 under the two
@@ -108,6 +109,9 @@ export function ModalFrame({
       />
 
       {children}
+
+      {/* Renders only under ?vvdebug=1. Temporary; see viewportDebug.ts. */}
+      <ViewportDebugOverlay />
     </div>
   );
 }
