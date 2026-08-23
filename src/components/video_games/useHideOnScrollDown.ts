@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
-
-// Minimum scroll distance (px) before toggling visibility. Filters out
-// micro-reversals from slow or momentum scrolling.
-const MIN_SCROLL_DELTA = 10;
+import {
+  initialHideOnScrollState,
+  nextHideOnScrollState,
+  type HideOnScrollState,
+  type ScrollReading,
+} from "./hideOnScroll";
 
 /** Mobile-only hide-on-scroll-down for a sticky element.
  *
@@ -16,16 +18,8 @@ const MIN_SCROLL_DELTA = 10;
  *  whatever ref it is given. */
 export function useHideOnScrollDown(ref: RefObject<HTMLElement | null>): boolean {
   const [visible, setVisible] = useState(true);
-  // Mirror of `visible` so the scroll handler reads the current value instead of
-  // a stale closure.
-  const visibleRef = useRef(true);
-  // Scroll position at the last visibility toggle, not at every scroll event, so
-  // the delta measures "how far since the bar last changed state". Prevents
-  // flip-flopping on jittery scrolls.
-  const scrollYAtLastToggle = useRef(0);
+  const stateRef = useRef<HideOnScrollState | null>(null);
   const stickyThresholdRef = useRef(0);
-
-  visibleRef.current = visible;
 
   // useLayoutEffect so the measurement happens before paint, while the element
   // is still in its natural flow position. Once `position: sticky` is active
@@ -38,26 +32,21 @@ export function useHideOnScrollDown(ref: RefObject<HTMLElement | null>): boolean
   }, [ref]);
 
   useEffect(() => {
+    const read = (): ScrollReading => ({
+      scrollY: window.scrollY,
+      // Rounded: some devices report a fractional innerHeight that drifts by
+      // hundredths, which would read as a resize on every sample.
+      viewportHeight: Math.round(window.innerHeight),
+    });
+
     const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-
-      // Above the point where sticky engages: always show, and keep the anchor
-      // current so the delta starts fresh on re-entering the sticky zone.
-      if (currentScrollY < stickyThresholdRef.current) {
-        if (!visibleRef.current) setVisible(true);
-        scrollYAtLastToggle.current = currentScrollY;
-        return;
-      }
-
-      const delta = currentScrollY - scrollYAtLastToggle.current;
-      if (delta > MIN_SCROLL_DELTA) {
-        setVisible(false);
-        scrollYAtLastToggle.current = currentScrollY;
-      } else if (delta < -MIN_SCROLL_DELTA) {
-        // Scrolling up means the user is reaching for the controls.
-        setVisible(true);
-        scrollYAtLastToggle.current = currentScrollY;
-      }
+      const reading = read();
+      const previous = stateRef.current ?? initialHideOnScrollState(reading);
+      const next = nextHideOnScrollState(previous, reading, stickyThresholdRef.current);
+      stateRef.current = next;
+      // Only on a change: this runs on every scroll event, and React would
+      // otherwise be asked to check a re-render sixty times a second.
+      if (next.visible !== previous.visible) setVisible(next.visible);
     };
 
     // Created once and reused: `change` fires only when the viewport crosses
@@ -67,9 +56,9 @@ export function useHideOnScrollDown(ref: RefObject<HTMLElement | null>): boolean
 
     const attachScroll = () => {
       if (scrollAttached) return;
-      // Measure the delta from here, not from a stale value left by a previous
-      // mobile session.
-      scrollYAtLastToggle.current = window.scrollY;
+      // Measure from here, not from a stale value left by a previous mobile
+      // session.
+      stateRef.current = initialHideOnScrollState(read());
       setVisible(true);
       // passive: this handler never calls preventDefault, so the browser need
       // not wait on JS before scrolling.

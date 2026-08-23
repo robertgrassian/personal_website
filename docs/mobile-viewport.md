@@ -172,6 +172,12 @@ the page is), `offTop`/`band`/`layout` are the two viewports, `scrollY` is the
 document. Reading them together is the whole point — the same visible symptom
 has a different cause in each column.
 
+With no dialog open, `top`/`h` fall back to the sticky library header, so the
+same capture covers its hide-on-scroll (`hideOnScroll.ts`). That is the way to
+tell a header that genuinely changed its mind (`top` slides the full height and
+back, over several frames) from a one-frame paint artifact, and to see whether
+`scrollY` ran backwards against the finger while it happened.
+
 `?debug` also makes the viewer the library's owner, so the owner-only fields
 (which is where the keyboard lives) can be reached from a device that cannot
 sign in: local Supabase listens on `127.0.0.1`, so no sign-in of any kind
