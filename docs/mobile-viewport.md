@@ -68,7 +68,27 @@ moves is the page behind the dialog, which rises and stays risen.
 
 `scrollLock.ts` therefore takes the body out of flow
 (`position: fixed; top: -scrollY`), which removes the scroll range the reveal
-needs. Three things about it are load-bearing:
+needs. It does that in **two stages**, and the split is load-bearing: opening a
+dialog only sets `overflow: hidden`, and the body comes out of flow later, when
+a field actually takes focus.
+
+The reason is Safari's URL bar. It stays collapsed to a pill only while the page
+is scrollable and scrolled, so a page that cannot scroll gets the full bar back
+and the screen shrinks — on every dialog open, including the great majority that
+never touch a keyboard. Deferring stage two puts that cost only where a keyboard
+is arriving to cover the bottom of the screen anyway. `useModalChrome` triggers
+it from `focusin`, filtered to elements that actually raise a keyboard: a dialog
+focuses something the moment it opens, and checkboxes and radios raise nothing.
+
+**It fires on the click that focus belongs to, not on the focus.** A touch
+focuses a field between its own `pointerdown` and its `click`, and re-laying out
+the document there means WebKit never delivers that click: tapping a suggestion
+field focused it but never opened its list, and it took a second tap. A timeout
+covers a focus that never gets a click (Tab, or a programmatic one). Because of
+that gap, stage two goes out of flow at the position recorded by stage ONE, so a
+reveal scroll that happens in between is undone rather than frozen in.
+
+Three more things are load-bearing:
 
 - **`window.scrollTo(0, 0)` in the same tick.** Until the document lays out
   again it is still scrolled, and the negative `top` counts a second time.
@@ -120,14 +140,10 @@ width alone will then fly it home at two thirds of its proper height — a case
 cropped top and bottom. Dropping the clamp before measuring is what makes every
 close land on the same proportions.
 
-## Open question
-
-The lock makes `ModalBackdrop` an absolutely positioned descendant of a fixed
+Stage two makes `ModalBackdrop` an absolutely positioned descendant of a fixed
 `<body>`, and that component is `position: absolute` in document space precisely
-because WebKit clips fixed layers to a stale layout viewport and leaves an
-undimmed strip at the bottom. Whether the clip applies through this arrangement
-is **not verified**. To check: scroll until the URL bar collapses to the pill,
-open any dialog, and look at the bottom strip.
+because WebKit clips fixed layers. **Checked on the device: the backdrop still
+dims to the bottom edge**, so the clip does not apply through this arrangement.
 
 ## Not everything is fixable
 
@@ -146,7 +162,7 @@ It is not built into any deploy.
 
 1. Start the app so a phone on the same wifi can reach it — `npm run dev:full`
    prints a Network URL.
-2. On the phone, open any page with **`?rectlog=1`**.
+2. On the phone, open any page with **`?debug`**.
 3. Do the thing that misbehaves. Each burst auto-sends when the page has been
    still for 1.5s, and prints in the terminal running the server. A `rect N`
    button top-left opens a live table and manual send buttons.
@@ -156,7 +172,13 @@ the page is), `offTop`/`band`/`layout` are the two viewports, `scrollY` is the
 document. Reading them together is the whole point — the same visible symptom
 has a different cause in each column.
 
-If you only have a signed-out device and need owner-only UI, the cheapest
-bypass is a build-time constant in `FollowControls.tsx`'s two ownership hooks
-driven by a gitignored `.env` variable. Local Supabase listens on `127.0.0.1`,
-so no sign-in of any kind completes from another device.
+`?debug` also makes the viewer the library's owner, so the owner-only fields
+(which is where the keyboard lives) can be reached from a device that cannot
+sign in: local Supabase listens on `127.0.0.1`, so no sign-in of any kind
+completes from another machine. It is UI gating only. Reads and writes still go
+out unauthenticated, so saving anything will fail.
+
+Whether `?debug` is allowed is decided in a Server Component and passed down
+(`src/lib/debugMode.ts` says why): `process.env.VERCEL` is not inlined into
+client bundles, so a client-side check would read `undefined` and enable it on a
+deploy.

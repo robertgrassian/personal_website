@@ -68,7 +68,7 @@ export default function RootLayout({
         <Nav />
         {children}
         {/* Viewport recorder for debugging layout on a real phone, and inert
-            without ?rectlog=1 in the URL. See docs/mobile-viewport.md.
+            without ?debug in the URL. See docs/mobile-viewport.md.
 
             VERCEL, not NODE_ENV: it has to be available against a local
             production build, since StrictMode's double-mounted effects are a

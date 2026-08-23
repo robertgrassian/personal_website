@@ -20,6 +20,7 @@
 import Link from "next/link";
 import { createContext, useContext, type ReactNode } from "react";
 import { CheckIcon } from "@/components/Icon";
+import { useDebugMode } from "@/lib/debugMode";
 import { useServerAction } from "./useServerAction";
 import { headerMenuItemClass } from "./formStyles";
 import { followUserAction, unfollowUserAction } from "@/app/video-games/actions";
@@ -42,19 +43,27 @@ const FollowStateContext = createContext<FollowState | null>(null);
 
 export function FollowStateProvider({
   ownerUsername,
+  allowDebug = false,
   children,
 }: {
   ownerUsername: string;
+  // Whether ?debug may pretend the viewer is the owner. Decided by the server
+  // (see LibraryPage) because process.env.VERCEL is not inlined into client
+  // bundles, so checking it here would enable this on a deploy.
+  allowDebug?: boolean;
   children: ReactNode;
 }) {
   const { relationship, confirmed, setRelationship } = useViewerRelationship(ownerUsername);
-  return (
-    <FollowStateContext.Provider
-      value={{ ownerUsername, relationship, confirmed, setRelationship }}
-    >
-      {children}
-    </FollowStateContext.Provider>
-  );
+  // Overridden here rather than in the two hooks below, because everything that
+  // asks reads this one context: the answer cannot end up different in two
+  // places. Reads and writes still go out unauthenticated and will fail, so this
+  // buys the LAYOUT of the owner-only UI and nothing else.
+  const debugOwner = useDebugMode(allowDebug);
+  const value = debugOwner
+    ? { ownerUsername, relationship: "me" as const, confirmed: true, setRelationship }
+    : { ownerUsername, relationship, confirmed, setRelationship };
+
+  return <FollowStateContext.Provider value={value}>{children}</FollowStateContext.Provider>;
 }
 
 // "Is the viewer looking at their own library?" — the question that decides

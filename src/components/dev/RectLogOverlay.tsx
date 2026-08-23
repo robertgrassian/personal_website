@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useDebugMode } from "@/lib/debugMode";
 import { useRectLog } from "./useRectLog";
 
 // A viewport recorder for debugging layout on a real phone, where there is no
 // console, no inspector, and no way to see a number that only exists for two
 // frames. Mounted only when the app is running locally (see layout.tsx), and
-// even then it renders nothing without ?rectlog=1 in the URL.
+// even then it renders nothing without ?debug in the URL, which is the same flag
+// that reveals the owner-only fields (src/lib/debugMode.ts).
 //
 // It exists because a whole family of keyboard bugs was fixed six times from
 // theory and stayed broken; one capture from the device settled it in an
@@ -22,7 +24,9 @@ import { useRectLog } from "./useRectLog";
 const QUIET_MS = 1500;
 
 export function RectLogOverlay() {
-  const [on, setOn] = useState(false);
+  // Already only mounted locally (layout.tsx), so the allowed flag is simply
+  // true here; ?debug is what turns it on.
+  const on = useDebugMode(true);
   const [open, setOpen] = useState(false);
   const [sent, setSent] = useState("");
   const dumpRef = useRef<HTMLTextAreaElement>(null);
@@ -30,12 +34,6 @@ export function RectLogOverlay() {
   // Latest-ref so the auto-send effect does not depend on a function rebuilt on
   // every sample.
   const sendRef = useRef<(label: string) => void>(() => {});
-
-  // Read the query string after mount: deciding during render would make the
-  // server send nothing and the client send a panel, which is a mismatch.
-  useEffect(() => {
-    setOn(new URLSearchParams(window.location.search).has("rectlog"));
-  }, []);
 
   const findCard = useCallback(() => document.querySelector(".game-card-flight"), []);
   // Any shelf case will do: they all move together, and the first one exists for

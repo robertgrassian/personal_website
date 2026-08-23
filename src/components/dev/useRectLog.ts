@@ -35,7 +35,7 @@ const WATCH_MS = 3000;
 type Targets = {
   card: () => Element | null;
   anchor: () => Element | null;
-  /** Off unless ?rectlog=1. Sampling regardless would put a React state update
+  /** Off unless ?debug. Sampling regardless would put a React state update
    *  on every frame of the animations this exists to measure, which is both
    *  waste on every local page load and a confound in the measurement. */
   enabled: boolean;

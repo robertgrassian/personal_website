@@ -27,11 +27,10 @@ import { createPortal } from "react-dom";
 // range left to rubber-band against, which is what closes that. A fixed
 // backdrop is still not the answer, since that is what iOS clips.
 //
-// That lock does make this an absolutely positioned descendant of a fixed
-// <body>, which is the arrangement described above as clipped. Verify on a
-// device before assuming either way: scroll far enough for the URL bar to
-// collapse to the pill, then open a dialog and look at the bottom strip.
-// docs/mobile-viewport.md has the recorder for it.
+// That lock's second stage does make this an absolutely positioned descendant of
+// a fixed <body>, which is the arrangement described above as clipped. Checked
+// on a device with the URL bar collapsed to the pill: the dim still reaches the
+// bottom edge, so the clip does not apply through it.
 // Linear, so the dim comes and goes at one steady rate. An eased curve is
 // front-loaded, and using the same one in both directions does not mirror it:
 // opening would rush to dark and closing would rush to clear, so the two would
