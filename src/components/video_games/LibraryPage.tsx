@@ -22,7 +22,8 @@ import {
   FollowCountLinksFallback,
 } from "@/components/video_games/FollowCountLinks";
 import { SignupCta } from "@/components/video_games/SignupCta";
-import { headerLinkClass } from "@/components/video_games/formStyles";
+import { LibraryHeaderMenu } from "@/components/video_games/LibraryHeaderMenu";
+import { headerMenuItemClass } from "@/components/video_games/formStyles";
 import { NEW_ISSUE_URL } from "@/lib/feedback";
 
 // One library page, two routes: /video-games (Robert's shelf, at its stable
@@ -119,14 +120,15 @@ export async function LibraryPage({
         <div className="max-w-7xl mx-auto px-6 py-6 sm:py-12">
           {/* The sign-in/out control lives here rather than the global nav: the
               portfolio has no accounts, the library is the only app that does.
-              items-start keeps it aligned to the heading's first line when a
-              long display name wraps.
-              Column on phones: the controls are nowrap links, so side by side
-              with a long owner name they overflowed the viewport instead of
-              shrinking. From sm up there is room for one row. */}
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-            {/* min-w-0 lets this shrink below its longest word once it is a
-                flex item again, so the heading wraps instead of pushing. */}
+              items-start keeps the menu button aligned to the heading's first
+              line when a long display name wraps.
+              One row at every width. This used to stack into a column on
+              phones, because the controls were four nowrap links that overflowed
+              beside a long owner name; collapsing them into a single button
+              removed the reason, and with it a whole row above the title. */}
+          <div className="flex items-start justify-between gap-3 sm:gap-4">
+            {/* min-w-0 lets this shrink below its longest word, so the heading
+                wraps instead of pushing the menu button off the row. */}
             <div className="min-w-0">
               {/* Same wording on both routes, since both show the same library.
                 The display name comes from the profile rather than the URL
@@ -198,33 +200,37 @@ export async function LibraryPage({
                 which acts on the library's owner and so sits with the heading.
                 AuthButton is driven by the pre-paint flag; BackToMyLibrary
                 resolves after hydration from the same context.
-                order-first on phones so the stacked column reads as a nav
-                strip above the heading rather than a stray row wedged into
-                the identity block. */}
-            <div className="order-first flex flex-wrap items-center gap-x-3 gap-y-1 sm:order-none sm:flex-nowrap">
-              <BackToMyLibrary />
-              {/* Feedback goes here rather than in a page footer: a library is
-                  long, and someone who just hit a bug is not going to scroll
-                  past every shelf to report it. Plain <a>, not next/link,
-                  because the target is off-site. */}
-              <a
-                href={NEW_ISSUE_URL}
-                target="_blank"
-                // Without noopener the opened tab holds a window.opener handle
-                // back to this one and can navigate it elsewhere.
-                rel="noopener noreferrer"
-                className={headerLinkClass}
-              >
-                Suggestion/Issue?
-              </a>
-              {/* Always rendered, hidden from signed-out visitors by CSS on the
-                  pre-paint flag — the same mechanism AuthButton uses, so the
-                  cluster never pops in a beat after paint. The page itself
-                  re-checks the session server-side; this flag is display only. */}
-              <Link href="/video-games/account" className={headerLinkClass} data-hide-anon="">
-                Account
-              </Link>
-              <AuthButton />
+                Behind a menu at every width, not just on phones. Rendering the
+                row and the menu side by side would put every one of these links
+                in the DOM twice, which a screen reader reads as two of each
+                however the breakpoint hides one. shrink-0 so the button keeps
+                its width against a long heading. */}
+            <div className="shrink-0">
+              <LibraryHeaderMenu>
+                <BackToMyLibrary />
+                {/* Feedback goes here rather than in a page footer: a library is
+                    long, and someone who just hit a bug is not going to scroll
+                    past every shelf to report it. Plain <a>, not next/link,
+                    because the target is off-site. */}
+                <a
+                  href={NEW_ISSUE_URL}
+                  target="_blank"
+                  // Without noopener the opened tab holds a window.opener handle
+                  // back to this one and can navigate it elsewhere.
+                  rel="noopener noreferrer"
+                  className={headerMenuItemClass}
+                >
+                  Suggestion/Issue?
+                </a>
+                {/* Always rendered, hidden from signed-out visitors by CSS on the
+                    pre-paint flag — the same mechanism AuthButton uses, so the
+                    menu never reshuffles a beat after paint. The page itself
+                    re-checks the session server-side; this flag is display only. */}
+                <Link href="/video-games/account" className={headerMenuItemClass} data-hide-anon="">
+                  Account
+                </Link>
+                <AuthButton />
+              </LibraryHeaderMenu>
             </div>
           </div>
           {showSignupCta && <SignupCta />}

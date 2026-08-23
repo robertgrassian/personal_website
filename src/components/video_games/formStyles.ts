@@ -101,24 +101,33 @@ export const dangerSubtleButtonClass =
   "text-shelf-danger hover:bg-shelf-danger-tint-hover " +
   "transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default";
 
-// The quiet text links in the library header's viewer-controls cluster: Sign
-// in / Sign out (AuthButton) and Account. Shared so the cluster cannot drift
-// into two slightly different underlines.
+// One row inside the library header's menu (LibraryHeaderMenu): Back to my
+// library, Suggestion/Issue?, Account, Sign in / Sign out. Shared so a mix of
+// <a>, next/link and <button> reads as one list.
+//
+// No underline, unlike an inline text link: these are stacked rows in a panel,
+// where the row itself is the affordance and four underlines would be noise.
+// Hover tints the whole row instead.
 //
 // Shelf tokens, not the global ones: this sits on the library's own background
 // (.shelf-theme), where text-subtle would be low-contrast. Both tokens carry
 // light and dark values.
 //
 // Amber on hover, matching the view tabs, the Add game / Stats buttons and the
-// follow-count links, so every interactive element in the library header and
-// tab strip highlights the same way.
+// follow-count links, so every interactive element in the library highlights
+// the same way.
+//
+// text-left because a <button> centers its text by default and the anchors
+// beside it do not; block + w-full so the whole row is the target, not just
+// the glyphs.
 //
 // cursor-pointer is not redundant: Tailwind v4's preflight sets buttons to
 // cursor: default, so "Sign out" would otherwise show an arrow while the
-// "Sign in" anchor beside it shows a hand.
-export const headerLinkClass =
-  "text-sm whitespace-nowrap text-shelf-text-muted hover:text-link cursor-pointer " +
-  "underline underline-offset-4 transition-colors duration-150";
+// "Account" link above it shows a hand.
+export const headerMenuItemClass =
+  "block w-full whitespace-nowrap rounded-md px-3 py-2 text-left text-sm " +
+  "text-shelf-text-muted hover:bg-shelf-input hover:text-link cursor-pointer " +
+  "transition-colors duration-150";
 
 // The page-level call to action: sign in, sign up, "Add game". Roomier than
 // saveButtonClass, and carries no text size — call sites set their own, because
