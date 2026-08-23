@@ -340,13 +340,12 @@ export function GameShelves({
           slide. `visibility` transitions discretely, holding `visible` for the
           whole slide-out and flipping the instant it slides back in, so the
           controls stay hidden from the tab order exactly while off screen.
-          The durations are asymmetric because the two directions answer to
-          different things: coming back is meant to keep pace with the browser's
-          own toolbar sliding in, which is quicker than the leisurely 300ms that
-          suits getting out of the way. */}
+          200ms both ways, matching the pace of the browser's own toolbar. The
+          exit was 300ms on the theory that getting out of the way could be
+          leisurely; on a device it just read as slow. */}
       <div
         ref={headerRef}
-        className={`sticky top-[var(--nav-offset)] z-20 bg-shelf-bg/95 backdrop-blur-sm rounded-b-lg shelf-filter-bar transition-[translate,visibility] ${headerVisible ? "translate-y-0 duration-200" : "-translate-y-full invisible pointer-events-none duration-300"}`}
+        className={`sticky top-[var(--nav-offset)] z-20 bg-shelf-bg/95 backdrop-blur-sm rounded-b-lg shelf-filter-bar transition-[translate,visibility] duration-200 ${headerVisible ? "translate-y-0" : "-translate-y-full invisible pointer-events-none"}`}
       >
         {tabs}
 
