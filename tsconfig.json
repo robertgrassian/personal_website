@@ -6,6 +6,9 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    // node --test runs the *.test.ts files directly and resolves real paths, so
+    // their imports carry a .ts extension. Safe alongside noEmit.
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",

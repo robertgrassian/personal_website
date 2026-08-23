@@ -50,7 +50,7 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)                                |
 | API endpoint reference, runnable       | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)                            |
 | Migrations                             | `api/alembic/versions/`                                                                                 |
-| Tests                                  | `api/tests/` (pytest). No frontend test suite exists yet                                                |
+| Tests                                  | `api/tests/` (pytest); `src/**/*.test.ts` (`npm test`, node --test, no runner installed)                |
 
 Dead code worth knowing about: `src/components/video_games/CurrentlyPlaying.tsx` is the **old** stylized CRT and is imported by nothing. The live one is `crt/CrtTv.tsx`, used by `LibraryPage` and `/currently-playing`.
 
@@ -106,6 +106,7 @@ Dead code worth knowing about: `src/components/video_games/CurrentlyPlaying.tsx`
   `/video-games` and its OG image prerender from it, and an unreachable origin fails the build by
   design rather than shipping an empty library
 - `npm run lint` — Run ESLint
+- `npm test` — Frontend tests (`node --test`, runs TypeScript directly; no test runner dependency)
 - `cd api && uv run pytest` — Python test suite (DB tests skip without `DATABASE_URL`)
 - `cd api && uv run ruff check .` — Python lint
 - `cd api && uv run alembic upgrade head` — Apply migrations
