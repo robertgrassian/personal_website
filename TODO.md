@@ -36,6 +36,11 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 ## Backlog / Ideas
 
+- [ ] **A site email address for feedback, so people without a GitHub account can report bugs and
+      ideas.** `/privacy` already publishes `rgrassian@gmail.com` twice, so an address exists: what
+      is missing is one that is not a personal inbox, and any link to it from the library.
+      [Details](docs/todo/feedback-email-address.md)
+
 - [ ] Add "owned" as a field to wishlist games. Inloves migration and checkbox added to edit wishlist game UI.
 
 - [ ] **Delete the prerender-only `/api/py` retry in `libraryApi.ts`'s `fetchUserResource`, and
