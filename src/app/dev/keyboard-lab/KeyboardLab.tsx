@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { GameDetailCard } from "@/components/video_games/GameDetailCard";
 import type { Game } from "@/lib/games";
-import { useRectLog } from "./useRectLog";
+import { useRectLog } from "@/components/dev/useRectLog";
 
 // The REAL detail card, with fixture data instead of the API.
 //

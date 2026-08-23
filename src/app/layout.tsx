@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { RectLogOverlay } from "@/components/dev/RectLogOverlay";
 import { Nav } from "@/components/Nav";
 import { authFlagScript } from "@/lib/authFlag";
 
@@ -58,6 +59,14 @@ export default function RootLayout({
         {AUTH_FLAG_SCRIPT && <script dangerouslySetInnerHTML={{ __html: AUTH_FLAG_SCRIPT }} />}
         <Nav />
         {children}
+        {/* Dev-only instrumentation for the keyboard placement bug. The
+            condition becomes a literal false at build time, so a production
+            build never renders this whatever the URL says; verified against
+            `next start` with ?rectlog=1. The module is still bundled, since
+            webpack does not tree-shake a "use client" import away, so this is
+            about 2kB of unreachable code until it is deleted along with
+            src/components/dev/ once the bug is fixed. */}
+        {process.env.NODE_ENV !== "production" && <RectLogOverlay />}
       </body>
     </html>
   );

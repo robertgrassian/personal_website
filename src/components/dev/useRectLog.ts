@@ -20,6 +20,10 @@ export type RectSample = {
   offsetTop: number;
   bandHeight: number;
   layout: number;
+  /** Where the document was scrolled. A suspect in its own right: the library
+   *  page is long and scrolled, the lab page was neither, and the lab could not
+   *  reproduce the bug. */
+  scrollY: number;
 };
 
 // Long enough to cover the keyboard animation plus the settle that follows it.
@@ -55,6 +59,7 @@ export function useRectLog(target: () => Element | null) {
                 offsetTop: Math.round(viewport?.offsetTop ?? 0),
                 bandHeight: Math.round(viewport?.height ?? 0),
                 layout: document.documentElement.clientHeight,
+                scrollY: Math.round(window.scrollY),
               },
             ].slice(-60)
           );
