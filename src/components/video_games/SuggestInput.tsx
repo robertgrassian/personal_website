@@ -11,30 +11,42 @@ import { useVisibleViewportInsets } from "./useVisibleViewportInsets";
 const MODAL_REFLOW_MS = 200;
 
 // The nearest ancestor that scrolls, which for every caller is the dialog body.
+// Stopping at <body> is load-bearing, not tidiness: scrolling the root moves
+// the visual viewport on iOS, which is the loop scrollIntoViewWithin exists to
+// avoid.
 function scrollParent(element: HTMLElement): HTMLElement | null {
   for (let node = element.parentElement; node; node = node.parentElement) {
+    if (node === document.body || node === document.documentElement) return null;
     const overflowY = getComputedStyle(node).overflowY;
     if (overflowY === "auto" || overflowY === "scroll") return node;
   }
   return null;
 }
 
-// `scrollIntoView({ block: "nearest" })` confined to one container.
+// Scroll `element` into view within ONE container, near enough to
+// `scrollIntoView({ block: "nearest" })` to replace it here.
 //
-// The native call walks EVERY scrollable ancestor, and on iOS with a keyboard
-// up that includes the visual viewport. Moving that viewport fires the events
+// The native call walks every scrollable ancestor, and on iOS with a keyboard
+// up that includes the visual viewport. Moving that fires the events
 // useVisibleViewportInsets listens to, which repads ModalFrame, which re-runs
-// the effect that called this -- the dialog hopped up, then down, then up again
-// as the loop converged. Setting one element's scrollTop cannot start it.
+// the effect that called this: the dialog hopped up, down and back up as the
+// loop converged. Setting one element's scrollTop cannot start it.
 function scrollIntoViewWithin(element: HTMLElement, container: HTMLElement): void {
   const box = element.getBoundingClientRect();
   const view = container.getBoundingClientRect();
-  if (box.top < view.top) {
-    container.scrollTop -= view.top - box.top;
-  } else if (box.bottom > view.bottom) {
+  // Padding box, not border box: the suggestion list has a 1px border, and
+  // measuring past it leaves the last option a pixel under the edge.
+  const viewTop = view.top + container.clientTop;
+  const viewBottom = viewTop + container.clientHeight;
+  if (box.top < viewTop) {
+    // Deliberately not "nearest", which aligns bottoms when the element is the
+    // taller of the two. A suggestion list is better cut off at its end than at
+    // its start, where the field it belongs to is.
+    container.scrollTop -= viewTop - box.top;
+  } else if (box.bottom > viewBottom) {
     // Clamped so an element taller than the container aligns to its top rather
     // than scrolling its top out of sight, which is what "nearest" does.
-    container.scrollTop += Math.min(box.bottom - view.bottom, box.top - view.top);
+    container.scrollTop += Math.min(box.bottom - viewBottom, box.top - viewTop);
   }
 }
 
@@ -146,12 +158,17 @@ export function SuggestInput({
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [listOpen]);
 
-  // Keep the highlighted option inside the scrolled list.
+  // Keep the highlighted option inside the scrolled list, and the part of the
+  // list holding it inside the dialog body. Both, because arrowing down can
+  // reach an option the list has scrolled to but the body still clips.
   useEffect(() => {
     if (activeIndex < 0) return;
     const list = listRef.current;
     const option = list?.children[activeIndex];
-    if (list && option instanceof HTMLElement) scrollIntoViewWithin(option, list);
+    if (!list || !(option instanceof HTMLElement)) return;
+    scrollIntoViewWithin(option, list);
+    const body = scrollParent(list);
+    if (body) scrollIntoViewWithin(option, body);
   }, [activeIndex]);
 
   // Every dialog body is a scroll container, so a list opened near its bottom
