@@ -6,9 +6,37 @@ import { inputClass, labelClass } from "./formStyles";
 import { foldForSearch } from "./pipeline";
 import { useVisibleViewportInsets } from "./useVisibleViewportInsets";
 
-// Must match ModalShell's `duration-200` on the frame padding, which is what
+// Must match ModalFrame's `duration-200` on the frame padding, which is what
 // resizes the dialog body this component scrolls inside of.
 const MODAL_REFLOW_MS = 200;
+
+// The nearest ancestor that scrolls, which for every caller is the dialog body.
+function scrollParent(element: HTMLElement): HTMLElement | null {
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if (overflowY === "auto" || overflowY === "scroll") return node;
+  }
+  return null;
+}
+
+// `scrollIntoView({ block: "nearest" })` confined to one container.
+//
+// The native call walks EVERY scrollable ancestor, and on iOS with a keyboard
+// up that includes the visual viewport. Moving that viewport fires the events
+// useVisibleViewportInsets listens to, which repads ModalFrame, which re-runs
+// the effect that called this -- the dialog hopped up, then down, then up again
+// as the loop converged. Setting one element's scrollTop cannot start it.
+function scrollIntoViewWithin(element: HTMLElement, container: HTMLElement): void {
+  const box = element.getBoundingClientRect();
+  const view = container.getBoundingClientRect();
+  if (box.top < view.top) {
+    container.scrollTop -= view.top - box.top;
+  } else if (box.bottom > view.bottom) {
+    // Clamped so an element taller than the container aligns to its top rather
+    // than scrolling its top out of sight, which is what "nearest" does.
+    container.scrollTop += Math.min(box.bottom - view.bottom, box.top - view.top);
+  }
+}
 
 type SuggestInputProps = {
   /** Field label. Rendered for screen readers only when `labelHidden`. */
@@ -121,14 +149,16 @@ export function SuggestInput({
   // Keep the highlighted option inside the scrolled list.
   useEffect(() => {
     if (activeIndex < 0) return;
-    listRef.current?.children[activeIndex]?.scrollIntoView({ block: "nearest" });
+    const list = listRef.current;
+    const option = list?.children[activeIndex];
+    if (list && option instanceof HTMLElement) scrollIntoViewWithin(option, list);
   }, [activeIndex]);
 
-  // Every dialog body is a scroll container (ModalShell), so a list opened near
-  // its bottom edge is clipped rather than overflowing the dialog. Scrolling it
-  // into view is what makes the last option reachable on a phone, where the
-  // band left above the keyboard is barely taller than the list itself. One
-  // frame later, after the list has been laid out and can be measured.
+  // Every dialog body is a scroll container, so a list opened near its bottom
+  // edge is clipped rather than overflowing the dialog. Scrolling it into view
+  // is what makes the last option reachable on a phone, where the band left
+  // above the keyboard is barely taller than the list itself. One frame later,
+  // after the list has been laid out and can be measured.
   //
   // Re-run when the keyboard moves, not only on opening: tapping the field
   // opens the list and THEN raises the keyboard, which shrinks the dialog under
@@ -136,12 +166,16 @@ export function SuggestInput({
   const hidden = useVisibleViewportInsets();
   useEffect(() => {
     if (!listOpen) return;
-    const scroll = () => listRef.current?.scrollIntoView({ block: "nearest" });
+    const scroll = () => {
+      const list = listRef.current;
+      const body = list && scrollParent(list);
+      if (list && body) scrollIntoViewWithin(list, body);
+    };
     const frame = requestAnimationFrame(scroll);
     // Twice, because the dialog is still animating out of the keyboard's way
     // when the first one measures: the body it scrolls has not finished
     // shrinking, so a list that just fit can end up clipped again. The second
-    // pass lands after ModalShell's padding transition and is a no-op whenever
+    // pass lands after ModalFrame's padding transition and is a no-op whenever
     // the first was enough.
     const settled = setTimeout(scroll, MODAL_REFLOW_MS);
     return () => {
