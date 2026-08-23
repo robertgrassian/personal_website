@@ -1,12 +1,13 @@
 ---
 name: Idea or feature request
 about: Something you would like the site to do
-title: "[Idea] "
 labels: enhancement
 ---
 
-**What would you like it to do?**
+What would you like the site to do?
 
-**What made you want it?** The situation you were in matters more than the solution, and often points at a better one.
-
-**Anything similar you have seen elsewhere?** Links or screenshots welcome.
+<!--
+If there is a story behind it, what you were doing when you wished for this,
+that is often more useful than the idea itself. This comment does not appear in
+the filed issue, so there is no need to delete it.
+-->

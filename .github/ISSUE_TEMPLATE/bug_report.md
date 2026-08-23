@@ -1,18 +1,13 @@
 ---
 name: Bug report
 about: Something on the site is broken or behaves unexpectedly
-title: "[Bug] "
 labels: bug
 ---
 
-**What happened?**
+What happened, and where?
 
-**What did you expect to happen instead?**
-
-**Where did it happen?** (page URL, and whose library if it was someone else's)
-
-**How can I reproduce it?** Steps, if you remember them.
-
-**Your setup** (helps a lot for layout and browser bugs): browser, phone or desktop, light or dark mode.
-
-**Screenshot**, if you have one.
+<!--
+Anything you can add helps, but none of it is required: what you expected
+instead, whether you were on a phone or a computer, a screenshot. This comment
+does not appear in the filed issue, so there is no need to delete it.
+-->
