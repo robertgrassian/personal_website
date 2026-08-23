@@ -59,14 +59,19 @@ export default function RootLayout({
         {AUTH_FLAG_SCRIPT && <script dangerouslySetInnerHTML={{ __html: AUTH_FLAG_SCRIPT }} />}
         <Nav />
         {children}
-        {/* Dev-only instrumentation for the keyboard placement bug. The
-            condition becomes a literal false at build time, so a production
-            build never renders this whatever the URL says; verified against
-            `next start` with ?rectlog=1. The module is still bundled, since
-            webpack does not tree-shake a "use client" import away, so this is
-            about 2kB of unreachable code until it is deleted along with
-            src/components/dev/ once the bug is fixed. */}
-        {process.env.NODE_ENV !== "production" && <RectLogOverlay />}
+        {/* Temporary instrumentation for the keyboard placement bug. VERCEL_ENV,
+            not NODE_ENV: a preview deployment builds with NODE_ENV=production,
+            which would hide this from the one deploy it is wanted on. VERCEL_ENV
+            is "production" only on the real deploy, is "preview" on a PR, and is
+            unset locally. Read here in a Server Component, so the unprefixed
+            name is the right one.
+
+            The condition resolves at build time, so the production build never
+            renders this whatever the URL says. The module is still bundled,
+            since webpack does not tree-shake a "use client" import away: about
+            2kB of unreachable code until it is deleted with src/components/dev/
+            once the bug is fixed. */}
+        {process.env.VERCEL_ENV !== "production" && <RectLogOverlay />}
       </body>
     </html>
   );

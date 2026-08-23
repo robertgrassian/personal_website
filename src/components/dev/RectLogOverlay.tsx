@@ -11,8 +11,8 @@ import { useRectLog } from "./useRectLog";
 // header, and a card that flew in from a shelf rather than appearing. Rather
 // than simulate any more of that, this attaches to the real thing.
 //
-// Mounted only when NODE_ENV is not production, and even then it renders
-// nothing without ?rectlog=1 in the URL.
+// Mounted by the root layout everywhere except the production deploy, and even
+// then it renders nothing without ?rectlog=1 in the URL.
 
 export function RectLogOverlay() {
   const [on, setOn] = useState(false);

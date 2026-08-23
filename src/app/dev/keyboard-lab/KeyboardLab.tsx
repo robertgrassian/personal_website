@@ -1,16 +1,24 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GameDetailCard } from "@/components/video_games/GameDetailCard";
+import type { CardOrigin } from "@/components/video_games/LibraryCardContext";
 import type { Game } from "@/lib/games";
 import { useRectLog } from "@/components/dev/useRectLog";
 
 // The REAL detail card, with fixture data instead of the API.
 //
-// Earlier versions of this page used a hand-made stand-in, which was a mistake:
-// it could not show a symptom that lives in the card itself rather than in the
-// insets fed to it. Everything here is the shipped component tree, so what
-// happens on this page is what happens in the library.
+// The card alone does not reproduce the symptom, which rules it out and leaves
+// whatever the LIBRARY PAGE has that this one does not. The three switches
+// below are those differences, one each, so they can be turned on until the
+// card misbehaves rather than guessed at:
+//
+//   - a long document, and one that has been scrolled
+//   - a card that flew in from a case rather than appearing in place
+//   - sticky chrome above it
+//
+// Fixtures throughout, so this needs no API and no login, which is what makes
+// it usable on a preview deployment.
 
 const GAME: Game = {
   id: 1,
@@ -33,6 +41,27 @@ const NO_HISTORY = { sessions: [], isLoading: false, error: null, refresh: () =>
 
 export function KeyboardLab() {
   const [open, setOpen] = useState(true);
+  const [tallPage, setTallPage] = useState(false);
+  const [flyIn, setFlyIn] = useState(false);
+  const [stickyChrome, setStickyChrome] = useState(false);
+  const [origin, setOrigin] = useState<CardOrigin | null>(null);
+  const caseRef = useRef<HTMLButtonElement>(null);
+
+  // Open from the case's real rect when flying, so useCardFlight runs the same
+  // animation it does on a shelf.
+  const openCard = () => {
+    const rect = flyIn ? caseRef.current?.getBoundingClientRect() : null;
+    setOrigin(
+      rect ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height } : null
+    );
+    setOpen(true);
+  };
+
+  // Land partway down the document, which is where you are when you tap a case
+  // on a real shelf.
+  useEffect(() => {
+    if (tallPage) window.scrollTo(0, 900);
+  }, [tallPage]);
 
   // The element the flight animation sizes and moves: the card's outermost box.
   const findCard = useCallback(() => document.querySelector(".game-card-flight"), []);
@@ -59,6 +88,12 @@ export function KeyboardLab() {
 
   return (
     <>
+      {stickyChrome && (
+        <div className="sticky top-[var(--nav-offset)] z-40 border-b border-gray-300 bg-white/90 p-3 backdrop-blur dark:border-gray-700 dark:bg-gray-900/90">
+          Sticky chrome stand-in, like the library header
+        </div>
+      )}
+
       {open && (
         <GameDetailCard
           subject={{ kind: "game", game: GAME }}
@@ -67,7 +102,7 @@ export function KeyboardLab() {
           onPlayed={() => {}}
           dominantColor={null}
           isDark={false}
-          origin={null}
+          origin={origin}
           caseId={null}
           playHistory={NO_HISTORY}
           onRequestHistory={() => {}}
@@ -84,13 +119,34 @@ export function KeyboardLab() {
           in production.
         </p>
 
+        <section className="space-y-2 rounded border border-gray-300 p-3 dark:border-gray-600">
+          <h2 className="font-medium">What the library page has that this one does not</h2>
+          {(
+            [
+              ["long, scrolled document", tallPage, setTallPage],
+              ["card flies in from a case", flyIn, setFlyIn],
+              ["sticky chrome above it", stickyChrome, setStickyChrome],
+            ] as const
+          ).map(([label, value, set]) => (
+            <label key={label} className="flex items-center gap-2">
+              <input type="checkbox" checked={value} onChange={(e) => set(e.target.checked)} />
+              {label}
+            </label>
+          ))}
+          <p className="text-xs text-gray-600 dark:text-gray-400">
+            Turn these on one at a time, reopening the card each time, until the top edge does the
+            thing. Whichever switch flips it is the cause.
+          </p>
+        </section>
+
         <div className="flex flex-wrap gap-2">
           <button
+            ref={caseRef}
             type="button"
-            onClick={() => setOpen(true)}
-            className="rounded border border-gray-300 px-3 py-2 dark:border-gray-600"
+            onClick={openCard}
+            className="h-24 w-16 rounded bg-gradient-to-b from-indigo-500 to-indigo-700 text-[10px] text-white"
           >
-            reopen card
+            open card
           </button>
           <button
             type="button"
@@ -169,6 +225,18 @@ export function KeyboardLab() {
           Amber rows are resizes, blue rows are pure moves.
         </p>
       </div>
+
+      {tallPage && (
+        <div aria-hidden className="space-y-3 p-4 opacity-40">
+          {Array.from({ length: 14 }, (_, i) => (
+            <div key={i} className="flex gap-2 border-b border-gray-300 pb-3 dark:border-gray-700">
+              {Array.from({ length: 5 }, (_, j) => (
+                <div key={j} className="h-24 w-16 shrink-0 rounded bg-gray-300 dark:bg-gray-700" />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }
