@@ -179,8 +179,8 @@ export function ViewportRecorder() {
       />
 
       {/* The header's own decisions. `step` is what scrollY did, `Δh` is the
-          browser resizing its own chrome, `debt` is how many of those pixels
-          are still being discounted, `bar` is what came out. A row where the
+          browser resizing its own chrome, `held` is how much longer the bar
+          refuses to leave, `bar` is what came out. A row where the
           bar goes down while step is positive is the bug. */}
       <table className="mb-3 w-full tabular-nums">
         <thead className="bg-black text-lime-500">
@@ -188,7 +188,7 @@ export function ViewportRecorder() {
             <th className="text-left">t</th>
             <th className="text-right">step</th>
             <th className="text-right">Δh</th>
-            <th className="text-right">debt</th>
+            <th className="text-right">held</th>
             <th className="text-left">bar</th>
           </tr>
         </thead>
@@ -207,7 +207,7 @@ export function ViewportRecorder() {
               <td className="text-right">
                 {row.heightChange > 0 ? `+${row.heightChange}` : row.heightChange}
               </td>
-              <td className="text-right">{row.debt}</td>
+              <td className="text-right">{row.held}</td>
               <td>{row.visible ? "down" : "UP"}</td>
             </tr>
           ))}

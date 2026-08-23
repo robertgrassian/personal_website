@@ -45,7 +45,6 @@ function hidden(scrollY: number): HideOnScrollState {
   return {
     ...initialHideOnScrollState({ scrollY, viewportHeight: VIEWPORT, now: 0 }),
     visible: false,
-    wasDescending: true,
   };
 }
 
@@ -79,11 +78,19 @@ test("a toolbar revealing over several samples does not starve the show", () => 
   assert.deepEqual(visible, [true, true, true]);
 });
 
-test("a viewport growing back does not show or hide on its own", () => {
+test("a viewport growing back does not show or hold the bar", () => {
   // Scrolling down gives the toolbar's space back. That must not read as the
-  // toolbar arriving, and it must not block the hide either.
-  const visible = replay([{ y: 1040, h: VIEWPORT + 56 }, { y: 1080 }, { y: 1120 }], shown(1000));
-  assert.deepEqual(visible, [true, false, false]);
+  // toolbar arriving, and it must not arm the hold either.
+  const visible = replay([{ y: 1040, h: VIEWPORT + 56 }, { y: 1080 }], shown(1000));
+  assert.deepEqual(visible, [false, false]);
+});
+
+test("a toolbar move holds the bar even when it was already down", () => {
+  // The hold is armed by the browser's chrome moving, not by the bar changing
+  // state: the compensating scroll arrives either way, and a visible bar is
+  // just as capable of being hidden by it.
+  const visible = replay([{ y: 1000, h: VIEWPORT - 56 }, { y: 1040 }, { y: 1080 }], shown(1000));
+  assert.deepEqual(visible, [true, true, true]);
 });
 
 test("with no toolbar to read, the scroll rule still brings the bar back", () => {
@@ -140,8 +147,7 @@ test("a fling up that stutters twice still leaves the bar down", () => {
 // --- what still has to work -------------------------------------------------
 
 test("a sustained scroll down hides the bar", () => {
-  // One sample late by design: a lone downward sample is not yet a gesture.
-  assert.deepEqual(replay([440, 480, 520], shown(400)), [true, false, false]);
+  assert.deepEqual(replay([440, 480], shown(400)), [false, false]);
 });
 
 test("a slow scroll down hides the bar once it passes the threshold", () => {
@@ -157,27 +163,17 @@ test("scrolling back above the sticky threshold always shows the bar", () => {
   assert.deepEqual(replay([290, 250], hidden(2000)), [true, true]);
 });
 
-test("the bar can hide again once the settle window has passed", () => {
-  // The settle window is a delay, not a lock: reverse into a real scroll down
-  // and the bar still goes away.
-  const visible = replay([1900, { y: 1940, after: 600 }, { y: 1980 }, { y: 2020 }], hidden(2000));
-  assert.deepEqual(visible, [true, true, false, false]);
+test("the bar can hide again once the hold has expired", () => {
+  // The hold is a delay, not a lock: reverse into a real scroll down after it
+  // lapses and the bar still goes away.
+  const visible = replay([1900, { y: 1940, after: 600 }, { y: 1980 }], hidden(2000));
+  assert.deepEqual(visible, [true, false, false]);
 });
 
-test("the chrome budget is spent, not permanent", () => {
-  // 56px of resize buys exactly 56px of grace: the first 40 of the scroll down
-  // is absorbed, the rest is the finger and the bar goes away.
-  const visible = replay(
-    [{ y: 1000, h: VIEWPORT - 56 }, { y: 1040 }, { y: 1080 }, { y: 1120 }],
-    shown(1000)
-  );
-  assert.deepEqual(visible, [true, true, false, false]);
-});
-
-test("the same scroll down with no resize hides a sample sooner", () => {
-  // The contrast case for the one above: without a budget to spend, the second
-  // downward sample is enough.
-  assert.deepEqual(replay([1040, 1080, 1120], shown(1000)), [true, false, false]);
+test("the hold blocks a hide that arrives too soon after the bar", () => {
+  // The contrast case for the one above: same reversal, 200ms earlier.
+  const visible = replay([1900, { y: 1940, after: 200 }, { y: 1980 }], hidden(2000));
+  assert.deepEqual(visible, [true, true, true]);
 });
 
 test("a keyboard-sized resize is not a toolbar", () => {
@@ -199,8 +195,8 @@ test("a repeated sample changes nothing", () => {
   assert.deepEqual(replay([2000, 2000], hidden(2000)), [false, false]);
 });
 
-test("the first hide of a session is not blocked by the settle window", () => {
+test("the first hide of a session is not blocked by the hold", () => {
   // initialHideOnScrollState must not claim the bar just arrived: it was never
-  // away, so a scroll down at t=32 has to work.
-  assert.deepEqual(replay([440, 480], shown(400)), [true, false]);
+  // away, so a scroll down at t=16 has to work.
+  assert.deepEqual(replay([440], shown(400)), [false]);
 });

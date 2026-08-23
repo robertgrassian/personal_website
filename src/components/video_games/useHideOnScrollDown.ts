@@ -50,7 +50,7 @@ export function useHideOnScrollDown(ref: RefObject<HTMLElement | null>): boolean
         t: Math.round(reading.now),
         step: Math.round(reading.scrollY - previous.lastScrollY),
         heightChange: reading.viewportHeight - previous.lastViewportHeight,
-        debt: Math.round(next.chromeDebt),
+        held: Math.max(0, Math.round(next.holdUntil - reading.now)),
         visible: next.visible,
       });
       // Only on a change: this runs on every scroll event, and React would
