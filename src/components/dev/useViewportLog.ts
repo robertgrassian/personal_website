@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 // that slid. Each of those is a different bug with a different fix, and they
 // are only distinguishable side by side.
 
-export type RectSample = {
+export type ViewportSample = {
   t: number;
   top: number;
   bottom: number;
@@ -41,8 +41,8 @@ type Targets = {
   enabled: boolean;
 };
 
-export function useRectLog({ card, anchor, enabled }: Targets) {
-  const [samples, setSamples] = useState<RectSample[]>([]);
+export function useViewportLog({ card, anchor, enabled }: Targets) {
+  const [samples, setSamples] = useState<ViewportSample[]>([]);
   const originRef = useRef(0);
   const lastRef = useRef<string>("");
 

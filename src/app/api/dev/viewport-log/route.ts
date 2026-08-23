@@ -1,4 +1,4 @@
-// Receives a capture from RectLogOverlay and prints it in the terminal running
+// Receives a capture from ViewportRecorder and prints it in the terminal running
 // the dev server, so a recording taken on a phone lands where the fix is being
 // written. See docs/mobile-viewport.md.
 //
@@ -10,6 +10,6 @@ export async function POST(request: Request) {
   if (process.env.VERCEL === "1") return new Response("Not found", { status: 404 });
 
   const body = await request.text();
-  console.log("\n===== RECTLOG =====\n" + body + "\n===== END =====\n");
+  console.log("\n===== VIEWPORT CAPTURE =====\n" + body + "\n===== END =====\n");
   return new Response("ok");
 }

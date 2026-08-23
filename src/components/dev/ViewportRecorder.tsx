@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDebugMode } from "@/lib/debugMode";
-import { useRectLog } from "./useRectLog";
+import { useViewportLog } from "./useViewportLog";
 
 // A viewport recorder for debugging layout on a real phone, where there is no
 // console, no inspector, and no way to see a number that only exists for two
@@ -15,7 +15,7 @@ import { useRectLog } from "./useRectLog";
 // afternoon. docs/mobile-viewport.md is what those captures established, and is
 // worth reading before using this.
 //
-// Captures POST themselves to /api/dev/rectlog, which prints them in the
+// Captures POST themselves to /api/dev/viewport-log, which prints them in the
 // terminal running the dev server: selecting and pasting a table off a phone is
 // the part that keeps failing, and a floating button lands somewhere unreachable
 // in at least one browser.
@@ -23,7 +23,7 @@ import { useRectLog } from "./useRectLog";
 // How still the page has to be before a burst counts as finished.
 const QUIET_MS = 1500;
 
-export function RectLogOverlay() {
+export function ViewportRecorder() {
   // Already only mounted locally (layout.tsx), so the allowed flag is simply
   // true here; ?debug is what turns it on.
   const on = useDebugMode(true);
@@ -42,7 +42,7 @@ export function RectLogOverlay() {
     () => document.querySelector("[data-case-id] .game-case-inner"),
     []
   );
-  const { samples, clear } = useRectLog({ card: findCard, anchor: findAnchor, enabled: on });
+  const { samples, clear } = useViewportLog({ card: findCard, anchor: findAnchor, enabled: on });
 
   const dump = [
     "t\ttop\th\tanchor\toffTop\tband\tlayout\tscrollY",
@@ -53,7 +53,7 @@ export function RectLogOverlay() {
 
   const send = (label: string) => {
     setSent("sending…");
-    fetch("/api/dev/rectlog", { method: "POST", body: `capture ${label}\n${dump}` })
+    fetch("/api/dev/viewport-log", { method: "POST", body: `capture ${label}\n${dump}` })
       .then((r) => {
         setSent(r.ok ? `sent ${label}` : `failed ${r.status}`);
         if (r.ok) clear();
@@ -102,7 +102,7 @@ export function RectLogOverlay() {
         // is where the keyboard is.
         className="fixed left-2 top-[calc(var(--nav-offset)+0.25rem)] z-[100] rounded-full bg-black/80 px-3 py-2 font-mono text-[11px] text-lime-300 shadow-lg"
       >
-        rect {samples.length}
+        rec {samples.length}
       </button>
     );
   }

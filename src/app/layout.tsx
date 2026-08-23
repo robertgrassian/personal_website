@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
-import { RectLogOverlay } from "@/components/dev/RectLogOverlay";
+import { ViewportRecorder } from "@/components/dev/ViewportRecorder";
 import { authFlagScript } from "@/lib/authFlag";
 
 const geistSans = Geist({
@@ -77,7 +77,7 @@ export default function RootLayout({
             environment, so this renders only on a machine running the app
             locally, and the condition resolves at build time. Read here in a
             Server Component, so the unprefixed name is the right one. */}
-        {IS_LOCAL && <RectLogOverlay />}
+        {IS_LOCAL && <ViewportRecorder />}
       </body>
     </html>
   );

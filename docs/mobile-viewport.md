@@ -15,7 +15,7 @@ viewport has not moved, only the window onto it has. On the screen the same two
 readings were 42px apart. 4000 randomised bursts asserted "never visibly changes
 its mind" while the card visibly changed its mind.
 
-`src/components/dev/RectLogOverlay.tsx` is the recorder built for this. See
+`src/components/dev/ViewportRecorder.tsx` is the recorder built for this. See
 [Using the recorder](#using-the-recorder).
 
 ## Two viewports
@@ -164,7 +164,7 @@ It is not built into any deploy.
    prints a Network URL.
 2. On the phone, open any page with **`?debug`**.
 3. Do the thing that misbehaves. Each burst auto-sends when the page has been
-   still for 1.5s, and prints in the terminal running the server. A `rect N`
+   still for 1.5s, and prints in the terminal running the server. A `rec N`
    button top-left opens a live table and manual send buttons.
 
 Columns: `top`/`h` are the dialog's box, `anchor` is a shelf case (i.e. where
