@@ -38,7 +38,6 @@ export function useHideOnScrollDown(ref: RefObject<HTMLElement | null>): boolean
       // Rounded: some devices report a fractional innerHeight that drifts by
       // hundredths, which would read as a resize on every sample.
       viewportHeight: Math.round(window.innerHeight),
-      now: performance.now(),
     });
 
     const handleScroll = () => {
@@ -47,10 +46,10 @@ export function useHideOnScrollDown(ref: RefObject<HTMLElement | null>): boolean
       const next = nextHideOnScrollState(previous, reading, stickyThresholdRef.current);
       stateRef.current = next;
       recordScrollTrace({
-        t: Math.round(reading.now),
+        t: Math.round(performance.now()),
         step: Math.round(reading.scrollY - previous.lastScrollY),
         heightChange: reading.viewportHeight - previous.lastViewportHeight,
-        held: Math.max(0, Math.round(next.holdUntil - reading.now)),
+        debt: Math.round(next.chromeDebt),
         visible: next.visible,
       });
       // Only on a change: this runs on every scroll event, and React would

@@ -7,9 +7,10 @@
 // micro-reversals from slow or momentum scrolling.
 const MIN_SCROLL_DELTA = 10;
 
-// How long the bar refuses to leave after the browser's chrome moves. Covers a
-// toolbar animation, which runs 200-350ms.
-const HOLD_MS = 500;
+// Ceiling on the chrome budget below. A single toolbar is well under this; the
+// cap only stops a pathological run of resizes banking enough to swallow real
+// scrolling.
+const MAX_CHROME_DEBT = 200;
 
 // The largest viewport shrink still credible as a browser toolbar. Anything
 // bigger is a keyboard or an orientation change, which say nothing about which
@@ -23,8 +24,6 @@ export type ScrollReading = {
    *  slides in and out, and that is the only signal separating a scroll the
    *  finger made from the browser compensating for its own chrome. */
   viewportHeight: number;
-  /** `performance.now()`. */
-  now: number;
 };
 
 export type HideOnScrollState = {
@@ -34,8 +33,13 @@ export type HideOnScrollState = {
   anchor: number;
   lastScrollY: number;
   lastViewportHeight: number;
-  /** The bar will not hide before this. */
-  holdUntil: number;
+  /** Did the previous sample also move down? Hiding needs two in a row, which
+   *  costs one frame and rules out a lone outlier reported without a resize. */
+  wasDescending: boolean;
+  /** Pixels of space the browser's chrome has taken and not yet given back.
+   *  The browser has to move the page to pay for them, and that movement points
+   *  down while the finger is going up, so it must not count as scrolling. */
+  chromeDebt: number;
 };
 
 export function initialHideOnScrollState(reading: ScrollReading): HideOnScrollState {
@@ -44,9 +48,8 @@ export function initialHideOnScrollState(reading: ScrollReading): HideOnScrollSt
     anchor: reading.scrollY,
     lastScrollY: reading.scrollY,
     lastViewportHeight: reading.viewportHeight,
-    // 0, not `now`: the bar has not just arrived, it was never away, so the
-    // hold must not block the first hide of the session.
-    holdUntil: 0,
+    wasDescending: false,
+    chromeDebt: 0,
   };
 }
 
@@ -61,57 +64,87 @@ export function initialHideOnScrollState(reading: ScrollReading): HideOnScrollSt
  *
  *  Both halves of the answer come from the same observation: the toolbar is
  *  answering the same reach-up gesture this bar is, so a viewport that shrank
- *  is the browser saying "they want the chrome back". Show on it, which is both
- *  earlier and more reliable than inferring intent from scroll deltas, and
- *  refuse to hide for as long as the toolbar might still be paying for itself.
- *  Where the toolbar is not observable (a standalone window, one already fully
- *  out) it also does not move the document, and the scroll rule below is
- *  enough on its own.
+ *  is the browser saying "they want the chrome back". Show on it, and discount
+ *  exactly as many downward pixels as the space it took. Where the toolbar is
+ *  not observable (a standalone window, one already fully out) it also does not
+ *  move the document, and the scroll rule below is enough on its own.
  *
- *  Hiding is the only direction that gets held. The bar appearing while someone
- *  is already reaching for it costs nothing, so no guard here defends against
- *  a spurious show. */
+ *  The discount is a budget rather than a timer on purpose. A timer bans every
+ *  hide for its duration, including the ones a person actually asked for, and
+ *  since the toolbar moves on nearly every upward sample it would be re-armed
+ *  constantly: reversing into a scroll down then waits it out. A budget is
+ *  spent by the very pixels it distrusts, so a real scroll down pays it off and
+ *  keeps going.
+ *
+ *  One thing the budget cannot see is a compensating scroll reported with no
+ *  resize alongside it. Two consecutive downward samples are required for that,
+ *  which catches a lone outlier and costs one frame. A sustained run of them is
+ *  not covered by anything here, deliberately: only a timer could, and a timer
+ *  bans real hides for as long as it runs.
+ *
+ *  Hiding is the only direction that gets discounted. The bar appearing while
+ *  someone is already reaching for it costs nothing, so no guard here defends
+ *  against a spurious show. */
 export function nextHideOnScrollState(
   state: HideOnScrollState,
   reading: ScrollReading,
   stickyThreshold: number
 ): HideOnScrollState {
-  const { scrollY, viewportHeight, now } = reading;
+  const { scrollY, viewportHeight } = reading;
   // Signed, and the sign is the whole point: a viewport that SHRANK lost the
   // space to a toolbar sliding in, one that grew got it back.
   const heightChange = viewportHeight - state.lastViewportHeight;
   const carried = { ...state, lastScrollY: scrollY, lastViewportHeight: viewportHeight };
 
-  // The toolbar arriving. Only a shrink arms the hold: a viewport growing back
-  // pays in pixels pointing up, which can do nothing worse than show a bar that
-  // is already wanted.
+  // The toolbar arriving. Come down with it, and bank the space it took.
   if (heightChange < 0 && -heightChange <= MAX_TOOLBAR_HEIGHT) {
-    return { ...carried, visible: true, anchor: scrollY, holdUntil: now + HOLD_MS };
+    return {
+      ...carried,
+      visible: true,
+      anchor: scrollY,
+      wasDescending: false,
+      chromeDebt: Math.min(state.chromeDebt - heightChange, MAX_CHROME_DEBT),
+    };
   }
+
+  // The toolbar leaving. Only a scroll DOWN makes that happen, so anything
+  // still owed now points the same way the finger does and cannot make the
+  // decision wrong. Forgive it, rather than making a real scroll down pay it
+  // off before the bar will go.
+  let chromeDebt = heightChange > 0 ? 0 : state.chromeDebt;
 
   // Above the point where sticky engages: always show, and keep the anchor
   // current so the delta starts fresh on re-entering the sticky zone.
   if (scrollY < stickyThreshold) {
-    return { ...carried, visible: true, anchor: scrollY };
+    return { ...carried, chromeDebt, visible: true, anchor: scrollY, wasDescending: false };
   }
 
   const step = scrollY - state.lastScrollY;
-  if (step === 0) return carried;
+  if (step === 0) return { ...carried, chromeDebt };
 
   // A reversal starts a new run, so travel is measured from where the direction
   // changed rather than from before it.
   const run = state.lastScrollY - state.anchor;
-  const anchor = run !== 0 && Math.sign(step) !== Math.sign(run) ? state.lastScrollY : state.anchor;
+  let anchor = run !== 0 && Math.sign(step) !== Math.sign(run) ? state.lastScrollY : state.anchor;
+
+  // Spend the budget before anything counts as the user scrolling down.
+  if (step > 0 && chromeDebt > 0) {
+    const absorbed = Math.min(chromeDebt, step);
+    chromeDebt -= absorbed;
+    anchor += absorbed;
+  }
   const travelled = scrollY - anchor;
+  const descending = step > 0;
+  const moved = { ...carried, chromeDebt, wasDescending: descending };
 
   // Scrolling up means the user is reaching for the controls.
   if (travelled < -MIN_SCROLL_DELTA) {
-    return { ...carried, visible: true, anchor: scrollY, holdUntil: now + HOLD_MS };
+    return { ...moved, visible: true, anchor: scrollY };
   }
-  if (travelled > MIN_SCROLL_DELTA && now >= state.holdUntil) {
-    return { ...carried, visible: false, anchor: scrollY };
+  if (travelled > MIN_SCROLL_DELTA && descending && state.wasDescending) {
+    return { ...moved, visible: false, anchor: scrollY };
   }
-  return { ...carried, anchor };
+  return { ...moved, anchor };
 }
 
 // --- on-device trace --------------------------------------------------------
@@ -124,7 +157,7 @@ export type ScrollTraceRow = {
   t: number;
   step: number;
   heightChange: number;
-  held: number;
+  debt: number;
   visible: boolean;
 };
 
