@@ -56,6 +56,42 @@ function shown(scrollY: number): HideOnScrollState {
   return initialHideOnScrollState({ scrollY, viewportHeight: VIEWPORT, now: 0 });
 }
 
+// --- coming back with the browser's toolbar ---------------------------------
+
+test("the bar arrives the moment the toolbar starts taking space", () => {
+  // 4px of upward scroll, nowhere near the 10px the scroll rule wants, but the
+  // viewport shrank so the toolbar is on its way in and the bar goes with it.
+  assert.deepEqual(replay([{ y: 1996, h: VIEWPORT - 8 }], hidden(2000)), [true]);
+});
+
+test("a toolbar revealing over several samples does not starve the show", () => {
+  // The regression this replaced: resetting the anchor on every resize meant
+  // upward travel never accumulated, and a toolbar that slides in gradually
+  // changes the height on nearly every sample of the gesture.
+  const visible = replay(
+    [
+      { y: 1996, h: VIEWPORT - 8 },
+      { y: 1992, h: VIEWPORT - 16 },
+      { y: 1988, h: VIEWPORT - 24 },
+    ],
+    hidden(2000)
+  );
+  assert.deepEqual(visible, [true, true, true]);
+});
+
+test("a viewport growing back does not show or hide on its own", () => {
+  // Scrolling down gives the toolbar's space back. That must not read as the
+  // toolbar arriving, and it must not block the hide either.
+  const visible = replay([{ y: 1040, h: VIEWPORT + 56 }, { y: 1080 }, { y: 1120 }], shown(1000));
+  assert.deepEqual(visible, [true, false, false]);
+});
+
+test("with no toolbar to read, the scroll rule still brings the bar back", () => {
+  // A standalone window, or a toolbar already fully out: the height never
+  // moves, so showing falls back to 10px of upward scroll.
+  assert.deepEqual(replay([1994, 1988, 1982], hidden(2000)), [false, true, true]);
+});
+
 // --- the reported bug -------------------------------------------------------
 
 test("a toolbar jump mid-fling does not hide the bar again", () => {
@@ -74,7 +110,7 @@ test("a toolbar settling LATE does not hide the bar", () => {
       1700,
       { y: 1728, h: VIEWPORT - 56, after: 400 },
       { y: 1756, after: 32 },
-      { y: 1756, after: 32 },
+      { y: 1784, after: 32 },
     ],
     hidden(2000)
   );
@@ -144,7 +180,9 @@ test("the same scroll down with no resize hides a sample sooner", () => {
   assert.deepEqual(replay([1040, 1080, 1120], shown(1000)), [true, false, false]);
 });
 
-test("a resize on its own decides nothing", () => {
+test("a keyboard-sized resize is not a toolbar", () => {
+  // 200px is a software keyboard, not chrome sliding in, and says nothing about
+  // which way anyone is scrolling.
   assert.deepEqual(
     replay(
       [

@@ -16,6 +16,11 @@ const SETTLE_MS = 500;
 // credit to swallow real scrolling.
 const MAX_CHROME_DEBT = 200;
 
+// The largest viewport shrink still credible as a browser toolbar. Anything
+// bigger is a keyboard or an orientation change, which say nothing about which
+// way the user is scrolling.
+const MAX_TOOLBAR_HEIGHT = 120;
+
 /** One scroll sample, as the decision below needs to see it. */
 export type ScrollReading = {
   scrollY: number;
@@ -67,13 +72,20 @@ export function initialHideOnScrollState(reading: ScrollReading): HideOnScrollSt
  *  compensate, which arrives as ordinary scroll events pointing against the
  *  finger, and can arrive several frames after the resize that caused them.
  *
- *  Three guards, each covering what the others miss, and a spurious SHOW is
- *  left alone in all of them because the bar appearing when the user is already
- *  reaching for it costs nothing:
+ *  Showing is driven by the browser's toolbar wherever that is observable,
+ *  because the toolbar is answering the same reach-up gesture this bar is, and
+ *  a viewport that shrank is the browser saying so. Nothing else predicts what
+ *  the user wants as well, and mirroring it is what makes the two arrive
+ *  together. Where it is not observable (a standalone window, a toolbar already
+ *  fully out) the scroll rule below carries it.
+ *
+ *  Hiding gets three guards, each covering what the others miss. A spurious
+ *  SHOW is left alone in all of them, because the bar appearing when the user
+ *  is already reaching for it costs nothing:
  *
  *  1. two consecutive downward samples, so a lone outlier is not a gesture;
  *  2. a chrome budget, so the browser can never move the page by more than it
- *     moved its own chrome without those pixels being discounted;
+ *     took for its own toolbar without those pixels being discounted;
  *  3. a settle window after the bar appears, which holds whatever the first two
  *     did not anticipate. */
 export function nextHideOnScrollState(
@@ -82,7 +94,9 @@ export function nextHideOnScrollState(
   stickyThreshold: number
 ): HideOnScrollState {
   const { scrollY, viewportHeight, now } = reading;
-  const heightChange = Math.abs(viewportHeight - state.lastViewportHeight);
+  // Signed, and the sign is the whole point: a viewport that SHRANK lost the
+  // space to a toolbar sliding in, one that grew got it back.
+  const heightChange = viewportHeight - state.lastViewportHeight;
 
   // Above the point where sticky engages: always show, and keep the anchor
   // current so the delta starts fresh on re-entering the sticky zone.
@@ -99,16 +113,29 @@ export function nextHideOnScrollState(
     };
   }
 
+  // The toolbar arriving is the signal to come down, ahead of anything the
+  // scroll positions say. It also gives the only advance notice that phantom
+  // downward pixels are coming: the page has to move to pay for the space the
+  // toolbar just took, on this sample or a later one, so bank that as budget.
+  //
+  // Only a shrink does either. A viewport growing back pays in the other
+  // direction, and pixels pointing up can do nothing worse than show a bar that
+  // is already wanted.
+  if (heightChange < 0 && -heightChange <= MAX_TOOLBAR_HEIGHT) {
+    return {
+      ...state,
+      visible: true,
+      shownAt: state.visible ? state.shownAt : now,
+      anchor: scrollY,
+      lastScrollY: scrollY,
+      lastViewportHeight: viewportHeight,
+      wasDescending: false,
+      chromeDebt: Math.min(state.chromeDebt - heightChange, MAX_CHROME_DEBT),
+    };
+  }
+
   let anchor = state.anchor;
   let chromeDebt = state.chromeDebt;
-
-  // The browser just resized its own chrome. The page movement that pays for
-  // that can land on this sample or the next few, so both forget the travel
-  // banked so far and credit the same number of pixels forward.
-  if (heightChange > 0) {
-    anchor = state.lastScrollY;
-    chromeDebt = Math.min(chromeDebt + heightChange, MAX_CHROME_DEBT);
-  }
 
   const step = scrollY - state.lastScrollY;
   if (step === 0) {
