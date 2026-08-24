@@ -61,20 +61,33 @@ export function GameNotesPreview({ note, onOpen }: PreviewProps) {
 
       {/* Three states, and the loading one is not folded into the empty one:
           "no notes yet" would be a lie about a note still arriving, and it is
-          the lie that invites typing over it. */}
+          the lie that invites typing over it.
+
+          data-note-body is what video-games.css hides on a short viewport (a
+          landscape phone, or a keyboard that shrank the layout viewport), which
+          leaves the label row above as a control you can still tap. An
+          attribute rather than a class on each: it is one rule against four
+          states, and the rule carries the measurements that justify it. */}
       {note.loadError !== null ? (
-        <span className="mt-1 block text-sm text-shelf-danger">{note.loadError}</span>
+        <span data-note-body className="mt-1 block text-sm text-shelf-danger">
+          {note.loadError}
+        </span>
       ) : note.isLoading && empty ? (
-        <span className="mt-1 block text-sm text-shelf-text-muted italic">Loading notes...</span>
+        <span data-note-body className="mt-1 block text-sm text-shelf-text-muted italic">
+          Loading notes...
+        </span>
       ) : empty ? (
-        <span className="mt-1 block text-sm text-shelf-text-muted italic">
+        <span data-note-body className="mt-1 block text-sm text-shelf-text-muted italic">
           Nothing yet. Track where you left off, or what to do next.
         </span>
       ) : (
         // No `block` alongside line-clamp-3: the clamp works by setting
         // display:-webkit-box, and a display utility next to it wins and
         // silently turns the clamp off.
-        <span className="mt-1 line-clamp-3 whitespace-pre-line text-sm leading-snug text-shelf-text">
+        <span
+          data-note-body
+          className="mt-1 line-clamp-3 whitespace-pre-line text-sm leading-snug text-shelf-text"
+        >
           {preview}
         </span>
       )}

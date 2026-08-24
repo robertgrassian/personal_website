@@ -755,3 +755,31 @@
     --lip: 7px;
   }
 }
+
+/* The notes preview on the detail card drops its body text when the viewport is
+   too short to spare the 62px, keeping the label row so the control itself never
+   disappears -- only the text you cannot read while typing anyway.
+
+   HEIGHT, not width, and not a Tailwind breakpoint: the cases this is for are a
+   landscape phone (wide and short) and a software keyboard, neither of which a
+   width query can see.
+
+   Measured rather than guessed (docs/mobile-viewport.md is emphatic about that).
+   At a 393x850 phone the card caps at 608px against 564px of content, so there
+   is no overflow at all and the full three-line preview is free. Pressure starts
+   around 640px of viewport; with a keyboard up at 430px the form must scroll
+   202px to reach Save, against 61px before notes existed. Hiding the body gives
+   most of that back.
+
+   Which browsers this reaches follows from the two viewport models: iOS 26,
+   Firefox and Android SHRINK the layout viewport for a keyboard, so this fires.
+   Older iOS Safari/Chrome slide the visual viewport instead and leave the layout
+   one alone, so it does not -- there the cost is scrolling a little further to
+   Save, which is what the form did before notes existed. Deliberately not chased
+   with JS: useVisibleViewportInsets cannot stand in for it either, since its own
+   docstring records that those insets read 0 on iOS 26. */
+@media (max-height: 640px) {
+  [data-note-body] {
+    display: none;
+  }
+}
