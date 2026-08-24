@@ -379,21 +379,6 @@ export function GameDetailCard({
                       )}
                     </div>
 
-                    {/* Above the edit form, not inside it: the form's one Save
-                        commits rating and system together, and notes are saved
-                        on their own face by their own button. Putting a control
-                        the form's Save does not cover inside the form is how
-                        that rule stops being legible.
-
-                        `notesEnabled` and not `editable`: a promote passes
-                        `editable` without having a game row to attach a note
-                        to yet. */}
-                    {notesEnabled && (
-                      <div className="border-t border-white/15 px-5 pb-4 pt-3">
-                        <GameNotesPreview note={note} onOpen={() => setFace({ kind: "notes" })} />
-                      </div>
-                    )}
-
                     {editable && (
                       // One surface all the way down. The fields carry their own
                       // translucent backgrounds (the shelf tokens are re-pointed
@@ -416,6 +401,23 @@ export function GameDetailCard({
                             startWithSession={startWithSession}
                             onOpenHistory={openHistory}
                             onClose={close}
+                            // A slot rather than GameEditFields owning the
+                            // notes state: the card holds the hook (both faces
+                            // read it) and owns which face is showing, and
+                            // threading either through the form would put the
+                            // card's business in it.
+                            //
+                            // `notesEnabled`, not `editable`: a promote is
+                            // editable without having a game row to hang a note
+                            // on yet, so its slot stays empty.
+                            notesSlot={
+                              notesEnabled ? (
+                                <GameNotesPreview
+                                  note={note}
+                                  onOpen={() => setFace({ kind: "notes" })}
+                                />
+                              ) : null
+                            }
                           />
                         )}
                       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { localToday, type Game, type Rating } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
 import { deleteGame, promoteAndSave, saveGameEdits } from "@/app/video-games/actions";
@@ -31,6 +31,11 @@ type GameEditFieldsProps = {
   // close, so "Stop Playing" still commits through a Save. Never on a promote,
   // which has no game row yet.
   onOpenHistory: (options: { stopping: boolean }) => void;
+  // The notes preview, rendered between the play-history buttons and the Save
+  // row. A slot because the card owns the note state and the face switching;
+  // this form only decides where it goes. Null on a promote, which has no game
+  // row to attach a note to.
+  notesSlot?: ReactNode;
   onClose: () => void;
 };
 
@@ -48,6 +53,7 @@ export function GameEditFields({
   existingSystems,
   startWithSession = false,
   onOpenHistory,
+  notesSlot = null,
   onClose,
 }: GameEditFieldsProps) {
   const { isPending, error, run } = useServerAction();
@@ -227,6 +233,14 @@ export function GameEditFields({
             </button>
           )}
         </div>
+      )}
+
+      {/* Notes sit here rather than above this form: they belong with the
+          per-game actions, not with the details. They are still NOT covered by
+          the Save below — notes commit on their own face, by their own button —
+          so this keeps its own divider instead of running into the Save row. */}
+      {notesSlot !== null && (
+        <div className="mt-5 border-t border-shelf-plank pt-4">{notesSlot}</div>
       )}
 
       {/* Always present, so there is one place to look for "did this save?".
