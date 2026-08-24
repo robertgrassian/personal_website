@@ -34,6 +34,11 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       localStorage cache landed 2026-08-19; closing the last gap means reaching first paint, which is
       a decision, not a tweak. [Details](docs/todo/owner-affordance-hydration-pop.md)
 
+- [ ] **Intermittent hydration mismatch in the sticky library header at very short viewports.** The
+      server sends the Stats button where the client renders "+ Add game", so React discards the
+      subtree. Reproduced only under `?debug`; logged out is clean. Distinct from the item above.
+      [Details](docs/todo/header-hydration-mismatch.md)
+
 ## Backlog / Ideas
 
 - [ ] **A site email address for feedback, so people without a GitHub account can report bugs and
