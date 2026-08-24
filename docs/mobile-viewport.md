@@ -207,7 +207,14 @@ sign in: local Supabase listens on `127.0.0.1`, so no sign-in of any kind
 completes from another machine. It is UI gating only. Reads and writes still go
 out unauthenticated, so saving anything will fail.
 
+That override also works on **preview deploys**, but only on the site owner's own
+library (`/video-games`, and `/video-games/u/rgrassian`), so a preview link shared
+with someone never dresses up their shelf with another account's controls. Saving
+still fails there, for a different reason: a preview points at production's API,
+so `meApi.ts` refuses every write before sending it. The viewport recorder stays
+local-only, because the endpoint it posts to 404s on any deploy.
+
 Whether `?debug` is allowed is decided in a Server Component and passed down
-(`src/lib/debugMode.ts` says why): `process.env.VERCEL` is not inlined into
-client bundles, so a client-side check would read `undefined` and enable it on a
-deploy.
+(`src/lib/debugMode.ts` says why): neither `process.env.VERCEL` nor `VERCEL_ENV`
+is inlined into client bundles, so a client-side check would read `undefined` and
+enable it in production.

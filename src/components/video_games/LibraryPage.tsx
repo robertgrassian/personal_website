@@ -25,6 +25,33 @@ import { SignupCta } from "@/components/video_games/SignupCta";
 import { LibraryHeaderMenu } from "@/components/video_games/LibraryHeaderMenu";
 import { headerMenuItemClass } from "@/components/video_games/formStyles";
 import { NEW_ISSUE_URL } from "@/lib/feedback";
+import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
+
+// Where `?debug` may dress the page as if the viewer owned it, so the owner-only
+// UI can be inspected without signing in (src/lib/debugMode.ts).
+//
+// Local: any library, since the local Supabase stack listens on 127.0.0.1 and no
+// sign-in completes from a phone on the same network. Preview: only the site
+// owner's own shelf — a preview link handed to someone else must not dress up
+// THEIR library with controls belonging to a different account. Production:
+// never.
+//
+// Safe on preview because writes there are already refused before they are sent:
+// a preview self-resolves its API origin to production, and meApi.ts turns every
+// mutation into FOREIGN_API_WRITE_MESSAGE. So this buys the LAYOUT of the
+// owner-only UI and nothing else, which is the whole point of it on a deploy.
+//
+// Read here, in a Server Component, where the unprefixed names exist; both are
+// inlined at build time, so the prerendered pages carry the right answer.
+const IS_LOCAL = process.env.VERCEL !== "1";
+const IS_PREVIEW = process.env.VERCEL_ENV === "preview";
+
+function debugOwnerAllowed(ownerUsername: string): boolean {
+  if (IS_LOCAL) return true;
+  // Lowercased both sides: usernames are citext in Postgres, so the profile's
+  // canonical spelling need not match this constant's casing.
+  return IS_PREVIEW && ownerUsername.toLowerCase() === LIBRARY_OWNER_USERNAME;
+}
 
 // One library page, two routes: /video-games (Robert's shelf, at its stable
 // URL) and /video-games/u/[username] (anyone's). Extracted so the two can never
@@ -113,11 +140,12 @@ export async function LibraryPage({
           and CrtTv ship no extra JavaScript, and when `relationship` resolves
           React re-renders only the provider, since this server parent created
           the child elements. */}
-      {/* allowDebug is read here, in a Server Component, where the unprefixed
-          name exists. Vercel sets VERCEL=1 in every deployed environment, so
-          this is true only for an app running on someone's own machine, and the
-          value is baked into the prerender at build time. */}
-      <FollowStateProvider ownerUsername={profile.username} allowDebug={process.env.VERCEL !== "1"}>
+      {/* Local always, preview only on the owner's own shelf, production never.
+          See debugOwnerAllowed above for why the check cannot live client-side. */}
+      <FollowStateProvider
+        ownerUsername={profile.username}
+        allowDebug={debugOwnerAllowed(profile.username)}
+      >
         {/* py-6 on phones, the full py-12 from sm up. The library's first row
             of covers was landing just below the fold on a 390px viewport, and
             this is the cheapest 24px of the ~170 that came back. */}
