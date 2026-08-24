@@ -7,7 +7,14 @@ import { notFound } from "next/navigation";
 // component, unlike the Pages Router's global-CSS restriction.
 import "@/app/video-games/video-games.css";
 import "@/components/crt/crt.css";
-import { getFollowers, getFollowing, getGames, getProfile, getWishlist } from "@/lib/libraryApi";
+import {
+  getFollowers,
+  getFollowing,
+  getGames,
+  getProfile,
+  getWishlist,
+  targetsForeignEnvironmentApi,
+} from "@/lib/libraryApi";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { CrtTv } from "@/components/crt/CrtTv";
 import { LibraryCount, LibraryCountFallback } from "@/components/video_games/LibraryCount";
@@ -25,6 +32,39 @@ import { SignupCta } from "@/components/video_games/SignupCta";
 import { LibraryHeaderMenu } from "@/components/video_games/LibraryHeaderMenu";
 import { headerMenuItemClass } from "@/components/video_games/formStyles";
 import { NEW_ISSUE_URL } from "@/lib/feedback";
+import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
+
+// Where `?debug` may dress the page as if the viewer owned it, so the owner-only
+// UI can be inspected without signing in (src/lib/debugMode.ts).
+//
+// Local: any library, since the local Supabase stack listens on 127.0.0.1 and no
+// sign-in completes from a phone on the same network. Preview: only the site
+// owner's own shelf, so a preview link handed to someone else never dresses up
+// THEIR library with controls belonging to a different account. Production:
+// never.
+//
+// The preview branch checks that the write guard is armed rather than inferring
+// it from VERCEL_ENV: targetsForeignEnvironmentApi() is what makes meApi.ts
+// refuse every mutation, and it opts out when LIBRARY_API_ORIGIN is set
+// explicitly. A preview pointed at its own writable API therefore gets no debug
+// ownership, which keeps this what it claims to be — the LAYOUT of the
+// owner-only UI and nothing else.
+//
+// Read in a Server Component, where the unprefixed names exist. These are real
+// runtime reads, not inlined constants: Next substitutes only NEXT_PUBLIC_ names,
+// and only into client bundles. Module scope is what fixes them per process, and
+// for the prerendered /video-games that process is the build, so promoting a
+// preview BUILD to production would carry its answer along with it.
+const IS_LOCAL = process.env.VERCEL !== "1";
+const IS_PREVIEW = process.env.VERCEL_ENV === "preview";
+
+function debugOwnerAllowed(ownerUsername: string): boolean {
+  if (IS_LOCAL) return true;
+  if (!IS_PREVIEW || !targetsForeignEnvironmentApi()) return false;
+  // The constant is lowercase by construction. Usernames are citext in Postgres,
+  // so the profile's canonical spelling need not match its casing.
+  return ownerUsername.toLowerCase() === LIBRARY_OWNER_USERNAME;
+}
 
 // One library page, two routes: /video-games (Robert's shelf, at its stable
 // URL) and /video-games/u/[username] (anyone's). Extracted so the two can never
@@ -113,11 +153,12 @@ export async function LibraryPage({
           and CrtTv ship no extra JavaScript, and when `relationship` resolves
           React re-renders only the provider, since this server parent created
           the child elements. */}
-      {/* allowDebug is read here, in a Server Component, where the unprefixed
-          name exists. Vercel sets VERCEL=1 in every deployed environment, so
-          this is true only for an app running on someone's own machine, and the
-          value is baked into the prerender at build time. */}
-      <FollowStateProvider ownerUsername={profile.username} allowDebug={process.env.VERCEL !== "1"}>
+      {/* Local always, preview only on the owner's own shelf, production never.
+          See debugOwnerAllowed above for why the check cannot live client-side. */}
+      <FollowStateProvider
+        ownerUsername={profile.username}
+        allowDebug={debugOwnerAllowed(profile.username)}
+      >
         {/* py-6 on phones, the full py-12 from sm up. The library's first row
             of covers was landing just below the fold on a 390px viewport, and
             this is the cheapest 24px of the ~170 that came back. */}
