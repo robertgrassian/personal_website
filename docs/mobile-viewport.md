@@ -211,8 +211,11 @@ That override also works on **preview deploys**, but only on the site owner's ow
 library (`/video-games`, and `/video-games/u/rgrassian`), so a preview link shared
 with someone never dresses up their shelf with another account's controls. Saving
 still fails there, for a different reason: a preview points at production's API,
-so `meApi.ts` refuses every write before sending it. The viewport recorder stays
-local-only, because the endpoint it posts to 404s on any deploy.
+so `meApi.ts` refuses every write before sending it. The gate requires that
+refusal to be armed, so a preview given its own writable `LIBRARY_API_ORIGIN`
+gets no override at all. The viewport recorder stays local-only regardless:
+`layout.tsx` does not mount it on a deploy, and `/api/dev/viewport-log` 404s
+there as a second line of defense.
 
 Whether `?debug` is allowed is decided in a Server Component and passed down
 (`src/lib/debugMode.ts` says why): neither `process.env.VERCEL` nor `VERCEL_ENV`

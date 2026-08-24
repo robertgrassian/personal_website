@@ -7,7 +7,14 @@ import { notFound } from "next/navigation";
 // component, unlike the Pages Router's global-CSS restriction.
 import "@/app/video-games/video-games.css";
 import "@/components/crt/crt.css";
-import { getFollowers, getFollowing, getGames, getProfile, getWishlist } from "@/lib/libraryApi";
+import {
+  getFollowers,
+  getFollowing,
+  getGames,
+  getProfile,
+  getWishlist,
+  targetsForeignEnvironmentApi,
+} from "@/lib/libraryApi";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { CrtTv } from "@/components/crt/CrtTv";
 import { LibraryCount, LibraryCountFallback } from "@/components/video_games/LibraryCount";
@@ -32,25 +39,31 @@ import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 //
 // Local: any library, since the local Supabase stack listens on 127.0.0.1 and no
 // sign-in completes from a phone on the same network. Preview: only the site
-// owner's own shelf — a preview link handed to someone else must not dress up
+// owner's own shelf, so a preview link handed to someone else never dresses up
 // THEIR library with controls belonging to a different account. Production:
 // never.
 //
-// Safe on preview because writes there are already refused before they are sent:
-// a preview self-resolves its API origin to production, and meApi.ts turns every
-// mutation into FOREIGN_API_WRITE_MESSAGE. So this buys the LAYOUT of the
-// owner-only UI and nothing else, which is the whole point of it on a deploy.
+// The preview branch checks that the write guard is armed rather than inferring
+// it from VERCEL_ENV: targetsForeignEnvironmentApi() is what makes meApi.ts
+// refuse every mutation, and it opts out when LIBRARY_API_ORIGIN is set
+// explicitly. A preview pointed at its own writable API therefore gets no debug
+// ownership, which keeps this what it claims to be — the LAYOUT of the
+// owner-only UI and nothing else.
 //
-// Read here, in a Server Component, where the unprefixed names exist; both are
-// inlined at build time, so the prerendered pages carry the right answer.
+// Read in a Server Component, where the unprefixed names exist. These are real
+// runtime reads, not inlined constants: Next substitutes only NEXT_PUBLIC_ names,
+// and only into client bundles. Module scope is what fixes them per process, and
+// for the prerendered /video-games that process is the build, so promoting a
+// preview BUILD to production would carry its answer along with it.
 const IS_LOCAL = process.env.VERCEL !== "1";
 const IS_PREVIEW = process.env.VERCEL_ENV === "preview";
 
 function debugOwnerAllowed(ownerUsername: string): boolean {
   if (IS_LOCAL) return true;
-  // Lowercased both sides: usernames are citext in Postgres, so the profile's
-  // canonical spelling need not match this constant's casing.
-  return IS_PREVIEW && ownerUsername.toLowerCase() === LIBRARY_OWNER_USERNAME;
+  if (!IS_PREVIEW || !targetsForeignEnvironmentApi()) return false;
+  // The constant is lowercase by construction. Usernames are citext in Postgres,
+  // so the profile's canonical spelling need not match its casing.
+  return ownerUsername.toLowerCase() === LIBRARY_OWNER_USERNAME;
 }
 
 // One library page, two routes: /video-games (Robert's shelf, at its stable

@@ -6,7 +6,9 @@ import { useEffect, useState } from "react";
 // and pretending the viewer owns the library so the owner-only fields can be
 // reached from a device that cannot sign in (the local Supabase stack listens on
 // 127.0.0.1, so no sign-in of any kind completes from another machine). Preview
-// deploys allow the ownership override too, on the owner's own library only.
+// deploys allow the ownership override too, on the owner's own library only,
+// which is why `allowed` is a per-library value that can change on a client
+// navigation rather than a constant for the life of the page.
 //
 // Whether it is ALLOWED at all is decided on the server and passed in, never
 // checked here: neither `process.env.VERCEL` nor `VERCEL_ENV` is inlined into
@@ -21,8 +23,12 @@ export function useDebugMode(allowed: boolean): boolean {
   const [on, setOn] = useState(false);
 
   useEffect(() => {
-    if (!allowed) return;
-    setOn(new URLSearchParams(window.location.search).has("debug"));
+    // Recomputed, never early-returned, when `allowed` goes false: it is a
+    // per-library value, and navigating between two /video-games/u/[username]
+    // pages reconciles this component instead of remounting it (see the same
+    // hazard in useViewerRelationship). A stale `true` would follow the viewer
+    // onto someone else's shelf.
+    setOn(allowed && new URLSearchParams(window.location.search).has("debug"));
   }, [allowed]);
 
   return on;
