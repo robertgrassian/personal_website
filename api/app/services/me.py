@@ -36,6 +36,8 @@ from app.repositories import users as users_repo
 from app.schemas.me import (
     CatalogPreview,
     GameCreate,
+    GameNoteRead,
+    GameNoteWrite,
     GameUpdate,
     MyProfileRead,
     ProfileCreate,
@@ -745,6 +747,46 @@ def update_my_game(
         game = me_repo.update_game_system(db, game, payload.system)
 
     return _game_read_with_fresh_state(db, game, meta)
+
+
+def _to_note_read(note) -> GameNoteRead:
+    """Note row (or None) → wire DTO. None is an empty note, not an error: see
+    GameNoteRead."""
+    if note is None:
+        return GameNoteRead(body="", updated_at=None)
+    return GameNoteRead(body=note.body, updated_at=note.updated_at.isoformat())
+
+
+def get_my_game_note(db: Session, user: AuthenticatedUser, game_id: int) -> GameNoteRead:
+    """The caller's notes on one of their games. Same 404-over-403 policy as
+    every /me lookup: someone else's game id is indistinguishable from a
+    nonexistent one."""
+    if me_repo.get_game_for_owner(db, game_id, user.id) is None:
+        raise GameNotFoundError(game_id)
+    return _to_note_read(me_repo.get_game_note(db, game_id))
+
+
+def set_my_game_note(
+    db: Session, user: AuthenticatedUser, game_id: int, payload: GameNoteWrite
+) -> GameNoteRead:
+    """Replace the notes on one of the caller's games.
+
+    Blank deletes the row rather than storing an empty string, so "no note" has
+    one representation and the read cannot answer with a body of "" carrying a
+    timestamp that implies something was written. Stripped first: a textarea
+    holding only whitespace is a cleared note, not a note made of spaces.
+    """
+    if me_repo.get_game_for_owner(db, game_id, user.id) is None:
+        raise GameNotFoundError(game_id)
+
+    body = payload.body.strip()
+    if body == "":
+        existing = me_repo.get_game_note(db, game_id)
+        if existing is not None:
+            me_repo.delete_game_note(db, existing)
+        return _to_note_read(None)
+
+    return _to_note_read(me_repo.upsert_game_note(db, game_id, body))
 
 
 def _game_read_with_fresh_state(db: Session, game, meta) -> GameRead:

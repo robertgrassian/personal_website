@@ -101,8 +101,10 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 - [ ] **User search, so you can find people to follow without knowing their username.**
       [Details](docs/todo/user-search.md)
 
-- [ ] **Give library games a "notes" field, like wishlist entries already have, then grow it into a
-      real play journal.** [Details](docs/todo/game-notes-play-journal.md)
+- [ ] **Give WISHLIST notes the editor that library games now have, and decide whether notes grow
+      into a real play journal.** Library notes shipped 2026-08-24 (own table, owner-only, 20,000
+      characters); what is left is the wishlist half and the timestamped-entries question.
+      [Details](docs/todo/game-notes-play-journal.md)
 
 - [ ] **Make library and wishlist entries fully editable.** Now just the shared `game_metadata`
       question: name, genres, release date, cover art. The per-entry fields all landed by

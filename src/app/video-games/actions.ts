@@ -22,10 +22,12 @@ import {
   promoteMyWishlistItem,
   searchIgdb,
   updateMyGame,
+  updateMyGameNote,
   unfollowUser,
   updateMyWishlistItem,
   type CatalogPreviewResult,
   type MutateResult,
+  type SaveNoteResult,
   type SearchIgdbResult,
 } from "@/lib/meApi";
 import {
@@ -280,6 +282,29 @@ export async function getPlayHistory(username: string): Promise<PlayHistoryResul
     console.error("Loading play history failed:", err);
     return { ok: false, message: "Could not load the play history. Try again." };
   }
+}
+
+/** Save the notes on one of the caller's games; a blank body clears them.
+ *
+ *  The one write in this file that revalidates NOTHING, and deliberately so.
+ *  Every cache tag here exists for a read in libraryApi.ts, and notes have no
+ *  read there: they are owner-only, so they never enter the shared, prerendered
+ *  payload that the tags invalidate. There is no stale page for this write to
+ *  purge. (If notes ever become publishable, they gain a tagged read at the same
+ *  moment, and this line becomes the bug.)
+ *
+ *  It still routes through a Server Action rather than being called from the
+ *  browser: writes go through the BFF, full stop (see meApi.ts). The rate limit
+ *  and preview guard are on the API side either way.
+ *
+ *  No length check here. The API's max_length is the real bound and the textarea
+ *  already caps typing, so a duplicate constant would be a third number to keep
+ *  in step for no gain. */
+export async function saveGameNote(gameId: number, body: string): Promise<SaveNoteResult> {
+  // Inlined rather than rejectBadId, whose MutateResult return type does not
+  // narrow to this result's failure arm.
+  if (!Number.isInteger(gameId)) return { ok: false, message: "Invalid save request." };
+  return updateMyGameNote(gameId, body);
 }
 
 /** Add a game to the library (from an IGDB pick or manual entry). */

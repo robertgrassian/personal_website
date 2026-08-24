@@ -12,6 +12,8 @@ from app.core.db import DbSession
 from app.core.guards import WRITE_GUARDS
 from app.schemas.me import (
     GameCreate,
+    GameNoteRead,
+    GameNoteWrite,
     GameUpdate,
     MyProfileRead,
     ProfileCreate,
@@ -123,6 +125,37 @@ def update_my_game(user: CurrentUser, db: DbSession, game_id: int, payload: Game
     are a 422 from the schema validator before this handler runs.
     """
     return me_service.update_my_game(db, user, game_id, payload)
+
+
+@router.get("/me/games/{game_id}/note")
+def read_my_game_note(user: CurrentUser, db: DbSession, game_id: int) -> GameNoteRead:
+    """The caller's notes on one of their games.
+
+    Deliberately NOT mirrored under /users/{username} — notes are owner-only,
+    which is also what keeps them out of the cached public library payload. No
+    WRITE_GUARDS: this is a read, and charging it against the write budget
+    would let opening game cards exhaust the allowance for real edits.
+    """
+    return me_service.get_my_game_note(db, user, game_id)
+
+
+@router.put(
+    "/me/games/{game_id}/note",
+    dependencies=WRITE_GUARDS,
+)
+def write_my_game_note(
+    user: CurrentUser, db: DbSession, game_id: int, payload: GameNoteWrite
+) -> GameNoteRead:
+    """Replace the notes on one of the caller's games; a blank body clears them.
+
+    Separate from PATCH /me/games/{game_id} rather than another field on
+    GameUpdate: that route answers with a whole GameRead, which notes stay off
+    by design, and a 20,000-character body has no business riding a rating edit.
+
+    404 covers both a nonexistent id and someone else's game. Over-length is a
+    422 from the schema before this handler runs.
+    """
+    return me_service.set_my_game_note(db, user, game_id, payload)
 
 
 @router.post(

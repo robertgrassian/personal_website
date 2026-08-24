@@ -3,13 +3,21 @@ business rules, no HTTP (same layering as repositories/users.py).
 """
 
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Follow, GameMetadata, PlayedGame, PlaySession, Profile, WishlistGame
+from app.models import (
+    Follow,
+    GameMetadata,
+    GameNote,
+    PlayedGame,
+    PlaySession,
+    Profile,
+    WishlistGame,
+)
 
 
 def get_profile_by_id(db: Session, user_id: uuid.UUID) -> Profile | None:
@@ -450,3 +458,36 @@ def create_profile_with_follows(
     db.commit()
     db.refresh(profile)
     return profile
+
+
+def get_game_note(db: Session, game_id: int) -> GameNote | None:
+    """The note on one game, or None when nothing has been written.
+
+    Takes a game id rather than a user id: the caller has already resolved the
+    game through get_game_for_owner, so ownership is settled before this runs.
+    """
+    return db.execute(select(GameNote).where(GameNote.game_id == game_id)).scalar_one_or_none()
+
+
+def upsert_game_note(db: Session, game_id: int, body: str) -> GameNote:
+    """Write the note, creating the row on first save.
+
+    updated_at is stamped here rather than left to the column default, which
+    only applies on INSERT — an UPDATE would keep the original timestamp, and
+    the UI displays this value.
+    """
+    note = get_game_note(db, game_id)
+    if note is None:
+        note = GameNote(game_id=game_id, body=body)
+        db.add(note)
+    else:
+        note.body = body
+        note.updated_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(note)
+    return note
+
+
+def delete_game_note(db: Session, note: GameNote) -> None:
+    db.delete(note)
+    db.commit()
