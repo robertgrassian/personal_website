@@ -477,12 +477,43 @@ def upsert_game_note(db: Session, game_id: int, body: str) -> GameNote:
     the UI displays this value.
     """
     note = get_game_note(db, game_id)
-    if note is None:
-        note = GameNote(game_id=game_id, body=body)
-        db.add(note)
-    else:
+    if note is not None:
         note.body = body
         note.updated_at = datetime.now(UTC)
+        db.commit()
+        db.refresh(note)
+        return note
+
+    try:
+        # SAVEPOINT rather than a bare flush, same race and same reasoning as
+        # create_metadata above: two clients saving a game's FIRST note at once
+        # both miss the SELECT, and the loser violates uq_game_notes_game_id.
+        # Unlike that one this is the caller's own row either way, so the loser
+        # simply re-reads and applies its body over the winner's — last write
+        # wins, which is what a single Save button already means.
+        #
+        # Not hypothetical: meApi's timeout message tells the user a save may
+        # have landed and to retry, and the same note can be open on a phone
+        # and a laptop.
+        with db.begin_nested():
+            note = GameNote(game_id=game_id, body=body)
+            db.add(note)
+            db.flush()
+    except IntegrityError:
+        # Rolling back to the savepoint usually evicts the failed instance
+        # already; the check keeps this from raising "not present in session"
+        # on top of the error it is handling.
+        if note in db:
+            db.expunge(note)
+        winner = get_game_note(db, game_id)
+        if winner is None:
+            # Not the race we expected — some other constraint fired, and
+            # swallowing it would hide a real bug.
+            raise
+        note = winner
+        note.body = body
+        note.updated_at = datetime.now(UTC)
+
     db.commit()
     db.refresh(note)
     return note

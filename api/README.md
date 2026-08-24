@@ -34,8 +34,8 @@ the verified `AuthenticatedUser` (id from the `sub` claim). See `routers/me.py`.
 
 ## Data model
 
-Eight tables in the `public` schema: `profiles`, `game_metadata`, `played_games`,
-`play_sessions`, `game_notes`, `wishlist_games`, `follows`, `rate_limits`. The SQLAlchemy models in
+Nine tables in the `public` schema: `profiles`, `game_metadata`, `played_games`,
+`play_sessions`, `game_notes`, `wishlist_games`, `follows`, `igdb_tokens`, `rate_limits`. The SQLAlchemy models in
 `app/models/` are the source of truth for their columns — the notes here are the
 reasoning behind the shape, which the models themselves don't record.
 
@@ -112,8 +112,8 @@ reasoning behind the shape, which the models themselves don't record.
   touch the cached public payload" structural rather than a discipline. It also makes the
   shape reversible: `UNIQUE(game_id)` is what says "one note per game" today, so growing
   into timestamped journal entries is dropping that constraint and adding `created_at`,
-  not a data migration. That unique index is also the FK's index, so the `ON DELETE
-CASCADE`'s child lookup is not a sequential scan.
+  not a data migration. That unique index is also the FK's index, so the cascade's child
+  lookup is not a sequential scan.
   <br>
   Owner-only, unlike `wishlist_games.notes`, which rides the cached `/users/*` payload:
   these are served only from `GET`/`PUT /me/games/{id}/note`. A blank body deletes the

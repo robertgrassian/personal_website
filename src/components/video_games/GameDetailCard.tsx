@@ -18,15 +18,15 @@ import { useGameNote } from "./useGameNote";
 import { sessionsByGame } from "@/lib/sessions";
 import type { PlayHistoryState } from "./usePlayHistory";
 
-/** Which of the three things the card is showing. A viewer's card is NOT a
- *  fourth kind: it is `game` with the edit region simply not rendered, so
- *  permission stays the one boolean GameLibrary already derives instead of
- *  becoming a second source of truth that can disagree with it. */
 /** Which face of the card is showing. The detail face is `null` rather than a
  *  third variant: it is the default, and every branch below asks "is a face
  *  open?" far more often than it asks which one. */
 export type CardFace = { kind: "history"; stopping: boolean } | { kind: "notes" };
 
+/** Which of the three things the card is showing. A viewer's card is NOT a
+ *  fourth kind: it is `game` with the edit region simply not rendered, so
+ *  permission stays the one boolean GameLibrary already derives instead of
+ *  becoming a second source of truth that can disagree with it. */
 export type CardSubject =
   | { kind: "game"; game: Game }
   | { kind: "wishlist"; item: WishlistGame }
@@ -143,9 +143,17 @@ export function GameDetailCard({
   // Every exit runs through here so an unsaved note cannot be lost to a stray
   // Escape or a tap on the backdrop. Going BACK to the detail face is not
   // guarded and does not need to be: the draft lives in useGameNote, which
-  // outlives this face.
+  // outlives that face.
+  //
+  // Gated on isDirty ALONE, never on which face is showing. An earlier version
+  // also required the notes face, which left the draft losable by exactly the
+  // route the back arrow invites: edit, go back to check a rating, press
+  // Escape. The preview is rendering "Unsaved changes" at that moment, so the
+  // card knew and closed anyway. Showing the prompt means going to the face
+  // that owns it, since that is where the text you would lose is.
   const requestClose = () => {
-    if (face?.kind === "notes" && note.isDirty) {
+    if (note.isDirty) {
+      setFace({ kind: "notes" });
       setCloseBlocked(true);
       return;
     }

@@ -779,7 +779,10 @@
    with JS: useVisibleViewportInsets cannot stand in for it either, since its own
    docstring records that those insets read 0 on iOS 26. */
 @media (max-height: 640px) {
-  [data-note-body] {
+  /* :not([data-note-error]) so a FAILED read still says so. Hiding that too
+     left a bare "Notes" label on a landscape phone with no sign anything had
+     gone wrong, which is the one body state that is not just preview text. */
+  [data-note-body]:not([data-note-error]) {
     display: none;
   }
 }

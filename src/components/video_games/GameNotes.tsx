@@ -69,7 +69,7 @@ export function GameNotesPreview({ note, onOpen }: PreviewProps) {
           attribute rather than a class on each: it is one rule against four
           states, and the rule carries the measurements that justify it. */}
       {note.loadError !== null ? (
-        <span data-note-body className="mt-1 block text-sm text-shelf-danger">
+        <span data-note-body data-note-error className="mt-1 block text-sm text-shelf-danger">
           {note.loadError}
         </span>
       ) : note.isLoading && empty ? (
@@ -193,7 +193,11 @@ export function GameNotesEditor({
             </p>
           )}
 
-          {closeBlocked && (
+          {/* isDirty as well as closeBlocked: pressing Save while the prompt
+              is up resolves it, and a panel still reading "not saved" over a
+              note that just saved is read as the save having failed. Covers a
+              failed save too, which leaves isDirty true and the prompt up. */}
+          {closeBlocked && note.isDirty && (
             <div className="mt-3 shrink-0 rounded-md border border-shelf-plank bg-shelf-input px-3 py-2.5">
               <p className="text-sm text-shelf-text">
                 These notes have not been saved. Close anyway?

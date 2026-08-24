@@ -24,6 +24,7 @@ from app.core.db import get_sessionmaker
 from app.main import create_app
 from app.models import GameMetadata, PlayedGame, PlaySession
 from app.models.game_note import MAX_NOTE_LENGTH
+from app.repositories import me as me_repo
 from app.services import genres as genre_service
 from scripts.seed import ROBERT_PROFILE_ID
 
@@ -1956,12 +1957,70 @@ def test_put_note_at_the_cap_is_accepted(fresh_user_with_game) -> None:
 
 
 @requires_db
+def test_put_note_requires_token() -> None:
+    response = TestClient(create_app()).put("/api/library/me/games/1/note", json={"body": "hi"})
+    assert response.status_code == 401
+
+
+@requires_db
+def test_put_note_of_multibyte_characters_at_the_cap_is_accepted(fresh_user_with_game) -> None:
+    # The cap counts CHARACTERS on both sides, and this is the only test that
+    # can prove it: "x" * MAX_NOTE_LENGTH passes under octet_length too, so it
+    # cannot catch the DB CHECK regressing to bytes. Each of these is 4 bytes,
+    # so this body is 80,000 of them against a 20,000 limit.
+    user_id, game_id = fresh_user_with_game
+    body = "😀" * MAX_NOTE_LENGTH
+    response = client_as(user_id).put(f"/api/library/me/games/{game_id}/note", json={"body": body})
+    assert response.status_code == 200
+    assert response.json()["body"] == body
+
+
+@requires_db
 def test_put_note_unknown_field_is_422(fresh_user_with_game) -> None:
     user_id, game_id = fresh_user_with_game
     response = client_as(user_id).put(
         f"/api/library/me/games/{game_id}/note", json={"body": "hi", "title": "nope"}
     )
     assert response.status_code == 422
+
+
+@requires_db
+def test_put_note_survives_losing_the_first_write_race(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two clients saving a game's FIRST note at once both miss the SELECT, and
+    the loser violates uq_game_notes_game_id.
+
+    The race is forced rather than threaded: the real interleaving needs two
+    connections hitting one instant, which is flaky in a test. Making the first
+    lookup lie reproduces exactly the state the loser is in — a row exists, this
+    request believes none does — and that is the branch worth pinning. Before
+    the savepoint went in, this raised IntegrityError out of the handler and the
+    caller got a 500.
+    """
+    user_id, game_id = fresh_user_with_game
+    client = client_as(user_id)
+    assert (
+        client.put(f"/api/library/me/games/{game_id}/note", json={"body": "winner"}).status_code
+        == 200
+    )
+
+    real = me_repo.get_game_note
+    calls = {"n": 0}
+
+    def blind_once(db, gid):
+        calls["n"] += 1
+        return None if calls["n"] == 1 else real(db, gid)
+
+    monkeypatch.setattr(me_repo, "get_game_note", blind_once)
+    response = client.put(f"/api/library/me/games/{game_id}/note", json={"body": "loser"})
+
+    # Recovered rather than 500'd, and last write wins, which is what one Save
+    # button already means.
+    assert response.status_code == 200
+    assert response.json()["body"] == "loser"
+    monkeypatch.undo()
+    assert client.get(f"/api/library/me/games/{game_id}/note").json()["body"] == "loser"
 
 
 @requires_db

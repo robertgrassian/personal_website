@@ -18,7 +18,6 @@ Create Date: 2026-08-24
 import sqlalchemy as sa
 
 from alembic import op
-from app.models.game_note import NOTE_LENGTH_CHECK_SQL
 
 revision = "e2b6c9a4d117"
 down_revision = "d1a83f6c25e7"
@@ -46,8 +45,14 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.UniqueConstraint("game_id", name="uq_game_notes_game_id"),
-        # The SQL is imported rather than spelled out, so this migration cannot
-        # state a different cap from the model's.
+        # Spelled out rather than imported from app.models.game_note, matching
+        # the baseline's hardcoded rating CHECK. A migration records what was
+        # applied; importing a live constant makes it a view onto the current
+        # one instead, so raising MAX_NOTE_LENGTH later would give a FRESH
+        # database a different constraint from every migrated one, with no new
+        # revision and nothing to catch it — `alembic check` does not compare
+        # CHECK bodies. Changing the cap means writing a migration that alters
+        # this constraint.
         #
         # op.f() marks the name as already final. Without it the "ck" naming
         # convention interpolates it AGAIN (ck_%(table_name)s_%(constraint_name)s)
@@ -55,7 +60,7 @@ def upgrade() -> None:
         # which the model would then not match. Only CheckConstraint needs this:
         # the pk/fk/uq conventions interpolate table and column names, not the
         # name given here, so those pass through untouched.
-        sa.CheckConstraint(NOTE_LENGTH_CHECK_SQL, name=op.f("ck_game_notes_body_length")),
+        sa.CheckConstraint("char_length(body) <= 20000", name=op.f("ck_game_notes_body_length")),
     )
 
 

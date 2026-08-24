@@ -35,9 +35,14 @@ from app.models.base import Base
 # writes at one value and the constraint at another.
 MAX_NOTE_LENGTH = 20_000
 
-# Rendered from the constant so the two cannot drift. char_length, not
-# octet_length: Pydantic counts characters, so the backstop must too or a note
-# of multi-byte characters would pass validation and fail the insert.
+# Rendered from the constant so the model and the schema cannot drift.
+# char_length, not octet_length: Pydantic counts characters, so the backstop
+# must too or a note of multi-byte characters would pass validation and fail the
+# insert (test_put_note_of_multibyte_characters_at_the_cap covers that).
+#
+# The MIGRATION deliberately does not import this; see the note there. Changing
+# MAX_NOTE_LENGTH means writing a migration to alter the constraint, not editing
+# this line and expecting deployed databases to follow.
 NOTE_LENGTH_CHECK_SQL = f"char_length(body) <= {MAX_NOTE_LENGTH}"
 
 

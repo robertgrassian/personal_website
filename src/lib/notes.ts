@@ -13,10 +13,18 @@ export interface GameNote {
   updatedAt: string | null; // ISO-8601 UTC
 }
 
-// Mirrors MAX_NOTE_LENGTH in api/app/models/game_note.py, which is the real
-// bound (it also renders the DB CHECK). Duplicated here for the textarea's
-// maxLength and the character counter, so the limit is visible while typing
-// instead of arriving as a 422 after a long write.
+// The same NUMBER as MAX_NOTE_LENGTH in api/app/models/game_note.py, which is
+// the real bound (it also backs the DB CHECK). Duplicated here for the
+// textarea's maxLength and the counter, so the limit is visible while typing
+// rather than arriving as a 422 after a long write.
+//
+// Not the same UNIT, and the difference only ever errs safe. `maxLength` and
+// `String.length` count UTF-16 code units; Python's len() and Postgres'
+// char_length() count code points. Anything outside the BMP — emoji, most
+// notably — is two units and one code point, so a note of 20,000 emoji is
+// 40,000 here and 20,000 there: the browser stops you at half the allowance the
+// server would grant. Tightening JS to match would mean counting graphemes,
+// which is a dependency for a limit nobody reaches.
 export const MAX_NOTE_LENGTH = 20_000;
 
 // When the counter appears. Below this it is noise on a note nobody is near

@@ -52,7 +52,11 @@ export function useGameNote(gameId: number, enabled: boolean): GameNoteState {
   // still in flight when the editor opens fill the field on arrival, while text
   // already typed wins over it.
   const [draft, setDraftState] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  // Starts true when a load is coming, not false. load() runs from an effect,
+  // so a false start paints one frame of saved === null AND isLoading === false,
+  // which the preview renders as "Nothing yet" -- the lie GameNotes explicitly
+  // must not tell about a note still arriving.
+  const [isLoading, setIsLoading] = useState(enabled);
   const [loadError, setLoadError] = useState<string | null>(null);
   const { isPending: isSaving, error: saveError, setError: setSaveError, run } = useServerAction();
 
@@ -61,8 +65,18 @@ export function useGameNote(gameId: number, enabled: boolean): GameNoteState {
   // reasoning as usePlayHistory's loadedFor.
   const loadedFor = useRef<number | null>(null);
 
+  // Bumped by every load, so an earlier one that comes back late can tell it is
+  // no longer the current request and drop its answer. Today no two loads
+  // overlap -- the mount effect and "Try again" cannot run concurrently -- but
+  // that is incidental, not designed, and the failure it would allow is the one
+  // the reset below exists to prevent: one game's note shown under another's
+  // id, then saved onto it.
+  const runId = useRef(0);
+
   const load = useCallback(async () => {
     loadedFor.current = gameId;
+    const run = ++runId.current;
+    const current = () => run === runId.current;
     setIsLoading(true);
     setLoadError(null);
     try {
@@ -81,16 +95,17 @@ export function useGameNote(gameId: number, enabled: boolean): GameNoteState {
         cache: "no-store", // per-viewer, never cached
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setSaved((await res.json()) as GameNote);
+      const note = (await res.json()) as GameNote;
+      if (current()) setSaved(note);
     } catch (err) {
       // Logged where the cause is readable; the viewer gets the instruction.
       console.error("Loading notes failed:", err);
       // `saved` is left null rather than defaulted to an empty note: "we could
       // not read your notes" and "you have not written any" must never look the
       // same, or a save would overwrite text that was there all along.
-      setLoadError("Could not load your notes. Try again.");
+      if (current()) setLoadError("Could not load your notes. Try again.");
     } finally {
-      setIsLoading(false);
+      if (current()) setIsLoading(false);
     }
   }, [gameId]);
 
