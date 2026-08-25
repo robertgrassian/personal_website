@@ -126,17 +126,25 @@ from Vercel's git integration. `vercel.json` sets `git.deploymentEnabled.main` t
 push to `main` produces no Vercel deploy on its own; the workflow migrates first and then calls
 the Vercel CLI. That ordering is the whole point: Vercel has no pre-deploy hook, so a workflow
 running beside the git integration would race it, and a lost race means new code querying an old
-schema. Preview deploys are untouched, since only `main` is disabled — every PR still gets its
+schema. Preview deploys are untouched, since only `main` is disabled: every PR still gets its
 preview and its Vercel build check, and no preview branch can ever migrate.
 
-On a push to `main`:
+Four jobs run on a push to `main`:
 
-1. **`changes`** diffs the push for anything under `api/alembic/versions/`.
-2. **`migrate`** runs only when that diff is non-empty. It targets the `production` GitHub
-   environment, which is where the approval gate lives, so a migration waits for a click while a
-   frontend-only push does not.
-3. **`deploy`** runs `vercel deploy --prod` when `migrate` succeeded _or_ was skipped. A failed
-   migration or a rejected approval stops here, leaving the old code serving the old schema.
+| Job       | What it does                                                                                                           |
+| --------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `changes` | Diffs the push for anything under `api/alembic/versions/`. Decides only whether an approval is needed.                 |
+| `migrate` | Runs when that diff is non-empty, in the `production` environment, whose required reviewer pauses the run for a click. |
+| `verify`  | Asks the database whether it is at this commit's head revision. **This is the gate.**                                  |
+| `deploy`  | `vercel deploy --prod`. A plain `needs: verify`, so it runs only if `verify` actually succeeded.                       |
+
+**`verify` is what makes the pipeline safe, not the diff.** The push diff can be wrong in several
+ordinary ways: the concurrency group cancels a run that was still queued, so its migration never
+runs; an approval is rejected and then a later unrelated push carries that same code forward; a
+history is rewritten. In every one of those the database is left behind the code, and `verify`
+compares `alembic current` against `alembic heads` and fails rather than deploying. A wrong diff
+therefore costs an unnecessary approval or a blocked deploy, never a deploy onto an unmigrated
+database.
 
 **Migrations must still be backward-compatible with the deployed code.** Correct ordering shrinks
 the window where old code meets the new schema; it does not remove it, because the Vercel build
@@ -145,28 +153,44 @@ code that reads them, and drop the old ones in a _later_ deploy.
 
 ### One-time setup
 
-In GitHub, under Settings → Environments, create an environment named `production` with yourself
-as a required reviewer, and add one **environment** secret (not a repository one, so only the
-gated job can read it):
+Two GitHub environments, under Settings → Environments. Both must set their **deployment branch
+policy to `main` only** — the default is every branch, and `workflow_dispatch` accepts any ref, so
+without it a feature branch could be dispatched straight at production.
 
-- `DATABASE_URL` — Supabase's **session-mode** connection string, port 5432. Not the
-  transaction pooler on 6543 that the app itself uses: DDL through a transaction-mode pooler
-  fails in ways that are hard to diagnose.
+**`production`** — holds the approval gate. Add **yourself as a required reviewer**, plus one
+environment secret:
 
-Then, as **repository** secrets (Settings → Secrets and variables → Actions):
+- `DATABASE_URL` — Supabase's **session-mode** connection string, port 5432. Not the transaction
+  pooler on 6543 that the app itself uses: DDL through a transaction-mode pooler fails in ways
+  that are hard to diagnose.
 
-| Secret              | Where it comes from                                            |
-| ------------------- | -------------------------------------------------------------- |
-| `VERCEL_TOKEN`      | Vercel → Account Settings → Tokens                             |
-| `VERCEL_ORG_ID`     | Vercel project → Settings → General, or `.vercel/project.json` |
-| `VERCEL_PROJECT_ID` | Same place                                                     |
+**`production-deploy`** — no reviewers, since nothing here applies a schema change. Four secrets:
 
-After the first merge, confirm Vercel did **not** also start its own deploy from the git push. If
-it did, the `vercel.json` key is not taking effect and the dashboard toggle (project → Settings →
-Git → Ignored Build Step, or disconnecting the production branch) is the fallback.
+| Secret              | Value                                                                      |
+| ------------------- | -------------------------------------------------------------------------- |
+| `DATABASE_URL`      | Same string as above. `verify` only reads `alembic_version`.               |
+| `VERCEL_TOKEN`      | Vercel → Account Settings → Tokens                                         |
+| `VERCEL_ORG_ID`     | Team (or Account) Settings → General, or `orgId` in `.vercel/project.json` |
+| `VERCEL_PROJECT_ID` | Vercel project → Settings → General, or `projectId` in the same file       |
 
-Applying a migration by hand still works and is still the escape hatch:
-`cd api && DATABASE_URL=... uv run alembic upgrade head`.
+The Vercel credentials are environment-scoped rather than repository-scoped on purpose: a
+repository secret is readable by `ci.yml`, which runs on every pull request, and a Vercel account
+token can pull the project's production environment variables — `SUPABASE_SERVICE_ROLE_KEY`
+included.
+
+### Operating it
+
+- **Redeploying the same commit:** run the workflow manually (Actions → Deploy → Run workflow) with
+  _Apply pending migrations_ unchecked. It skips the approval gate, still runs `verify`, and
+  redeploys.
+- **A blocked deploy** (`verify` red, "Database is at X but this commit's head is Y") means a
+  migration never got applied. Run the workflow manually with _Apply pending migrations_ checked,
+  or apply it by hand.
+- **Reverting a migration is not a `git revert`.** Reverting the commit deletes the script while
+  the database is still stamped with its revision, and Alembic then fails with "Can't locate
+  revision". Run `alembic downgrade` first, then revert the code.
+- **By hand, always available:** `cd api && DATABASE_URL=... uv run alembic upgrade head`.
+  `alembic upgrade head` is idempotent, so re-running it after a partial failure is safe.
 
 ## Claude Skills
 
