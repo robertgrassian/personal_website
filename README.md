@@ -119,6 +119,55 @@ production uses Google. Full setup, resets and troubleshooting are in
 | `cd api && uv run ruff check .`         | Python lint                                                                 |
 | `cd api && uv run alembic upgrade head` | Apply migrations                                                            |
 
+## Deployment
+
+Production deploys run from [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), not
+from Vercel's git integration. `vercel.json` sets `git.deploymentEnabled.main` to `false`, so a
+push to `main` produces no Vercel deploy on its own; the workflow migrates first and then calls
+the Vercel CLI. That ordering is the whole point: Vercel has no pre-deploy hook, so a workflow
+running beside the git integration would race it, and a lost race means new code querying an old
+schema. Preview deploys are untouched, since only `main` is disabled — every PR still gets its
+preview and its Vercel build check, and no preview branch can ever migrate.
+
+On a push to `main`:
+
+1. **`changes`** diffs the push for anything under `api/alembic/versions/`.
+2. **`migrate`** runs only when that diff is non-empty. It targets the `production` GitHub
+   environment, which is where the approval gate lives, so a migration waits for a click while a
+   frontend-only push does not.
+3. **`deploy`** runs `vercel deploy --prod` when `migrate` succeeded _or_ was skipped. A failed
+   migration or a rejected approval stops here, leaving the old code serving the old schema.
+
+**Migrations must still be backward-compatible with the deployed code.** Correct ordering shrinks
+the window where old code meets the new schema; it does not remove it, because the Vercel build
+takes minutes and the old deployment serves throughout. Add columns nullable, backfill, ship the
+code that reads them, and drop the old ones in a _later_ deploy.
+
+### One-time setup
+
+In GitHub, under Settings → Environments, create an environment named `production` with yourself
+as a required reviewer, and add one **environment** secret (not a repository one, so only the
+gated job can read it):
+
+- `DATABASE_URL` — Supabase's **session-mode** connection string, port 5432. Not the
+  transaction pooler on 6543 that the app itself uses: DDL through a transaction-mode pooler
+  fails in ways that are hard to diagnose.
+
+Then, as **repository** secrets (Settings → Secrets and variables → Actions):
+
+| Secret              | Where it comes from                                            |
+| ------------------- | -------------------------------------------------------------- |
+| `VERCEL_TOKEN`      | Vercel → Account Settings → Tokens                             |
+| `VERCEL_ORG_ID`     | Vercel project → Settings → General, or `.vercel/project.json` |
+| `VERCEL_PROJECT_ID` | Same place                                                     |
+
+After the first merge, confirm Vercel did **not** also start its own deploy from the git push. If
+it did, the `vercel.json` key is not taking effect and the dashboard toggle (project → Settings →
+Git → Ignored Build Step, or disconnecting the production branch) is the fallback.
+
+Applying a migration by hand still works and is still the escape hatch:
+`cd api && DATABASE_URL=... uv run alembic upgrade head`.
+
 ## Claude Skills
 
 Skills in `.claude/skills/` for use with [Claude Code](https://claude.com/claude-code):

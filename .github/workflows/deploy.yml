@@ -1,0 +1,132 @@
+name: Deploy
+
+# Production deploys are driven from here rather than by Vercel's git
+# integration: vercel.json sets git.deploymentEnabled.main to false, so a push
+# to main does nothing on Vercel until this workflow calls the CLI. Owning the
+# trigger is the only way to order the migration before the deploy — Vercel has
+# no pre-deploy hook, so a workflow that merely runs alongside the git
+# integration races it.
+#
+# Preview deploys are untouched. Only `main` is disabled, so every PR still gets
+# its preview and its Vercel build check, and no preview can ever migrate.
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+# One production deploy at a time, and never cancel one in flight: a cancelled
+# `alembic upgrade` partway through is the worst outcome available here.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # Does this push carry a migration? Only then is the approval gate worth
+  # paying for: a frontend-only push should reach production without waiting on
+  # a human click.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      migrations: ${{ steps.check.outputs.migrations }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The diff below needs both ends of the push; the default checkout is
+          # a single commit.
+          fetch-depth: 0
+
+      - id: check
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # workflow_dispatch carries no `before`, and a branch's first push
+          # reports all-zeros. Both mean the diff is unavailable, so assume a
+          # migration and let the approval gate decide.
+          if [ -z "$BEFORE" ] \
+            || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "migrations=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git diff --name-only "$BEFORE" "$GITHUB_SHA" \
+            | grep -q '^api/alembic/versions/'; then
+            echo "migrations=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "migrations=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  migrate:
+    needs: changes
+    if: needs.changes.outputs.migrations == 'true'
+    runs-on: ubuntu-latest
+
+    # The `production` environment carries both the approval gate and the
+    # database credential. A required reviewer on it pauses the run here, so no
+    # migration reaches prod without someone deciding to let it.
+    environment: production
+
+    defaults:
+      run:
+        working-directory: api
+
+    env:
+      # Supabase's SESSION-mode URL (port 5432), not the transaction pooler the
+      # app runs on: DDL through a transaction-mode pooler fails in ways that
+      # are hard to diagnose. env.py reads DATABASE_URL with no alias and
+      # normalize_database_url() rewrites the scheme, so the string Supabase
+      # gives you goes in unmodified.
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      # Recorded before the change so the run log says where production
+      # actually was, which is the first question when a migration goes wrong.
+      - name: Show current revision
+        run: uv run alembic current --verbose
+
+      - name: Migrate
+        run: uv run alembic upgrade head
+
+  deploy:
+    needs: [changes, migrate]
+    # Runs when `migrate` succeeded or was skipped (no migration in this push).
+    # Nothing else may reach production: a failed migration fails here, and a
+    # rejected approval surfaces as a cancellation. always() is required or the
+    # skipped `migrate` would skip this job with it.
+    if: always() && (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
+    runs-on: ubuntu-latest
+
+    env:
+      # Not secret in any real sense, but the CLI reads them from the
+      # environment and this is where Vercel's own CI docs put them.
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Deliberately not --prebuilt: the build must run on Vercel, where
+      # VERCEL_PROJECT_PRODUCTION_URL exists for the /video-games prerender to
+      # resolve LIBRARY_API_ORIGIN against. Built here it would have no origin
+      # and fail on requireLibraryApiOrigin().
+      - name: Deploy to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN"
