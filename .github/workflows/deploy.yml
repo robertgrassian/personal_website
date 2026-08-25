@@ -189,24 +189,21 @@ jobs:
 
       - name: Database must be at head
         run: |
-          # Captured whole, then parsed. Both commands exit non-zero if they
-          # cannot reach the database, and `set -e` fails the step on that —
-          # whereas parsing inside a pipeline would silently compare two empty
-          # strings and call them equal.
-          current_raw="$(uv run alembic current)"
-          head_raw="$(uv run alembic heads)"
+          # Logged first so a failure below reads against a stated revision.
+          # An unreachable database exits non-zero here and `set -e` fails the
+          # step, rather than the check quietly passing on missing data.
+          uv run alembic current
 
-          # Each line is "<revision> (head)"; take the revision. Sorted because
-          # a branched history can legitimately have more than one head.
-          current="$(printf '%s\n' "$current_raw" | awk 'NF {print $1}' | sort)"
-          heads="$(printf '%s\n' "$head_raw" | awk 'NF {print $1}' | sort)"
-
-          if [ "$current" = "$heads" ]; then
-            echo "Database is at ${heads}."
+          # --check-heads exits non-zero unless every head revision in this
+          # commit is applied. Alembic's own comparison, not a parse of its
+          # output: it handles a branched history with several heads, and
+          # `current` is read-only (command.current passes dont_mutate=True),
+          # so this runs on a SELECT-only role.
+          if uv run alembic current --check-heads; then
             exit 0
           fi
 
-          echo "::error::Database is at '${current:-nothing}' but this commit's head is '${heads}'. Refusing to deploy code that may need a migration that has not been applied. Run this workflow manually with 'Apply pending migrations' checked, or apply it by hand."
+          echo "::error::The database is not at this commit's head revision, so deploying could put new code on a schema that has not been migrated. Re-run this workflow manually with 'Apply pending migrations' checked, or apply it by hand."
           exit 1
 
   deploy:
