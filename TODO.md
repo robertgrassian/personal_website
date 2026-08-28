@@ -17,6 +17,10 @@ before that happens.
 
 _Confirmed defects that are not urgent enough for Up Next. Roughly severity-ordered, worst first._
 
+- [ ] On desktop: on wishlist game, if i click the notes section, the sticky filter bar dissapears (in the background).
+      When exiting and going back to the wishlist, it reappears. It only happens with this input. When we fix it
+      we should check if the notes for library games is implemented and if so if it happens for that too.
+
 - [ ] **Anyone can define a shared catalog row for everyone, because `igdb_id` is never checked
       against IGDB.** [Details](docs/todo/unverified-igdb-id-catalog.md)
 
@@ -68,9 +72,6 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 - [ ] **An audit log of important library actions, primarily so a change can be undone.** Wants
       **Show a confirmation toast after logging a session** built first.
       [Details](docs/todo/library-audit-log.md)
-
-- [ ] **Make database migrations run automatically as part of CD.** There is **no CD pipeline** to
-      add a step to. [Details](docs/todo/migrations-in-cd.md)
 
 - [ ] **The four _backend_ structural refactors left over from the game-library simplification
       review.** [Details](docs/todo/backend-structural-refactors.md)

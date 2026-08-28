@@ -1,0 +1,260 @@
+name: Deploy
+
+# Production deploys are driven from here rather than by Vercel's git
+# integration: vercel.json sets git.deploymentEnabled.main to false, so a push
+# to main does nothing on Vercel until this workflow calls the CLI. Owning the
+# trigger is the only way to order the migration before the deploy — Vercel has
+# no pre-deploy hook, so a workflow that merely runs alongside the git
+# integration races it.
+#
+# Preview deploys are untouched. Only `main` is disabled, so every PR still gets
+# its preview and its Vercel build check, and no preview can ever migrate.
+#
+# The safety property is enforced by `verify`, not by the push diff: nothing
+# deploys unless the database is provably at the repo's head revision. The diff
+# in `changes` only decides whether a human has to approve, so a diff that reads
+# the push wrong costs an unnecessary approval or a blocked deploy, never a
+# deploy onto an unmigrated database.
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      migrate:
+        description: "Apply pending migrations (needs approval). Off = redeploy only."
+        type: boolean
+        default: true
+
+# Neither job needs to write anything back to the repo, and `npx vercel` is
+# third-party code running in a job that holds deploy credentials.
+permissions:
+  contents: read
+
+# One production deploy at a time, and never cancel one in flight: a cancelled
+# `alembic upgrade` partway through is the worst outcome available here.
+#
+# This does NOT make the queue a queue — a newly queued run cancels any run
+# already pending in the group, so pushes can be dropped from the pipeline
+# entirely. `verify` is what makes that safe: the dropped push's migration is
+# still unapplied, so the next run refuses to deploy rather than shipping code
+# that needs it.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # Does this push carry a migration? Used only to decide whether the approval
+  # gate is worth paying for: a frontend-only push should reach production
+  # without waiting on a human click.
+  #
+  # The `main` guard here covers the whole workflow. workflow_dispatch accepts
+  # any ref, and every job downstream requires this one to have SUCCEEDED, so a
+  # dispatch from a feature branch skips the lot rather than migrating
+  # production from an unmerged branch.
+  changes:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      migrations: ${{ steps.check.outputs.migrations }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The diff below needs both ends of the push; the default checkout is
+          # a single commit.
+          fetch-depth: 0
+
+      - id: check
+        env:
+          BEFORE: ${{ github.event.before }}
+          MIGRATE_INPUT: ${{ inputs.migrate }}
+        run: |
+          # A manual run has no push range to diff, so it says outright whether
+          # it means to migrate.
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "migrations=$MIGRATE_INPUT" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # A branch's first push reports all-zeros, and a force-push can leave
+          # `before` unreachable. Both mean the diff is unavailable, so assume a
+          # migration and let the approval gate decide.
+          if [ -z "$BEFORE" ] \
+            || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "migrations=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Captured before it is filtered: a pipeline's exit status is its LAST
+          # command's, so `git diff | grep -q` would read a git failure as "no
+          # migration found" and wave the deploy through. Assigning from the
+          # substitution lets `set -e` (on by default) fail the step instead.
+          changed="$(git diff --name-only "$BEFORE" "$GITHUB_SHA")"
+
+          if printf '%s\n' "$changed" | grep -q '^api/alembic/versions/'; then
+            echo "migrations=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "migrations=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  migrate:
+    needs: changes
+    if: needs.changes.outputs.migrations == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # The `production` environment carries both the approval gate and the
+    # database credential. A required reviewer on it pauses the run here, so no
+    # migration reaches prod without someone deciding to let it.
+    environment: production
+
+    defaults:
+      run:
+        working-directory: api
+
+    env:
+      # Supabase's SESSION-mode URL (port 5432), not the transaction pooler the
+      # app runs on: DDL through a transaction-mode pooler fails in ways that
+      # are hard to diagnose. env.py reads DATABASE_URL with no alias and
+      # normalize_database_url() rewrites the scheme, so the string Supabase
+      # gives you goes in unmodified.
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      # Recorded before the change so the run log says where production
+      # actually was, which is the first question when a migration goes wrong.
+      - name: Show current revision
+        run: uv run alembic current --verbose
+
+      - name: Migrate
+        run: uv run alembic upgrade head
+
+  # The actual gate on deploying. Everything above is best-effort scheduling;
+  # this asks the database directly whether it is at the revision this commit
+  # expects, and the deploy is a plain `needs:` on it succeeding.
+  #
+  # It catches every way the push diff can be wrong: a run dropped from the
+  # queue by the concurrency group, a migration whose approval was rejected and
+  # then lapped by an unrelated push, a hand-edited history. All of them end as
+  # a red X here instead of new code on an old schema.
+  verify:
+    needs: [changes, migrate]
+    # `migrate` skipping is only acceptable when `changes` positively said there
+    # was nothing to apply. Its result is also `skipped` when `changes` failed,
+    # and that must not be read as consent to deploy.
+    if: >-
+      ${{ !cancelled()
+      && needs.changes.result == 'success'
+      && (needs.migrate.result == 'success'
+      || (needs.migrate.result == 'skipped'
+      && needs.changes.outputs.migrations == 'false')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # No required reviewer on this one: it only reads alembic_version. Its
+    # deployment-branch policy still has to be `main`, since it holds the
+    # credentials the deploy runs on.
+    environment: production-deploy
+
+    defaults:
+      run:
+        working-directory: api
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Database must be at head
+        run: |
+          # Logged first so a failure below reads against a stated revision.
+          # An unreachable database exits non-zero here and `set -e` fails the
+          # step, rather than the check quietly passing on missing data.
+          uv run alembic current
+
+          # --check-heads exits non-zero unless every head revision in this
+          # commit is applied. Alembic's own comparison, not a parse of its
+          # output: it handles a branched history with several heads, and
+          # `current` is read-only (command.current passes dont_mutate=True),
+          # so this runs on a SELECT-only role.
+          if uv run alembic current --check-heads; then
+            exit 0
+          fi
+
+          echo "::error::The database is not at this commit's head revision, so deploying could put new code on a schema that has not been migrated. Re-run this workflow manually with 'Apply pending migrations' checked, or apply it by hand."
+          exit 1
+
+  deploy:
+    needs: verify
+    # `!cancelled()` is load-bearing, and not about cancellation. A job's `if`
+    # with NO status check function in it gets `success()` implicitly ANDed on,
+    # and `success()` reads the whole `needs` ancestry: `verify` needs
+    # `migrate`, `migrate` skips on any push without a migration, and one skip
+    # anywhere skips everything downstream. Naming verify's result alone did
+    # not help (#175) because the implicit `success()` was still there and
+    # still false. Including a status check function is what suppresses it,
+    # which is why `verify`'s own condition above starts the same way.
+    #
+    # Still strictly the gate: skipped, failed and cancelled `verify` all
+    # leave this false, so only a genuine success deploys.
+    if: ${{ !cancelled() && needs.verify.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    environment: production-deploy
+
+    env:
+      # Not secret in any real sense, but the CLI reads them from the
+      # environment. Environment-scoped rather than repository-scoped so that
+      # ci.yml, which runs on every pull request, cannot read the token: a
+      # Vercel account token can pull the project's production env vars, which
+      # include the service-role key.
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Deliberately not --prebuilt: the build must run on Vercel, where
+      # VERCEL_PROJECT_PRODUCTION_URL exists for the /video-games prerender to
+      # resolve LIBRARY_API_ORIGIN against. Built here it would have no origin
+      # and fail on requireLibraryApiOrigin().
+      #
+      # The CLI is pinned like every action above. A deploy outside the git
+      # integration carries no commit metadata of its own, so --meta puts it
+      # back and the dashboard can still answer "what is live".
+      - name: Deploy to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          npx --yes vercel@59 deploy --prod --yes \
+            --token "$VERCEL_TOKEN" \
+            --meta githubCommitSha="$GITHUB_SHA" \
+            --meta githubCommitRef="$GITHUB_REF_NAME"
