@@ -207,11 +207,19 @@ jobs:
           exit 1
 
   deploy:
-    # No `if:` on purpose. The default — run only when every `needs` job
-    # succeeded — is exactly the rule wanted here, and it cannot be
-    # accidentally loosened the way an `always()` condition can. A failed,
-    # skipped or cancelled `verify` all stop the deploy.
     needs: verify
+    # This condition is required, not stylistic. A bare `needs:` with no `if:`
+    # uses the default success() check, and that looks at the WHOLE ancestry,
+    # not just the direct dependency: `verify` needs `migrate`, `migrate` is
+    # skipped on every push that carries no migration, and a skip anywhere in
+    # the graph skips everything downstream. The first merge deployed nothing
+    # for exactly this reason. Naming verify's result explicitly replaces the
+    # default, which is the same trick `verify` itself uses to survive
+    # `migrate` being skipped.
+    #
+    # Still strictly the gate: only a genuinely successful `verify` deploys.
+    # Skipped, failed and cancelled all remain non-deploying.
+    if: needs.verify.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

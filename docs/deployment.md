@@ -15,7 +15,7 @@ Four jobs run on a push to `main`:
 | `changes` | Diffs the push for anything under `api/alembic/versions/`. Decides only whether an approval is needed.                 |
 | `migrate` | Runs when that diff is non-empty, in the `Production` environment, whose required reviewer pauses the run for a click. |
 | `verify`  | Asks the database whether it is at this commit's head revision. **This is the gate.**                                  |
-| `deploy`  | `vercel deploy --prod`. A plain `needs: verify`, so it runs only if `verify` actually succeeded.                       |
+| `deploy`  | `vercel deploy --prod`, gated on `needs.verify.result == 'success'`.                                                   |
 
 **`verify` is what makes the pipeline safe, not the diff.** The push diff can be wrong in several
 ordinary ways: the concurrency group cancels a run that was still queued, so its migration never
