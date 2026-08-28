@@ -61,3 +61,6 @@ api/.venv/
 api/scripts/.genre_backfill_plan.json
 api/scripts/.igdb_platforms.json
 
+
+# local-only notes: setup rituals with credentials in them
+docs/*.local.md

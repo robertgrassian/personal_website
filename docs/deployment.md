@@ -34,62 +34,35 @@ integration deployed every push to `main` regardless. A push straight to `main` 
 without a test run, same as before; the protection is the branch ruleset requiring the `build`
 check on the PR.
 
-## One-time setup
+## Setup
 
-Two GitHub environments, under Settings → Environments. Both must set their **deployment branch
-policy to `main` only** — the default is every branch, and `workflow_dispatch` accepts any ref, so
-without it a feature branch could be dispatched straight at production.
+Deploys run on two GitHub environments, both restricted to the `main` branch:
 
-**`production`** — holds the approval gate, and the only credential that can change the schema.
-Add **yourself as a required reviewer**, plus one environment secret:
+- **`Production`** holds the approval gate and the only credential that can change the schema: one
+  required reviewer, and a session-mode `DATABASE_URL` for the owner role.
+- **`production-deploy`** has no reviewer, because nothing in it can change anything. It holds
+  `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, and a `DATABASE_URL` for a read-only role
+  that can select from `alembic_version` and nothing else.
 
-- `DATABASE_URL` — a **session-mode** connection string, port 5432. Not the transaction pooler on
-  6543 that the app itself uses: DDL through a transaction-mode pooler fails in ways that are hard
-  to diagnose.
+That split is the point rather than an accident. `verify` runs on every push and must not wait on a
+click, so its secret sits in an environment anyone who can run a workflow on `main` can reach. Given
+that, it must not be a credential that could migrate: the gate would then protect the action but not
+the capability. `alembic current` is read-only by construction (`command.current()` passes
+`dont_mutate=True`, so it will not even create the version table), which is what makes a
+`SELECT`-only role sufficient.
 
-**`production-deploy`** — no reviewers. Nothing here changes the schema, so nothing here needs a
-credential that could. Four secrets:
-
-| Secret              | Value                                                                      |
-| ------------------- | -------------------------------------------------------------------------- |
-| `DATABASE_URL`      | The **read-only** role below, not the owner role                           |
-| `VERCEL_TOKEN`      | Vercel → Account Settings → Tokens                                         |
-| `VERCEL_ORG_ID`     | Team (or Account) Settings → General, or `orgId` in `.vercel/project.json` |
-| `VERCEL_PROJECT_ID` | Vercel project → Settings → General, or `projectId` in the same file       |
-
-The Vercel credentials are environment-scoped rather than repository-scoped on purpose: a
+The Vercel credentials are environment-scoped rather than repository-scoped for the same reason: a
 repository secret is readable by `ci.yml`, which runs on every pull request, and a Vercel account
-token can pull the project's production environment variables, `SUPABASE_SERVICE_ROLE_KEY`
-included.
+token can pull the project's production environment variables, `SUPABASE_SERVICE_ROLE_KEY` included.
 
-### The read-only role
+Standing this up is a one-time ritual with real credentials in it, so the step-by-step lives outside
+the repo, in the gitignored `docs/deployment-setup.local.md`.
 
-`verify` only asks the database which migration it is on. `alembic current` is read-only by
-construction (`command.current()` passes `dont_mutate=True`, so it will not even create the version
-table), which means the ungated environment never needs a credential that can write. Without this,
-the approval gate protects an action but not a secret: the connection string would sit in an
-environment anyone could read without approval.
-
-Run once in the Supabase SQL editor:
-
-```sql
--- Reads one table. Cannot write, cannot see anything else.
-create role deploy_verifier with login password 'use-a-long-random-one';
-grant connect on database postgres to deploy_verifier;
-grant usage on schema public to deploy_verifier;
-grant select on table public.alembic_version to deploy_verifier;
-```
-
-Then build `production-deploy`'s `DATABASE_URL` from the same connection string as the owner one,
-with the username and password swapped for this role. Through Supabase's pooler the username
-carries the project ref, so it becomes `deploy_verifier.<project-ref>` rather than
-`postgres.<project-ref>`.
-
-**If a job cannot connect, check IPv6 first.** GitHub's runners are IPv4-only, and Supabase's
-direct connection (`db.<project-ref>.supabase.co`) is IPv6-only unless the project has the IPv4
-add-on. The **session pooler** string (port 5432, a `pooler.supabase.com` host) is IPv4 and still
-session mode, so it is usually the right one to paste for both environments. The transaction
-pooler on 6543 is the one to avoid.
+**If a job cannot connect, check IPv6 first.** GitHub's runners are IPv4-only, and Supabase's direct
+connection (`db.<project-ref>.supabase.co`) is IPv6-only unless the project has the IPv4 add-on. The
+**session pooler** string (port 5432, a `pooler.supabase.com` host) is IPv4 and still session mode,
+so it is the right one for both environments. The transaction pooler on 6543 is the one to avoid:
+DDL through a transaction-mode pooler fails in ways that are hard to diagnose.
 
 ## Operating it
 
