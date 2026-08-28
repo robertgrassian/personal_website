@@ -7,6 +7,34 @@ that game and useless as a filter. The ask is the audit first: sweep for genres 
 per case between a one-off replace script, a block list, and a genuinely smarter picker. Named as a
 known weak point of the system, and of game sites generally.
 
+_Premise CONFIRMED 2026-08-28_, from the snapshot a `--plan` run writes to
+`api/scripts/.genre_backfill_plan.json` (186 games, 50 distinct genres, no database access
+needed to read it). **Star Fox Adventures is the only game tagged "Shooter"**, exactly as
+complained about. The important part is what the backfill does with it: it re-proposes
+`Shooter` unchanged, because that is what the Wikipedia infobox says. **So no re-run of the
+sweep will ever fix this row** -- it needs a targeted correction or an `OVERRIDES` entry, which
+settles the question below about one bad row versus a systematic coarse-vs-specific split. It is
+one row. Sixteen genres have a count of 1; the rest read as legitimately rare rather than wrong.
+
+_The hand-typed hole is real, and it was measurable._ Six of the 50 stored genres were not what
+`normalize_genre` produces, all of them casing: `Beat 'em up`, `Real-time Strategy`,
+`Turn-based Strategy`, `Third-person Shooter`, `Pet-raising simulation`, `Tactical role-playing`
+(16 games in total). They reach the database through `_sourced_genres`
+(`api/app/services/me.py`), which returns the client's genres untouched when there is no
+`igdb_id`, so the normalizer never runs on them. `Shoot 'em Up` being title-cased while
+`Beat 'em up` is not is the two paths showing through.
+
+_Half of this shipped 2026-08-28._ `build_vocabulary` (`api/scripts/backfill_genres.py`) now puts
+its winning spelling through `normalize_genre` before anything snaps onto it, so the backfill
+**corrects** those 16 rows instead of preserving them -- previously a hand-typed row defined the
+vocabulary for rows that had gone through the normalizer, and a 1-1 tie between two spellings was
+settled by dict insertion order. What is left of this item is prevention: routing `clean_genres`
+through the normalizer so the manual add path stops creating them, versus accepting them and
+letting the backfill clean up after. The owner has said they hold no deliberate genre spellings
+and want Wikipedia's vocabulary unless it is badly wrong, which argues for routing it.
+
+_The premise was unverified against the database, which is why the paragraph below was written._
+
 _The premise is unverified against the database, so start there._ The seed fixture
 (`api/scripts/fixtures/games.csv`) records Star Fox Adventures as `Action-Adventure`, and ~19
 fixture rows carry some spelling of "shooter", so whatever produced today's state happened **after**

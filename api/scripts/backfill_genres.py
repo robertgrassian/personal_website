@@ -148,14 +148,39 @@ def build_vocabulary(games: list[dict]) -> dict[str, str]:
     proposal onto the spelling already in use avoids it without a hand-written
     alias table.
 
-    When the library itself is inconsistent, the most common spelling wins.
+    When the library itself is inconsistent, the most common spelling wins --
+    but the winner is then put through normalize_genre, so the stored spelling
+    never overrides the pipeline's own. Casing is the only thing this changes:
+    normalize_genre title-cases, and leaves spacing and hyphens alone. So a
+    genre the library holds as "First Person Shooter" still wins against
+    Wikipedia's "First-Person Shooter", which is what snapping is for, while
+    "Beat 'em up" and "Tactical role-playing" become "Beat 'em Up" and
+    "Tactical Role-Playing".
+
+    Snapping to the raw stored spelling was wrong in both directions. It let
+    hand-typed rows -- the only ones that skip the normalizer, per
+    _sourced_genres in app/services/me.py -- define the vocabulary for rows that
+    did go through it. And where the library held two spellings once each, the
+    1-1 tie fell to dict insertion order, which is games sorted by name: "Final
+    Fantasy Tactics" beat "Fire Emblem" and the un-normalized side won on the
+    alphabet.
+
+    The frequency tie-break falls back to the spelling itself so the result does
+    not depend on the order games arrive in.
     """
     counts: dict[str, dict[str, int]] = {}
     for game in games:
         for genre in game["current"]:
             bucket = counts.setdefault(_vocab_key(genre), {})
             bucket[genre] = bucket.get(genre, 0) + 1
-    return {key: max(spellings, key=spellings.get) for key, spellings in counts.items()}
+    vocabulary = {}
+    for key, spellings in counts.items():
+        best = max(spellings, key=lambda g: (spellings[g], g))
+        # `or best` because normalize_genre returns None for a theme value; a
+        # genre already in the library is kept rather than dropped from the
+        # vocabulary, which would leave proposals unsnapped.
+        vocabulary[key] = genre_service.normalize_genre(best) or best
+    return vocabulary
 
 
 def snap(proposed: list[str], vocabulary: dict[str, str]) -> list[str]:

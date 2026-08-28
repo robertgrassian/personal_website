@@ -467,6 +467,13 @@ def is_video_game(wikitext: str) -> bool:
 
 def parse_infobox_genres(wikitext: str) -> list[str]:
     """The infobox ``genre`` field, reduced from wiki markup to plain names."""
+    # Refs and comments are stripped from the whole article BEFORE the field is
+    # located, not from the value after. _INFOBOX_FIELD ends the value at any
+    # "}}", so a <ref>{{cite web|...}}</ref> hanging off the last genre closes
+    # its own template first: the value is cut mid-ref, "</ref>" is never
+    # captured, and _REF can no longer match what is left.
+    wikitext = _REF.sub("", wikitext)
+    wikitext = _COMMENT.sub("", wikitext)
     match = re.search(
         _INFOBOX_FIELD.format(field="genre"),
         wikitext,
@@ -475,8 +482,6 @@ def parse_infobox_genres(wikitext: str) -> list[str]:
     if not match:
         return []
     raw = match.group(1)
-    raw = _REF.sub("", raw)
-    raw = _COMMENT.sub("", raw)
     raw = _LIST_TEMPLATES.sub("", raw)
     raw = raw.replace("}}", "").replace("{{", "")
     # [[Target|Label]] -> Label, then any remaining [[Target]] -> Target.

@@ -968,3 +968,42 @@ def test_lookup_one_rejects_the_wrong_entry_in_a_series(monkeypatch):
         ),
     )
     assert genre_service.lookup_one("Octopath Traveller") == []
+
+
+def test_ref_containing_a_cite_template_does_not_truncate_the_genre_field():
+    """The real shape of a Wikipedia citation, which the older test missed.
+
+    ``<ref name=x>Cite</ref>`` has no ``{{...}}`` in it, so it never exercised
+    the interaction that matters: _INFOBOX_FIELD ends the value at any ``}}``,
+    and a ``{{cite web}}`` inside the ref closes long before the infobox does.
+
+    Both spellings of the ref tag are here because they failed differently on
+    the real articles: the unnamed one left "action-adventure<ref>cite web" as
+    a genre, while the named one carried an "=" and was dropped, losing
+    Action-Adventure entirely.
+    """
+    unnamed = (
+        "{{Infobox video game\n"
+        "| genre = [[Platformer|Platform]], [[Action-adventure game|action-adventure]]"
+        "<ref>{{cite web|url=http://example.com|title=T|date=December 8, 2017"
+        "|access-date=December 22, 2017}}</ref>\n"
+        "| modes = Single-player\n}}"
+    )
+    named = unnamed.replace("<ref>", '<ref name="dice">')
+    for text in (unnamed, named):
+        assert genre_service.parse_infobox_genres(text) == ["Platform", "action-adventure"]
+
+
+def test_a_self_closing_ref_does_not_swallow_the_rest_of_the_field():
+    """_REF ends at "/>" OR "</ref>", whichever comes first, so <ref name=x />
+    closes itself. If that alternation is ever reduced to just "</ref>", a
+    self-closing tag would run on to the next real citation anywhere later in
+    the article and take the genres in between with it.
+    """
+    text = (
+        "{{Infobox video game\n"
+        "| genre = Puzzle<ref name=x />, Platform\n"
+        "| modes = Single\n}}\n"
+        "Prose about the game.<ref>{{cite web|title=T}}</ref>"
+    )
+    assert genre_service.parse_infobox_genres(text) == ["Puzzle", "Platform"]
