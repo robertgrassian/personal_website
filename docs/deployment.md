@@ -13,7 +13,7 @@ Four jobs run on a push to `main`:
 | Job       | What it does                                                                                                           |
 | --------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `changes` | Diffs the push for anything under `api/alembic/versions/`. Decides only whether an approval is needed.                 |
-| `migrate` | Runs when that diff is non-empty, in the `production` environment, whose required reviewer pauses the run for a click. |
+| `migrate` | Runs when that diff is non-empty, in the `Production` environment, whose required reviewer pauses the run for a click. |
 | `verify`  | Asks the database whether it is at this commit's head revision. **This is the gate.**                                  |
 | `deploy`  | `vercel deploy --prod`. A plain `needs: verify`, so it runs only if `verify` actually succeeded.                       |
 
@@ -39,7 +39,9 @@ check on the PR.
 Deploys run on two GitHub environments, both restricted to the `main` branch:
 
 - **`Production`** holds the approval gate and the only credential that can change the schema: one
-  required reviewer, and a session-mode `DATABASE_URL` for the owner role.
+  required reviewer, and a session-mode `DATABASE_URL` for the owner role. This is the environment
+  Vercel's integration created, not a new one: the workflow says `environment: production` and
+  GitHub matches environment names case-insensitively.
 - **`production-deploy`** has no reviewer, because nothing in it can change anything. It holds
   `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, and a `DATABASE_URL` for a read-only role
   that can select from `alembic_version` and nothing else.
@@ -75,9 +77,9 @@ DDL through a transaction-mode pooler fails in ways that are hard to diagnose.
 - **`VERCEL_TOKEN` expires, and when it does every production deploy stops.** The current token was
   created 2026-08-28 with a one-year expiration, so it lapses around **2027-08-28**. The symptom is
   the `deploy` job failing on an authentication error from the Vercel CLI while `changes`, `migrate`
-  and `verify` all stay green: the database is fine, the code is fine, the credential is dead. Fix
-  is a new token (Vercel → Account Settings → Tokens) and `gh secret set VERCEL_TOKEN --env
-production-deploy`. Nothing warns you in advance, which is why the date is written here.
+  and `verify` all stay green: the database is fine, the code is fine, the credential is dead. Fix is a
+  new token (Vercel → Account Settings → Tokens), then re-set the `VERCEL_TOKEN` secret on
+  `production-deploy`. Nothing warns you in advance, which is why the date is written here.
 - **Reverting a migration is not a `git revert`.** Reverting the commit deletes the script while
   the database is still stamped with its revision, and Alembic then fails with "Can't locate
   revision". Run `alembic downgrade` first, then revert the code.
