@@ -72,6 +72,12 @@ DDL through a transaction-mode pooler fails in ways that are hard to diagnose.
 - **A blocked deploy** (`verify` red, "The database is not at this commit's head revision") means a
   migration never got applied. Run the workflow manually with _Apply pending migrations_ checked,
   or apply it by hand.
+- **`VERCEL_TOKEN` expires, and when it does every production deploy stops.** The current token was
+  created 2026-08-28 with a one-year expiration, so it lapses around **2027-08-28**. The symptom is
+  the `deploy` job failing on an authentication error from the Vercel CLI while `changes`, `migrate`
+  and `verify` all stay green: the database is fine, the code is fine, the credential is dead. Fix
+  is a new token (Vercel → Account Settings → Tokens) and `gh secret set VERCEL_TOKEN --env
+production-deploy`. Nothing warns you in advance, which is why the date is written here.
 - **Reverting a migration is not a `git revert`.** Reverting the commit deletes the script while
   the database is still stamped with its revision, and Alembic then fails with "Can't locate
   revision". Run `alembic downgrade` first, then revert the code.
