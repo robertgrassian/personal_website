@@ -121,20 +121,26 @@ def test_vocabulary_prefers_the_librarys_existing_spelling():
         {"current": ["Life simulation"]},
     ]
     vocab = build_vocabulary(games)
-    # Wikidata's hyphenated and capitalized spellings collapse onto the ones
-    # already on the shelves, instead of joining them in the filter dropdown.
+    # Wikidata's hyphenated spelling collapses onto the one already on the
+    # shelves, instead of joining it in the filter dropdown.
     assert snap(["First-Person Shooter"], vocab) == ["First Person Shooter"]
-    assert snap(["Life Simulation"], vocab) == ["Life simulation"]
+    # ...but not its CASING: the stored "Life simulation" is a hand-typed row,
+    # and the vocabulary is normalized before anything snaps onto it.
+    assert snap(["Life Simulation"], vocab) == ["Life Simulation"]
 
 
 def test_vocabulary_breaks_ties_by_frequency():
+    """The spellings here differ by a HYPHEN, which normalize_genre does not
+    touch, so frequency is the only thing that can decide between them. Two
+    spellings differing only in case would not test this: normalization settles
+    those before frequency is ever consulted."""
     games = [
-        {"current": ["Third-person Shooter"]},
-        {"current": ["Third-person Shooter"]},
+        {"current": ["Third Person Shooter"]},
+        {"current": ["Third Person Shooter"]},
         {"current": ["Third-Person Shooter"]},
     ]
     vocab = build_vocabulary(games)
-    assert snap(["third person shooter"], vocab) == ["Third-person Shooter"]
+    assert snap(["third-person shooter"], vocab) == ["Third Person Shooter"]
 
 
 def test_genuinely_new_genres_pass_through_unchanged():
@@ -147,3 +153,34 @@ def test_snapping_does_not_merge_distinct_genres():
     different terms and must stay that way."""
     vocab = build_vocabulary([{"current": ["Platform"]}])
     assert snap(["Platformer"], vocab) == ["Platformer"]
+
+
+def test_vocabulary_breaks_an_exact_tie_toward_the_normalized_spelling():
+    """Frequency leaves a 1-1 tie to dict insertion order, which is games sorted
+    by name. Prod held "Tactical role-playing" and "Tactical Role-Playing" once
+    each, and the alphabet handed the win to the un-normalized one."""
+    games = [
+        {"current": ["Tactical role-playing"]},
+        {"current": ["Tactical Role-Playing"]},
+    ]
+    vocab = build_vocabulary(games)
+    assert snap(["Tactical Role-Playing"], vocab) == ["Tactical Role-Playing"]
+    # Order of the two games must not change the answer.
+    assert build_vocabulary(list(reversed(games))) == vocab
+
+
+def test_a_lone_unnormalized_spelling_is_still_normalized():
+    """A hand-typed row is not a vote for its casing. It reached the database
+    through the one path that skips the normalizer, so it must not pull
+    correctly-cased proposals back down to it."""
+    vocab = build_vocabulary([{"current": ["Beat 'em up"]}])
+    assert snap(["Beat 'em Up"], vocab) == ["Beat 'em Up"]
+    # And the row itself is proposed for correction, rather than left alone.
+    assert snap(["Beat 'em up"], vocab) == ["Beat 'em Up"]
+
+
+def test_vocabulary_does_not_drop_a_genre_the_normalizer_rejects():
+    """normalize_genre returns None for a theme value. Dropping it from the
+    vocabulary would silently stop anything snapping onto it."""
+    vocab = build_vocabulary([{"current": ["Iyashikei"]}])
+    assert snap(["iyashikei"], vocab) == ["Iyashikei"]

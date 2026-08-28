@@ -555,12 +555,20 @@ def _sourced_genres(*, igdb_id: int | None, name: str, from_client: list[str]) -
     a Wikipedia miss or outage, which falls back to what the client sent rather
     than failing the add.
 
+    Both of those exits carry client genres, and both put them on the
+    pipeline's spelling first. Without that, the only rows in the catalog that
+    skip normalize_genre are the hand-typed ones, and they diverge visibly:
+    prod held "Beat 'em up" and "Shoot 'em Up" side by side, and six genres
+    across sixteen games were cased the way someone typed them rather than the
+    way every other row is.
+
     Note what that does and does not buy: the two share this implementation, so
     they cannot disagree about the RULE, but each makes its own Wikipedia call,
     so a lookup that succeeds for the preview and times out for the add will
     still store something the popover did not show. Nothing short of caching
     the result fixes that, and a serverless function has nowhere to cache it.
     """
+    from_client = _normalized_from_client(from_client)
     if igdb_id is None and from_client:
         return from_client
     # Two outbound requests on the slowest add there is: a game nobody has
@@ -572,6 +580,18 @@ def _sourced_genres(*, igdb_id: int | None, name: str, from_client: list[str]) -
     # to nothing, which would then be stored as "no genres" instead of falling
     # back to what the client sent.
     return sourced or from_client
+
+
+def _normalized_from_client(genres: list[str]) -> list[str]:
+    """Client-supplied genres put on the spelling the Wikipedia path produces.
+
+    Casing only. A value normalize_genre rejects outright -- a THEME_VALUES
+    entry -- is kept as typed rather than dropped, because not silently
+    discarding what the caller sent is the reason this fallback exists. So the
+    theme block list still does not bite a hand-typed add; that is a separate
+    decision, tracked in docs/todo/genre-vocabulary-audit.md.
+    """
+    return _shaped_genres([genre_service.normalize_genre(g) or g for g in genres])
 
 
 def _shaped_genres(genres: list[str]) -> list[str]:

@@ -58,8 +58,9 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       [Details](docs/todo/merge-game-modals.md)
 
 - [ ] **Audit the genre vocabulary, fix the wrong values in the database with a script, and stop
-      them coming back.** Premise unverified against prod; the eleven variant-id rows named inside
-      were fixed 2026-08-17. [Details](docs/todo/genre-vocabulary-audit.md)
+      them coming back.** Premise **confirmed 2026-08-28**: `Shooter` is one row, and the backfill
+      re-proposes it, so no Wikipedia sweep fixes it. What is left is the hand-typed add path.
+      [Details](docs/todo/genre-vocabulary-audit.md)
 
 - [ ] **Detect where the title sits on a game cover, and crop the CRT picture so it is not cut
       off.** [Details](docs/todo/cover-title-crop-crt.md)

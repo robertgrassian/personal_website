@@ -163,8 +163,11 @@ class TestFieldsForNewCatalogRow:
         assert platform_calls == []
 
     def test_a_wikipedia_miss_falls_back_to_the_clients_genres(self, stub):
+        """Normalized on the way through, which is why this is not the client's
+        literal string: IGDB sends "Role-playing (RPG)" and the catalog stores
+        the same spelling every Wikipedia-sourced row uses."""
         stub(found=[])
-        assert self.source() == ["Role-playing (RPG)"]
+        assert self.source() == ["Role-Playing"]
 
     def test_a_hand_entered_game_keeps_the_typed_genres(self, stub, calls):
         # A private catalog row is the caller's to name; overriding it would be
@@ -183,7 +186,7 @@ class TestFieldsForNewCatalogRow:
         value is dropped is a miss rather than a stored empty list. Truthy
         garbage in, client genres out."""
         stub(found=["x" * 60, "   "])
-        assert self.source() == ["Role-playing (RPG)"]
+        assert self.source() == ["Role-Playing"]
 
     def test_sourced_genres_are_shaped_like_a_create_payload(self, stub):
         """They never pass through the create schema, so the cap and the
@@ -193,6 +196,20 @@ class TestFieldsForNewCatalogRow:
         assert len(out) == MAX_GENRES
         assert out[:2] == ["Puzzle", "Genre 0"]
         assert not any(len(g) > MAX_GENRE_LENGTH for g in out)
+
+    def test_client_genres_are_put_on_the_pipelines_spelling(self, stub, calls):
+        """The hole this closes: hand-typed rows were the only ones skipping
+        normalize_genre, so prod held "Beat 'em up" next to "Shoot 'em Up"."""
+        stub(found=["Simulation"])
+        assert self.source(igdb_id=None, from_client=["beat 'em up"]) == ["Beat 'em Up"]
+        assert calls == []
+
+    def test_a_genre_the_normalizer_rejects_is_kept_as_typed(self, stub):
+        """Casing is corrected; values are not dropped. THEME_VALUES deliberately
+        does not bite here, because silently discarding what the caller sent is
+        the failure this fallback exists to avoid."""
+        stub(found=[])
+        assert self.source(igdb_id=None, from_client=["Iyashikei"]) == ["Iyashikei"]
 
     # --- platforms ---------------------------------------------------------
     # The regression these exist for: both add paths dropped `platforms` on the
