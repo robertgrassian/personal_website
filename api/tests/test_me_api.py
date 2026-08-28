@@ -23,6 +23,8 @@ from app.core.config import get_settings
 from app.core.db import get_sessionmaker
 from app.main import create_app
 from app.models import GameMetadata, PlayedGame, PlaySession
+from app.models.game_note import MAX_NOTE_LENGTH
+from app.repositories import me as me_repo
 from app.services import genres as genre_service
 from scripts.seed import ROBERT_PROFILE_ID
 
@@ -1877,3 +1879,197 @@ def test_promote_refused_when_library_is_full(
         assert "full" in response.json()["detail"].lower()
     finally:
         get_settings.cache_clear()
+
+
+# ── GET/PUT /me/games/{id}/note ───────────────────────────────────────────
+
+
+@requires_db
+def test_get_note_requires_token() -> None:
+    response = TestClient(create_app()).get("/api/library/me/games/1/note")
+    assert response.status_code == 401
+
+
+@requires_db
+def test_get_note_is_empty_before_anything_is_written(fresh_user_with_game) -> None:
+    # 200 with an empty body, not 404: "you have not written one" is a value the
+    # client renders, and 404 has to keep meaning "not your game".
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).get(f"/api/library/me/games/{game_id}/note")
+    assert response.status_code == 200
+    assert response.json() == {"body": "", "updatedAt": None}
+
+
+@requires_db
+def test_put_note_saves_and_reads_back(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    client = client_as(user_id)
+    body = "Left off in the Fire Temple.\n\nTodo: sword upgrade."
+    written = client.put(f"/api/library/me/games/{game_id}/note", json={"body": body})
+    assert written.status_code == 200
+    assert written.json()["body"] == body
+    assert written.json()["updatedAt"] is not None
+    assert client.get(f"/api/library/me/games/{game_id}/note").json()["body"] == body
+
+
+@requires_db
+def test_put_note_replaces_rather_than_appends(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    client = client_as(user_id)
+    client.put(f"/api/library/me/games/{game_id}/note", json={"body": "first"})
+    client.put(f"/api/library/me/games/{game_id}/note", json={"body": "second"})
+    assert client.get(f"/api/library/me/games/{game_id}/note").json()["body"] == "second"
+
+
+@requires_db
+def test_put_blank_note_clears_it(fresh_user_with_game) -> None:
+    # Whitespace-only counts as cleared, and clearing drops the row — so the
+    # read comes back with a null timestamp rather than one implying a write.
+    user_id, game_id = fresh_user_with_game
+    client = client_as(user_id)
+    client.put(f"/api/library/me/games/{game_id}/note", json={"body": "something"})
+    cleared = client.put(f"/api/library/me/games/{game_id}/note", json={"body": "   \n  "})
+    assert cleared.status_code == 200
+    assert cleared.json() == {"body": "", "updatedAt": None}
+    assert client.get(f"/api/library/me/games/{game_id}/note").json() == {
+        "body": "",
+        "updatedAt": None,
+    }
+
+
+@requires_db
+def test_put_note_over_the_cap_is_422(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).put(
+        f"/api/library/me/games/{game_id}/note", json={"body": "x" * (MAX_NOTE_LENGTH + 1)}
+    )
+    assert response.status_code == 422
+
+
+@requires_db
+def test_put_note_at_the_cap_is_accepted(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).put(
+        f"/api/library/me/games/{game_id}/note", json={"body": "x" * MAX_NOTE_LENGTH}
+    )
+    assert response.status_code == 200
+    assert len(response.json()["body"]) == MAX_NOTE_LENGTH
+
+
+@requires_db
+def test_put_note_requires_token() -> None:
+    response = TestClient(create_app()).put("/api/library/me/games/1/note", json={"body": "hi"})
+    assert response.status_code == 401
+
+
+@requires_db
+def test_put_note_of_multibyte_characters_at_the_cap_is_accepted(fresh_user_with_game) -> None:
+    # The cap counts CHARACTERS on both sides, and this is the only test that
+    # can prove it: "x" * MAX_NOTE_LENGTH passes under octet_length too, so it
+    # cannot catch the DB CHECK regressing to bytes. Each of these is 4 bytes,
+    # so this body is 80,000 of them against a 20,000 limit.
+    user_id, game_id = fresh_user_with_game
+    body = "😀" * MAX_NOTE_LENGTH
+    response = client_as(user_id).put(f"/api/library/me/games/{game_id}/note", json={"body": body})
+    assert response.status_code == 200
+    assert response.json()["body"] == body
+
+
+@requires_db
+def test_put_note_unknown_field_is_422(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    response = client_as(user_id).put(
+        f"/api/library/me/games/{game_id}/note", json={"body": "hi", "title": "nope"}
+    )
+    assert response.status_code == 422
+
+
+@requires_db
+def test_put_note_survives_losing_the_first_write_race(
+    fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two clients saving a game's FIRST note at once both miss the SELECT, and
+    the loser violates uq_game_notes_game_id.
+
+    The race is forced rather than threaded: the real interleaving needs two
+    connections hitting one instant, which is flaky in a test. Making the first
+    lookup lie reproduces exactly the state the loser is in — a row exists, this
+    request believes none does — and that is the branch worth pinning. Before
+    the savepoint went in, this raised IntegrityError out of the handler and the
+    caller got a 500.
+    """
+    user_id, game_id = fresh_user_with_game
+    client = client_as(user_id)
+    assert (
+        client.put(f"/api/library/me/games/{game_id}/note", json={"body": "winner"}).status_code
+        == 200
+    )
+
+    real = me_repo.get_game_note
+    calls = {"n": 0}
+
+    def blind_once(db, gid):
+        calls["n"] += 1
+        return None if calls["n"] == 1 else real(db, gid)
+
+    monkeypatch.setattr(me_repo, "get_game_note", blind_once)
+    response = client.put(f"/api/library/me/games/{game_id}/note", json={"body": "loser"})
+
+    # Recovered rather than 500'd, and last write wins, which is what one Save
+    # button already means.
+    assert response.status_code == 200
+    assert response.json()["body"] == "loser"
+    monkeypatch.undo()
+    assert client.get(f"/api/library/me/games/{game_id}/note").json()["body"] == "loser"
+
+
+@requires_db
+def test_note_on_another_users_game_is_404(fresh_user_with_game) -> None:
+    # The fixture user's game read and written by a different (seeded) account,
+    # matching test_patch_someone_elses_game_is_404. Same 404-over-403 policy as
+    # every /me lookup: the API never confirms that a row it will not show you
+    # exists.
+    #
+    # NOT a second fresh_auth_user: fresh_user_with_game depends on that fixture,
+    # so pytest would hand both the same user and the test would pass for the
+    # wrong reason (it did, before this was a seeded account).
+    user_id, game_id = fresh_user_with_game
+    other = client_as(ROBERT_PROFILE_ID)
+    assert other.get(f"/api/library/me/games/{game_id}/note").status_code == 404
+    assert (
+        other.put(f"/api/library/me/games/{game_id}/note", json={"body": "mine now"}).status_code
+        == 404
+    )
+    # And the refused write left nothing behind on the real owner's game.
+    assert client_as(user_id).get(f"/api/library/me/games/{game_id}/note").json() == {
+        "body": "",
+        "updatedAt": None,
+    }
+
+
+@requires_db
+def test_notes_stay_off_the_public_library_read(fresh_user_with_game) -> None:
+    # The reason notes live in their own table and their own route: the public
+    # payload is cached and prerendered, and must never carry them.
+    user_id, game_id = fresh_user_with_game
+    client = client_as(user_id)
+    client.put(f"/api/library/me/games/{game_id}/note", json={"body": "spoilers"})
+    username = client.get("/api/library/me/profile").json()["username"]
+    [game] = TestClient(create_app()).get(f"/api/library/users/{username}/games").json()
+    assert "note" not in " ".join(game.keys()).lower()
+    assert "spoilers" not in str(game)
+
+
+@requires_db
+def test_deleting_a_game_takes_its_note_with_it(fresh_user_with_game) -> None:
+    user_id, game_id = fresh_user_with_game
+    client = client_as(user_id)
+    client.put(f"/api/library/me/games/{game_id}/note", json={"body": "gone soon"})
+    assert client.delete(f"/api/library/me/games/{game_id}").status_code == 204
+    # The cascade fired; nothing is left pointing at a game that no longer exists.
+    sm = get_sessionmaker()
+    with sm() as session:
+        remaining = session.execute(
+            text("SELECT count(*) FROM game_notes WHERE game_id = :gid"), {"gid": game_id}
+        ).scalar_one()
+    assert remaining == 0

@@ -82,9 +82,15 @@ verifies that JWT locally against Supabase's JWKS and enforces
 `jwt.sub == row.user_id`. On success the action calls `revalidateTag`, which
 drops the cached read so the next render sees the change.
 
-The browser never holds an API token of its own. Adding a read means adding its
-tag in `libraryApi.ts` **and** pairing it with every write that can change it in
-`actions.ts`; too narrow a tag serves a stale page.
+The browser never holds an API token of its own for a WRITE. Adding a read means
+adding its tag in `libraryApi.ts` **and** pairing it with every write that can
+change it in `actions.ts`; too narrow a tag serves a stale page.
+
+The one exception, and the shape of any future one: per-game notes
+(`GET`/`PUT /me/games/{id}/note`) are owner-only, so they never enter a shared
+cached payload and there is no tag to pair. `saveGameNote` therefore revalidates
+nothing, on purpose. If notes ever become publishable they gain a tagged read at
+the same moment, and that line becomes a bug.
 
 ## Cross-cutting notes
 
@@ -97,6 +103,13 @@ tag in `libraryApi.ts` **and** pairing it with every write that can change it in
   only, so owner edit controls, the follow button and the sign-up banner all
   resolve client-side via uncached authenticated calls. Rendering any of it on
   the server would leak one viewer's state into another's cached HTML.
+  <br>
+  Those calls go **browser → FastAPI directly** with the Supabase session token,
+  not through a Server Action: there is no cache to invalidate and no
+  `server-only` module to reach. `useViewerRelationship` is one; `useGameNote` is
+  the other, and it is the only library RESOURCE (rather than UI state) that
+  works this way, because notes are the only one with no public endpoint at all.
+  Writes never take this path.
 - **`/api/library` is a literal prefix, not a rewrite artifact.** In dev, `next
 dev` proxies it to uvicorn on :8000; in production Vercel routes it to the
   Python function. FastAPI routes on the full path either way (`next.config.ts`).

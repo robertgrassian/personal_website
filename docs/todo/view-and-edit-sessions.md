@@ -42,6 +42,6 @@ _Where the UI goes is already built._ `GamePlayHistory` renders the rows; editin
 open into the same date fields the add form uses, and a delete needs a `ConfirmStep` like the one on
 "Remove from library". Both writes must purge `sessionsTag` as well as `gamesTag`.
 
-Related: the "notes / play journal" item floats hanging dated entries off `play_sessions` rather
-than the game row, which would make this the same screen; and the audit-log/undo item is the safety
-net for a mis-clicked session delete.
+Related: the audit-log/undo item is the safety net for a mis-clicked session delete. Notes are NOT
+related any more — dated journal entries hanging off `play_sessions` would have made that the same
+screen as this one, but entries were decided against 2026-08-24, so this screen is sessions alone.

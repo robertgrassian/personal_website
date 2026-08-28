@@ -11,6 +11,7 @@ from datetime import date
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from app.models.game import MAX_GENRE_LENGTH, MAX_GENRES, RATING_NAMES
+from app.models.game_note import MAX_NOTE_LENGTH
 from app.schemas.users import CamelModel
 
 # Request bodies reject unknown keys ("extra": a typo like {"ratings": ...}
@@ -276,3 +277,31 @@ class SessionClose(CamelModel):
     rating: str | None = None
 
     _known_rating = field_validator("rating")(validate_known_rating)
+
+
+class GameNoteRead(CamelModel):
+    """The caller's notes on one of their games (src/lib/notes.ts).
+
+    Never public: unlike wishlist notes, which ride the cached /users/* payload,
+    this shape is only ever served from /me. A game with no note row yet answers
+    with an empty body rather than a 404, so "you have not written one" is a
+    value the client renders instead of an error it has to special-case; 404
+    stays reserved for "not your game", as everywhere under /me.
+    """
+
+    body: str
+    updated_at: str | None  # ISO-8601 UTC, null when no note has been saved
+
+
+class GameNoteWrite(CamelModel):
+    """Replace the notes on one of the caller's games.
+
+    PUT rather than PATCH: there is one field and it replaces outright, so
+    there is no "leave unchanged" state that omission would have to express.
+    An empty body deletes the note row, which is what keeps "no note" a single
+    representation rather than a row full of nothing.
+    """
+
+    model_config = FORBID_EXTRA
+
+    body: str = Field(default="", max_length=MAX_NOTE_LENGTH)

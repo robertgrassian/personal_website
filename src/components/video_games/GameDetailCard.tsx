@@ -13,8 +13,15 @@ import type { CardOrigin } from "./LibraryCardContext";
 import { GameEditFields } from "./GameEditFields";
 import { WishlistEditFields } from "./WishlistEditFields";
 import { GamePlayHistory } from "./GamePlayHistory";
+import { GameNotesEditor, GameNotesPreview } from "./GameNotes";
+import { useGameNote } from "./useGameNote";
 import { sessionsByGame } from "@/lib/sessions";
 import type { PlayHistoryState } from "./usePlayHistory";
+
+/** Which face of the card is showing. The detail face is `null` rather than a
+ *  third variant: it is the default, and every branch below asks "is a face
+ *  open?" far more often than it asks which one. */
+export type CardFace = { kind: "history"; stopping: boolean } | { kind: "notes" };
 
 /** Which of the three things the card is showing. A viewer's card is NOT a
  *  fourth kind: it is `game` with the edit region simply not rendered, so
@@ -90,17 +97,30 @@ export function GameDetailCard({
   const titleId = useId();
   const source = subject.kind === "game" ? subject.game : subject.item;
 
-  // null = the detail face. `stopping` remembers which button opened the
-  // history, so "Stop Playing" arrives with the close staged. Answering
-  // "Played?" on a game already owned opens straight into it: that IS a
-  // session.
-  const [history, setHistory] = useState<{ stopping: boolean } | null>(
-    startWithSession && subject.kind === "game" ? { stopping: false } : null
+  // null = the detail face; anything else swaps the card's scrolling region.
+  // `stopping` remembers which button opened the history, so "Stop Playing"
+  // arrives with the close staged. Answering "Played?" on a game already owned
+  // opens straight into it: that IS a session.
+  const [face, setFace] = useState<CardFace | null>(
+    startWithSession && subject.kind === "game" ? { kind: "history", stopping: false } : null
   );
   const openHistory = ({ stopping }: { stopping: boolean }) => {
     onRequestHistory();
-    setHistory({ stopping });
+    setFace({ kind: "history", stopping });
   };
+
+  // Owner-only and library-only: a wishlist entry keeps its own short notes
+  // field, and a promote has no game row to hang one off yet.
+  const gameId = subject.kind === "game" ? subject.game.id : 0;
+  const notesEnabled = subject.kind === "game" && canEdit;
+  // Fetched when the card opens rather than when the notes face does, so the
+  // preview below has something to show without a spinner on the way in.
+  const note = useGameNote(gameId, notesEnabled);
+
+  // Set when a close was refused because the notes draft is unsaved. Living on
+  // the card, not the editor: the card is what gets closed, and every way out
+  // (the X, Escape, the backdrop) funnels through requestClose below.
+  const [closeBlocked, setCloseBlocked] = useState(false);
 
   // The initializer covers a card that MOUNTS on "Played?". This covers the
   // other way in: for a game already owned the subject swaps from wishlist to
@@ -108,7 +128,7 @@ export function GameDetailCard({
   useEffect(() => {
     if (!startWithSession || subject.kind !== "game") return;
     onRequestHistory();
-    setHistory({ stopping: false });
+    setFace({ kind: "history", stopping: false });
   }, [startWithSession, subject.kind, onRequestHistory]);
 
   // `close` runs the return flight and calls onClose when it lands, so every
@@ -119,6 +139,26 @@ export function GameDetailCard({
     caseId,
     onClosed: onClose,
   });
+
+  // Every exit runs through here so an unsaved note cannot be lost to a stray
+  // Escape or a tap on the backdrop. Going BACK to the detail face is not
+  // guarded and does not need to be: the draft lives in useGameNote, which
+  // outlives that face.
+  //
+  // Gated on isDirty ALONE, never on which face is showing. An earlier version
+  // also required the notes face, which left the draft losable by exactly the
+  // route the back arrow invites: edit, go back to check a rating, press
+  // Escape. The preview is rendering "Unsaved changes" at that moment, so the
+  // card knew and closed anyway. Showing the prompt means going to the face
+  // that owns it, since that is where the text you would lose is.
+  const requestClose = () => {
+    if (note.isDirty) {
+      setFace({ kind: "notes" });
+      setCloseBlocked(true);
+      return;
+    }
+    close();
+  };
   const ratingEntry =
     subject.kind === "game" && subject.game.rating
       ? RATINGS.find((r) => r.name === subject.game.rating)
@@ -130,7 +170,7 @@ export function GameDetailCard({
 
   return (
     <ModalFrame
-      onClose={close}
+      onClose={requestClose}
       // The dialog itself, not the close button. Focusing a control
       // programmatically leaves :focus-visible up to each engine's heuristics,
       // and WebKit resolves it as keyboard focus, so the X opened with a ring
@@ -240,10 +280,18 @@ export function GameDetailCard({
                   without growing the header row. */}
               <div className="flex shrink-0 items-start gap-2 px-5 pt-4">
                 <div className="-my-2 -ml-2 flex h-11 w-11 shrink-0 items-center justify-center sm:-my-1 sm:-ml-1 sm:h-9 sm:w-9">
-                  {history !== null && (
+                  {face !== null && (
                     <button
                       type="button"
-                      onClick={() => setHistory(null)}
+                      onClick={() => {
+                        // Leaving the notes face keeps the draft (useGameNote
+                        // owns it), so this needs no guard — but a refusal
+                        // staged against the card's close does not survive the
+                        // trip, or "Close anyway?" would still be sitting there
+                        // when you came back.
+                        setCloseBlocked(false);
+                        setFace(null);
+                      }}
                       aria-label="Back to game details"
                       className="flex h-full w-full items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
                     >
@@ -263,7 +311,7 @@ export function GameDetailCard({
                     from growing the header row. */}
                 <button
                   type="button"
-                  onClick={close}
+                  onClick={requestClose}
                   aria-label="Close"
                   className="-mr-2 -mb-2 -mt-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:-mr-1 sm:-mb-1 sm:-mt-1 sm:h-9 sm:w-9"
                 >
@@ -272,9 +320,25 @@ export function GameDetailCard({
               </div>
 
               {/* The card's one scrolling part. overscroll-contain keeps a flick
-                at the end of the form off the library behind it. */}
-              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
-                {history !== null && subject.kind === "game" ? (
+                at the end of the form off the library behind it.
+
+                Except for the notes face, which turns the scrolling off here so
+                it can own the height: its textarea is the thing that scrolls,
+                and a scroll container around a full-height field gives you two
+                nested scrollers and a growing card. */}
+              <div
+                className={`min-h-0 flex-1 overflow-x-hidden overscroll-contain ${
+                  face?.kind === "notes" ? "overflow-y-hidden" : "overflow-y-auto"
+                }`}
+              >
+                {face?.kind === "notes" && subject.kind === "game" ? (
+                  <GameNotesEditor
+                    note={note}
+                    closeBlocked={closeBlocked}
+                    onKeepEditing={() => setCloseBlocked(false)}
+                    onDiscardAndClose={close}
+                  />
+                ) : face?.kind === "history" && subject.kind === "game" ? (
                   // Reached only from the owner-only region below, so no
                   // permission check here. Sessions are narrowed from the one
                   // whole-library fetch, so this costs no extra request.
@@ -285,7 +349,7 @@ export function GameDetailCard({
                       isLoading={playHistory.isLoading}
                       error={playHistory.error}
                       startToday={startWithSession}
-                      startStopping={history.stopping}
+                      startStopping={face.stopping}
                       onSaved={playHistory.refresh}
                     />
                   </div>
@@ -345,6 +409,23 @@ export function GameDetailCard({
                             startWithSession={startWithSession}
                             onOpenHistory={openHistory}
                             onClose={close}
+                            // A slot rather than GameEditFields owning the
+                            // notes state: the card holds the hook (both faces
+                            // read it) and owns which face is showing, and
+                            // threading either through the form would put the
+                            // card's business in it.
+                            //
+                            // `notesEnabled`, not `editable`: a promote is
+                            // editable without having a game row to hang a note
+                            // on yet, so its slot stays empty.
+                            notesSlot={
+                              notesEnabled ? (
+                                <GameNotesPreview
+                                  note={note}
+                                  onOpen={() => setFace({ kind: "notes" })}
+                                />
+                              ) : null
+                            }
                           />
                         )}
                       </div>

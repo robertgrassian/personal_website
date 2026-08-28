@@ -169,6 +169,45 @@ Three things that took a device to learn, all now in `hideOnScroll.ts`:
   Reached by a stray one-pixel resize during a scroll down, it restarted the
   hide every time it fired, which reads as the bar refusing to leave.
 
+## Sizing content inside a clamped dialog
+
+A keyboard does not make a dialog scroll by growing it — the dialog is already
+clamped to what fits above the keyboard. It makes the dialog's _content_ longer
+than the box, and the cost lands on whatever sits lowest, which is usually the
+Save button.
+
+Measured on the game detail card at 393px wide, with the notes preview added:
+
+| viewport | card | must scroll to reach Save |
+| -------- | ---- | ------------------------- |
+| 850      | 608  | 0                         |
+| 667      | 608  | 0                         |
+| 560      | 536  | 72                        |
+| 430      | 406  | 202 (61 before notes)     |
+
+Two things worth keeping:
+
+- **At any normal phone height there is no pressure at all.** The card caps at
+  608px against 564px of content, so anything that fits in that budget is free
+  and does not need a responsive rule. Check before building one.
+- **Trimming lines is the wrong lever.** The notes block was 100px, of which the
+  three text lines were ~40px and the rest was padding, its label row and its
+  divider. Three lines to two bought 19px of a 141px problem. Dropping the whole
+  body and keeping the label row bought 62px.
+
+**A height media query is the right mechanism here, and it is worth knowing
+exactly what it does and does not reach.** It keys on the LAYOUT viewport, so it
+fires wherever the keyboard shrinks that — iOS 26, Firefox, Android — and not on
+older iOS Safari/Chrome, which slide the visual viewport and leave the layout one
+alone. That is a graceful degradation (scroll a little further) rather than a
+break, which is why it is preferred here over JavaScript.
+
+`useVisibleViewportInsets` cannot stand in for it: its own docstring records that
+the insets read **0 on iOS 26**, precisely because that is the case where the
+layout viewport shrank and there was nothing left to correct. The two are
+complements, not substitutes — the insets catch the slide model, a height query
+catches the shrink model.
+
 ## Not everything is fixable
 
 Firefox visibly slides the whole page as the keyboard opens, and **nothing in

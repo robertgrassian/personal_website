@@ -17,6 +17,7 @@ import { API_PREFIX } from "./apiPrefix";
 import { requireLibraryApiOrigin, targetsForeignEnvironmentApi } from "@/lib/libraryApi";
 import type { CatalogPreview, IgdbSearchResult, NewGame } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
+import type { GameNote } from "@/lib/notes";
 
 export type MyProfile = {
   username: string;
@@ -470,6 +471,34 @@ export function updateMyGame(
   if (fields.rating !== undefined) body.rating = fields.rating;
   if (fields.system !== undefined) body.system = fields.system;
   return mutate(`${API_PREFIX}/me/games/${gameId}`, "PATCH", body, "save your changes");
+}
+
+export type SaveNoteResult = { ok: true; note: GameNote } | { ok: false; message: string };
+
+/** Replace the notes on one of the caller's games; a blank body clears them.
+ *
+ *  Returns the saved note rather than going through `mutate`, for the same
+ *  reason promoteMyWishlistItem does: the response carries the authoritative
+ *  `updatedAt`, and the editor displays it. Without it the UI would either
+ *  guess the timestamp or pay a second round trip to read back what it just
+ *  wrote.
+ *
+ *  There is no matching READ here. Notes are owner-only, so the client fetches
+ *  them straight from /me with the browser token (useGameNote) — the sanctioned
+ *  per-viewer read path described at the top of this file. */
+export async function updateMyGameNote(gameId: number, body: string): Promise<SaveNoteResult> {
+  const res = await callMeApi<GameNote>(`${API_PREFIX}/me/games/${gameId}/note`, {
+    method: "PUT",
+    body: { body },
+    what: "save your notes",
+  });
+  if (!res.ok) return { ok: false, message: res.message };
+  // A 200 with no parseable body: the write landed, so reporting failure would
+  // be a lie. Fall back to what was sent, with no timestamp to show.
+  if (typeof res.data?.body !== "string") {
+    return { ok: true, note: { body: body.trim(), updatedAt: null } };
+  }
+  return { ok: true, note: res.data };
 }
 
 /** Start playing (endDate null → open session) or log a past playthrough
