@@ -208,18 +208,18 @@ jobs:
 
   deploy:
     needs: verify
-    # This condition is required, not stylistic. A bare `needs:` with no `if:`
-    # uses the default success() check, and that looks at the WHOLE ancestry,
-    # not just the direct dependency: `verify` needs `migrate`, `migrate` is
-    # skipped on every push that carries no migration, and a skip anywhere in
-    # the graph skips everything downstream. The first merge deployed nothing
-    # for exactly this reason. Naming verify's result explicitly replaces the
-    # default, which is the same trick `verify` itself uses to survive
-    # `migrate` being skipped.
+    # `!cancelled()` is load-bearing, and not about cancellation. A job's `if`
+    # with NO status check function in it gets `success()` implicitly ANDed on,
+    # and `success()` reads the whole `needs` ancestry: `verify` needs
+    # `migrate`, `migrate` skips on any push without a migration, and one skip
+    # anywhere skips everything downstream. Naming verify's result alone did
+    # not help (#175) because the implicit `success()` was still there and
+    # still false. Including a status check function is what suppresses it,
+    # which is why `verify`'s own condition above starts the same way.
     #
-    # Still strictly the gate: only a genuinely successful `verify` deploys.
-    # Skipped, failed and cancelled all remain non-deploying.
-    if: needs.verify.result == 'success'
+    # Still strictly the gate: skipped, failed and cancelled `verify` all
+    # leave this false, so only a genuine success deploys.
+    if: ${{ !cancelled() && needs.verify.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
