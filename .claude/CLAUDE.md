@@ -51,6 +51,7 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)                                |
 | API endpoint reference, runnable       | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)                            |
 | Migrations                             | `api/alembic/versions/`                                                                                 |
+| Production deploys, migrations in CD   | [`docs/deployment.md`](../docs/deployment.md); `.github/workflows/deploy.yml`                           |
 | Tests                                  | `api/tests/` (pytest); `src/**/*.test.ts` (`npm test`, node --test, no runner installed)                |
 
 Dead code worth knowing about: `src/components/video_games/CurrentlyPlaying.tsx` is the **old** stylized CRT and is imported by nothing. The live one is `crt/CrtTv.tsx`, used by `LibraryPage` and `/currently-playing`.

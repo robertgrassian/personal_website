@@ -119,6 +119,24 @@ production uses Google. Full setup, resets and troubleshooting are in
 | `cd api && uv run ruff check .`         | Python lint                                                                 |
 | `cd api && uv run alembic upgrade head` | Apply migrations                                                            |
 
+## Deployment
+
+Production deploys run from [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), not
+from Vercel's git integration: `vercel.json` disables git deploys for `main`, so the workflow can
+run Alembic migrations _before_ the code that needs them goes live. It has four jobs. `changes`
+asks whether the push touches `api/alembic/versions/`, `migrate` applies them behind a required
+reviewer, `verify` refuses to go further unless the database is provably at this commit's head
+revision, and `deploy` calls `vercel deploy --prod`. Preview deploys are untouched: every PR keeps
+its preview and its Vercel build check, and no preview branch can ever migrate.
+
+**Migrations must still be backward-compatible with the deployed code.** Correct ordering shrinks
+the window where old code meets the new schema; it does not remove it, because the Vercel build
+takes minutes and the old deployment serves throughout.
+
+One-time setup (two GitHub environments, their secrets, and the read-only database role), the
+reasoning behind the gate, and the operating notes are in
+[`docs/deployment.md`](docs/deployment.md).
+
 ## Claude Skills
 
 Skills in `.claude/skills/` for use with [Claude Code](https://claude.com/claude-code):

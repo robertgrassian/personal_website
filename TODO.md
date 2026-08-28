@@ -68,9 +68,6 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       **Show a confirmation toast after logging a session** built first.
       [Details](docs/todo/library-audit-log.md)
 
-- [ ] **Make database migrations run automatically as part of CD.** There is **no CD pipeline** to
-      add a step to. [Details](docs/todo/migrations-in-cd.md)
-
 - [ ] **The four _backend_ structural refactors left over from the game-library simplification
       review.** [Details](docs/todo/backend-structural-refactors.md)
 
