@@ -992,3 +992,18 @@ def test_ref_containing_a_cite_template_does_not_truncate_the_genre_field():
     named = unnamed.replace("<ref>", '<ref name="dice">')
     for text in (unnamed, named):
         assert genre_service.parse_infobox_genres(text) == ["Platform", "action-adventure"]
+
+
+def test_a_self_closing_ref_does_not_swallow_the_rest_of_the_field():
+    """_REF ends at "/>" OR "</ref>", whichever comes first, so <ref name=x />
+    closes itself. If that alternation is ever reduced to just "</ref>", a
+    self-closing tag would run on to the next real citation anywhere later in
+    the article and take the genres in between with it.
+    """
+    text = (
+        "{{Infobox video game\n"
+        "| genre = Puzzle<ref name=x />, Platform\n"
+        "| modes = Single\n}}\n"
+        "Prose about the game.<ref>{{cite web|title=T}}</ref>"
+    )
+    assert genre_service.parse_infobox_genres(text) == ["Puzzle", "Platform"]
