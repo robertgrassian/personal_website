@@ -183,6 +183,15 @@ def test_is_video_game_detects_the_template():
     assert genre_service.is_video_game("{{Infobox animanga/Header\n|title=X}}") is False
 
 
+def test_is_series_article_detects_the_franchise_variant():
+    """The two overlap on purpose: a franchise article IS a video game article,
+    so it stays eligible, and the second check only lets ranking demote it."""
+    series = "{{Infobox video game series\n|title=X}}"
+    assert genre_service.is_series_article(series) is True
+    assert genre_service.is_video_game(series) is True
+    assert genre_service.is_series_article("{{Infobox video game\n|title=X}}") is False
+
+
 # --- the search -> infobox cascade ------------------------------------------
 
 
@@ -219,6 +228,11 @@ def GAME(genre):
     return "{{Infobox video game\n| genre = GENRE\n| modes = Single-player\n}}".replace(
         "GENRE", genre
     )
+
+
+def SERIES(genre):
+    """A franchise overview article: the same infobox, "series" variant."""
+    return "{{Infobox video game series\n| genre = GENRE\n}}".replace("GENRE", genre)
 
 
 MANGA = "{{Infobox animanga/Print\n| genre = [[Adventure (genre)|Adventure]]\n}}"
@@ -694,20 +708,12 @@ def test_a_combined_article_still_wins_end_to_end(monkeypatch):
     assert out[title].genres == ["Fighting"]
 
 
-def test_a_bare_series_title_beats_its_combined_article_a_known_limitation(monkeypatch):
-    """Documents TODAY'S behaviour, and is not an endorsement of it.
-
-    Against the bare *Super Smash Bros.* the combined article loses: both leave
-    three words over ("for", "wii", "u" on one side; "nintendo", "3ds", "and" on
-    the other), so the shorter title takes it. The old rank key chose the same
-    way, so this is a pre-existing limit of a title-only rule rather than a
-    regression, and it does not occur in practice because the live search does
-    not return the bare series article for this query.
-
-    The fix is not to reorder the key, which would re-open the validated diff
-    over the fixture library. It is the follow-up recorded in TODO.md: read
-    series-ness from the {{Infobox video game series}} template already present
-    in the fetched wikitext instead of guessing at it from the title.
+def test_an_untagged_franchise_article_loses_to_the_combined_article(monkeypatch):
+    """*Super Smash Bros.* is a franchise article whose title says so nowhere, and
+    the title-only rules cannot reach it: both candidates leave three words over
+    ("for", "wii", "u" against "nintendo", "3ds", "and"), so the shorter title
+    used to take it. Reading {{Infobox video game series}} off the wikitext that
+    was fetched anyway is the signal that separates them.
     """
     title = "Super Smash Bros. for Wii U"
     monkeypatch.setattr(
@@ -722,11 +728,56 @@ def test_a_bare_series_title_beats_its_combined_article_a_known_limitation(monke
             },
             {
                 "Super Smash Bros. for Nintendo 3DS and Wii U": GAME("[[Fighting]]"),
-                "Super Smash Bros.": GAME("[[Fighting]]"),
+                "Super Smash Bros.": SERIES("[[Fighting]]"),
             },
         ),
     )
-    assert genre_service.lookup_many([title])[title].article == "Super Smash Bros."
+    out = genre_service.lookup_many([title])
+    assert out[title].article == "Super Smash Bros. for Nintendo 3DS and Wii U"
+
+
+def test_an_untagged_franchise_article_is_still_used_when_it_is_the_only_candidate(monkeypatch):
+    """Demoted, not rejected, on the template signal as much as on the title one.
+    Also pins the overlap: the series template must keep passing is_video_game,
+    or a franchise-only match becomes a miss instead of an approximate answer."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Super Mario Sunshine video game": ["Super Mario"]},
+            {"Super Mario": SERIES("[[Platform]]")},
+        ),
+    )
+    out = genre_service.lookup_many(["Super Mario Sunshine"])
+    assert out["Super Mario Sunshine"].article == "Super Mario"
+    assert out["Super Mario Sunshine"].genres == ["Platform"]
+
+
+def test_a_franchise_article_loses_to_the_game_it_is_named_after(monkeypatch):
+    """The worst case for the title rules, because the two are indistinguishable
+    by title: both strip to "The Legend of Zelda", so they tie on exactness,
+    similarity, leftover words and stripped length, and the franchise article is
+    shorter in full -- the last tiebreak, which it used to win. Wikipedia names
+    a series article after the series constantly, so this pairing is common."""
+    title = "The Legend of Zelda"
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {
+                f"{title} video game": [
+                    "The Legend of Zelda",
+                    "The Legend of Zelda (video game)",
+                ]
+            },
+            {
+                "The Legend of Zelda": SERIES("[[Action-adventure]]"),
+                "The Legend of Zelda (video game)": GAME("[[Action-adventure]], [[Puzzle]]"),
+            },
+        ),
+    )
+    out = genre_service.lookup_many([title])
+    assert out[title].article == "The Legend of Zelda (video game)"
 
 
 @pytest.mark.parametrize(
