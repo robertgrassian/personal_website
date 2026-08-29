@@ -290,6 +290,84 @@ def test_no_game_candidate_is_a_clean_miss(monkeypatch):
     assert out["Obscure Thing"].article is None
 
 
+def test_the_title_itself_is_always_a_candidate(monkeypatch):
+    """The measured failure: an article exists under exactly the typed title and
+    the search does not return it in five hits, so no ranking rule could reach
+    it. "Call of Duty: Modern Warfare 3" resolved to the DS spinoff."""
+    title = "Call of Duty: Modern Warfare 3"
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {
+                f"{title} video game": [
+                    "Call of Duty: Modern Warfare III",
+                    "Call of Duty 4: Modern Warfare",
+                    "Call of Duty: Modern Warfare 3: Defiance",
+                ]
+            },
+            {
+                "Call of Duty: Modern Warfare III": GAME("[[First-person shooter]]"),
+                "Call of Duty 4: Modern Warfare": GAME("[[First-person shooter]]"),
+                "Call of Duty: Modern Warfare 3: Defiance": GAME("[[Run and gun]]"),
+                title: GAME("[[First-person shooter]]"),
+            },
+        ),
+    )
+    assert genre_service.lookup_many([title])[title].article == title
+
+
+def test_a_seeded_title_that_is_not_a_game_is_filtered_like_any_other(monkeypatch):
+    """The seed is a candidate, not a shortcut: it still has to carry the
+    infobox. Half the games in a library share their name with a film."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Tron video game": ["Tron (video game)"]},
+            {
+                "Tron": "{{Infobox film\n| genre = [[Science fiction]]\n}}",
+                "Tron (video game)": GAME("[[Action]]"),
+            },
+        ),
+    )
+    out = genre_service.lookup_many(["Tron"])
+    assert out["Tron"].article == "Tron (video game)"
+    assert out["Tron"].genres == ["Action"]
+
+
+def test_a_seeded_title_with_no_article_is_inert(monkeypatch):
+    """Nothing to fetch and nothing to rank: the batch drops a missing page."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Halo CE video game": ["Halo: Combat Evolved"]},
+            {"Halo: Combat Evolved": GAME("[[First-person shooter]]")},
+        ),
+    )
+    out = genre_service.lookup_many(["Halo CE"])
+    assert out["Halo CE"].article == "Halo: Combat Evolved"
+
+
+def test_search_candidates_leads_with_the_title_and_does_not_repeat_it(monkeypatch):
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {
+                "Hades video game": ["Hades (video game)", "Hades"],
+                "Hades II video game": ["Hades (video game)"],
+            },
+            {},
+        ),
+    )
+    # Already among the hits, so it is not added twice...
+    assert genre_service.search_candidates("Hades") == ["Hades (video game)", "Hades"]
+    # ...and when it is missing it goes first, which also wins a rank-key tie.
+    assert genre_service.search_candidates("Hades II") == ["Hades II", "Hades (video game)"]
+
+
 def test_candidate_wikitext_is_fetched_in_batches(monkeypatch):
     """Several hundred candidates across a library must not be one request
     each; MediaWiki takes 50 titles at a time."""

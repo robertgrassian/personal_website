@@ -31,11 +31,6 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       together with **Anyone can define a shared catalog row for everyone**.
       [Details](docs/todo/info-popover-genre-promise.md)
 
-- [ ] **The genre lookup picks the wrong Wikipedia article for two titles, at a confidence score of
-      1.0.** Ranking is **done 2026-08-29** (franchise articles are now detected by their template,
-      not their title). Both remaining cases need a new input, not a new tiebreak.
-      [Details](docs/todo/genre-lookup-wrong-article.md)
-
 - [ ] **Owner edit affordances still pop in, now at hydration rather than a round trip later.** The
       localStorage cache landed 2026-08-19; closing the last gap means reaching first paint, which is
       a decision, not a tweak. [Details](docs/todo/owner-affordance-hydration-pop.md)

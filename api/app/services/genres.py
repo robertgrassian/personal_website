@@ -402,7 +402,10 @@ def _rank_key(name: str, article: str, *, is_series: bool = False):
     Full length only prefers a shorter disambiguator, which is arbitrary, and it
     masks rather than removes search-order dependence: same-length siblings like
     *Bomberman (1985 video game)* and *(2005 video game)* tie on every component
-    and fall to whichever the search listed first.
+    and fall to whichever the search listed first. Separating those needs the
+    release year or the platform, which is a new input to the whole lookup
+    rather than another tiebreak, and it was decided against: one library row
+    is not worth a signature change reaching the router and the backfill.
     """
     bare = _PAREN.sub("", article)
     folded_bare, folded_name = _fold(bare), _fold(name)
@@ -425,6 +428,18 @@ def search_candidates(title: str) -> list[str]:
 
     " video game" is appended to the search terms to bias away from the film or
     album of the same name, which is the common collision for game titles.
+
+    The title verbatim leads the list, because search relevance is not article
+    identity: *Call of Duty: Modern Warfare 3* has an article under exactly that
+    name and the search does not return it in five hits. It is free (phase 2
+    batches and dedupes every candidate) and inert when no such article exists,
+    since a missing page is simply absent from the batch.
+
+    A seeded title that is a REDIRECT is inert too: the batch keys content under
+    the target, so the seed matches nothing. Following those would mean
+    threading the response's redirect map through the candidate lists, which is
+    not worth it while this only exists to beat search ranking to an article
+    that is already named correctly.
     """
     response = _get(
         WIKIPEDIA_API,
@@ -438,7 +453,10 @@ def search_candidates(title: str) -> list[str]:
     )
     response.raise_for_status()
     hits = (response.json().get("query") or {}).get("search") or []
-    return [hit["title"] for hit in hits if hit.get("title")]
+    found = [hit["title"] for hit in hits if hit.get("title")]
+    if title not in found:
+        found.insert(0, title)
+    return found
 
 
 def lead_sections(titles: list[str]) -> dict[str, str]:
