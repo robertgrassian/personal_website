@@ -319,7 +319,7 @@ def test_the_title_itself_is_always_a_candidate(monkeypatch):
 
 def test_a_seeded_title_that_is_not_a_game_is_filtered_like_any_other(monkeypatch):
     """The seed is a candidate, not a shortcut: it still has to carry the
-    infobox. Half the games in a library share their name with a film."""
+    infobox, which is what keeps a film of the same name out."""
     monkeypatch.setattr(
         genre_service,
         "_get",
@@ -350,22 +350,40 @@ def test_a_seeded_title_with_no_article_is_inert(monkeypatch):
     assert out["Halo CE"].article == "Halo: Combat Evolved"
 
 
-def test_search_candidates_leads_with_the_title_and_does_not_repeat_it(monkeypatch):
-    monkeypatch.setattr(
-        genre_service,
-        "_get",
-        build_stub(
-            {
-                "Hades video game": ["Hades (video game)", "Hades"],
-                "Hades II video game": ["Hades (video game)"],
-            },
-            {},
-        ),
-    )
-    # Already among the hits, so it is not added twice...
-    assert genre_service.search_candidates("Hades") == ["Hades (video game)", "Hades"]
-    # ...and when it is missing it goes first, which also wins a rank-key tie.
-    assert genre_service.search_candidates("Hades II") == ["Hades II", "Hades (video game)"]
+def test_the_seeded_title_survives_a_failed_search(monkeypatch):
+    """Why the seed is added in lookup_many and not in search_candidates: the
+    search is the leg that fails (Wikimedia serves HTML with a 200 often enough
+    to have its own test), and a run that loses it can still resolve every title
+    that names its own article."""
+    inner = build_stub({}, {"Hollow Knight": GAME("[[Metroidvania]]")})
+
+    def fake_get(url, params):
+        if params.get("list") == "search":
+            raise httpx.ConnectError("boom")
+        return inner(url, params)
+
+    monkeypatch.setattr(genre_service, "_get", fake_get)
+    out = genre_service.lookup_many(["Hollow Knight"])
+    assert out["Hollow Knight"].article == "Hollow Knight"
+    assert out["Hollow Knight"].genres == ["Metroidvania"]
+
+
+def test_a_title_containing_a_pipe_is_not_seeded(monkeypatch):
+    """Phase 2 separates titles with "|", and a seeded title is the only string
+    in that request that someone typed by hand rather than Wikipedia returning
+    it. One would silently split the batch into 51 titles."""
+    inner = build_stub({"Portal 2| video game": ["Portal 2"]}, {"Portal 2": GAME("[[Puzzle]]")})
+    requested = []
+
+    def fake_get(url, params):
+        if params.get("prop") == "revisions":
+            requested.extend(params["titles"].split("|"))
+        return inner(url, params)
+
+    monkeypatch.setattr(genre_service, "_get", fake_get)
+    out = genre_service.lookup_many(["Portal 2|"])
+    assert requested == ["Portal 2"]
+    assert out["Portal 2|"].article == "Portal 2"
 
 
 def test_candidate_wikitext_is_fetched_in_batches(monkeypatch):
@@ -814,6 +832,32 @@ def test_an_untagged_franchise_article_loses_to_the_combined_article(monkeypatch
     assert out[title].article == "Super Smash Bros. for Nintendo 3DS and Wii U"
 
 
+def test_a_row_named_after_its_franchise_keeps_the_franchise_article(monkeypatch):
+    """Pins the ORDER of the rank key, which no other test constrains: `exact`
+    sits above the franchise demotion, so a franchise article whose title is the
+    query still wins. Moving the demotion up would answer a row named "Metroid"
+    with whichever sequel the search happened to return, which is worse than a
+    franchise genre that is broadly right for every entry.
+
+    Seeding made this an everyday path rather than a rarity: the franchise
+    article is now a candidate for such a row whether or not the search returns
+    it."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Metroid video game": ["Metroid Dread", "Metroid Fusion"]},
+            {
+                "Metroid": SERIES("[[Action-adventure]]"),
+                "Metroid Dread": GAME("[[Action-adventure]], [[Platform]]"),
+                "Metroid Fusion": GAME("[[Action-adventure]]"),
+            },
+        ),
+    )
+    out = genre_service.lookup_many(["Metroid"])
+    assert out["Metroid"].article == "Metroid"
+
+
 def test_an_untagged_franchise_article_is_still_used_when_it_is_the_only_candidate(monkeypatch):
     """Demoted, not rejected, on the template signal as much as on the title one.
     Also pins the overlap: the series template must keep passing is_video_game,
@@ -831,7 +875,7 @@ def test_an_untagged_franchise_article_is_still_used_when_it_is_the_only_candida
     assert out["Super Mario Sunshine"].genres == ["Platform"]
 
 
-def test_a_franchise_article_loses_to_the_game_it_is_named_after(monkeypatch):
+def test_a_franchise_article_loses_to_the_disambiguated_game_of_the_same_name(monkeypatch):
     """The worst case for the title rules, because the two are indistinguishable
     by title: both strip to "The Legend of Zelda", so they tie on exactness,
     similarity, leftover words and stripped length, and the franchise article is

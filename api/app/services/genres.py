@@ -366,7 +366,7 @@ def _title_similarity(name: str, article: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
-def _rank_key(name: str, article: str, *, is_series: bool = False):
+def _rank_key(name: str, article: str, *, is_series: bool):
     """Sort key for choosing among the candidate articles for one game.
 
     Confidence alone is not enough, because several candidates routinely tie at
@@ -388,16 +388,23 @@ def _rank_key(name: str, article: str, *, is_series: bool = False):
 
     ``is_series`` is that first rule's real signal, read by the caller from the
     {{Infobox video game series}} template in wikitext it has already fetched.
-    It defaults to False so the key still ranks from a title alone, falling back
-    to the ``(... series)`` / ``(... franchise)`` parenthetical -- which cannot
-    see *Super Mario* or *Super Smash Bros.*, whose titles are unmarked.
+    It backs up the ``(... series)`` / ``(... franchise)`` parenthetical, which
+    cannot see *Super Mario* or *Super Smash Bros.*, whose titles are unmarked.
+
+    **The demotion sits BELOW ``exact`` on purpose, so it never fires against a
+    franchise article whose title is the query.** A row named "Metroid" or
+    "Mario Kart" is best answered by the franchise article: promoting the
+    demotion above ``exact`` would hand those rows an arbitrary sequel instead
+    (*Metroid Dread* over *Metroid*), which is worse than a franchise genre that
+    is broadly right. The rule exists for the case where the query names one
+    entry and a franchise article ties with it, which is where it was measured.
 
     Leftover-words alone was measured FAILING and is not a fix on its own: bare
     *Pokémon* leaves one word over against "Pokémon FireRed" while the correct
     combined article leaves two. It works only after the franchise rule has
     demoted that candidate. Possibly redundant now the rule reads the template,
-    but dropping it re-opens the diff measured over the fixture library, so it
-    stays until that is re-run.
+    and a good thing to drop the next time anyone measures the fixture library:
+    kept only because nothing here has been re-measured since 2026-08-14.
 
     Full length only prefers a shorter disambiguator, which is arbitrary, and it
     masks rather than removes search-order dependence: same-length siblings like
@@ -429,17 +436,7 @@ def search_candidates(title: str) -> list[str]:
     " video game" is appended to the search terms to bias away from the film or
     album of the same name, which is the common collision for game titles.
 
-    The title verbatim leads the list, because search relevance is not article
-    identity: *Call of Duty: Modern Warfare 3* has an article under exactly that
-    name and the search does not return it in five hits. It is free (phase 2
-    batches and dedupes every candidate) and inert when no such article exists,
-    since a missing page is simply absent from the batch.
-
-    A seeded title that is a REDIRECT is inert too: the batch keys content under
-    the target, so the seed matches nothing. Following those would mean
-    threading the response's redirect map through the candidate lists, which is
-    not worth it while this only exists to beat search ranking to an article
-    that is already named correctly.
+    Search hits only. lookup_many adds the title itself to what this returns.
     """
     response = _get(
         WIKIPEDIA_API,
@@ -453,10 +450,7 @@ def search_candidates(title: str) -> list[str]:
     )
     response.raise_for_status()
     hits = (response.json().get("query") or {}).get("search") or []
-    found = [hit["title"] for hit in hits if hit.get("title")]
-    if title not in found:
-        found.insert(0, title)
-    return found
+    return [hit["title"] for hit in hits if hit.get("title")]
 
 
 def lead_sections(titles: list[str]) -> dict[str, str]:
@@ -646,11 +640,29 @@ def lookup_many(
         except Exception:
             logger.exception("Wikipedia search failed for %r", title)
             candidates[title] = []
+        # The title verbatim leads the candidates, because search relevance is
+        # not article identity: "Call of Duty: Modern Warfare 3" has an article
+        # under exactly that name and the search does not return it in five
+        # hits. Seeded HERE rather than inside search_candidates so a failed
+        # search still leaves one candidate to try.
+        #
+        # Inert, not wrong, when there is no such article: phase 2 drops a
+        # missing page. Inert on a REDIRECT too, since phase 2 keys content
+        # under the target -- following those would mean threading that
+        # response's redirect map through these lists, and this only exists to
+        # beat search ranking to an article already named correctly.
+        #
+        # "|" separates titles in phase 2's request, and unlike a search hit
+        # this string is whatever someone typed into the add form.
+        if "|" not in title and title not in candidates[title]:
+            candidates[title].insert(0, title)
         if on_progress:
             on_progress(title, results[title])
 
     # Phase 2: every candidate article's lead section, 50 at a time. Deduped
-    # because sequels and series share candidates constantly.
+    # because sequels and series share candidates constantly. Note the seeds
+    # make this at least one title per game even when nothing was found, so a
+    # backfill pays up to a few extra batched requests for them.
     unique = sorted({article for hits in candidates.values() for article in hits})
     wikitext: dict[str, str] = {}
     BATCH = 50
