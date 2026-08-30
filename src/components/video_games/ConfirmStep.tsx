@@ -95,6 +95,10 @@ export function ConfirmStep({
     onConfirmingChange?.(false);
     onCancel?.();
   };
+  // Latest-ref so the dismiss effect below can stay keyed on `confirming`
+  // alone, instead of re-binding its listener whenever the caller re-renders.
+  const cancelRef = useRef(cancel);
+  cancelRef.current = cancel;
 
   // Focus follows the sheet: the trigger it replaced is invisible by then, so
   // focus would otherwise fall to the document, and there is no focus trap to
@@ -113,6 +117,28 @@ export function ConfirmStep({
     if (confirming) panelRef.current?.focus({ preventScroll: true });
     else if (wasConfirming.current) triggerRef.current?.focus({ preventScroll: true });
     wasConfirming.current = confirming;
+  }, [sheet, confirming]);
+
+  // A press anywhere on the card that is not the sheet backs out of it, which
+  // is what a sheet's scrim would do if it had one.
+  //
+  // On the card, not the document: a press on the page backdrop keeps closing
+  // the whole card rather than only dismissing the sheet. `pointerdown` rather
+  // than `click`, so a control that stops click propagation cannot swallow it,
+  // and so the sheet leaves on the press rather than the release. Presses on
+  // the inert form region arrive here too, because an inert subtree retargets
+  // its events to the nearest non-inert ancestor rather than swallowing them.
+  useEffect(() => {
+    if (!sheet || !confirming) return;
+    const panel = panelRef.current;
+    const card = panel?.closest('[role="dialog"]');
+    if (!panel || !card) return;
+
+    const dismiss = (event: Event) => {
+      if (!panel.contains(event.target as Node)) cancelRef.current();
+    };
+    card.addEventListener("pointerdown", dismiss);
+    return () => card.removeEventListener("pointerdown", dismiss);
   }, [sheet, confirming]);
 
   const trigger = (
