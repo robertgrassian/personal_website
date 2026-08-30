@@ -67,7 +67,7 @@ export function FollowStateProvider({
 }
 
 // "Is the viewer looking at their own library?" — the question that decides
-// whether edit affordances (pencils, "Add game", the Unrated shelf) render.
+// whether edit affordances (pencils, "Add game") render.
 //
 // Reads `isMe` off the relationship response rather than asking a second
 // endpoint: /me/relationship/{owner} carries it precisely so one request settles

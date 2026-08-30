@@ -150,11 +150,6 @@ export function GameEditFields({
           disabled={isPending}
         />
       </div>
-      {ratingDraft === "" && (
-        <p className="mt-2 text-xs text-shelf-text-muted italic">
-          Unrated games sit on the Unrated shelf, visible only to you.
-        </p>
-      )}
 
       <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-shelf-label">
         System
