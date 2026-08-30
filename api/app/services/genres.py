@@ -391,13 +391,28 @@ def _rank_key(name: str, article: str, *, is_series: bool):
     It backs up the ``(... series)`` / ``(... franchise)`` parenthetical, which
     cannot see *Super Mario* or *Super Smash Bros.*, whose titles are unmarked.
 
-    **The demotion sits BELOW ``exact`` on purpose, so it never fires against a
-    franchise article whose title is the query.** A row named "Metroid" or
-    "Mario Kart" is best answered by the franchise article: promoting the
-    demotion above ``exact`` would hand those rows an arbitrary sequel instead
-    (*Metroid Dread* over *Metroid*), which is worse than a franchise genre that
-    is broadly right. The rule exists for the case where the query names one
-    entry and a franchise article ties with it, which is where it was measured.
+    **``exact`` does not hold the demotion off a franchise article named by the
+    query, and it was once documented here as doing so.** It is measured on the
+    title with its disambiguating parenthetical removed, so *Metroid* and
+    *Metroid (video game)* are both exact for the query "Metroid" and the
+    demotion is what separates them.
+
+    Sitting below ``exact`` buys something narrower, and still worth having: a
+    franchise article is never demoted below a candidate that does not match the
+    query at all, so "Metroid" cannot fall through to *Metroid Dread*. The
+    demotion only ever chooses among candidates whose base title IS the query.
+
+    Measured against live Wikipedia 2026-08-29, choosing the entry there is the
+    wanted behaviour, because a franchise infobox aggregates genres over the
+    whole series. "Super Smash Bros." resolves to *Super Smash Bros. (video
+    game)* and stores "Fighting", where the franchise article stores "Platform
+    Fighting". "Star Fox" reaches one game rather than the franchise article,
+    whose genres include Star Fox Adventures' "Action-Adventure".
+
+    What none of this settles is two disambiguated siblings. *Star Fox (1993
+    video game)* and *(2026 video game)* produce identical rank keys, so that
+    row follows search order and can change between runs; see the Bomberman note
+    below, and OVERRIDES in scripts/backfill_genres.py for the cheap pin.
 
     Leftover-words alone was measured FAILING and is not a fix on its own: bare
     *Pokémon* leaves one word over against "Pokémon FireRed" while the correct

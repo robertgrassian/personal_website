@@ -832,12 +832,14 @@ def test_an_untagged_franchise_article_loses_to_the_combined_article(monkeypatch
     assert out[title].article == "Super Smash Bros. for Nintendo 3DS and Wii U"
 
 
-def test_a_row_named_after_its_franchise_keeps_the_franchise_article(monkeypatch):
+def test_a_franchise_article_beats_a_sequel_that_does_not_match(monkeypatch):
     """Pins the ORDER of the rank key, which no other test constrains: `exact`
-    sits above the franchise demotion, so a franchise article whose title is the
-    query still wins. Moving the demotion up would answer a row named "Metroid"
-    with whichever sequel the search happened to return, which is worse than a
-    franchise genre that is broadly right for every entry.
+    sits above the franchise demotion, so a row named "Metroid" cannot fall
+    through to whichever sequel the search happened to return.
+
+    Note the narrow claim. This does NOT show that a franchise article named by
+    the query always wins: no candidate here strips to "Metroid" except the
+    franchise article itself. The test below covers the case where one does.
 
     Seeding made this an everyday path rather than a rarity: the franchise
     article is now a candidate for such a row whether or not the search returns
@@ -856,6 +858,33 @@ def test_a_row_named_after_its_franchise_keeps_the_franchise_article(monkeypatch
     )
     out = genre_service.lookup_many(["Metroid"])
     assert out["Metroid"].article == "Metroid"
+
+
+def test_a_disambiguated_entry_beats_the_franchise_article_it_ties_with(monkeypatch):
+    """`exact` is measured with the disambiguating parenthetical stripped, so
+    *Metroid (video game)* is exact for the query "Metroid" too, and the
+    demotion is what separates the two. Sitting below `exact` does not hold it
+    off, which an earlier version of _rank_key's docstring claimed it did.
+
+    Choosing the entry is what we want: a franchise infobox aggregates genres
+    over the whole series, which is how "Star Fox" picked up Star Fox
+    Adventures\' "Action-Adventure" and "Super Smash Bros." picked up "Platform
+    Fighting" against a library row that means one game."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Metroid video game": ["Metroid (video game)", "Metroid Dread"]},
+            {
+                "Metroid": SERIES("[[Action-adventure]], [[Platform]], [[Pinball]]"),
+                "Metroid (video game)": GAME("[[Action-adventure]]"),
+                "Metroid Dread": GAME("[[Action-adventure]]"),
+            },
+        ),
+    )
+    out = genre_service.lookup_many(["Metroid"])
+    assert out["Metroid"].article == "Metroid (video game)"
+    assert out["Metroid"].genres == ["Action-Adventure"]
 
 
 def test_an_untagged_franchise_article_is_still_used_when_it_is_the_only_candidate(monkeypatch):
