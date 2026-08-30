@@ -13,6 +13,11 @@ before that happens.
       **Fold "+ Add to wishlist" into a single "+ Add game"**.
       [Details](docs/todo/add-game-play-history.md)
 
+- [ ] **Take a pass at every button, then make reusable components out of the shared class
+      strings.** (Promoted by request 2026-08-30.) The tinted trigger vs outlined confirm that
+      prompted it is deliberate and reasoned in `formStyles.ts`: this re-decides those rules, not
+      drift. [Details](docs/todo/button-component-system.md)
+
 ## Bugs
 
 _Confirmed defects that are not urgent enough for Up Next. Roughly severity-ordered, worst first._
