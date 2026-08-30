@@ -90,8 +90,9 @@ export function GameLibrary({
     origin: CardOrigin | null;
     dominantColor: string | null;
     isDark: boolean;
-    // Arrived by answering "Played?", which pre-stages a session. Clicking a
-    // case does not.
+    // Arrived by answering "Played?" on a game already in the library, which
+    // opens its play history. A promote collects no session: it opens the
+    // ordinary edit form, and the playthrough is logged after the move.
     startWithSession: boolean;
   };
   const [expanded, setExpanded] = useState<Expanded | null>(null);
@@ -178,7 +179,7 @@ export function GameLibrary({
       current === null
         ? null
         : owned === undefined
-          ? { ...current, kind: "promote", origin: null, startWithSession: true }
+          ? { ...current, kind: "promote", origin: null, startWithSession: false }
           : {
               kind: "game",
               id: owned.id,

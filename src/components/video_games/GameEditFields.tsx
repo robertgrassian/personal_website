@@ -1,32 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { localToday, type Game, type Rating } from "@/lib/games";
+import type { Game, Rating } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
 import { deleteGame, promoteAndSave, saveGameEdits } from "@/app/video-games/actions";
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
-import { SessionDateFields } from "./SessionDateFields";
 import { buttonClass, saveButtonClass } from "./formStyles";
 import { SuggestInput } from "./SuggestInput";
 import { RequiredField } from "./RequiredField";
 
 /** What these fields are editing. A wishlist entry has no library row yet, so
  *  every field below is a draft that the promote creates the row for. Both
- *  cases are the SAME form on purpose: moving a game to the library means you
- *  played it, and someone doing that days later may want to rate it and log the
- *  playthrough in the same press. */
+ *  cases are deliberately the same form, differing only where a row that does
+ *  not exist yet forces it: no play history to open, nothing to remove. A
+ *  playthrough is logged afterwards, from the play history, rather than being
+ *  asked for as a condition of the move. */
 export type EditSubject = { kind: "game"; game: Game } | { kind: "promote"; item: WishlistGame };
 
 type GameEditFieldsProps = {
   subject: EditSubject;
   // Every system already on a shelf, for the suggestions below.
   existingSystems: string[];
-  // Opened from "Played?", which already asserts the session, so it starts
-  // dated today and Save is live: arriving by answering "yes" to a dead Save
-  // reads as broken. Promote only now; an owned game opens its play history.
-  startWithSession?: boolean;
   // Swap the card to this game's play history. `stopping` pre-stages the
   // close, so "Stop Playing" still commits through a Save. Never on a promote,
   // which has no game row yet.
@@ -46,7 +42,6 @@ type GameEditFieldsProps = {
 export function GameEditFields({
   subject,
   existingSystems,
-  startWithSession = false,
   onOpenHistory,
   onClose,
 }: GameEditFieldsProps) {
@@ -62,14 +57,6 @@ export function GameEditFields({
   const [ratingDraft, setRatingDraft] = useState<Rating | "">(savedRating);
   const [systemDraft, setSystemDraft] = useState(savedSystem);
 
-  // Session draft, PROMOTE ONLY: promoteAndSave creates the row and logs the
-  // playthrough in one call, so there is no id to send a session to until this
-  // Save lands. An existing game logs from the play history view instead.
-  const [sessionStart, setSessionStart] = useState(
-    startWithSession && promoting ? localToday() : ""
-  );
-  const [sessionEnd, setSessionEnd] = useState("");
-
   const playing =
     !promoting && subject.game.currentlyPlaying && subject.game.openSessionId !== null;
 
@@ -82,23 +69,12 @@ export function GameEditFields({
   // Compared trimmed, so trailing whitespace alone is not a change. Empty is
   // never a change: a game must be filed under something.
   const systemDirty = systemDraft.trim() !== savedSystem && systemDraft.trim() !== "";
-  const sessionDirty = promoting && sessionStart !== "";
-  // An end with no start is not "no session", it is a session whose start the
-  // user has not given yet. Without this it silently vanished on Save, because
-  // sessionDirty is false and nothing was ever sent.
-  const endWithoutStart = sessionEnd !== "" && sessionStart === "";
-  const datesInvalid =
-    endWithoutStart || (sessionEnd !== "" && sessionStart !== "" && sessionEnd < sessionStart);
   // A promote is itself the change, so Save is live from the moment the form
   // opens — it just needs a system, which played_games requires.
   const hasChanges = promoting ? systemDraft.trim() !== "" : ratingDirty || systemDirty;
-  const canSave = hasChanges && !systemMissing && !datesInvalid && !isPending;
+  const canSave = hasChanges && !systemMissing && !isPending;
 
   const save = () => {
-    const session = sessionDirty
-      ? { startDate: sessionStart, endDate: sessionEnd === "" ? null : sessionEnd }
-      : undefined;
-
     if (promoting) {
       // The wishlist row is gone once this lands, so the subject stops
       // existing: close rather than sit on a stale item.
@@ -106,7 +82,6 @@ export function GameEditFields({
         () =>
           promoteAndSave(subject.item.id, systemDraft, {
             ...(ratingDirty ? { rating: ratingDraft } : {}),
-            ...(session ? { session } : {}),
           }),
         { onSuccess: onClose }
       );
@@ -153,7 +128,6 @@ export function GameEditFields({
 
       <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-shelf-label">
         System
-        {promoting && <span className="ml-1.5 normal-case text-shelf-text-muted">(required)</span>}
       </p>
       {/* labelHidden: the "System" heading above is the visible label, but
           the field still needs a programmatic one. Negative margin so the
@@ -177,29 +151,9 @@ export function GameEditFields({
         </p>
       )}
 
-      {promoting ? (
-        <>
-          {/* Wider gap than the other headings: this one closes the form. */}
-          <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
-            When Did You Play It?
-          </p>
-          {/* Inline only while promoting; see the draft state above. */}
-          <SessionDateFields
-            startDate={sessionStart}
-            endDate={sessionEnd}
-            onChangeStart={setSessionStart}
-            onChangeEnd={setSessionEnd}
-            disabled={isPending}
-            problem={
-              endWithoutStart
-                ? "Add a start date, or clear the end date."
-                : datesInvalid
-                  ? "The end date is before the start date."
-                  : null
-            }
-          />
-        </>
-      ) : (
+      {/* Promote has no game row yet, so there is no history to open: the
+          playthrough gets logged from here once the move has landed. */}
+      {!promoting && (
         // Both open the same view, Stop Playing with the close staged. Neither
         // writes on the press, so Save still owns every write.
         <div className="mt-5 flex flex-wrap gap-2">
@@ -262,9 +216,7 @@ export function GameEditFields({
         </div>
         {systemMissing && (
           <p className="mt-1.5 text-[11px] text-shelf-text-muted">
-            {promoting
-              ? "Pick the console you played it on to save."
-              : "A game needs a console. Pick one to save."}
+            A game needs a console. Pick one to save.
           </p>
         )}
         {/* Under the button rather than at the foot of the panel, which is

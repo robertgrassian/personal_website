@@ -18,8 +18,9 @@ immediate, behind its own confirm. So a merge no longer has to decide the submit
 adopt this one. `AddGameModal` is now the odd one out.
 
 **`EditGameModal` also already absorbed a second dialog** (2026-08-19): it takes an `EditSubject`
-that is either an existing row or a wishlist entry being promoted, so a promote collects rating,
-system and a session and creates the row on Save via `promoteAndSave`. That is the working precedent
+that is either an existing row or a wishlist entry being promoted, so a promote collects rating and
+system and creates the row on Save via `promoteAndSave` (it collected a session too until
+2026-08-30). That is the working precedent
 for what merging `AddGameModal` in would look like, and the reason the add form's remaining problem
 is narrow: a draft that does not exist yet plus a search step, not the field set.
 
