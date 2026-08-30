@@ -278,6 +278,12 @@ SEARCH_CANDIDATES = 5
 # request that proves it is a game also carries the genres.
 _INFOBOX_VIDEO_GAME = re.compile(r"\{\{\s*Infobox\s+video\s+game", re.IGNORECASE)
 
+# The franchise-overview variant, which _INFOBOX_VIDEO_GAME also matches on
+# purpose: a franchise's genres are usually right for its entries and beat
+# storing none. Matching it separately is what lets the ranker demote these
+# below a real game, including the ones whose title says nothing ("Super Mario").
+_INFOBOX_VIDEO_GAME_SERIES = re.compile(r"\{\{\s*Infobox\s+video\s+game\s+series", re.IGNORECASE)
+
 # One infobox parameter, ending at the next parameter, at ANY "}}", or at the
 # end of the text. Each terminator was found the hard way:
 #   - "rest of the line" leaked the following field (Ball x Pit's genre is
@@ -323,8 +329,10 @@ _SERIES_MARKER = re.compile(r"\d+|[ivxlcdm]+")
 # and only ranking can separate them.
 #
 # Trailing parenthetical only, so a real game with "Series" in its name is safe.
-# The template name is the stronger signal and would also catch the untagged
-# ones ("Super Mario"); tracked in TODO.md.
+#
+# Kept alongside the template check rather than replaced by it: a franchise page
+# that carries the plain {{Infobox video game}} is still caught by its title, and
+# either signal alone is weaker than the two together.
 _SERIES_ARTICLE = re.compile(r"\([^)]*\b(?:series|franchise)\b[^)]*\)\s*$", re.IGNORECASE)
 
 
@@ -358,7 +366,7 @@ def _title_similarity(name: str, article: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
-def _rank_key(name: str, article: str):
+def _rank_key(name: str, article: str, *, is_series: bool):
     """Sort key for choosing among the candidate articles for one game.
 
     Confidence alone is not enough, because several candidates routinely tie at
@@ -372,27 +380,59 @@ def _rank_key(name: str, article: str):
     least is the one that is most likely to *be* it.
 
     Between those sit two rules for when a franchise article is one of the tied
-    candidates: a ``(... series)`` / ``(... franchise)`` title loses to any game
-    it ties with (demoted, not rejected, so a lone overview article still yields
-    a genre), then fewest leftover words, which is how *Super Mario 3D World*
-    beats the untagged *Super Mario*. Length is measured with the disambiguating
-    parenthetical stripped, which is what stops "Bomberman DS" taking the
-    spinoff *Bomberman Story DS*; full length is the last resort.
+    candidates: a franchise overview loses to any game it ties with (demoted,
+    not rejected, so a lone overview article still yields a genre), then fewest
+    leftover words. Length is measured with the disambiguating parenthetical
+    stripped, which is what stops "Bomberman DS" taking the spinoff *Bomberman
+    Story DS*; full length is the last resort.
+
+    ``is_series`` is that first rule's real signal, read by the caller from the
+    {{Infobox video game series}} template in wikitext it has already fetched.
+    It backs up the ``(... series)`` / ``(... franchise)`` parenthetical, which
+    cannot see *Super Mario* or *Super Smash Bros.*, whose titles are unmarked.
+
+    **``exact`` does not hold the demotion off a franchise article named by the
+    query, and it was once documented here as doing so.** It is measured on the
+    title with its disambiguating parenthetical removed, so *Metroid* and
+    *Metroid (video game)* are both exact for the query "Metroid" and the
+    demotion is what separates them.
+
+    Sitting below ``exact`` buys something narrower, and still worth having: a
+    franchise article is never demoted below a candidate that does not match the
+    query at all, so "Metroid" cannot fall through to *Metroid Dread*. The
+    demotion only ever chooses among candidates whose base title IS the query.
+
+    Measured against live Wikipedia 2026-08-29, choosing the entry there is the
+    wanted behaviour, because a franchise infobox aggregates genres over the
+    whole series. "Super Smash Bros." resolves to *Super Smash Bros. (video
+    game)* and stores "Fighting", where the franchise article stores "Platform
+    Fighting". "Star Fox" reaches one game rather than the franchise article,
+    whose genres include Star Fox Adventures' "Action-Adventure".
+
+    What none of this settles is two disambiguated siblings. *Star Fox (1993
+    video game)* and *(2026 video game)* produce identical rank keys, so that
+    row follows search order and can change between runs; see the Bomberman note
+    below, and OVERRIDES in scripts/backfill_genres.py for the cheap pin.
 
     Leftover-words alone was measured FAILING and is not a fix on its own: bare
     *Pokémon* leaves one word over against "Pokémon FireRed" while the correct
-    combined article leaves two. It works only after the parenthetical rule has
-    removed that candidate.
+    combined article leaves two. It works only after the franchise rule has
+    demoted that candidate. Possibly redundant now the rule reads the template,
+    and a good thing to drop the next time anyone measures the fixture library:
+    kept only because nothing here has been re-measured since 2026-08-14.
 
     Full length only prefers a shorter disambiguator, which is arbitrary, and it
     masks rather than removes search-order dependence: same-length siblings like
     *Bomberman (1985 video game)* and *(2005 video game)* tie on every component
-    and fall to whichever the search listed first.
+    and fall to whichever the search listed first. Separating those needs the
+    release year or the platform, which is a new input to the whole lookup
+    rather than another tiebreak, and it was decided against: one library row
+    is not worth a signature change reaching the router and the backfill.
     """
     bare = _PAREN.sub("", article)
     folded_bare, folded_name = _fold(bare), _fold(name)
     exact = folded_bare == folded_name
-    is_game_article = not _SERIES_ARTICLE.search(article)
+    is_game_article = not is_series and not _SERIES_ARTICLE.search(article)
     # Symmetric difference: words either title has that the other does not.
     leftover = set(folded_bare.split()) ^ set(folded_name.split())
     return (
@@ -410,6 +450,8 @@ def search_candidates(title: str) -> list[str]:
 
     " video game" is appended to the search terms to bias away from the film or
     album of the same name, which is the common collision for game titles.
+
+    Search hits only. lookup_many adds the title itself to what this returns.
     """
     response = _get(
         WIKIPEDIA_API,
@@ -463,6 +505,11 @@ def lead_sections(titles: list[str]) -> dict[str, str]:
 
 def is_video_game(wikitext: str) -> bool:
     return bool(_INFOBOX_VIDEO_GAME.search(wikitext))
+
+
+def is_series_article(wikitext: str) -> bool:
+    """True for a franchise overview rather than one game."""
+    return bool(_INFOBOX_VIDEO_GAME_SERIES.search(wikitext))
 
 
 def parse_infobox_genres(wikitext: str) -> list[str]:
@@ -608,11 +655,29 @@ def lookup_many(
         except Exception:
             logger.exception("Wikipedia search failed for %r", title)
             candidates[title] = []
+        # The title verbatim leads the candidates, because search relevance is
+        # not article identity: "Call of Duty: Modern Warfare 3" has an article
+        # under exactly that name and the search does not return it in five
+        # hits. Seeded HERE rather than inside search_candidates so a failed
+        # search still leaves one candidate to try.
+        #
+        # Inert, not wrong, when there is no such article: phase 2 drops a
+        # missing page. Inert on a REDIRECT too, since phase 2 keys content
+        # under the target -- following those would mean threading that
+        # response's redirect map through these lists, and this only exists to
+        # beat search ranking to an article already named correctly.
+        #
+        # "|" separates titles in phase 2's request, and unlike a search hit
+        # this string is whatever someone typed into the add form.
+        if "|" not in title and title not in candidates[title]:
+            candidates[title].insert(0, title)
         if on_progress:
             on_progress(title, results[title])
 
     # Phase 2: every candidate article's lead section, 50 at a time. Deduped
-    # because sequels and series share candidates constantly.
+    # because sequels and series share candidates constantly. Note the seeds
+    # make this at least one title per game even when nothing was found, so a
+    # backfill pays up to a few extra batched requests for them.
     unique = sorted({article for hits in candidates.values() for article in hits})
     wikitext: dict[str, str] = {}
     BATCH = 50
@@ -627,7 +692,10 @@ def lookup_many(
         games = [a for a in hits if is_video_game(wikitext.get(a, ""))]
         if not games:
             continue
-        best = max(games, key=lambda a: _rank_key(title, a))
+        best = max(
+            games,
+            key=lambda a: _rank_key(title, a, is_series=is_series_article(wikitext[a])),
+        )
         result = results[title]
         result.article = best
         result.raw_genres = parse_infobox_genres(wikitext[best])
