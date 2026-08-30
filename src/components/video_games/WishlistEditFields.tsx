@@ -122,7 +122,9 @@ export function WishlistEditFields({
         )}
       </div>
 
-      <div className="mt-4 border-t border-shelf-plank pt-3">
+      {/* relative: the remove confirm anchors to this box, out of flow, so the
+          card does not grow when it opens. Same reasoning as GameEditFields. */}
+      <div className="relative mt-4 border-t border-shelf-plank pt-3">
         {/* One button for both cases. "Played?" is the question the wishlist
             can answer; everything that follows from it (which console, how
             was it, when did you play) belongs to the library form, which
@@ -137,6 +139,7 @@ export function WishlistEditFields({
           triggerLabel="Remove from wishlist"
           triggerClassName="mt-3 block"
           confirmLabel="Remove"
+          layout="overlay"
           onConfirm={remove}
           disabled={isPending}
           prompt={

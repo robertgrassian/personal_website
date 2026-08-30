@@ -47,6 +47,11 @@ export function GameEditFields({
 }: GameEditFieldsProps) {
   const { isPending, error, run } = useServerAction();
 
+  // Mirrors ConfirmStep's own step. The confirm renders as an overlay to keep
+  // the card from resizing, which leaves Save sitting underneath it: covered
+  // but still reachable by Tab unless it is retired here.
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+
   const promoting = subject.kind === "promote";
   const source = promoting ? subject.item : subject.game;
   // A wishlist entry has no rating, so a promote starts unrated and any pick
@@ -160,7 +165,7 @@ export function GameEditFields({
           <button
             type="button"
             onClick={() => onOpenHistory({ stopping: false })}
-            disabled={isPending}
+            disabled={isPending || confirmingRemove}
             className={buttonClass}
           >
             View or add play history
@@ -169,7 +174,7 @@ export function GameEditFields({
             <button
               type="button"
               onClick={() => onOpenHistory({ stopping: true })}
-              disabled={isPending}
+              disabled={isPending || confirmingRemove}
               className={buttonClass}
             >
               Stop Playing
@@ -182,10 +187,20 @@ export function GameEditFields({
           Disabled until something is actually pending. */}
       <div className="mt-5 border-t border-shelf-plank pt-3">
         {/* ml-auto puts Remove at the far edge: Save is pressed constantly and
-            adjacent is what a destructive control must not be. flex-wrap plus
-            ConfirmStep's w-full drops the prompt onto its own line. */}
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={save} disabled={!canSave} className={saveButtonClass}>
+            adjacent is what a destructive control must not be.
+
+            relative: the remove confirm anchors to this row and floats above
+            it. The card sizes to its contents, so a confirm taking up flow
+            would grow the whole case the moment it opened. Anchored to the row
+            rather than the section below it so the error line stays visible if
+            the delete fails. */}
+        <div className="relative flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={save}
+            disabled={!canSave || confirmingRemove}
+            className={saveButtonClass}
+          >
             {promoting ? "Save And Move To Library" : "Save"}
           </button>
           {!promoting && (
@@ -194,6 +209,8 @@ export function GameEditFields({
               confirmLabel="Remove"
               triggerVariant="subtle"
               triggerClassName="ml-auto"
+              layout="overlay"
+              onConfirmingChange={setConfirmingRemove}
               onConfirm={removeGame}
               disabled={isPending}
               prompt={
