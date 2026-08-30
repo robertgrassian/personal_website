@@ -47,9 +47,9 @@ export function GameEditFields({
 }: GameEditFieldsProps) {
   const { isPending, error, run } = useServerAction();
 
-  // Mirrors ConfirmStep's own step. The confirm renders as an overlay to keep
-  // the card from resizing, which leaves Save sitting underneath it: covered
-  // but still reachable by Tab unless it is retired here.
+  // Mirrors ConfirmStep's own step, because the sheet covers the form without
+  // being able to retire it: this drives the inert region below and disables
+  // Save, which the sheet sits on top of.
   const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   const promoting = subject.kind === "promote";
@@ -119,69 +119,78 @@ export function GameEditFields({
 
   return (
     <>
-      <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-shelf-label">
-        Rating
-      </p>
-      <div className="mt-2">
-        <RatingPicker
-          variant="labeled"
-          value={ratingDraft}
-          onPick={setRatingDraft}
-          disabled={isPending}
-        />
-      </div>
+      {/* inert while the remove confirm is up: the sheet covers this region but
+          cannot make it unreachable on its own, so without this Shift+Tab lands
+          in the System field behind it and a phone raises its keyboard under a
+          sheet the user thinks is modal. One attribute on the region rather than
+          `disabled` per control, so a field added here is covered by default.
+          Save and its row are the exception: the sheet is their sibling, so it
+          would go inert with them and they are disabled individually instead. */}
+      <div inert={confirmingRemove}>
+        <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-shelf-label">
+          Rating
+        </p>
+        <div className="mt-2">
+          <RatingPicker
+            variant="labeled"
+            value={ratingDraft}
+            onPick={setRatingDraft}
+            disabled={isPending}
+          />
+        </div>
 
-      <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-shelf-label">
-        System
-      </p>
-      {/* labelHidden: the "System" heading above is the visible label, but
+        <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-shelf-label">
+          System
+        </p>
+        {/* labelHidden: the "System" heading above is the visible label, but
           the field still needs a programmatic one. Negative margin so the
           ring sits around the field without moving it. */}
-      <div className="mt-2">
-        <RequiredField missing={systemMissing}>
-          <SuggestInput
-            label="Console this game is filed under"
-            labelHidden
-            value={systemDraft}
-            onChange={setSystemDraft}
-            options={systemSuggestions}
-            maxLength={100}
-            placeholder="e.g. SNES, PS5"
-          />
-        </RequiredField>
-      </div>
-      {playing && (
-        <p className="mt-4 text-sm text-shelf-text">
-          Playing since <span className="font-medium">{subject.game.playingSince}</span>
-        </p>
-      )}
+        <div className="mt-2">
+          <RequiredField missing={systemMissing}>
+            <SuggestInput
+              label="Console this game is filed under"
+              labelHidden
+              value={systemDraft}
+              onChange={setSystemDraft}
+              options={systemSuggestions}
+              maxLength={100}
+              placeholder="e.g. SNES, PS5"
+            />
+          </RequiredField>
+        </div>
+        {playing && (
+          <p className="mt-4 text-sm text-shelf-text">
+            Playing since <span className="font-medium">{subject.game.playingSince}</span>
+          </p>
+        )}
 
-      {/* Promote has no game row yet, so there is no history to open: the
+        {/* Promote has no game row yet, so there is no history to open: the
           playthrough gets logged from here once the move has landed. */}
-      {!promoting && (
-        // Both open the same view, Stop Playing with the close staged. Neither
-        // writes on the press, so Save still owns every write.
-        <div className="mt-5 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => onOpenHistory({ stopping: false })}
-            disabled={isPending || confirmingRemove}
-            className={buttonClass}
-          >
-            View or add play history
-          </button>
-          {playing && (
+        {!promoting && (
+          // Both open the same view, Stop Playing with the close staged. Neither
+          // writes on the press, so Save still owns every write.
+          <div className="mt-5 flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => onOpenHistory({ stopping: true })}
-              disabled={isPending || confirmingRemove}
+              onClick={() => onOpenHistory({ stopping: false })}
+              disabled={isPending}
               className={buttonClass}
             >
-              Stop Playing
+              View or add play history
             </button>
-          )}
-        </div>
-      )}
+            {playing && (
+              <button
+                type="button"
+                onClick={() => onOpenHistory({ stopping: true })}
+                disabled={isPending}
+                className={buttonClass}
+              >
+                Stop Playing
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Always present, so there is one place to look for "did this save?".
           Disabled until something is actually pending. */}
