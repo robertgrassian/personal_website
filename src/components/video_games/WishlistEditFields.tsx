@@ -33,6 +33,11 @@ export function WishlistEditFields({
 }: WishlistEditFieldsProps) {
   const { isPending, error, run } = useServerAction();
 
+  // Mirrors ConfirmStep's own step, because the sheet covers the form without
+  // being able to retire it: this drives the inert region below and the one
+  // control that sits outside it.
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+
   const [starredDraft, setStarredDraft] = useState(item.starred);
   const [notesDraft, setNotesDraft] = useState(item.notes);
   const [systemDraft, setSystemDraft] = useState(item.system);
@@ -65,61 +70,69 @@ export function WishlistEditFields({
 
   return (
     <>
-      <label className="mt-5 flex items-center gap-2 text-sm text-shelf-text cursor-pointer">
-        <input
-          type="checkbox"
-          checked={starredDraft}
-          onChange={(e) => setStarredDraft(e.target.checked)}
-          disabled={isPending}
-          className="accent-amber-500"
-        />
-        Starred (priority wishlist)
-      </label>
+      {/* inert while the remove confirm is up. See GameEditFields: the sheet
+          covers this region but cannot make it unreachable by Tab, and one
+          attribute on the region covers a field added later. "Played?" below is
+          the exception, being the sheet's own sibling. */}
+      <div inert={confirmingRemove}>
+        <label className="mt-5 flex items-center gap-2 text-sm text-shelf-text cursor-pointer">
+          <input
+            type="checkbox"
+            checked={starredDraft}
+            onChange={(e) => setStarredDraft(e.target.checked)}
+            disabled={isPending}
+            className="accent-amber-500"
+          />
+          Starred (priority wishlist)
+        </label>
 
-      <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
-        System
-      </p>
-      {/* labelHidden: the heading above is the visible label, but the field
+        <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
+          System
+        </p>
+        {/* labelHidden: the heading above is the visible label, but the field
           still needs a programmatic one. */}
-      <div className="mt-2">
-        <SuggestInput
-          label="Console you plan to play this on"
-          labelHidden
-          value={systemDraft}
-          onChange={setSystemDraft}
-          options={systemSuggestions}
-          maxLength={100}
-          placeholder="e.g. SNES, PS5"
-        />
-      </div>
-      <p className="mt-1.5 text-[11px] text-shelf-text-muted">
-        Optional. Leave it blank if you have not decided yet.
-      </p>
+        <div className="mt-2">
+          <SuggestInput
+            label="Console you plan to play this on"
+            labelHidden
+            value={systemDraft}
+            onChange={setSystemDraft}
+            options={systemSuggestions}
+            maxLength={100}
+            placeholder="e.g. SNES, PS5"
+          />
+        </div>
+        <p className="mt-1.5 text-[11px] text-shelf-text-muted">
+          Optional. Leave it blank if you have not decided yet.
+        </p>
 
-      <label className={`mt-5 ${labelClass}`}>
-        Notes
-        <textarea
-          value={notesDraft}
-          onChange={(e) => setNotesDraft(e.target.value)}
-          rows={2}
-          maxLength={1000}
-          placeholder="e.g. wait for a sale"
-          disabled={isPending}
-          className={`${inputClass} resize-y`}
-        />
-      </label>
+        <label className={`mt-5 ${labelClass}`}>
+          Notes
+          <textarea
+            value={notesDraft}
+            onChange={(e) => setNotesDraft(e.target.value)}
+            rows={2}
+            maxLength={1000}
+            placeholder="e.g. wait for a sale"
+            disabled={isPending}
+            className={`${inputClass} resize-y`}
+          />
+        </label>
 
-      {/* Always present, so there is one place to look for "did this save?".
+        {/* Always present, so there is one place to look for "did this save?".
           Disabled until something is actually pending. */}
-      <div className="mt-6 border-t border-shelf-plank pt-4">
-        <button type="button" onClick={save} disabled={!canSave} className={saveButtonClass}>
-          Save
-        </button>
-        {error && (
-          <p role="alert" className="mt-2 text-xs text-shelf-danger">
-            {error}
-          </p>
-        )}
+        <div className="mt-6 border-t border-shelf-plank pt-4">
+          <button type="button" onClick={save} disabled={!canSave} className={saveButtonClass}>
+            Save
+          </button>
+          {/* Not while the remove confirm is up: it renders the same error
+            itself, and the sheet covers this line anyway. */}
+          {error && !confirmingRemove && (
+            <p role="alert" className="mt-2 text-xs text-shelf-danger">
+              {error}
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 border-t border-shelf-plank pt-3">
@@ -129,7 +142,12 @@ export function WishlistEditFields({
             already asks all three. */}
         {/* Outlined, not filled: the Save above is the filled one, and the
             repo's rule is that filled means "commit a pending draft". */}
-        <button type="button" onClick={onPlayed} disabled={isPending} className={buttonClass}>
+        <button
+          type="button"
+          onClick={onPlayed}
+          disabled={isPending || confirmingRemove}
+          className={buttonClass}
+        >
           Played?
         </button>
 
@@ -137,8 +155,13 @@ export function WishlistEditFields({
           triggerLabel="Remove from wishlist"
           triggerClassName="mt-3 block"
           confirmLabel="Remove"
+          layout="sheet"
+          onConfirmingChange={setConfirmingRemove}
           onConfirm={remove}
           disabled={isPending}
+          // The sheet covers the error line in the Save block above, so a
+          // failed remove has to report itself inside the sheet instead.
+          error={confirmingRemove ? error : null}
           prompt={
             <>
               Remove <span className="font-medium">{item.name}</span> from the wishlist?
