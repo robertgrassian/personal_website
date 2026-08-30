@@ -35,6 +35,11 @@ type ConfirmStepProps = {
    *  delete makes you type your username. Backing out must always stay
    *  available, which is why this is separate from `disabled`. */
   confirmDisabled?: boolean;
+  /** A failure from the action this confirm ran, shown with the question that
+   *  caused it. The sheet layout covers the form's own error line, so a caller
+   *  using it must pass the error here or a failed remove looks like nothing
+   *  happened. */
+  error?: string | null;
   /** Extra classes for the trigger, for the callers that need `mt-3 block`. */
   triggerClassName?: string;
   /** "outlined" standalone; "subtle" is smaller and tinted, for a trigger
@@ -66,6 +71,7 @@ export function ConfirmStep({
   onCancel,
   disabled = false,
   confirmDisabled = false,
+  error = null,
   triggerClassName = "",
   triggerVariant = "outlined",
   layout = "inline",
@@ -74,6 +80,10 @@ export function ConfirmStep({
   const [confirming, setConfirming] = useState(false);
   const sheet = layout === "sheet";
   const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // Which way the step last moved, so the effect below can tell a close from
+  // the first render, where focus belongs to whatever opened the dialog.
+  const wasConfirming = useRef(false);
 
   const open = () => {
     setConfirming(true);
@@ -86,16 +96,28 @@ export function ConfirmStep({
     onCancel?.();
   };
 
-  // The sheet leaves the trigger mounted but invisible, so focus would
-  // otherwise sit on a control the user can no longer see. Focus the panel
-  // rather than a button inside it: Cancel would read as the suggested action
-  // and the confirm must never be pre-focused.
+  // Focus follows the sheet: the trigger it replaced is invisible by then, so
+  // focus would otherwise fall to the document, and there is no focus trap to
+  // catch the next Tab. The panel takes it rather than a button inside it,
+  // since Cancel would read as the suggested action and the confirm must never
+  // be pre-focused.
+  //
+  // preventScroll on both moves: WebKit scrolls the DOCUMENT to reveal a newly
+  // focused element, and this one is inside a `position: fixed` dialog, so the
+  // scroll reveals nothing and instead raises the page behind the card and
+  // leaves it raised. scrollLock's stage two is the other cure and is reserved
+  // for fields that raise a keyboard, because it costs Safari its collapsed URL
+  // bar; see docs/mobile-viewport.md.
   useEffect(() => {
-    if (sheet && confirming) panelRef.current?.focus();
+    if (!sheet) return;
+    if (confirming) panelRef.current?.focus({ preventScroll: true });
+    else if (wasConfirming.current) triggerRef.current?.focus({ preventScroll: true });
+    wasConfirming.current = confirming;
   }, [sheet, confirming]);
 
   const trigger = (
     <button
+      ref={triggerRef}
       type="button"
       onClick={open}
       disabled={disabled}
@@ -113,29 +135,28 @@ export function ConfirmStep({
   const panel = (
     <div
       ref={panelRef}
-      // Script-focusable only, like the card's own dialog container.
-      tabIndex={-1}
+      // Script-focusable, and only in the layout whose effect above focuses it.
+      tabIndex={sheet ? -1 : undefined}
       className={
         sheet
           ? // Out of flow, so nothing here can change the card's height, and
             // pinned to the case's bottom edge rather than scrolling with the
             // form. No radius of its own: the surface clips it to the case's
-            // rounded corners.
-            //
-            // Frosted rather than a solid panel, the same recipe as the nav,
-            // the homepage tiles and the library's sticky header: a scrim plus
-            // backdrop-blur. It is also what the back of the case already is (a
-            // blurred cover under a dark overlay), so the sheet reads as that
-            // surface deepening rather than as a second material laid on it.
-            // The blur is what obscures the form behind, which a scrim alone
-            // only ghosted.
+            // rounded corners. Frosted rather than solid, the same recipe as
+            // the nav and the homepage tiles; the blur is what obscures the
+            // form behind it, which a scrim alone only ghosted.
             "game-card-confirm absolute inset-x-0 bottom-0 z-30 border-t border-shelf-plank " +
             "bg-black/45 backdrop-blur-md px-5 py-4 focus:outline-none"
-          : "mt-3 w-full focus:outline-none"
+          : "mt-3 w-full"
       }
     >
       <p className="text-sm text-shelf-text">{prompt}</p>
-      <div className="mt-3 flex gap-2">
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-shelf-danger">
+          {error}
+        </p>
+      )}
+      <div className={`${sheet ? "mt-3" : "mt-2"} flex gap-2`}>
         <button
           type="button"
           onClick={onConfirm}

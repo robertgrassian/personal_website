@@ -213,6 +213,9 @@ export function GameEditFields({
               onConfirmingChange={setConfirmingRemove}
               onConfirm={removeGame}
               disabled={isPending}
+              // The sheet covers the error line below, so a failed remove has
+              // to report itself inside the sheet instead.
+              error={confirmingRemove ? error : null}
               prompt={
                 <>
                   Remove <span className="font-medium">{source.name}</span>?
@@ -238,8 +241,10 @@ export function GameEditFields({
         )}
         {/* Under the button rather than at the foot of the panel, which is
             where it sat when the shell owned it: this is the control that
-            failed, and on a long form the foot can be off screen. */}
-        {error && (
+            failed, and on a long form the foot can be off screen. Suppressed
+            while the remove confirm is up, which renders the same error itself:
+            two live alerts would be read out twice. */}
+        {error && !confirmingRemove && (
           <p role="alert" className="mt-2 text-xs text-shelf-danger">
             {error}
           </p>

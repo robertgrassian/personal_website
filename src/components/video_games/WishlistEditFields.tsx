@@ -119,7 +119,9 @@ export function WishlistEditFields({
         <button type="button" onClick={save} disabled={!canSave} className={saveButtonClass}>
           Save
         </button>
-        {error && (
+        {/* Not while the remove confirm is up: it renders the same error
+            itself, and the sheet covers this line anyway. */}
+        {error && !confirmingRemove && (
           <p role="alert" className="mt-2 text-xs text-shelf-danger">
             {error}
           </p>
@@ -150,6 +152,9 @@ export function WishlistEditFields({
           onConfirmingChange={setConfirmingRemove}
           onConfirm={remove}
           disabled={isPending}
+          // The sheet covers the error line in the Save block above, so a
+          // failed remove has to report itself inside the sheet instead.
+          error={confirmingRemove ? error : null}
           prompt={
             <>
               Remove <span className="font-medium">{item.name}</span> from the wishlist?
