@@ -436,11 +436,15 @@ export async function saveGameEdits(gameId: number, edits: GameEdits): Promise<M
 /** One press of Save on a wishlist entry being promoted: the move itself, plus
  *  whatever else the dialog collected on the way through. The system is
  *  required rather than optional because played_games.system is NOT NULL and
- *  the promote is what creates the row. */
+ *  the promote is what creates the row.
+ *
+ *  `session` is omitted deliberately: the promote form no longer asks when you
+ *  played it, so sessions are logged from the game's play history afterwards.
+ *  Putting it back means putting the session cache tag back below too. */
 export async function promoteAndSave(
   itemId: number,
   system: string,
-  edits: Omit<GameEdits, "system" | "stopSessionId" | "stopDate">
+  edits: Omit<GameEdits, "system" | "session" | "stopSessionId" | "stopDate">
 ): Promise<MutateResult> {
   const bad = rejectBadId(itemId, "promote");
   if (bad) return bad;
@@ -473,9 +477,10 @@ export async function promoteAndSave(
     }
     // The promote landed even when the follow-ups did not.
     return { result: (await runInOrder(calls)).result, applied: true };
-    // wishlistTag on top of a normal Save: a promote MOVES a row, so the
-    // wishlist loses an entry as the library gains one.
-  }, [...sessionEditTags(edits), wishlistTag]);
+    // wishlistTag on top of gamesTag: a promote MOVES a row, so the wishlist
+    // loses an entry as the library gains one. No sessionsTag, because the
+    // edits this can carry cannot touch a session.
+  }, [gamesTag, wishlistTag]);
 }
 
 /** Follow a user. Revalidates BOTH libraries: the caller's following list grew

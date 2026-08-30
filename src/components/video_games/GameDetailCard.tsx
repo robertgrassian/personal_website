@@ -31,6 +31,8 @@ type GameDetailCardProps = {
   // construction, so the caller only ever passes that subject when true.
   canEdit: boolean;
   existingSystems: string[];
+  // "Played?" on a game already in the library: open its play history dated
+  // today. A promote ignores this, having no row to log against yet.
   startWithSession?: boolean;
   // "Played?" on a wishlist card. Handled by the caller, which is where both
   // collections are in hand.
@@ -123,7 +125,7 @@ export function GameDetailCard({
     subject.kind === "game" && subject.game.rating
       ? RATINGS.find((r) => r.name === subject.game.rating)
       : undefined;
-  const starred = subject.kind !== "game" && subject.item.starred;
+  const starred = subject.kind === "wishlist" && subject.item.starred;
 
   // A promote is already gated on ownership by the caller; the other two ask.
   const editable = subject.kind === "promote" || canEdit;
@@ -342,7 +344,6 @@ export function GameDetailCard({
                           <GameEditFields
                             subject={subject}
                             existingSystems={existingSystems}
-                            startWithSession={startWithSession}
                             onOpenHistory={openHistory}
                             onClose={close}
                           />
