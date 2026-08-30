@@ -189,12 +189,12 @@ export function GameEditFields({
         {/* ml-auto puts Remove at the far edge: Save is pressed constantly and
             adjacent is what a destructive control must not be.
 
-            relative: the remove confirm anchors to this row and floats above
-            it. The card sizes to its contents, so a confirm taking up flow
-            would grow the whole case the moment it opened. Anchored to the row
-            rather than the section below it so the error line stays visible if
-            the delete fails. */}
-        <div className="relative flex flex-wrap items-center gap-2">
+            Nothing in here may be `relative`: the remove confirm is a sheet
+            anchored to the card's own bottom edge, and a positioned ancestor
+            would re-anchor it to this row. It has to stay out of flow, because
+            the card sizes to its contents and would otherwise grow the whole
+            case the moment the confirm opened. */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={save}
@@ -209,7 +209,7 @@ export function GameEditFields({
               confirmLabel="Remove"
               triggerVariant="subtle"
               triggerClassName="ml-auto"
-              layout="overlay"
+              layout="sheet"
               onConfirmingChange={setConfirmingRemove}
               onConfirm={removeGame}
               disabled={isPending}

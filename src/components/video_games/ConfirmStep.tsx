@@ -41,15 +41,20 @@ type ConfirmStepProps = {
    *  sharing a row with a Save that must stay the default action. */
   triggerVariant?: "outlined" | "subtle";
   /** Where the confirm renders. "inline" replaces the trigger and grows the
-   *  container, which is right on a page that can simply get taller. "overlay"
-   *  keeps the trigger's box and floats the prompt over the form instead, for
-   *  the detail card: it sizes to its content, so an in-flow confirm resizes
-   *  the whole case mid-interaction. **The overlay anchors to the nearest
-   *  positioned ancestor, so that call site's container must be `relative`.** */
-  layout?: "inline" | "overlay";
+   *  container, which is right on a page that can simply get taller. "sheet"
+   *  keeps the trigger's box and raises the prompt from the bottom edge of the
+   *  detail card instead: that card sizes to its content, so an in-flow confirm
+   *  resizes the whole case mid-interaction.
+   *
+   *  The sheet is `absolute` with no positioned ancestor of its own, so it
+   *  anchors to the card's dialog element and reaches its edges from anywhere
+   *  in the form. **A call site using it must not introduce a `relative`
+   *  ancestor between here and that element**, which would re-anchor the sheet
+   *  to some box in the middle of the form. */
+  layout?: "inline" | "sheet";
   /** Fires as the confirm opens and closes. For a call site that has to retire
-   *  a control the overlay covers: GameEditFields disables Save, which would
-   *  otherwise still be reachable by Tab from behind the panel. */
+   *  a control the sheet covers: GameEditFields disables Save, which would
+   *  otherwise still be reachable by Tab from behind the sheet. */
   onConfirmingChange?: (confirming: boolean) => void;
 };
 
@@ -67,7 +72,7 @@ export function ConfirmStep({
   onConfirmingChange,
 }: ConfirmStepProps) {
   const [confirming, setConfirming] = useState(false);
-  const overlay = layout === "overlay";
+  const sheet = layout === "sheet";
   const panelRef = useRef<HTMLDivElement>(null);
 
   const open = () => {
@@ -81,13 +86,13 @@ export function ConfirmStep({
     onCancel?.();
   };
 
-  // The overlay leaves the trigger mounted but invisible, so focus would
+  // The sheet leaves the trigger mounted but invisible, so focus would
   // otherwise sit on a control the user can no longer see. Focus the panel
   // rather than a button inside it: Cancel would read as the suggested action
   // and the confirm must never be pre-focused.
   useEffect(() => {
-    if (overlay && confirming) panelRef.current?.focus();
-  }, [overlay, confirming]);
+    if (sheet && confirming) panelRef.current?.focus();
+  }, [sheet, confirming]);
 
   const trigger = (
     <button
@@ -99,7 +104,7 @@ export function ConfirmStep({
       // the tab order at the same time.
       className={`${triggerClassName} ${
         triggerVariant === "subtle" ? dangerSubtleButtonClass : dangerButtonClass
-      } ${overlay && confirming ? "invisible" : ""}`.trim()}
+      } ${sheet && confirming ? "invisible" : ""}`.trim()}
     >
       {triggerLabel}
     </button>
@@ -111,16 +116,26 @@ export function ConfirmStep({
       // Script-focusable only, like the card's own dialog container.
       tabIndex={-1}
       className={
-        overlay
-          ? // Out of flow, so nothing here can change the card's height. Bottom
-            // of the container it anchors to, growing upward over the form.
-            "absolute inset-x-0 bottom-0 z-20 rounded-lg border border-shelf-plank " +
-            "bg-shelf-bg/95 p-3 shadow-xl focus:outline-none"
+        sheet
+          ? // Out of flow, so nothing here can change the card's height, and
+            // pinned to the case's bottom edge rather than scrolling with the
+            // form. No radius of its own: the surface clips it to the case's
+            // rounded corners.
+            //
+            // Frosted rather than a solid panel, the same recipe as the nav,
+            // the homepage tiles and the library's sticky header: a scrim plus
+            // backdrop-blur. It is also what the back of the case already is (a
+            // blurred cover under a dark overlay), so the sheet reads as that
+            // surface deepening rather than as a second material laid on it.
+            // The blur is what obscures the form behind, which a scrim alone
+            // only ghosted.
+            "game-card-confirm absolute inset-x-0 bottom-0 z-30 border-t border-shelf-plank " +
+            "bg-black/45 backdrop-blur-md px-5 py-4 focus:outline-none"
           : "mt-3 w-full focus:outline-none"
       }
     >
       <p className="text-sm text-shelf-text">{prompt}</p>
-      <div className="mt-2 flex gap-2">
+      <div className="mt-3 flex gap-2">
         <button
           type="button"
           onClick={onConfirm}
@@ -136,7 +151,7 @@ export function ConfirmStep({
     </div>
   );
 
-  if (overlay) {
+  if (sheet) {
     return (
       <>
         {trigger}

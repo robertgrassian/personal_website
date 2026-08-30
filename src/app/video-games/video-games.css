@@ -375,6 +375,25 @@
   --shelf-bg: #1a1a2e;
 }
 
+/* The remove confirm, raised from the bottom edge of the case (ConfirmStep's
+   "sheet" layout). Absolutely positioned against the card's dialog element, so
+   it covers the case without taking part in its layout: the card sizes to its
+   contents, and an in-flow confirm grew the whole case by ~100px on a phone the
+   moment it opened.
+
+   Short and small on purpose. The sheet appears right under the thumb that
+   opened it, so the motion is there to say where it came from, not to make an
+   entrance. */
+@keyframes game-card-confirm-rise {
+  from {
+    transform: translateY(0.75rem);
+    opacity: 0;
+  }
+}
+.game-card-confirm {
+  animation: game-card-confirm-rise 180ms ease-out;
+}
+
 /* ── Currently Playing CRT ──
    A wood-paneled CRT television that shows the currently-playing game's cover.
    Bezel reuses the shelf walnut tones; grain runs vertically (0deg gradients)
@@ -575,6 +594,7 @@
     transition: none;
   }
 
+  .game-card-confirm,
   .crt-osd,
   .crt-live-dot,
   .crt-picture {

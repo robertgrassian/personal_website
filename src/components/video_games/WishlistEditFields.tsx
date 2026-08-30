@@ -33,6 +33,10 @@ export function WishlistEditFields({
 }: WishlistEditFieldsProps) {
   const { isPending, error, run } = useServerAction();
 
+  // Mirrors ConfirmStep's own step. The confirm is a sheet over the whole card,
+  // so everything it dims has to stop being pressable and tabbable under it.
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+
   const [starredDraft, setStarredDraft] = useState(item.starred);
   const [notesDraft, setNotesDraft] = useState(item.notes);
   const [systemDraft, setSystemDraft] = useState(item.system);
@@ -43,7 +47,7 @@ export function WishlistEditFields({
   // "undecided" is a real answer here, so an empty value is a change like any
   // other rather than a missing required field.
   const systemDirty = systemDraft.trim() !== item.system;
-  const canSave = (starredDirty || notesDirty || systemDirty) && !isPending;
+  const canSave = (starredDirty || notesDirty || systemDirty) && !isPending && !confirmingRemove;
 
   const save = () => {
     run(() =>
@@ -122,16 +126,19 @@ export function WishlistEditFields({
         )}
       </div>
 
-      {/* relative: the remove confirm anchors to this box, out of flow, so the
-          card does not grow when it opens. Same reasoning as GameEditFields. */}
-      <div className="relative mt-4 border-t border-shelf-plank pt-3">
+      <div className="mt-4 border-t border-shelf-plank pt-3">
         {/* One button for both cases. "Played?" is the question the wishlist
             can answer; everything that follows from it (which console, how
             was it, when did you play) belongs to the library form, which
             already asks all three. */}
         {/* Outlined, not filled: the Save above is the filled one, and the
             repo's rule is that filled means "commit a pending draft". */}
-        <button type="button" onClick={onPlayed} disabled={isPending} className={buttonClass}>
+        <button
+          type="button"
+          onClick={onPlayed}
+          disabled={isPending || confirmingRemove}
+          className={buttonClass}
+        >
           Played?
         </button>
 
@@ -139,7 +146,8 @@ export function WishlistEditFields({
           triggerLabel="Remove from wishlist"
           triggerClassName="mt-3 block"
           confirmLabel="Remove"
-          layout="overlay"
+          layout="sheet"
+          onConfirmingChange={setConfirmingRemove}
           onConfirm={remove}
           disabled={isPending}
           prompt={
