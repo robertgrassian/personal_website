@@ -22,9 +22,9 @@ before that happens.
 
 _Confirmed defects that are not urgent enough for Up Next. Roughly severity-ordered, worst first._
 
-- [ ] On desktop: on wishlist game, if i click the notes section, the sticky filter bar dissapears (in the background).
-      When exiting and going back to the wishlist, it reappears. It only happens with this input. When we fix it
-      we should check if the notes for library games is implemented and if so if it happens for that too.
+- [ ] **On desktop, clicking a wishlist game's notes field makes the sticky filter bar disappear.**
+      Trigger found and fixed; the symptom **does not reproduce in Chromium**, so one check in the
+      reporting browser closes this. [Details](docs/todo/wishlist-notes-sticky-filter-bar.md)
 
 - [ ] **Anyone can define a shared catalog row for everyone, because `igdb_id` is never checked
       against IGDB.** [Details](docs/todo/unverified-igdb-id-catalog.md)
