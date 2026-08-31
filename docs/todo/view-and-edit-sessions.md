@@ -25,8 +25,10 @@ _What shipped, so it is not rebuilt:_
   until that Save lands. Since 2026-08-31 the promote's copy sits behind an "Add play history"
   button, opening with empty dates rather than being asked for unprompted: 2026-08-30 removed it
   outright, which left no way at all to log the playthrough in the same press.
-- `SessionDateFields` gained `endDisabled`, driven by an **"I'm still playing this"** checkbox that
-  makes "no end yet" explicit instead of a blank field nobody can see they left.
+- `SessionDateFields` owns the **"I'm still playing this"** checkbox, which makes "no end yet"
+  explicit instead of a blank field nobody can see they left, and `useSessionDraft` owns the draft
+  state and the four rules that decide whether it can be saved. Both call sites pass the draft and
+  nothing else, so a rule cannot be enforced in one place and not the other.
 
 _The backend genuinely does not edit._ `PATCH /me/sessions/{id}` looks like a general session edit
 but is not: its body is `SessionClose` (`api/app/schemas/me.py`), carrying only `endDate` plus an

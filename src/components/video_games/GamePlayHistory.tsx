@@ -6,6 +6,7 @@ import { formatSessionRange, sessionLengthDays, type PlaySession } from "@/lib/s
 import { saveGameEdits } from "@/app/video-games/actions";
 import { useServerAction } from "./useServerAction";
 import { SessionDateFields } from "./SessionDateFields";
+import { useSessionDraft } from "./useSessionDraft";
 import { buttonClass, ghostButtonClass, saveButtonClass } from "./formStyles";
 
 type GamePlayHistoryProps = {
@@ -58,44 +59,25 @@ export function GamePlayHistory({
   const openSessionId = game.openSessionId;
   const alreadyOpen = openSessionId !== null;
 
-  const [startDate, setStartDate] = useState(startToday && !alreadyOpen ? localToday() : "");
-  const [endDate, setEndDate] = useState("");
-  // The explicit form of "no end yet". An empty end date is still what reaches
-  // the API; a blank field just is not an instruction anyone can see they gave.
-  const [stillPlaying, setStillPlaying] = useState(false);
   // A pending edit like any other, not an immediate write.
   const [stopPending, setStopPending] = useState(startStopping && alreadyOpen);
 
-  const sessionDirty = startDate !== "";
-  const endWithoutStart = endDate !== "" && startDate === "";
-  // With the checkbox, a blank end date no longer silently means "still
-  // playing": say which you meant.
-  const needsEnd = sessionDirty && !stillPlaying && endDate === "";
-  const datesInvalid = sessionDirty && !stillPlaying && endDate !== "" && endDate < startDate;
-  // One open session per game (create_my_session 409s otherwise). Staging the
-  // stop first is legal because the actions layer closes before it inserts.
-  const wouldDoubleOpen = sessionDirty && stillPlaying && alreadyOpen && !stopPending;
+  // Staging the stop first is what makes a second open session legal: the
+  // actions layer closes before it inserts, so the 409 rule only bites while
+  // the open one is staying open.
+  const sessionDraft = useSessionDraft({
+    startToday: startToday && !alreadyOpen,
+    blockedByOpenSession: alreadyOpen && !stopPending,
+  });
 
-  const problem = endWithoutStart
-    ? "Add a start date, or clear the end date."
-    : needsEnd
-      ? "Add an end date, or tick 'I'm still playing this'."
-      : datesInvalid
-        ? "The end date is before the start date."
-        : wouldDoubleOpen
-          ? "You are already playing this. Stop playing first, or give this session an end date."
-          : null;
-
-  const hasChanges = sessionDirty || stopPending;
-  const canSave = hasChanges && problem === null && !endWithoutStart && !isPending;
+  const hasChanges = sessionDraft.dirty || stopPending;
+  const canSave = hasChanges && sessionDraft.problem === null && !isPending;
 
   const save = () => {
     run(
       () =>
         saveGameEdits(game.id, {
-          ...(sessionDirty
-            ? { session: { startDate, endDate: stillPlaying ? null : endDate } }
-            : {}),
+          ...(sessionDraft.value ? { session: sessionDraft.value } : {}),
           ...(stopPending && openSessionId !== null
             ? { stopSessionId: openSessionId, stopDate: localToday() }
             : {}),
@@ -103,9 +85,7 @@ export function GamePlayHistory({
       {
         // Stays on this view so the new row is visible; clear the drafts only.
         onSuccess: () => {
-          setStartDate("");
-          setEndDate("");
-          setStillPlaying(false);
+          sessionDraft.reset();
           setStopPending(false);
           onSaved();
         },
@@ -168,32 +148,7 @@ export function GamePlayHistory({
       <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
         Add a Session
       </p>
-      <SessionDateFields
-        startDate={startDate}
-        endDate={stillPlaying ? "" : endDate}
-        onChangeStart={setStartDate}
-        onChangeEnd={setEndDate}
-        // No end date to give while the checkbox says there is none.
-        disabled={isPending}
-        endDisabled={stillPlaying}
-        problem={problem}
-      />
-
-      {/* The label wraps the input, so the row is the tap target; py-1.5 makes
-          it big enough on a phone.
-
-          Fixed amber, not --link: this scrim is dark in BOTH schemes (see
-          .game-card-surface), so light mode's amber-700 would be dark-on-dark. */}
-      <label className="mt-2 flex cursor-pointer items-center gap-2 py-1.5 text-sm text-shelf-text">
-        <input
-          type="checkbox"
-          checked={stillPlaying}
-          onChange={(e) => setStillPlaying(e.target.checked)}
-          disabled={isPending}
-          className="h-4 w-4 shrink-0 accent-amber-400 cursor-pointer disabled:cursor-default"
-        />
-        I&apos;m still playing this
-      </label>
+      <SessionDateFields draft={sessionDraft} disabled={isPending} />
 
       <div className="mt-5 border-t border-shelf-plank pt-3">
         <button type="button" onClick={save} disabled={!canSave} className={saveButtonClass}>
