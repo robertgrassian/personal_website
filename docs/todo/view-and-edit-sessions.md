@@ -13,19 +13,25 @@ _What shipped, so it is not rebuilt:_
   `{id, gameId, startDate, endDate}`. **Public**, decided deliberately: the derived play state
   already on `GameRead` comes from these very rows, so the raw list adds when and how often, not
   which games. `endDate` is `null` while open, breaking the `""`-for-absent convention on purpose.
-- `sessionsTag` in `libraryApi.ts`, paired with `deleteGame` and `saveGameEdits`, the latter only
-  when the Save actually touched a session. Not `promoteAndSave`, which since 2026-08-30 cannot
-  carry one.
+- `sessionsTag` in `libraryApi.ts`, paired with `deleteGame`, `saveGameEdits` and `promoteAndSave`,
+  the last two only when the Save actually touched a session.
 - `getPlayHistory` + `usePlayHistory` (**one copy, owned by `GameLibrary`** — the stats panel never
   unmounts, so a second private copy would sit stale after a card logs a session).
 - Across games: a "See all" link on **Recently Played** swaps `StatsPanel` into a history view.
 - Per game, owner only: "View or add play history" in `GameEditFields` swaps `GameDetailCard`'s
-  scrolling region for `GamePlayHistory` (list, "Stop Playing", and an add form). **Sessions are
-  now out of `GameEditFields` entirely**: they stayed inline for a promote until 2026-08-30, when
-  answering "Played?" stopped asking when you played it and became an ordinary move to the library.
-  A promoted game is logged afterwards, from its play history.
-- `SessionDateFields` gained `endDisabled`, driven by an **"I'm still playing this"** checkbox that
-  makes "no end yet" explicit instead of a blank field nobody can see they left.
+  scrolling region for a second face. For a real game that face is `GamePlayHistory` (list, "Stop
+  Playing", an add form and its own session-only Save), and `GameEditFields` unmounts behind it.
+  **A promote gets the same button and the same face, but rendered by `GameEditFields` itself**
+  (`showingHistory`), because `promoteAndSave` creates the row and logs the playthrough in one
+  call: the rating, system and date drafts all have to survive the switch, so the component cannot
+  unmount and the face carries the promote's own "Save And Move To Library". The card keeps the
+  detail block in the tree, `hidden`, for the same reason. History: the fields were inline on the
+  promote form until 2026-08-30, which removed them outright and left no way to log the playthrough
+  in the same press; 2026-08-31 restored them on this face instead.
+- `SessionDateFields` owns the **"I'm still playing this"** checkbox, which makes "no end yet"
+  explicit instead of a blank field nobody can see they left, and `useSessionDraft` owns the draft
+  state and the four rules that decide whether it can be saved. Both call sites pass the draft and
+  nothing else, so a rule cannot be enforced in one place and not the other.
 
 _The backend genuinely does not edit._ `PATCH /me/sessions/{id}` looks like a general session edit
 but is not: its body is `SessionClose` (`api/app/schemas/me.py`), carrying only `endDate` plus an

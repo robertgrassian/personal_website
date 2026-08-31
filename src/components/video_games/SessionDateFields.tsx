@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import { localToday } from "@/lib/games";
 import { fieldClass, ghostButtonClass } from "./formStyles";
+import type { SessionDraft } from "./useSessionDraft";
 
 // Date inputs size to their content rather than filling the row, so they take
 // the shared tokens plus their own padding instead of `inputClass`.
@@ -77,34 +78,24 @@ function useNativeValueSync(value: string, onChange: (value: string) => void) {
 }
 
 type SessionDateFieldsProps = {
-  startDate: string;
-  endDate: string;
-  onChangeStart: (value: string) => void;
-  onChangeEnd: (value: string) => void;
+  // The whole draft rather than a field at a time: this renders every control
+  // that can change it, so threading six props through would only give the two
+  // call sites a way to wire them up differently.
+  draft: SessionDraft;
   disabled: boolean;
-  /** Disables the "To" field alone, for a caller whose own control already
-   *  answered whether the session has an end (the "still playing" checkbox). */
-  endDisabled?: boolean;
-  /** What is wrong with the dates right now, or null. Rendered as the fields'
-   *  description so the reason a disabled Save is disabled is announced, not
-   *  just shown. */
-  problem: string | null;
 };
 
-// The date half of a play session, as a controlled draft. Deliberately holds no
-// state and performs no write: the dialog's single Save owns both. Extracted so
-// the fields cannot drift between the places a session can be logged.
-export function SessionDateFields({
-  startDate,
-  endDate,
-  onChangeStart,
-  onChangeEnd,
-  disabled,
-  endDisabled = false,
-  problem,
-}: SessionDateFieldsProps) {
-  const startRef = useNativeValueSync(startDate, onChangeStart);
-  const endRef = useNativeValueSync(endDate, onChangeEnd);
+// A play session being entered: the dates, and the checkbox that says there is
+// no end date yet. Deliberately holds no state and performs no write — the
+// draft owns the first and the dialog's single Save owns the second. Extracted
+// so neither can drift between the places a session can be logged.
+export function SessionDateFields({ draft, disabled }: SessionDateFieldsProps) {
+  const { startDate, stillPlaying, problem } = draft;
+  // The "To" field shows empty while the checkbox says there is no end, without
+  // discarding a date already typed: unticking it puts the date back.
+  const endDate = stillPlaying ? "" : draft.endDate;
+  const startRef = useNativeValueSync(startDate, draft.setStartDate);
+  const endRef = useNativeValueSync(endDate, draft.setEndDate);
   const startId = useId();
   const endId = useId();
   const problemId = useId();
@@ -123,7 +114,11 @@ export function SessionDateFields({
           <div className={captionRowClass}>
             <label htmlFor={startId}>From</label>
             {clearable && startDate !== "" && (
-              <button type="button" onClick={() => onChangeStart("")} className={clearButtonClass}>
+              <button
+                type="button"
+                onClick={() => draft.setStartDate("")}
+                className={clearButtonClass}
+              >
                 Clear
               </button>
             )}
@@ -135,17 +130,21 @@ export function SessionDateFields({
             value={startDate}
             max={localToday()}
             disabled={disabled}
-            onChange={(e) => onChangeStart(e.target.value)}
+            onChange={(e) => draft.setStartDate(e.target.value)}
             aria-invalid={problem !== null}
             aria-describedby={problem === null ? undefined : problemId}
             className={dateInputClass}
           />
         </div>
         <div className={fieldColumnClass}>
-          <div className={`${captionRowClass}${endDisabled ? " opacity-50" : ""}`}>
+          <div className={`${captionRowClass}${stillPlaying ? " opacity-50" : ""}`}>
             <label htmlFor={endId}>To</label>
-            {clearable && !endDisabled && endDate !== "" && (
-              <button type="button" onClick={() => onChangeEnd("")} className={clearButtonClass}>
+            {clearable && !stillPlaying && endDate !== "" && (
+              <button
+                type="button"
+                onClick={() => draft.setEndDate("")}
+                className={clearButtonClass}
+              >
                 Clear
               </button>
             )}
@@ -157,8 +156,8 @@ export function SessionDateFields({
             value={endDate}
             min={startDate || undefined}
             max={localToday()}
-            disabled={disabled || endDisabled}
-            onChange={(e) => onChangeEnd(e.target.value)}
+            disabled={disabled || stillPlaying}
+            onChange={(e) => draft.setEndDate(e.target.value)}
             aria-invalid={problem !== null}
             aria-describedby={problem === null ? undefined : problemId}
             className={dateInputClass}
@@ -174,6 +173,22 @@ export function SessionDateFields({
           {problem}
         </p>
       )}
+
+      {/* The label wraps the input, so the row is the tap target; py-1.5 makes
+          it big enough on a phone.
+
+          Fixed amber, not --link: this scrim is dark in BOTH schemes (see
+          .game-card-surface), so light mode's amber-700 would be dark-on-dark. */}
+      <label className="mt-2 flex cursor-pointer items-center gap-2 py-1.5 text-sm text-shelf-text">
+        <input
+          type="checkbox"
+          checked={stillPlaying}
+          onChange={(e) => draft.setStillPlaying(e.target.checked)}
+          disabled={disabled}
+          className="h-4 w-4 shrink-0 accent-amber-400 cursor-pointer disabled:cursor-default"
+        />
+        I&apos;m still playing this
+      </label>
     </div>
   );
 }

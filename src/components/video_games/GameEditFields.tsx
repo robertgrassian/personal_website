@@ -7,26 +7,32 @@ import { deleteGame, promoteAndSave, saveGameEdits } from "@/app/video-games/act
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
+import { SessionDateFields } from "./SessionDateFields";
+import { useSessionDraft } from "./useSessionDraft";
 import { buttonClass, saveButtonClass } from "./formStyles";
 import { SuggestInput } from "./SuggestInput";
 import { RequiredField } from "./RequiredField";
 
 /** What these fields are editing. A wishlist entry has no library row yet, so
  *  every field below is a draft that the promote creates the row for. Both
- *  cases are deliberately the same form, differing only where a row that does
- *  not exist yet forces it: no play history to open, nothing to remove. A
- *  playthrough is logged afterwards, from the play history, rather than being
- *  asked for as a condition of the move. */
+ *  cases are deliberately the same form, and the promote's play history is the
+ *  same second face, differing only in what a missing row forces: no sessions
+ *  to list, and one Save that has to carry the move as well. */
 export type EditSubject = { kind: "game"; game: Game } | { kind: "promote"; item: WishlistGame };
 
 type GameEditFieldsProps = {
   subject: EditSubject;
   // Every system already on a shelf, for the suggestions below.
   existingSystems: string[];
-  // Swap the card to this game's play history. `stopping` pre-stages the
-  // close, so "Stop Playing" still commits through a Save. Never on a promote,
-  // which has no game row yet.
+  // Swap the card to the play history. `stopping` pre-stages the close, so
+  // "Stop Playing" still commits through a Save.
   onOpenHistory: (options: { stopping: boolean }) => void;
+  // Whether that swap has happened. A real game's history is `GamePlayHistory`,
+  // rendered by the card in place of this component; a promote's is rendered
+  // below instead, because staying mounted is the only thing that keeps the
+  // rating, system and date drafts alive across the switch. One Save creates
+  // the row and logs the playthrough, so they cannot be committed separately.
+  showingHistory: boolean;
   onClose: () => void;
 };
 
@@ -43,6 +49,7 @@ export function GameEditFields({
   subject,
   existingSystems,
   onOpenHistory,
+  showingHistory,
   onClose,
 }: GameEditFieldsProps) {
   const { isPending, error, run } = useServerAction();
@@ -62,6 +69,12 @@ export function GameEditFields({
   const [ratingDraft, setRatingDraft] = useState<Rating | "">(savedRating);
   const [systemDraft, setSystemDraft] = useState(savedSystem);
 
+  // Session draft, PROMOTE ONLY: promoteAndSave creates the row and logs the
+  // playthrough in one call, so there is no id to send a session to until this
+  // Save lands. An existing game logs through GamePlayHistory instead, which is
+  // why this stays empty and unread there.
+  const sessionDraft = useSessionDraft();
+
   const playing =
     !promoting && subject.game.currentlyPlaying && subject.game.openSessionId !== null;
 
@@ -77,7 +90,7 @@ export function GameEditFields({
   // A promote is itself the change, so Save is live from the moment the form
   // opens — it just needs a system, which played_games requires.
   const hasChanges = promoting ? systemDraft.trim() !== "" : ratingDirty || systemDirty;
-  const canSave = hasChanges && !systemMissing && !isPending;
+  const canSave = hasChanges && !systemMissing && sessionDraft.problem === null && !isPending;
 
   const save = () => {
     if (promoting) {
@@ -87,6 +100,7 @@ export function GameEditFields({
         () =>
           promoteAndSave(subject.item.id, systemDraft, {
             ...(ratingDirty ? { rating: ratingDraft } : {}),
+            ...(sessionDraft.value ? { session: sessionDraft.value } : {}),
           }),
         { onSuccess: onClose }
       );
@@ -116,6 +130,100 @@ export function GameEditFields({
   // Same rule as the add form: the game's own platforms when we know them,
   // every shelf system otherwise.
   const systemSuggestions = source.platforms.length > 0 ? source.platforms : existingSystems;
+
+  // Rendered by BOTH faces, so a promote can commit from either one and the
+  // reason a disabled Save is disabled is never on the screen you just left.
+  const saveFooter = (
+    /* Always present, so there is one place to look for "did this save?".
+       Disabled until something is actually pending. */
+    <div className="mt-5 border-t border-shelf-plank pt-3">
+      {/* ml-auto puts Remove at the far edge: Save is pressed constantly and
+          adjacent is what a destructive control must not be.
+
+          Nothing in here may be `relative`: the remove confirm is a sheet
+          anchored to the card's own bottom edge, and a positioned ancestor
+          would re-anchor it to this row. It has to stay out of flow, because
+          the card sizes to its contents and would otherwise grow the whole
+          case the moment the confirm opened. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={save}
+          disabled={!canSave || confirmingRemove}
+          className={saveButtonClass}
+        >
+          {promoting ? "Save And Move To Library" : "Save"}
+        </button>
+        {!promoting && (
+          <ConfirmStep
+            triggerLabel="Remove from library"
+            confirmLabel="Remove"
+            triggerVariant="subtle"
+            triggerClassName="ml-auto"
+            layout="sheet"
+            onConfirmingChange={setConfirmingRemove}
+            onConfirm={removeGame}
+            disabled={isPending}
+            // The sheet covers the error line below, so a failed remove has
+            // to report itself inside the sheet instead.
+            error={confirmingRemove ? error : null}
+            prompt={
+              <>
+                Remove <span className="font-medium">{source.name}</span>?
+                {subject.game.sessionCount > 0 && (
+                  <span className="text-shelf-text-muted">
+                    {" "}
+                    This also deletes{" "}
+                    {subject.game.sessionCount === 1
+                      ? "its 1 logged session"
+                      : `its ${subject.game.sessionCount} logged sessions`}
+                    .
+                  </span>
+                )}
+              </>
+            }
+          />
+        )}
+      </div>
+      {systemMissing && (
+        <p className="mt-1.5 text-[11px] text-shelf-text-muted">
+          A game needs a console. Pick one to save.
+        </p>
+      )}
+      {/* Under the button rather than at the foot of the panel, which is
+          where it sat when the shell owned it: this is the control that
+          failed, and on a long form the foot can be off screen. Suppressed
+          while the remove confirm is up, which renders the same error itself:
+          two live alerts would be read out twice. */}
+      {error && !confirmingRemove && (
+        <p role="alert" className="mt-2 text-xs text-shelf-danger">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+
+  // The promote's play history, standing in for GamePlayHistory: same headings
+  // and same empty state, minus what a row that does not exist yet cannot have.
+  // Its Save is the promote's own, so the move can be committed from here
+  // rather than only from the face behind it.
+  if (promoting && showingHistory) {
+    return (
+      <>
+        <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-shelf-label">
+          Play History
+        </p>
+        <p className="mt-3 text-sm text-shelf-text-muted italic">
+          Nothing logged yet. Add the first one below.
+        </p>
+        <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
+          Add a Session
+        </p>
+        <SessionDateFields draft={sessionDraft} disabled={isPending} />
+        {saveFooter}
+      </>
+    );
+  }
 
   return (
     <>
@@ -164,101 +272,33 @@ export function GameEditFields({
           </p>
         )}
 
-        {/* Promote has no game row yet, so there is no history to open: the
-          playthrough gets logged from here once the move has landed. */}
-        {!promoting && (
-          // Both open the same view, Stop Playing with the close staged. Neither
-          // writes on the press, so Save still owns every write.
-          <div className="mt-5 flex flex-wrap gap-2">
+        {/* Both kinds offer the same button, with the same label: a library
+            game with nothing logged shows it too, so "view or add" is already
+            what it says on an empty history. Stop Playing stages the close.
+            Neither writes on the press, so Save still owns every write. */}
+        <div className="mt-5 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenHistory({ stopping: false })}
+            disabled={isPending}
+            className={buttonClass}
+          >
+            View or add play history
+          </button>
+          {playing && (
             <button
               type="button"
-              onClick={() => onOpenHistory({ stopping: false })}
+              onClick={() => onOpenHistory({ stopping: true })}
               disabled={isPending}
               className={buttonClass}
             >
-              View or add play history
+              Stop Playing
             </button>
-            {playing && (
-              <button
-                type="button"
-                onClick={() => onOpenHistory({ stopping: true })}
-                disabled={isPending}
-                className={buttonClass}
-              >
-                Stop Playing
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Always present, so there is one place to look for "did this save?".
-          Disabled until something is actually pending. */}
-      <div className="mt-5 border-t border-shelf-plank pt-3">
-        {/* ml-auto puts Remove at the far edge: Save is pressed constantly and
-            adjacent is what a destructive control must not be.
-
-            Nothing in here may be `relative`: the remove confirm is a sheet
-            anchored to the card's own bottom edge, and a positioned ancestor
-            would re-anchor it to this row. It has to stay out of flow, because
-            the card sizes to its contents and would otherwise grow the whole
-            case the moment the confirm opened. */}
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={save}
-            disabled={!canSave || confirmingRemove}
-            className={saveButtonClass}
-          >
-            {promoting ? "Save And Move To Library" : "Save"}
-          </button>
-          {!promoting && (
-            <ConfirmStep
-              triggerLabel="Remove from library"
-              confirmLabel="Remove"
-              triggerVariant="subtle"
-              triggerClassName="ml-auto"
-              layout="sheet"
-              onConfirmingChange={setConfirmingRemove}
-              onConfirm={removeGame}
-              disabled={isPending}
-              // The sheet covers the error line below, so a failed remove has
-              // to report itself inside the sheet instead.
-              error={confirmingRemove ? error : null}
-              prompt={
-                <>
-                  Remove <span className="font-medium">{source.name}</span>?
-                  {subject.game.sessionCount > 0 && (
-                    <span className="text-shelf-text-muted">
-                      {" "}
-                      This also deletes{" "}
-                      {subject.game.sessionCount === 1
-                        ? "its 1 logged session"
-                        : `its ${subject.game.sessionCount} logged sessions`}
-                      .
-                    </span>
-                  )}
-                </>
-              }
-            />
           )}
         </div>
-        {systemMissing && (
-          <p className="mt-1.5 text-[11px] text-shelf-text-muted">
-            A game needs a console. Pick one to save.
-          </p>
-        )}
-        {/* Under the button rather than at the foot of the panel, which is
-            where it sat when the shell owned it: this is the control that
-            failed, and on a long form the foot can be off screen. Suppressed
-            while the remove confirm is up, which renders the same error itself:
-            two live alerts would be read out twice. */}
-        {error && !confirmingRemove && (
-          <p role="alert" className="mt-2 text-xs text-shelf-danger">
-            {error}
-          </p>
-        )}
       </div>
+
+      {saveFooter}
     </>
   );
 }
