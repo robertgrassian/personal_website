@@ -111,29 +111,37 @@ function trackPageScroll(card: HTMLElement, startScrollY: number): PageTracking 
     return { onFrame: setFromFrame, stop: () => (card.style.translate = "") };
   }
 
-  // Not on the first frame necessarily: the close releases the scroll lock in a
-  // passive effect, one paint after this runs, and a page still in stage two has
-  // been taken out of flow -- `scrollHeight` there is the viewport's, so the
-  // range would come out ~0 and every keyframe would collapse onto the same
-  // value. The per-frame path is correct in both states (`pageScrollY` covers
-  // them), so it carries the flight until the range is real, and the animation
-  // takes over from the cascade the moment it starts.
+  // Started here when the range can be measured, retried per frame when it
+  // cannot. A close that had a keyboard up is still in stage two at this point
+  // -- the lock is released in a passive effect, a paint after this runs -- and
+  // an out-of-flow page reports the viewport's `scrollHeight`, so the range
+  // would come out ~0 and collapse every keyframe onto the same value. The
+  // per-frame path is correct in both states (`pageScrollY` covers them), so it
+  // carries those flights until the range is real, and the animation takes over
+  // from the cascade the moment it starts.
   let track: Animation | null = null;
+  const startTracking = (): boolean => {
+    if (pageOutOfFlow()) return false;
+    // No duration: for a progress-based timeline that means "auto", which spans
+    // the whole scroll range. fill both, so the card is still placed when the
+    // page sits at either end of it rather than snapping back to 0.
+    const range = doc.scrollHeight - doc.clientHeight;
+    track = card.animate(
+      [{ translate: `0 ${startScrollY}px` }, { translate: `0 ${startScrollY - range}px` }],
+      { timeline: new ScrollTimelineImpl({ source: doc }), fill: "both" }
+    );
+    return true;
+  };
+
+  // Immediately, for every close that had no keyboard up: those are already in
+  // flow, so the flight is compositor-tracked from its first painted frame
+  // rather than from its second.
+  startTracking();
+
   return {
     onFrame: () => {
       if (track !== null) return;
-      if (pageOutOfFlow()) {
-        setFromFrame();
-        return;
-      }
-      // No duration: for a progress-based timeline that means "auto", which
-      // spans the whole scroll range. fill both, so the card is still placed
-      // when the page sits at either end of it rather than snapping back to 0.
-      const range = doc.scrollHeight - doc.clientHeight;
-      track = card.animate(
-        [{ translate: `0 ${startScrollY}px` }, { translate: `0 ${startScrollY - range}px` }],
-        { timeline: new ScrollTimelineImpl({ source: doc }), fill: "both" }
-      );
+      if (!startTracking()) setFromFrame();
     },
     stop: () => {
       track?.cancel();
