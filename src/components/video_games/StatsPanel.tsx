@@ -69,7 +69,7 @@ export function StatsPanel({
   // back to the opener on close), shared with the three owner dialogs. This
   // panel stays mounted while closed — it slides in via a transform rather than
   // mounting — so it passes isOpen as `enabled` where those pass nothing.
-  useModalChrome(onClose, closeButtonRef, isOpen);
+  useModalChrome(onClose, closeButtonRef, { enabled: isOpen });
 
   return (
     <>

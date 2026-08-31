@@ -3,6 +3,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { CardOrigin } from "./LibraryCardContext";
+import { pageScrollY } from "./scrollLock";
 
 // The two levers for how the flight feels. Slow enough that the case reads as
 // a case — you should have time to see the cover, the spine and the turn —
@@ -45,8 +46,9 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-// Holds a frame request open for as long as the flight runs, doing nothing
-// with it.
+// Holds a frame request open for as long as the flight runs, with `onFrame` as
+// the only work it does. The return flight passes one (it tracks the page under
+// it); the outbound passes nothing, and the empty loop is still load-bearing:
 //
 // This looks pointless and is not. The flight is a compositor animation, so the
 // main thread has no per-frame work and can go idle; Gecko in particular then
@@ -62,8 +64,9 @@ function prefersReducedMotion(): boolean {
 // why it is acceptable as a fix rather than only as a probe. If a future
 // browser makes it unnecessary, deleting it is safe: the animation itself does
 // not depend on it.
-function keepFramesFlowing(): () => void {
+function keepFramesFlowing(onFrame?: () => void): () => void {
   let raf = requestAnimationFrame(function tick() {
+    onFrame?.();
     raf = requestAnimationFrame(tick);
   });
   return () => cancelAnimationFrame(raf);
@@ -255,7 +258,8 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
     }
 
     // Pin the card to a fixed px box, at the size a case is, out of the frame's
-    // grid. Two problems, one snapshot.
+    // grid. Two problems, one snapshot. (A third, the page moving under the
+    // flight, is handled by tracking rather than by the pin; see below.)
     //
     // The POSITION half: closing blurs the field, so the keyboard leaves at the
     // same moment the flight starts, and iOS resizes the LAYOUT viewport when it
@@ -312,7 +316,25 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
       ...timing,
       easing: EASING_TURN,
     });
-    const stopKeepAlive = keepFramesFlowing();
+    // The page is scrollable again from the moment the close begins
+    // (GameDetailCard drops the scroll lock), so the case this is flying to can
+    // move under it. Both ends move together when the card moves with the page,
+    // so the transform measured above stays correct and only the pinned box has
+    // to keep up: scroll down 40px and the shelf, the case and the card in
+    // flight all rise 40px. Scroll far enough and the card leaves the screen
+    // with the shelf, which is the honest answer to where it was going.
+    //
+    // `translate` rather than `top`: it is a separate property from `transform`
+    // and applies before it, so it composes with the animation above instead of
+    // fighting it, and it moves the card without a layout pass per frame.
+    //
+    // Read through pageScrollY because the lock may still be releasing on the
+    // first frames, and a page out of flow reports scrollY 0.
+    const startScrollY = pageScrollY();
+    const trackPage = () => {
+      card.style.translate = `0 ${startScrollY - pageScrollY()}px`;
+    };
+    const stopKeepAlive = keepFramesFlowing(trackPage);
 
     Promise.all([travel.finished, flip.finished])
       .then(() => {
@@ -336,6 +358,7 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
       card.style.maxWidth = "";
       card.style.maxHeight = "";
       card.style.margin = "";
+      card.style.translate = "";
     };
   }, [closing, caseId]);
 

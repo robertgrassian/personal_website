@@ -22,10 +22,16 @@ import { createPortal } from "react-dom";
 //
 // The tradeoff is that it scrolls with the page. Spanning the whole document
 // means scrolling still leaves it covered, but rubber-band overscroll past
-// either end could pull it off the edge. useModalChrome's lock now takes the
-// document out of flow for as long as a dialog is open, so there is no scroll
-// range left to rubber-band against, which is what closes that. A fixed
-// backdrop is still not the answer, since that is what iOS clips.
+// either end could pull it off the edge. useModalChrome's lock holds the page
+// still for as long as a dialog is open, and its second stage takes the
+// document out of flow entirely, leaving no scroll range to rubber-band
+// against. A fixed backdrop is still not the answer, since that is what iOS
+// clips.
+//
+// The one window where that does not hold is the detail card's return flight,
+// which releases the lock on purpose so the flight can be scrolled. A hard
+// overscroll there could pull an undimmed strip in at an edge, for the length
+// of a fade-out that is on its way to clear anyway.
 //
 // That lock's second stage does make this an absolutely positioned descendant of
 // a fixed <body>, which is the arrangement described above as clipped. Checked

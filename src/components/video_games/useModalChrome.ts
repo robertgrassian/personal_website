@@ -5,12 +5,20 @@ import { lockScroll, preventRevealScroll } from "./scrollLock";
 // dialog (to initialFocusRef), closes on Escape, and restores focus to whatever
 // opened it when it closes.
 //
+// The lock is a SEPARATE effect from the focus and Escape half, because a
+// dialog can stop holding the page still before it stops being a dialog. The
+// detail card releases it the moment its return flight starts, so the flight
+// can be scrolled; it is still a focus trap until it lands. Keeping the halves
+// in one effect meant releasing early also restored focus early, to a shelf
+// case that is `visibility: hidden` for the length of the flight and so cannot
+// take it.
+//
 // Two lifecycles, one hook. The mount-only dialogs (AddGameModal,
 // the detail card, AddGameModal) render only while open, so they leave
 // `enabled` at its default and the effects run on mount and clean up on unmount
 // — no isOpen plumbing. StatsPanel cannot work that way: it slide-animates in
 // via `translate-x-full` and so stays mounted while closed, which is why it
-// passes `enabled={isOpen}` and the effect body bails when false.
+// passes `{ enabled: isOpen }` and the effect bodies bail when false.
 //
 // Generic over the focus target's element type so callers can pass a
 // `useRef<HTMLButtonElement>`/`useRef<HTMLInputElement>` without a variance
@@ -56,13 +64,21 @@ function wantsKeyboard(target: EventTarget | null): boolean {
   return target instanceof HTMLInputElement && !NO_KEYBOARD_INPUT_TYPES.has(target.type);
 }
 
+type ModalChromeOptions = {
+  /** False for a dialog that stays mounted while closed. */
+  enabled?: boolean;
+  /** Hold the page still. Defaults to `enabled`; pass it separately only to
+   *  release the page while the dialog is still up. */
+  scrollLocked?: boolean;
+};
+
 // The scroll lock lives in scrollLock.ts, because anything that still needs to
 // scroll the page has to go through it: a locked page is out of flow and
 // `window.scrollTo` has nothing to move.
 export function useModalChrome<T extends HTMLElement>(
   onClose: () => void,
   initialFocusRef: RefObject<T | null>,
-  enabled = true
+  { enabled = true, scrollLocked = enabled }: ModalChromeOptions = {}
 ): void {
   // Latest-ref pattern: the Escape listener reads onClose through a ref so the
   // mount effect below never needs onClose in its deps (and never re-runs).
@@ -72,7 +88,7 @@ export function useModalChrome<T extends HTMLElement>(
   });
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!scrollLocked) return;
 
     const unlockScroll = lockScroll();
 
@@ -105,6 +121,18 @@ export function useModalChrome<T extends HTMLElement>(
     // free to change.
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("click", escalateNow);
+
+    return () => {
+      clearTimeout(pendingEscalation);
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("click", escalateNow);
+      unlockScroll();
+    };
+  }, [scrollLocked]);
+
+  useEffect(() => {
+    if (!enabled) return;
+
     // Remember what opened the dialog so focus can return to it on close
     // instead of dropping to <body>.
     const previouslyFocused = document.activeElement;
@@ -115,10 +143,6 @@ export function useModalChrome<T extends HTMLElement>(
     };
     window.addEventListener("keydown", handleKey);
     return () => {
-      clearTimeout(pendingEscalation);
-      document.removeEventListener("focusin", onFocusIn);
-      document.removeEventListener("click", escalateNow);
-      unlockScroll();
       window.removeEventListener("keydown", handleKey);
       // isConnected guards against the opener having been unmounted (e.g. the
       // game moved shelves after a rating change re-rendered the grid).

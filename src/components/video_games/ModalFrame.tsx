@@ -22,6 +22,10 @@ type ModalFrameProps = {
   backdropFadeMs?: number | null;
   // Passed to ModalBackdrop: run that fade in reverse.
   backdropFadingOut?: boolean;
+  // Hold the page still. False lets the page scroll again while the dialog is
+  // still up, which only an exit animation that tracks the page has any use
+  // for: see the detail card's return flight.
+  scrollLocked?: boolean;
   // Takes initial focus. Required rather than defaulted, because the element
   // worth focusing lives in the panel, which is the caller's.
   initialFocusRef: RefObject<HTMLElement | null>;
@@ -34,9 +38,10 @@ export function ModalFrame({
   backdropBlur = true,
   backdropFadeMs = null,
   backdropFadingOut = false,
+  scrollLocked = true,
   children,
 }: ModalFrameProps) {
-  useModalChrome(onClose, initialFocusRef);
+  useModalChrome(onClose, initialFocusRef, { scrollLocked });
 
   // How much of the frame the software keyboard has taken, which is padded
   // away below so the panel centers in what is left. Both are 0 without one.

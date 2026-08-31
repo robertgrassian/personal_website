@@ -156,6 +156,20 @@ the shrink model regrows the `fixed inset-0` frame, the slide model returns
 begins. The layout viewport grows downward from an origin that does not move, so
 a box in px cannot be re-centred by any of it.
 
+**The page is a moving target too, on purpose.** The card releases the scroll
+lock when its return flight starts (`scrollLocked` on `ModalFrame`), so the
+shelves can be scrolled while it flies home. The flight is a transform between
+two viewport positions, so it stays correct as long as both ends move together:
+the pinned box tracks the page each frame, through `pageScrollY()`, via the
+`translate` property, which applies before `transform` and so composes with the
+animation instead of replacing it. Scroll far enough during a close and the card
+leaves the screen with the shelf it was landing on.
+
+Pinning in document coordinates instead would make that automatic, and does not
+work: the card sits inside `ModalFrame`, which is `position: fixed`, so an
+absolutely positioned child is placed against the frame rather than the
+document.
+
 **Pin the size too, and unclamp it first.** A keyboard clamps a dialog to what
 fits above it (365px against a resting 518px), and a FLIP flight that scales by
 width alone will then fly it home at two thirds of its proper height — a case

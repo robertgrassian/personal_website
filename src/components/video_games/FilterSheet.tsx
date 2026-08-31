@@ -86,7 +86,7 @@ export function FilterSheet(props: FilterSheetProps) {
   // Stays mounted while closed so the slide-up has something to animate, hence
   // `enabled={isOpen}` — the same arrangement StatsPanel uses, as opposed to
   // the mount-only owner dialogs.
-  useModalChrome(onClose, closeButtonRef, isOpen);
+  useModalChrome(onClose, closeButtonRef, { enabled: isOpen });
 
   const hasActiveFilters =
     filters.search !== "" ||

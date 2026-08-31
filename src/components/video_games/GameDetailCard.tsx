@@ -150,6 +150,10 @@ export function GameDetailCard({
       // card simply appears and so does its dim.
       backdropFadeMs={origin === null ? null : DURATION_MS}
       backdropFadingOut={closing}
+      // The page is free again the moment the card starts flying home: the
+      // flight tracks it (useCardFlight), so scrolling during it moves the card
+      // with the shelf it is landing on rather than stranding it.
+      scrollLocked={!closing}
     >
       {/* The grid item, and the element the flight translates and scales. min-w-0
           because a grid item's automatic minimum size is min-content, which
