@@ -160,10 +160,27 @@ a box in px cannot be re-centred by any of it.
 lock when its return flight starts (`scrollLocked` on `ModalFrame`), so the
 shelves can be scrolled while it flies home. The flight is a transform between
 two viewport positions, so it stays correct as long as both ends move together:
-the pinned box tracks the page each frame, through `pageScrollY()`, via the
-`translate` property, which applies before `transform` and so composes with the
-animation instead of replacing it. Scroll far enough during a close and the card
-leaves the screen with the shelf it was landing on.
+the pinned box tracks the page through the `translate` property, which applies
+before `transform` and so composes with the animation instead of replacing it.
+Scroll far enough during a close and the card leaves the screen with the shelf it
+was landing on.
+
+**Track it from a scroll timeline, not from frames.** Reading `scrollY` in a
+`requestAnimationFrame` and writing the offset back is a main-thread reaction to
+a scroll the compositor has already painted, so the card lands a frame behind
+the shelf: measured against a fast flick that is around 30px, and it reads as
+the card shaking loose. It was the first thing tried here and it was visibly
+jumpy on the device. A scroll timeline (`new ScrollTimeline({ source })`, passed
+to `element.animate`) instead states `translate` as a function of scroll offset
+over the document's whole scroll range, and the compositor evaluates it in the
+same frame it scrolls.
+
+The frame loop still starts the flight, for two reasons. Firefox has no scroll
+timeline yet, so it keeps the per-frame path. And the range that the keyframes
+are written over cannot be measured while the lock is in stage two: the body is
+out of flow, so `scrollHeight` is the viewport's and every keyframe would
+collapse onto one value. The close releases the lock a paint later, so the
+per-frame path carries the first frames and hands over once the range is real.
 
 Pinning in document coordinates instead would make that automatic, and does not
 work: the card sits inside `ModalFrame`, which is `position: fixed`, so an

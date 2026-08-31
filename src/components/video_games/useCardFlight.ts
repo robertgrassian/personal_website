@@ -3,7 +3,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { CardOrigin } from "./LibraryCardContext";
-import { pageScrollY } from "./scrollLock";
+import { pageOutOfFlow, pageScrollY } from "./scrollLock";
 
 // The two levers for how the flight feels. Slow enough that the case reads as
 // a case — you should have time to see the cover, the spine and the turn —
@@ -70,6 +70,76 @@ function keepFramesFlowing(onFrame?: () => void): () => void {
     raf = requestAnimationFrame(tick);
   });
   return () => cancelAnimationFrame(raf);
+}
+
+// Not in lib.dom yet. Scroll-driven animations shipped in Chrome 115 and
+// Safari 26; Firefox is still behind a flag, which is what the fallback below
+// is for.
+type ScrollTimelineCtor = new (options: { source: Element }) => AnimationTimeline;
+
+type PageTracking = {
+  /** Per-frame work for the fallback. Absent when the compositor has it. */
+  onFrame?: () => void;
+  stop: () => void;
+};
+
+/** Keeps the flying card moving with the page, so a scroll during the return
+ *  flight moves the card and the case it is landing on together.
+ *
+ *  The preferred path drives that from a SCROLL timeline rather than from
+ *  frames. Reading `scrollY` per frame and writing the offset back is a
+ *  main-thread reaction to a scroll the compositor has already painted, so it
+ *  lands a frame late — around 30px behind a fast flick, which reads as the card
+ *  shaking loose of the shelf. A scroll timeline states the relationship
+ *  (`translate` as a function of scroll offset) and lets the compositor evaluate
+ *  it in the same frame it scrolls, with no main thread involved.
+ *
+ *  The keyframes are that function written out over the document's whole scroll
+ *  range, which is what the timeline's 0..100% spans: at scroll `y` the card
+ *  sits at `startScrollY - y`, so it is unmoved where the flight began and
+ *  tracks the page one-for-one either side of it. */
+function trackPageScroll(card: HTMLElement, startScrollY: number): PageTracking {
+  const doc = document.documentElement;
+  const ScrollTimelineImpl = (window as unknown as { ScrollTimeline?: ScrollTimelineCtor })
+    .ScrollTimeline;
+
+  const setFromFrame = () => {
+    card.style.translate = `0 ${startScrollY - pageScrollY()}px`;
+  };
+
+  if (ScrollTimelineImpl === undefined) {
+    return { onFrame: setFromFrame, stop: () => (card.style.translate = "") };
+  }
+
+  // Not on the first frame necessarily: the close releases the scroll lock in a
+  // passive effect, one paint after this runs, and a page still in stage two has
+  // been taken out of flow -- `scrollHeight` there is the viewport's, so the
+  // range would come out ~0 and every keyframe would collapse onto the same
+  // value. The per-frame path is correct in both states (`pageScrollY` covers
+  // them), so it carries the flight until the range is real, and the animation
+  // takes over from the cascade the moment it starts.
+  let track: Animation | null = null;
+  return {
+    onFrame: () => {
+      if (track !== null) return;
+      if (pageOutOfFlow()) {
+        setFromFrame();
+        return;
+      }
+      // No duration: for a progress-based timeline that means "auto", which
+      // spans the whole scroll range. fill both, so the card is still placed
+      // when the page sits at either end of it rather than snapping back to 0.
+      const range = doc.scrollHeight - doc.clientHeight;
+      track = card.animate(
+        [{ translate: `0 ${startScrollY}px` }, { translate: `0 ${startScrollY - range}px` }],
+        { timeline: new ScrollTimelineImpl({ source: doc }), fill: "both" }
+      );
+    },
+    stop: () => {
+      track?.cancel();
+      card.style.translate = "";
+    },
+  };
 }
 
 function findCase(caseId: string | null): HTMLElement | null {
@@ -328,13 +398,10 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
     // and applies before it, so it composes with the animation above instead of
     // fighting it, and it moves the card without a layout pass per frame.
     //
-    // Read through pageScrollY because the lock may still be releasing on the
-    // first frames, and a page out of flow reports scrollY 0.
-    const startScrollY = pageScrollY();
-    const trackPage = () => {
-      card.style.translate = `0 ${startScrollY - pageScrollY()}px`;
-    };
-    const stopKeepAlive = keepFramesFlowing(trackPage);
+    // Read through pageScrollY because the lock may still be releasing here, and
+    // a page out of flow reports scrollY 0.
+    const tracking = trackPageScroll(card, pageScrollY());
+    const stopKeepAlive = keepFramesFlowing(tracking.onFrame);
 
     Promise.all([travel.finished, flip.finished])
       .then(() => {
@@ -358,7 +425,7 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
       card.style.maxWidth = "";
       card.style.maxHeight = "";
       card.style.margin = "";
-      card.style.translate = "";
+      tracking.stop();
     };
   }, [closing, caseId]);
 

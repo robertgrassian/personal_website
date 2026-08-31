@@ -101,6 +101,12 @@ let outOfFlow = false;
 let lockedScrollY = 0;
 let previousBodyStyle = "";
 
+/** Whether stage two is in effect, which is to say the document has no scroll
+ *  range of its own right now. Anything measuring that range has to wait. */
+export function pageOutOfFlow(): boolean {
+  return outOfFlow;
+}
+
 /** Where the page is scrolled to, in either stage. */
 export function pageScrollY(): number {
   return outOfFlow ? lockedScrollY : window.scrollY;
