@@ -39,22 +39,17 @@ const NO_KEYBOARD_INPUT_TYPES = new Set([
   "submit",
 ]);
 
-// Whether this DEVICE has a software keyboard, as opposed to whether the
-// focused element would raise one. Both halves of stage two are answers to a
-// software keyboard: WebKit's reveal scroll of a field inside a fixed dialog,
-// and Safari's URL bar. A mouse-driven pointer raises neither, so escalating
-// there takes the document out of flow for nothing -- and a document out of
-// flow has no scroll range, which is a real change to a page whose library
-// header is `position: sticky`.
-//
-// Both conditions, so only an unambiguous mouse-driven desktop opts out: a
-// touchscreen laptop reports a coarse primary pointer or no hover and keeps
-// today's behavior.
-function hasSoftwareKeyboard(): boolean {
-  return !window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-}
-
 function wantsKeyboard(target: EventTarget | null): boolean {
+  // No element raises one where the device has no software keyboard to raise,
+  // and both halves of stage two answer to a keyboard: WebKit's reveal scroll
+  // of a field inside a fixed dialog, and Safari's URL bar. Escalating on a
+  // mouse-driven pointer takes the document out of flow for nothing, and a
+  // document out of flow has no scroll range -- a real change to a page whose
+  // library header is `position: sticky`.
+  //
+  // Both conditions, so only an unambiguous mouse-driven desktop opts out and a
+  // touchscreen laptop keeps today's behavior.
+  if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) return false;
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
   if (target instanceof HTMLTextAreaElement) return true;
@@ -102,8 +97,7 @@ export function useModalChrome<T extends HTMLElement>(
     };
 
     const onFocusIn = (e: FocusEvent) => {
-      if (!wantsKeyboard(e.target) || !hasSoftwareKeyboard()) return;
-      if (pendingEscalation !== undefined) return;
+      if (!wantsKeyboard(e.target) || pendingEscalation !== undefined) return;
       pendingEscalation = setTimeout(escalateNow, FOCUS_WITHOUT_CLICK_MS);
     };
     // Bubble phase, so it runs after the focused control's own click handler in
