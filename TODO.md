@@ -22,10 +22,6 @@ before that happens.
 
 _Confirmed defects that are not urgent enough for Up Next. Roughly severity-ordered, worst first._
 
-- [ ] **On desktop, clicking a wishlist game's notes field makes the sticky filter bar disappear.**
-      Trigger found and fixed; the symptom **does not reproduce in Chromium**, so one check in the
-      reporting browser closes this. [Details](docs/todo/wishlist-notes-sticky-filter-bar.md)
-
 - [ ] **Anyone can define a shared catalog row for everyone, because `igdb_id` is never checked
       against IGDB.** [Details](docs/todo/unverified-igdb-id-catalog.md)
 
