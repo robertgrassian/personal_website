@@ -61,7 +61,29 @@ not be one again without a capture that justifies it.
 
 ## Scroll locking
 
-`overflow: hidden` stops a finger. It does **not** stop WebKit scrolling the
+`overflow: hidden` does **not** reliably stop a finger. This doc said it did
+until 2026-08-31, on the strength of captures that all had a keyboard in them
+and so had reached stage two; reported from a phone, the shelves still scrolled
+behind an open detail card, and behind one flying home, which made it land on a
+case that had moved and snap into place as it went. Stage one therefore also
+cancels the touch itself: a non-passive `touchmove` listener on the document
+that calls `preventDefault()`, installed for as long as the lock is held.
+
+It cancels only gestures the dialog is not scrolling itself. The decision is
+made once per gesture, at `touchstart`, by walking out from the touch target to
+the body and looking for a region that is `overflow-y: auto`/`scroll` **and has
+something to scroll right now**: an empty scroller would otherwise eat the
+gesture, and a scroller that runs out mid-gesture cannot be taken back by any
+listener, which is why every scroller inside a locked surface also needs
+`overscroll-behavior: contain`. Two fingers are always let through, so a dialog
+never blocks pinch-zoom. `handlesOwnScroll` in `scrollLock.ts` is that
+decision, kept free of the DOM so `scrollLock.test.ts` can replay a chain.
+
+Not covered, and worth suspecting if the symptom comes back: momentum already in
+flight when the dialog opens. `preventDefault` reaches the next touch, not a
+glide the compositor is already running.
+
+`overflow: hidden` does not stop WebKit scrolling the
 document to "reveal" a focused field — 206px, measured — and when that field is
 inside a `position: fixed` dialog the scroll reveals nothing at all. What it
 moves is the page behind the dialog, which rises and stays risen.

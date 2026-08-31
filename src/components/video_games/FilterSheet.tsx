@@ -140,8 +140,12 @@ export function FilterSheet(props: FilterSheetProps) {
         {/* min-h-0 rather than flex-1: the sheet is sized by its content and
             only capped at 85vh, so the body must be free to shrink and scroll
             when a very long option list pushes it past the cap, without being
-            stretched when it does not. Three dropdowns rarely reach it. */}
-        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-5 py-5">
+            stretched when it does not. Three dropdowns rarely reach it.
+
+            overscroll-contain because the scroll lock hands this region its own
+            gestures: a flick past the end must stop here rather than chain to
+            the page it is holding still. */}
+        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto overscroll-contain px-5 py-5">
           {props.view === "played" && (
             <Field label="Rating">
               <FilterSelect

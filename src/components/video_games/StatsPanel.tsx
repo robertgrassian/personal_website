@@ -158,7 +158,10 @@ export function StatsPanel({
         </div>
 
         {/* Scrollable content — both panels stay mounted to preserve query state across tab switches */}
-        <div className="overflow-y-auto flex-1 px-6 py-6">
+        {/* overscroll-contain because the scroll lock hands this region its
+            own gestures: a flick past the end must stop here rather than
+            chain to the page it is holding still. */}
+        <div className="overflow-y-auto overscroll-contain flex-1 px-6 py-6">
           {/* Stats stay mounted so the SQL query survives a trip through the
               history. */}
           <div className={view === "history" ? "" : "hidden"}>
