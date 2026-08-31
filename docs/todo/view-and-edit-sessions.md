@@ -19,12 +19,15 @@ _What shipped, so it is not rebuilt:_
   unmounts, so a second private copy would sit stale after a card logs a session).
 - Across games: a "See all" link on **Recently Played** swaps `StatsPanel` into a history view.
 - Per game, owner only: "View or add play history" in `GameEditFields` swaps `GameDetailCard`'s
-  scrolling region for `GamePlayHistory` (list, "Stop Playing", and an add form). **Sessions moved
-  OUT of `GameEditFields` for a real game and stayed inline only for a promote**, because
-  `promoteAndSave` creates the row and logs the playthrough in one call and there is no game id
-  until that Save lands. Since 2026-08-31 the promote's copy sits behind an "Add play history"
-  button, opening with empty dates rather than being asked for unprompted: 2026-08-30 removed it
-  outright, which left no way at all to log the playthrough in the same press.
+  scrolling region for a second face. For a real game that face is `GamePlayHistory` (list, "Stop
+  Playing", an add form and its own session-only Save), and `GameEditFields` unmounts behind it.
+  **A promote gets the same button and the same face, but rendered by `GameEditFields` itself**
+  (`showingHistory`), because `promoteAndSave` creates the row and logs the playthrough in one
+  call: the rating, system and date drafts all have to survive the switch, so the component cannot
+  unmount and the face carries the promote's own "Save And Move To Library". The card keeps the
+  detail block in the tree, `hidden`, for the same reason. History: the fields were inline on the
+  promote form until 2026-08-30, which removed them outright and left no way to log the playthrough
+  in the same press; 2026-08-31 restored them on this face instead.
 - `SessionDateFields` owns the **"I'm still playing this"** checkbox, which makes "no end yet"
   explicit instead of a blank field nobody can see they left, and `useSessionDraft` owns the draft
   state and the four rules that decide whether it can be saved. Both call sites pass the draft and

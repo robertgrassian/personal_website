@@ -99,10 +99,13 @@ export function GameDetailCard({
   const [history, setHistory] = useState<{ stopping: boolean } | null>(
     startWithSession && subject.kind === "game" ? { stopping: false } : null
   );
+  // A promote has no rows to fetch: its history face is a draft of the first
+  // session, rendered by GameEditFields rather than by GamePlayHistory.
   const openHistory = ({ stopping }: { stopping: boolean }) => {
-    onRequestHistory();
+    if (subject.kind === "game") onRequestHistory();
     setHistory({ stopping });
   };
+  const promoteHistory = history !== null && subject.kind === "promote";
 
   // The initializer covers a card that MOUNTS on "Played?". This covers the
   // other way in: for a game already owned the subject swaps from wishlist to
@@ -293,7 +296,12 @@ export function GameDetailCard({
                   </div>
                 ) : (
                   <>
-                    <div className="px-5 pb-4 pt-2">
+                    {/* Hidden rather than unmounted while a promote's history
+                        face is up: the edit form below has to survive the
+                        switch, since the drafts it holds are what that face's
+                        Save commits. Keeping this slot in the tree, occupied by
+                        `false`, is what stops React re-mounting the form. */}
+                    <div className="px-5 pb-4 pt-2" hidden={promoteHistory}>
                       <p className="text-sm font-medium text-gray-100">
                         {systemLabel(source.system)}
                       </p>
@@ -332,7 +340,12 @@ export function GameDetailCard({
                       // panel behind them only split the card into two halves. If
                       // a bright cover ever costs the labels their contrast,
                       // --back-overlay is the lever, not another layer.
-                      <div className="border-t border-white/15 px-5 pb-4 pt-1">
+                      //
+                      // No divider on the history face: there is nothing above
+                      // it to divide from, and GamePlayHistory has none either.
+                      <div
+                        className={`px-5 pb-4 pt-1${promoteHistory ? "" : " border-t border-white/15"}`}
+                      >
                         {subject.kind === "wishlist" ? (
                           <WishlistEditFields
                             item={subject.item}
@@ -345,6 +358,7 @@ export function GameDetailCard({
                             subject={subject}
                             existingSystems={existingSystems}
                             onOpenHistory={openHistory}
+                            showingHistory={promoteHistory}
                             onClose={close}
                           />
                         )}
