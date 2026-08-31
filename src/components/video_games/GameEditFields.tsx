@@ -7,6 +7,7 @@ import { deleteGame, promoteAndSave, saveGameEdits } from "@/app/video-games/act
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
+import { SessionDateFields } from "./SessionDateFields";
 import { buttonClass, saveButtonClass } from "./formStyles";
 import { SuggestInput } from "./SuggestInput";
 import { RequiredField } from "./RequiredField";
@@ -14,9 +15,9 @@ import { RequiredField } from "./RequiredField";
 /** What these fields are editing. A wishlist entry has no library row yet, so
  *  every field below is a draft that the promote creates the row for. Both
  *  cases are deliberately the same form, differing only where a row that does
- *  not exist yet forces it: no play history to open, nothing to remove. A
- *  playthrough is logged afterwards, from the play history, rather than being
- *  asked for as a condition of the move. */
+ *  not exist yet forces it: a promote cannot open a play history that has no
+ *  rows, so it offers the same add form inline instead. Either way the move is
+ *  not conditional on saying when you played it. */
 export type EditSubject = { kind: "game"; game: Game } | { kind: "promote"; item: WishlistGame };
 
 type GameEditFieldsProps = {
@@ -62,6 +63,19 @@ export function GameEditFields({
   const [ratingDraft, setRatingDraft] = useState<Rating | "">(savedRating);
   const [systemDraft, setSystemDraft] = useState(savedSystem);
 
+  // Session draft, PROMOTE ONLY: promoteAndSave creates the row and logs the
+  // playthrough in one call, so there is no id to send a session to until this
+  // Save lands. An existing game logs from the play history view instead.
+  // Behind a disclosure so the move stays one press for anyone who only wants
+  // the move.
+  const [addingSession, setAddingSession] = useState(false);
+  const [sessionStart, setSessionStart] = useState("");
+  const [sessionEnd, setSessionEnd] = useState("");
+  // The explicit form of "no end yet", as in GamePlayHistory: an empty end date
+  // is still what reaches the API, but a blank field is not an instruction
+  // anyone can see they gave.
+  const [stillPlaying, setStillPlaying] = useState(false);
+
   const playing =
     !promoting && subject.game.currentlyPlaying && subject.game.openSessionId !== null;
 
@@ -74,19 +88,41 @@ export function GameEditFields({
   // Compared trimmed, so trailing whitespace alone is not a change. Empty is
   // never a change: a game must be filed under something.
   const systemDirty = systemDraft.trim() !== savedSystem && systemDraft.trim() !== "";
+  // Same rules as the play history's add form, so the two cannot drift.
+  const sessionDirty = promoting && sessionStart !== "";
+  // An end with no start is not "no session", it is a session whose start the
+  // user has not given yet. Without this it silently vanished on Save, because
+  // sessionDirty is false and nothing was ever sent.
+  const endWithoutStart = promoting && sessionEnd !== "" && sessionStart === "";
+  const needsEnd = sessionDirty && !stillPlaying && sessionEnd === "";
+  const datesInvalid =
+    sessionDirty && !stillPlaying && sessionEnd !== "" && sessionEnd < sessionStart;
+  const sessionProblem = endWithoutStart
+    ? "Add a start date, or clear the end date."
+    : needsEnd
+      ? "Add an end date, or tick 'I'm still playing this'."
+      : datesInvalid
+        ? "The end date is before the start date."
+        : null;
+
   // A promote is itself the change, so Save is live from the moment the form
   // opens — it just needs a system, which played_games requires.
   const hasChanges = promoting ? systemDraft.trim() !== "" : ratingDirty || systemDirty;
-  const canSave = hasChanges && !systemMissing && !isPending;
+  const canSave = hasChanges && !systemMissing && sessionProblem === null && !isPending;
 
   const save = () => {
     if (promoting) {
+      const session = sessionDirty
+        ? { startDate: sessionStart, endDate: stillPlaying ? null : sessionEnd }
+        : undefined;
+
       // The wishlist row is gone once this lands, so the subject stops
       // existing: close rather than sit on a stale item.
       run(
         () =>
           promoteAndSave(subject.item.id, systemDraft, {
             ...(ratingDirty ? { rating: ratingDraft } : {}),
+            ...(session ? { session } : {}),
           }),
         { onSuccess: onClose }
       );
@@ -164,9 +200,56 @@ export function GameEditFields({
           </p>
         )}
 
-        {/* Promote has no game row yet, so there is no history to open: the
-          playthrough gets logged from here once the move has landed. */}
-        {!promoting && (
+        {promoting ? (
+          // A promote has no row yet, so there is no history view to send it
+          // to: the same add form appears inline, and Save writes the move and
+          // the playthrough together. Behind a button rather than always shown,
+          // because the move must not read as conditional on answering this.
+          addingSession ? (
+            <>
+              {/* Wider gap than the other headings: this one closes the form. */}
+              <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
+                When Did You Play It?
+              </p>
+              <SessionDateFields
+                startDate={sessionStart}
+                endDate={stillPlaying ? "" : sessionEnd}
+                onChangeStart={setSessionStart}
+                onChangeEnd={setSessionEnd}
+                disabled={isPending}
+                endDisabled={stillPlaying}
+                problem={sessionProblem}
+              />
+              {/* The label wraps the input so the whole row is the tap target;
+                  fixed amber because this scrim is dark in both schemes. Same
+                  control as GamePlayHistory's. */}
+              <label className="mt-2 flex cursor-pointer items-center gap-2 py-1.5 text-sm text-shelf-text">
+                <input
+                  type="checkbox"
+                  checked={stillPlaying}
+                  onChange={(e) => setStillPlaying(e.target.checked)}
+                  disabled={isPending}
+                  className="h-4 w-4 shrink-0 accent-amber-400 cursor-pointer disabled:cursor-default"
+                />
+                I&apos;m still playing this
+              </label>
+            </>
+          ) : (
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                // Opens with empty dates rather than dated today: a start date
+                // makes the end one required, so a prefill would greet the
+                // press with an error message it caused itself.
+                onClick={() => setAddingSession(true)}
+                disabled={isPending}
+                className={buttonClass}
+              >
+                Add play history
+              </button>
+            </div>
+          )
+        ) : (
           // Both open the same view, Stop Playing with the close staged. Neither
           // writes on the press, so Save still owns every write.
           <div className="mt-5 flex flex-wrap gap-2">

@@ -13,17 +13,18 @@ _What shipped, so it is not rebuilt:_
   `{id, gameId, startDate, endDate}`. **Public**, decided deliberately: the derived play state
   already on `GameRead` comes from these very rows, so the raw list adds when and how often, not
   which games. `endDate` is `null` while open, breaking the `""`-for-absent convention on purpose.
-- `sessionsTag` in `libraryApi.ts`, paired with `deleteGame` and `saveGameEdits`, the latter only
-  when the Save actually touched a session. Not `promoteAndSave`, which since 2026-08-30 cannot
-  carry one.
+- `sessionsTag` in `libraryApi.ts`, paired with `deleteGame`, `saveGameEdits` and `promoteAndSave`,
+  the last two only when the Save actually touched a session.
 - `getPlayHistory` + `usePlayHistory` (**one copy, owned by `GameLibrary`** — the stats panel never
   unmounts, so a second private copy would sit stale after a card logs a session).
 - Across games: a "See all" link on **Recently Played** swaps `StatsPanel` into a history view.
 - Per game, owner only: "View or add play history" in `GameEditFields` swaps `GameDetailCard`'s
-  scrolling region for `GamePlayHistory` (list, "Stop Playing", and an add form). **Sessions are
-  now out of `GameEditFields` entirely**: they stayed inline for a promote until 2026-08-30, when
-  answering "Played?" stopped asking when you played it and became an ordinary move to the library.
-  A promoted game is logged afterwards, from its play history.
+  scrolling region for `GamePlayHistory` (list, "Stop Playing", and an add form). **Sessions moved
+  OUT of `GameEditFields` for a real game and stayed inline only for a promote**, because
+  `promoteAndSave` creates the row and logs the playthrough in one call and there is no game id
+  until that Save lands. Since 2026-08-31 the promote's copy sits behind an "Add play history"
+  button, opening with empty dates rather than being asked for unprompted: 2026-08-30 removed it
+  outright, which left no way at all to log the playthrough in the same press.
 - `SessionDateFields` gained `endDisabled`, driven by an **"I'm still playing this"** checkbox that
   makes "no end yet" explicit instead of a blank field nobody can see they left.
 
