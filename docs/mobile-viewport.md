@@ -175,12 +175,15 @@ to `element.animate`) instead states `translate` as a function of scroll offset
 over the document's whole scroll range, and the compositor evaluates it in the
 same frame it scrolls.
 
-The frame loop still starts the flight, for two reasons. Firefox has no scroll
-timeline yet, so it keeps the per-frame path. And the range that the keyframes
-are written over cannot be measured while the lock is in stage two: the body is
-out of flow, so `scrollHeight` is the viewport's and every keyframe would
-collapse onto one value. The close releases the lock a paint later, so the
-per-frame path carries the first frames and hands over once the range is real.
+The per-frame path is still there for two cases. Firefox has no scroll timeline
+yet, so it keeps it outright. And the range the keyframes are written over
+cannot be measured while the lock is in stage two: the body is out of flow, so
+`scrollHeight` is the viewport's and every keyframe would collapse onto one
+value. A close with a keyboard up is in exactly that state, because the lock is
+released a paint later than the flight is measured, so those flights run on
+frames until `pageOutOfFlow()` goes false and then hand over. Every other close
+starts on the timeline in the layout effect itself, tracked from its first
+painted frame.
 
 Pinning in document coordinates instead would make that automatic, and does not
 work: the card sits inside `ModalFrame`, which is `position: fixed`, so an

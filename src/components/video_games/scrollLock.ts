@@ -71,7 +71,7 @@ function* boxesFrom(target: EventTarget | null): Generator<ScrollBox> {
   }
 }
 
-// Decided once per gesture, at touchstart: a finger that started inside a
+// Decided when the set of fingers changes: a finger that started inside a
 // scroller keeps that answer even after the scroller runs out, which is how
 // touch scrolling already behaves.
 let touchScrolls = false;
@@ -79,6 +79,16 @@ let touchScrolls = false;
 const onTouchStart = (e: TouchEvent) => {
   // Two fingers is a pinch, and zooming has to keep working with a dialog open.
   touchScrolls = e.touches.length > 1 || handlesOwnScroll(boxesFrom(e.target));
+};
+
+const onTouchEnd = (e: TouchEvent) => {
+  // Lifting a finger fires no touchstart, so without this the pinch exemption
+  // above outlives the pinch: rest a second finger anywhere, lift it, and the
+  // first finger would go on panning the page for the rest of the gesture with
+  // the dialog still up. Whatever is left decides again, from where IT started.
+  if (e.touches.length > 1) return;
+  const remaining = e.touches[0];
+  touchScrolls = remaining !== undefined && handlesOwnScroll(boxesFrom(remaining.target));
 };
 
 const onTouchMove = (e: TouchEvent) => {
@@ -95,6 +105,7 @@ const onTouchMove = (e: TouchEvent) => {
 // where preventDefault does nothing at all.
 const TOUCH_START_OPTIONS: AddEventListenerOptions = { capture: true, passive: true };
 const TOUCH_MOVE_OPTIONS: AddEventListenerOptions = { capture: true, passive: false };
+const TOUCH_END_OPTIONS: AddEventListenerOptions = { capture: true, passive: true };
 
 let depth = 0;
 let outOfFlow = false;
@@ -167,6 +178,8 @@ export function lockScroll(): () => void {
     touchScrolls = false;
     document.addEventListener("touchstart", onTouchStart, TOUCH_START_OPTIONS);
     document.addEventListener("touchmove", onTouchMove, TOUCH_MOVE_OPTIONS);
+    document.addEventListener("touchend", onTouchEnd, TOUCH_END_OPTIONS);
+    document.addEventListener("touchcancel", onTouchEnd, TOUCH_END_OPTIONS);
   }
 
   return () => {
@@ -176,6 +189,8 @@ export function lockScroll(): () => void {
     outOfFlow = false;
     document.removeEventListener("touchstart", onTouchStart, TOUCH_START_OPTIONS);
     document.removeEventListener("touchmove", onTouchMove, TOUCH_MOVE_OPTIONS);
+    document.removeEventListener("touchend", onTouchEnd, TOUCH_END_OPTIONS);
+    document.removeEventListener("touchcancel", onTouchEnd, TOUCH_END_OPTIONS);
     // cssText, not six assignments: it restores exactly what was there,
     // including nothing, rather than a hardcoded default.
     document.body.style.cssText = previousBodyStyle;

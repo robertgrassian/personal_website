@@ -233,7 +233,9 @@
   min-width: 0;
 }
 .game-card-flight[data-phase="flight"] {
-  will-change: transform;
+  /* Both, because the return flight drives them separately: `transform` is the
+     travel, `translate` is the page tracking under it. */
+  will-change: transform, translate;
   /* No stray taps on a card that is still moving. */
   pointer-events: none;
 }
