@@ -20,6 +20,14 @@ export type PlayHistoryState = {
 // `enabled` is an argument because hooks cannot be called conditionally: it is
 // what keeps a page that never opens a history from fetching one, which is the
 // reason this is a separate read at all.
+//
+// KNOWN GAP: GameLibrary owns the only instance, so CurrentlyPlayingSection,
+// which is its sibling under LibraryPage, cannot call refresh(). Someone who
+// opened Stats -> Play History earlier in the visit and then starts or stops a
+// game from the currently-playing panel keeps the stale session list until a
+// reload. revalidateTag does not reach this copy. The fix, if it ever matters,
+// is to hoist this into a provider mounted by LibraryPage and consumed by both;
+// that was not worth refactoring an unrelated component for a one-visit window.
 export function usePlayHistory(enabled: boolean): PlayHistoryState {
   const username = useLibraryOwnerUsername();
   const [sessions, setSessions] = useState<PlaySession[]>([]);

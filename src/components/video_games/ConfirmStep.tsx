@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { buttonClass, dangerButtonClass, dangerSubtleButtonClass } from "./formStyles";
 
-// A destructive action behind a two-step confirm: a quiet red link that swaps
-// itself for a prompt plus Remove / Cancel.
+// An action behind a two-step confirm: a quiet trigger that swaps itself for a
+// prompt plus Confirm / Cancel. Red by default, since removes were the only
+// callers for a long time; see `tone` for the neutral case.
 //
 // The step state lives here rather than in the parent, because this markup is
 // the only thing that reads it. Hoisting it would give each modal a boolean to
@@ -45,6 +46,12 @@ type ConfirmStepProps = {
   /** "outlined" standalone; "subtle" is smaller and tinted, for a trigger
    *  sharing a row with a Save that must stay the default action. */
   triggerVariant?: "outlined" | "subtle";
+  /** "danger" paints both halves red, for an action that destroys a row.
+   *  "neutral" is the same two steps in the ordinary button colors, for one
+   *  that is merely worth a second look: the currently-playing panel closes a
+   *  session behind this, which ends something but deletes nothing, and red
+   *  would overstate it next to the real removes. */
+  tone?: "danger" | "neutral";
   /** Where the confirm renders. "inline" replaces the trigger and grows the
    *  container, which is right on a page that can simply get taller. "sheet"
    *  keeps the trigger's box and raises the prompt from the bottom edge of the
@@ -74,11 +81,18 @@ export function ConfirmStep({
   error = null,
   triggerClassName = "",
   triggerVariant = "outlined",
+  tone = "danger",
   layout = "inline",
   onConfirmingChange,
 }: ConfirmStepProps) {
   const [confirming, setConfirming] = useState(false);
   const sheet = layout === "sheet";
+  // formStyles has no subtle neutral recipe, so a neutral confirm is outlined
+  // whichever variant is asked for. Add the class here if a call site ever
+  // needs the tinted version rather than letting the two drift.
+  const actionClass = tone === "neutral" ? buttonClass : dangerButtonClass;
+  const triggerClass =
+    tone === "danger" && triggerVariant === "subtle" ? dangerSubtleButtonClass : actionClass;
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   // Which way the step last moved, so the effect below can tell a close from
@@ -100,11 +114,13 @@ export function ConfirmStep({
   const cancelRef = useRef(cancel);
   cancelRef.current = cancel;
 
-  // Focus follows the sheet: the trigger it replaced is invisible by then, so
-  // focus would otherwise fall to the document, and there is no focus trap to
-  // catch the next Tab. The panel takes it rather than a button inside it,
-  // since Cancel would read as the suggested action and the confirm must never
-  // be pre-focused.
+  // Focus follows the step, in BOTH layouts: the trigger it replaced is either
+  // invisible (sheet) or unmounted (inline), so focus would otherwise fall to
+  // the document, and there is no focus trap to catch the next Tab. Inline
+  // needs it at least as much, since that layout is used inside a scrolling
+  // list of rows, where landing on the document loses your place entirely.
+  // The panel takes focus rather than a button inside it, since Cancel would
+  // read as the suggested action and the confirm must never be pre-focused.
   //
   // preventScroll on both moves: WebKit scrolls the DOCUMENT to reveal a newly
   // focused element, and this one is inside a `position: fixed` dialog, so the
@@ -113,11 +129,10 @@ export function ConfirmStep({
   // for fields that raise a keyboard, because it costs Safari its collapsed URL
   // bar; see docs/mobile-viewport.md.
   useEffect(() => {
-    if (!sheet) return;
     if (confirming) panelRef.current?.focus({ preventScroll: true });
     else if (wasConfirming.current) triggerRef.current?.focus({ preventScroll: true });
     wasConfirming.current = confirming;
-  }, [sheet, confirming]);
+  }, [confirming]);
 
   // A press anywhere on the card that is not the sheet backs out of it, which
   // is what a sheet's scrim would do if it had one.
@@ -150,9 +165,9 @@ export function ConfirmStep({
       // invisible, not unmounted: visibility:hidden keeps the button's box, so
       // the row it sits in stays exactly as tall as before, and drops it out of
       // the tab order at the same time.
-      className={`${triggerClassName} ${
-        triggerVariant === "subtle" ? dangerSubtleButtonClass : dangerButtonClass
-      } ${sheet && confirming ? "invisible" : ""}`.trim()}
+      className={`${triggerClassName} ${triggerClass} ${
+        sheet && confirming ? "invisible" : ""
+      }`.trim()}
     >
       {triggerLabel}
     </button>
@@ -161,8 +176,9 @@ export function ConfirmStep({
   const panel = (
     <div
       ref={panelRef}
-      // Script-focusable, and only in the layout whose effect above focuses it.
-      tabIndex={sheet ? -1 : undefined}
+      // Script-focusable so the effect above can move focus here. Not in the
+      // tab order: -1 means reachable by script, skipped by Tab.
+      tabIndex={-1}
       className={
         sheet
           ? // Out of flow, so nothing here can change the card's height, and
@@ -173,7 +189,7 @@ export function ConfirmStep({
             // form behind it, which a scrim alone only ghosted.
             "game-card-confirm absolute inset-x-0 bottom-0 z-30 border-t border-shelf-plank " +
             "bg-black/45 backdrop-blur-md px-5 py-4 focus:outline-none"
-          : "mt-3 w-full"
+          : "mt-3 w-full focus:outline-none"
       }
     >
       <p className="text-sm text-shelf-text">{prompt}</p>
@@ -187,7 +203,7 @@ export function ConfirmStep({
           type="button"
           onClick={onConfirm}
           disabled={disabled || confirmDisabled}
-          className={dangerButtonClass}
+          className={actionClass}
         >
           {confirmLabel}
         </button>

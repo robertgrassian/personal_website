@@ -16,7 +16,7 @@ import {
   targetsForeignEnvironmentApi,
 } from "@/lib/libraryApi";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
-import { CrtTv } from "@/components/crt/CrtTv";
+import { CurrentlyPlayingSection } from "./CurrentlyPlayingSection";
 import { LibraryCount, LibraryCountFallback } from "@/components/video_games/LibraryCount";
 import { AuthButton } from "@/components/AuthButton";
 import {
@@ -150,7 +150,7 @@ export async function LibraryPage({
           useIsLikelyOwner() from this context to decide whether to render edit
           controls. Spanning a server-rendered subtree costs nothing, because
           `children` is a serialized RSC slot rather than an import — SignupCta
-          and CrtTv ship no extra JavaScript, and when `relationship` resolves
+          ships no extra JavaScript, and when `relationship` resolves
           React re-renders only the provider, since this server parent created
           the child elements. */}
       {/* Local always, preview only on the owner's own shelf, production never.
@@ -280,7 +280,12 @@ export async function LibraryPage({
           </div>
           {showSignupCta && <SignupCta />}
 
-          {currentlyPlayingGames.length > 0 && <CrtTv games={currentlyPlayingGames} compact />}
+          {/* Owns the CRT slot: whether the set shows with nothing playing,
+              and whether its label opens the manage panel, are both questions
+              about the viewer, which only a client component can answer.
+              `games` is the SAME array GameLibrary gets below, so the two props
+              share their rows in the Flight payload rather than doubling it. */}
+          <CurrentlyPlayingSection games={games} currentlyPlayingGames={currentlyPlayingGames} />
 
           {/* Suspense is required because GameLibrary uses useSearchParams() */}
           <Suspense fallback={null}>

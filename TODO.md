@@ -38,11 +38,6 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 ## Backlog / Ideas
 
-- [ ] **A "currently playing" view: see everything open, close any of it, start something new,
-      from one place.** Not two systems: an open session with no end date IS currently-playing.
-      Absorbs **Library-level "create session" button**.
-      [Details](docs/todo/currently-playing-manager.md)
-
 - [ ] **A site email address for feedback, so people without a GitHub account can report bugs and
       ideas.** `/privacy` already publishes `rgrassian@gmail.com` twice, so an address exists: what
       is missing is one that is not a personal inbox, and any link to it from the library.
@@ -117,9 +112,6 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 - [ ] **A username rename feature must delete `usernameByUserId` (`src/lib/meApi.ts`).**
       [Details](docs/todo/username-rename-cache-delete.md)
-
-- [ ] Library-level "create session" button (owner-only), for any game without opening its edit
-      modal. [Details](docs/todo/library-create-session-button.md)
 
 - [ ] Profile pictures for user accounts (post-v1: likely Supabase Storage plus an upload/crop flow,
       shown in the profile header and follower lists)
