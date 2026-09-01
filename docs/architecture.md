@@ -75,9 +75,19 @@ date from IGDB and Wikipedia and stamps them. It is bounded by a row cap and a
 wall-clock budget deliberately smaller than `REQUEST_TIMEOUT_MS` in
 `libraryApi.ts`, since overrunning that fails the render rather than degrading
 it. The rules are in that module; the reason it lives on the read path is that
-serving a page is the only regular event this site has. Note the consequence of
-the caching below it: a library nobody visits and nobody edits never refreshes,
-because nothing ever reaches Postgres to notice.
+serving a page is the only regular event this site has.
+
+Two consequences of sitting under the cache, both accepted:
+
+- **A library nobody visits and nobody edits never refreshes**, because nothing
+  ever reaches Postgres to notice it has gone stale.
+- **A refresh cannot invalidate anyone else's cached page.** Catalog rows are
+  shared, so re-sourcing one while serving user A also changes what user B's
+  library should say — but the tags are revalidated from `actions.ts`, which
+  runs in Next, and the API has no way to reach it. B's page keeps the old
+  values until something B does purges the tag. This is the one place the
+  "pair every write with its tag" rule in `.claude/CLAUDE.md` cannot be
+  followed, rather than an oversight.
 
 Filtering, grouping and sorting happen **client-side**, after the fetch, in
 `components/video_games/pipeline.ts` — pure functions over the already-loaded

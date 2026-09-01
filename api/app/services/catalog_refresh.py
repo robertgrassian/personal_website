@@ -26,15 +26,22 @@ view pays two network round trips forever, for a value that does not exist
 yet. A day still notices an announcement about 364 times sooner than anyone
 would by hand. Set INCOMPLETE_RETRY_AFTER to timedelta(0) for literal "always".
 
-**At most MAX_ROWS_PER_READ rows, inside a wall-clock budget.** The caller here
-is a Server Component render with a five-second abort (REQUEST_TIMEOUT_MS in
-src/lib/libraryApi.ts), and blowing that budget does not degrade the page, it
-fails it. The budget is checked before each row AND before the Wikipedia leg of
-one, so a slow IGDB costs the genre lookup rather than the page.
+**At most MAX_ROWS_PER_READ rows, inside a wall-clock budget that is really
+enforced.** The caller is a Server Component render with a five-second abort
+(REQUEST_TIMEOUT_MS in src/lib/libraryApi.ts), and overrunning it does not
+degrade the page, it fails it -- and aborting the fetch does not stop this
+function, so the server finishes the work for a page nobody will see. What is
+left of the budget is therefore divided up and handed to each HTTP call as its
+own timeout, rather than merely consulted between calls: a leg starting at 1.4s
+with a 2s ceiling of its own returns at 3.4s, which bounds nothing. The IGDB
+leg additionally refuses to mint a Twitch token, since that call carries a
+ten-second ceiling no timeout argument reaches.
 
-**The stamp is written before the lookups, not after** (repositories/catalog.py
-explains why). So a failure is an attempt, and the worst a wedged third party
-can do is cost one row's timeout per read.
+**The stamp is written before the lookups, and conditionally**
+(repositories/catalog.py explains both). So a failure is an attempt, and a
+burst of simultaneous readers -- who all sort the due rows identically and
+would otherwise all pick the same one -- produces a single winner rather than a
+fan-out at IGDB.
 
 What is NOT refreshed, deliberately: the game's NAME. IGDB's title is often not
 this library's (scripts/backfill_titles.py is the hand-checked list of where it
@@ -54,9 +61,9 @@ import logging
 import time
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.core.db import get_sessionmaker
 from app.models import GameMetadata
 from app.models.game import MAX_GENRE_LENGTH
 from app.repositories import catalog as catalog_repo
@@ -82,16 +89,20 @@ INCOMPLETE_RETRY_AFTER = timedelta(days=1)
 # scripts.
 MAX_ROWS_PER_READ = 2
 
-# Wall-clock ceiling on the whole refresh, checked before each outbound leg.
-# Well under the caller's five-second abort, since the library query and the
-# JSON serialization also have to fit inside it.
+# Wall-clock ceiling on the whole refresh. Real rather than advisory: what is
+# left of it is divided up and pushed into the HTTP calls as their timeouts, so
+# the ceiling holds even when both third parties hang. Checking the clock
+# BETWEEN legs, which is what this did first, bounds nothing at all -- a leg
+# that starts at 1.4s with a 2s timeout of its own still returns at 3.4s.
 BUDGET = timedelta(seconds=1.5)
 
-# Per-request ceilings for the two third parties, tighter than their defaults
-# (10s and 8s) for the same reason: those are sized for a browser waiting on a
-# search box, not for a page render that has already spent part of its budget.
-IGDB_TIMEOUT = 2.0
-WIKIPEDIA_TIMEOUT = 2.0
+# Below this there is no point starting a leg: a sub-300ms timeout would fail
+# almost every real request while still costing the wait.
+MIN_LEG = 0.3
+
+# lookup_one makes two sequential requests (search, then lead sections), so its
+# share is halved again to bound the leg rather than one call inside it.
+WIKIPEDIA_CALLS = 2
 
 
 def is_incomplete(meta: GameMetadata) -> bool:
@@ -116,14 +127,28 @@ def is_due(meta: GameMetadata, now: datetime) -> bool:
 def _due_rows(rows: list[GameMetadata], now: datetime) -> list[GameMetadata]:
     """The rows worth refreshing, worst first, capped.
 
-    Incomplete before merely old: a missing release date is a visible hole in
-    the page, while a stale platform list is a detail on the back of a case.
-    Oldest check first within each group, so a library that is behind rotates
+    Two queues rather than one sorted list, and that is the whole point. Some
+    rows are incomplete PERMANENTLY -- a variant row's platforms stay empty by
+    design, IGDB has no cover for plenty of games, a title Wikipedia cannot
+    resolve confidently never gets genres. Those come due again every day, so a
+    single list sorted incomplete-first hands them every slot forever and no
+    merely-stale row is ever refreshed at all. Reserving half the slots for each
+    queue means neither can starve the other; whichever queue is empty gives its
+    slots to the other.
+
+    Oldest check first within each queue, so a library that is behind rotates
     through its rows instead of re-picking the same one every read.
     """
-    due = [meta for meta in rows if is_due(meta, now)]
-    due.sort(key=lambda meta: (not is_incomplete(meta), meta.refreshed_at))
-    return due[:MAX_ROWS_PER_READ]
+    due = sorted((r for r in rows if is_due(r, now)), key=lambda meta: meta.refreshed_at)
+    incomplete = [meta for meta in due if is_incomplete(meta)]
+    stale = [meta for meta in due if not is_incomplete(meta)]
+    reserved = MAX_ROWS_PER_READ // 2
+    picked = incomplete[:reserved] + stale[:reserved]
+    # Whatever the reservation left unused, filled from either queue. Incomplete
+    # first here: with both queues non-empty this never fires, so it only
+    # decides how a one-sided library spends its slots.
+    spare = incomplete[reserved:] + stale[reserved:]
+    return (picked + spare)[:MAX_ROWS_PER_READ]
 
 
 def _platforms_to_write(db: Session, meta: GameMetadata, fetched: list[str]) -> list[str] | None:
@@ -188,35 +213,53 @@ def _cover_to_write(meta: GameMetadata, fetched: str) -> str | None:
         return None
 
 
-def _refresh_row(db: Session, meta: GameMetadata, deadline: float) -> None:
-    """Re-source one catalog row.
+def _remaining(deadline: float) -> float:
+    return deadline - time.monotonic()
+
+
+def _refresh_row(work: Session, meta: GameMetadata, deadline: float) -> bool:
+    """Re-source one catalog row. True if anything was written.
+
+    ``work`` is the refresh's OWN session, never the request's -- see
+    refresh_stale_rows. ``meta`` belongs to the request's session and is read
+    from, never written to or attached here.
 
     The two lookups swallow their own failures, so what can still escape here
     is the database. The caller catches it: this rides on a public read, and a
     failed repair must not turn someone's library into a 500.
     """
-    catalog_repo.claim_for_refresh(db, meta)
+    if not catalog_repo.claim_for_refresh(work, meta.id, meta.refreshed_at):
+        # Another reader is already refreshing this row, this second.
+        return False
 
-    facts = igdb_service.lookup_game_facts(db, meta.igdb_id, timeout=IGDB_TIMEOUT)
-    # Ends the transaction the claim's commit left autobegun by the lookup's
-    # token read, so the Wikipedia call below does not span an open one.
-    db.rollback()
+    igdb_budget = _remaining(deadline)
+    facts = (
+        igdb_service.lookup_game_facts(work, meta.igdb_id, timeout=igdb_budget)
+        if igdb_budget >= MIN_LEG
+        else None
+    )
+    # The token read above autobegan a transaction on the work session; end it
+    # rather than letting it span the Wikipedia call. Safe here in a way it was
+    # not on the request's session, where a rollback expires every loaded row
+    # and turns the response build into an N+1 over the whole library.
+    work.rollback()
 
-    # The genre leg is two more requests, so it is the part that gets dropped
-    # when IGDB has already eaten the budget. Skipping it costs this row its
-    # genres until the next time it comes due, which is the cheap half of the
-    # trade against failing the page.
+    # The genre leg is two more requests, so it is what gets dropped when IGDB
+    # has already eaten the budget. Skipping it costs this row its genres until
+    # it next comes due, which is the cheap half of the trade against a page
+    # that fails to render.
     wiki_genres: list[str] = []
-    if time.monotonic() < deadline:
-        wiki_genres = genre_service.lookup_one(meta.name, timeout=WIKIPEDIA_TIMEOUT)
+    wiki_budget = _remaining(deadline) / WIKIPEDIA_CALLS
+    if wiki_budget >= MIN_LEG:
+        wiki_genres = genre_service.lookup_one(meta.name, timeout=wiki_budget)
 
-    catalog_repo.apply_refresh(
-        db,
-        meta,
+    return catalog_repo.apply_refresh(
+        work,
+        meta.id,
         # A game IGDB has no date for keeps the one it has; a date IGDB has
         # MOVED is taken, which is the delayed-release case.
         release_date=facts.release_date if facts else None,
-        platforms=_platforms_to_write(db, meta, facts.platforms) if facts else None,
+        platforms=_platforms_to_write(work, meta, facts.platforms) if facts else None,
         image_url=_cover_to_write(meta, facts.cover_url) if facts else None,
         genres=_genres_to_write(wiki_genres),
     )
@@ -225,27 +268,43 @@ def _refresh_row(db: Session, meta: GameMetadata, deadline: float) -> None:
 def refresh_stale_rows(db: Session, rows: list[GameMetadata]) -> None:
     """Re-source the most out-of-date rows among the ones this read loaded.
 
-    Mutates the passed rows in place, so the response being composed carries
-    the new values rather than showing them a request late. That matters more
-    than it looks: the library reads are cached until a write revalidates their
-    tag, so a value that misses this response may not be asked for again for a
+    ``db`` is the request's session, and this borrows it for exactly one thing:
+    expiring the rows it changed, so the response being composed reads the new
+    values rather than showing them a request late. That matters more than it
+    looks, because the library reads are cached until a write revalidates their
+    tag: a value that misses this response may not be asked for again for a
     long time.
+
+    Everything else happens on a SESSION OF ITS OWN. The refresh has to end its
+    transaction before calling Wikipedia, and Session.rollback() expires every
+    object in its identity map -- `expire_on_commit=False` does not cover it.
+    On the request's session that would silently expire all ~155 loaded rows
+    mid-request, so building the response would reload each of them one at a
+    time. A separate session also means a failure in here cannot leave the
+    request's session poisoned for the queries that follow.
     """
-    now = datetime.now(UTC)
+    due = _due_rows(rows, datetime.now(UTC))
+    if not due:
+        # The overwhelming majority of reads. Nothing above this line has
+        # touched the network or the database.
+        return
     deadline = time.monotonic() + BUDGET.total_seconds()
-    for meta in _due_rows(rows, now):
-        if time.monotonic() >= deadline:
-            return
-        try:
-            _refresh_row(db, meta, deadline)
-        except Exception:
-            # Broad on purpose, and the same rule the lookups themselves follow:
-            # this is optional repair work riding on someone's page load, so a
-            # database error or a bug in here must degrade to "not refreshed"
-            # rather than turning a public library into a 500.
-            logger.exception("Catalog refresh failed for %r (id=%s)", meta.name, meta.id)
+    with get_sessionmaker()() as work:
+        for meta in due:
+            if _remaining(deadline) < MIN_LEG:
+                return
+            # Captured before the work starts: on the failure path below, meta
+            # may be unreadable, and a logger call that lazy-loads an attribute
+            # would raise from inside the handler meant to contain the failure.
+            name, row_id = meta.name, meta.id
             try:
-                db.rollback()
-            except SQLAlchemyError:
-                logger.exception("Rollback after a failed catalog refresh also failed")
+                if _refresh_row(work, meta, deadline):
+                    db.expire(meta)
+            except Exception:
+                # Broad on purpose, and the same rule the lookups themselves
+                # follow: this is optional repair work riding on someone's page
+                # load, so a database error or a bug in here must degrade to
+                # "not refreshed" rather than turning a public library into a
+                # 500. The work session is discarded either way.
+                logger.exception("Catalog refresh failed for %r (id=%s)", name, row_id)
                 return

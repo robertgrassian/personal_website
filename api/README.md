@@ -71,6 +71,11 @@ reasoning behind the shape, which the models themselves don't record.
   `scripts/backfill_genres.py`, which is a repair tool rather than the only source of good
   genres. Hand-entered games keep whatever the owner typed; the lookup runs only if they
   left it blank.
+  <br>
+  Note what the staleness refresh below does to that fallback: on a SHARED row it has a
+  30-day half-life, because the next refresh replaces the client's genres with whatever
+  Wikipedia says by then. Same for a release date, which IGDB re-asserts. Private rows are
+  never refreshed, so a hand-entered game does keep what its owner typed, permanently.
 - **`game_metadata.refreshed_at` is when the row was last re-sourced, and a read
   is what re-sources it.** The catalog stores facts that change after an add: a
   wishlisted game gets a release date, a game ships on another console, a genre

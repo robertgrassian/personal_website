@@ -47,11 +47,11 @@ pressed "add".
 
 So reading a library is also how it repairs itself. Every catalog row carries
 the timestamp of the last time IGDB and Wikipedia were asked about it. When a
-library is fetched, the two or three rows most out of date get re-sourced right
-then, and the answers land in that same response. A row that is missing
-something it could know (no release date, no genres, no platform list, no cover)
-is re-checked daily; a row with all four is left alone for a month, because the
-things that change about a released game change slowly.
+library is fetched, the handful of rows most out of date get re-sourced right
+then, and the answers land in that same response. A row missing something it
+could know (no release date, no genres, no platform list, no cover) comes back
+round quickly; a row with all four waits far longer, because the things that
+change about a released game change slowly.
 
 The bounds are the interesting part, because this runs inside a page load that
 a visitor is waiting on. At most a couple of rows per read, inside a wall-clock

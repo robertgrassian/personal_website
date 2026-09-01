@@ -5,7 +5,9 @@ seams, and they are stubbed.
 """
 
 import time
+import uuid
 from datetime import UTC, date, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 
@@ -13,9 +15,15 @@ from app.models import GameMetadata
 from app.services import catalog_refresh
 from app.services import genres as genre_service
 from app.services import igdb as igdb_service
+from app.services import users as users_service
 from app.services.igdb import IgdbGameFacts
 
 NOW = datetime(2026, 9, 1, tzinfo=UTC)
+
+# Bound at import, which is BEFORE conftest's autouse stub_catalog_refresh
+# replaces the module attribute. This module is the one place that exercises
+# the real implementation rather than being protected from it.
+refresh_stale_rows = catalog_refresh.refresh_stale_rows
 
 
 def make_row(**overrides) -> GameMetadata:
@@ -39,7 +47,17 @@ def make_row(**overrides) -> GameMetadata:
 
 class FakeSession:
     """Just enough Session for the refresh: it commits and rolls back through
-    the repository, which is itself stubbed out in these tests."""
+    the repository, which is itself stubbed out in these tests. ``expired``
+    records what the refresh asked the REQUEST's session to re-read."""
+
+    def __init__(self) -> None:
+        self.expired: list[int] = []
+
+    def __enter__(self) -> "FakeSession":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        pass
 
     def rollback(self) -> None:
         pass
@@ -47,19 +65,26 @@ class FakeSession:
     def commit(self) -> None:
         pass
 
+    def expire(self, obj) -> None:
+        self.expired.append(obj.id)
+
 
 @pytest.fixture
 def stub_repo(monkeypatch: pytest.MonkeyPatch) -> dict:
     """Replace the repository with a recorder, so a test can assert on the
-    claim and the write without a database."""
-    calls: dict = {"claimed": [], "applied": [], "systems": set()}
+    claim and the write without a database. Also stands in for the work
+    session the refresh opens for itself, which would otherwise need a real
+    DATABASE_URL."""
+    monkeypatch.setattr(catalog_refresh, "get_sessionmaker", lambda: FakeSession)
+    calls: dict = {"claimed": [], "applied": [], "systems": set(), "claim_wins": True}
 
-    def claim(db, meta):
-        calls["claimed"].append(meta.id)
-        return NOW
+    def claim(db, metadata_id, seen_stamp):
+        calls["claimed"].append((metadata_id, seen_stamp))
+        return calls["claim_wins"]
 
-    def apply(db, meta, **fields):
+    def apply(db, metadata_id, **fields):
         calls["applied"].append(fields)
+        return any(value is not None for value in fields.values())
 
     monkeypatch.setattr(catalog_refresh.catalog_repo, "claim_for_refresh", claim)
     monkeypatch.setattr(catalog_refresh.catalog_repo, "apply_refresh", apply)
@@ -196,13 +221,13 @@ class TestRefreshStaleRows:
         monkeypatch.setattr(
             igdb_service,
             "lookup_game_facts",
-            lambda db, igdb_id, timeout=None: IgdbGameFacts(
+            lambda db, igdb_id, *, timeout: IgdbGameFacts(
                 release_date=date(2026, 10, 1), platforms=[], cover_url=""
             ),
         )
-        monkeypatch.setattr(genre_service, "lookup_one", lambda name, timeout=None: [])
+        monkeypatch.setattr(genre_service, "lookup_one", lambda name, *, timeout: [])
 
-        catalog_refresh.refresh_stale_rows(FakeSession(), [row])
+        refresh_stale_rows(FakeSession(), [row])
 
         assert stub_repo["applied"] == [
             {
@@ -219,14 +244,12 @@ class TestRefreshStaleRows:
         # Otherwise a game with no announced date would be retried on every
         # single read for as long as it stays unannounced.
         row = make_row(release_date=None, refreshed_at=NOW - timedelta(days=2))
-        monkeypatch.setattr(
-            igdb_service, "lookup_game_facts", lambda db, igdb_id, timeout=None: None
-        )
-        monkeypatch.setattr(genre_service, "lookup_one", lambda name, timeout=None: [])
+        monkeypatch.setattr(igdb_service, "lookup_game_facts", lambda db, igdb_id, *, timeout: None)
+        monkeypatch.setattr(genre_service, "lookup_one", lambda name, *, timeout: [])
 
-        catalog_refresh.refresh_stale_rows(FakeSession(), [row])
+        refresh_stale_rows(FakeSession(), [row])
 
-        assert stub_repo["claimed"] == [row.id]
+        assert [claimed_id for claimed_id, _ in stub_repo["claimed"]] == [row.id]
         assert stub_repo["applied"] == [
             {"release_date": None, "platforms": None, "image_url": None, "genres": None}
         ]
@@ -237,7 +260,7 @@ class TestRefreshStaleRows:
             raise AssertionError("a fresh library must not reach a third party")
 
         monkeypatch.setattr(igdb_service, "lookup_game_facts", explode)
-        catalog_refresh.refresh_stale_rows(FakeSession(), [make_row(), make_row(id=2)])
+        refresh_stale_rows(FakeSession(), [make_row(), make_row(id=2)])
         assert stub_repo["claimed"] == []
 
     def test_a_spent_budget_drops_the_genre_leg_rather_than_the_row(
@@ -245,7 +268,7 @@ class TestRefreshStaleRows:
     ):
         row = make_row(genres=[], refreshed_at=NOW - timedelta(days=2))
 
-        def slow_igdb(db, igdb_id, timeout=None):
+        def slow_igdb(db, igdb_id, *, timeout):
             # Stand in for IGDB eating the whole budget.
             monkeypatch.setattr(time, "monotonic", lambda: float("inf"))
             return IgdbGameFacts(release_date=None, platforms=[], cover_url="")
@@ -254,21 +277,184 @@ class TestRefreshStaleRows:
         monkeypatch.setattr(
             genre_service,
             "lookup_one",
-            lambda name, timeout=None: pytest.fail("Wikipedia must not be called past the budget"),
+            lambda name, *, timeout: pytest.fail("Wikipedia must not be called past the budget"),
         )
 
-        catalog_refresh.refresh_stale_rows(FakeSession(), [row])
+        refresh_stale_rows(FakeSession(), [row])
 
         assert stub_repo["applied"][0]["genres"] is None
 
     def test_a_broken_row_does_not_fail_the_read(self, stub_repo, monkeypatch: pytest.MonkeyPatch):
         row = make_row(release_date=None, refreshed_at=NOW - timedelta(days=2))
 
-        def broken(db, meta):
+        def broken(db, metadata_id, seen_stamp):
             raise RuntimeError("database went away")
 
         monkeypatch.setattr(catalog_refresh.catalog_repo, "claim_for_refresh", broken)
 
-        catalog_refresh.refresh_stale_rows(FakeSession(), [row])  # must not raise
+        refresh_stale_rows(FakeSession(), [row])  # must not raise
 
         assert stub_repo["applied"] == []
+
+
+class TestClaiming:
+    def test_losing_the_claim_skips_the_row_entirely(
+        self, stub_repo, monkeypatch: pytest.MonkeyPatch
+    ):
+        # Another reader got there first. Without this, a burst of concurrent
+        # readers all sort the due rows the same way and all pay for the same
+        # row at IGDB.
+        stub_repo["claim_wins"] = False
+        monkeypatch.setattr(
+            igdb_service,
+            "lookup_game_facts",
+            lambda db, igdb_id, *, timeout: pytest.fail("a lost claim must not reach IGDB"),
+        )
+        row = make_row(release_date=None, refreshed_at=NOW - timedelta(days=2))
+
+        refresh_stale_rows(FakeSession(), [row])
+
+        assert stub_repo["applied"] == []
+
+    def test_the_claim_is_conditional_on_the_stamp_that_was_read(
+        self, stub_repo, monkeypatch: pytest.MonkeyPatch
+    ):
+        seen = NOW - timedelta(days=2)
+        row = make_row(release_date=None, refreshed_at=seen)
+        monkeypatch.setattr(igdb_service, "lookup_game_facts", lambda db, igdb_id, *, timeout: None)
+        monkeypatch.setattr(genre_service, "lookup_one", lambda name, *, timeout: [])
+
+        refresh_stale_rows(FakeSession(), [row])
+
+        assert stub_repo["claimed"] == [(row.id, seen)]
+
+
+class TestRequestSessionIsolation:
+    def test_a_written_row_is_expired_so_the_response_shows_it(
+        self, stub_repo, monkeypatch: pytest.MonkeyPatch
+    ):
+        row = make_row(release_date=None, refreshed_at=NOW - timedelta(days=2))
+        monkeypatch.setattr(
+            igdb_service,
+            "lookup_game_facts",
+            lambda db, igdb_id, *, timeout: IgdbGameFacts(
+                release_date=date(2026, 10, 1), platforms=[], cover_url=""
+            ),
+        )
+        monkeypatch.setattr(genre_service, "lookup_one", lambda name, *, timeout: [])
+        request_session = FakeSession()
+
+        refresh_stale_rows(request_session, [row])
+
+        assert request_session.expired == [row.id]
+
+    def test_a_refresh_that_writes_nothing_does_not_expire_anything(
+        self, stub_repo, monkeypatch: pytest.MonkeyPatch
+    ):
+        # Expiring costs the response a re-SELECT, so it is only worth it when
+        # something actually changed.
+        row = make_row(release_date=None, refreshed_at=NOW - timedelta(days=2))
+        monkeypatch.setattr(igdb_service, "lookup_game_facts", lambda db, igdb_id, *, timeout: None)
+        monkeypatch.setattr(genre_service, "lookup_one", lambda name, *, timeout: [])
+        request_session = FakeSession()
+
+        refresh_stale_rows(request_session, [row])
+
+        assert request_session.expired == []
+
+    def test_the_request_session_is_never_rolled_back(
+        self, stub_repo, monkeypatch: pytest.MonkeyPatch
+    ):
+        # Session.rollback() expires every object in its identity map, which on
+        # the request's session means reloading the whole library one row at a
+        # time while the response is being built.
+        row = make_row(release_date=None, refreshed_at=NOW - timedelta(days=2))
+        monkeypatch.setattr(igdb_service, "lookup_game_facts", lambda db, igdb_id, *, timeout: None)
+        monkeypatch.setattr(genre_service, "lookup_one", lambda name, *, timeout: [])
+
+        request_session = FakeSession()
+        rollbacks = []
+        request_session.rollback = lambda: rollbacks.append(1)
+
+        refresh_stale_rows(request_session, [row])
+
+        assert rollbacks == []
+
+
+class TestDeadlineIsPushedIntoTheCalls:
+    def test_each_leg_is_given_what_is_left_of_the_budget(
+        self, stub_repo, monkeypatch: pytest.MonkeyPatch
+    ):
+        # Checking the clock between legs bounds nothing: the bound has to be
+        # the timeout the call itself is given.
+        row = make_row(genres=[], refreshed_at=NOW - timedelta(days=2))
+        handed: dict[str, float] = {}
+
+        def igdb(db, igdb_id, *, timeout):
+            handed["igdb"] = timeout
+            return None
+
+        def wiki(name, *, timeout):
+            handed["wiki"] = timeout
+            return []
+
+        monkeypatch.setattr(igdb_service, "lookup_game_facts", igdb)
+        monkeypatch.setattr(genre_service, "lookup_one", wiki)
+
+        refresh_stale_rows(FakeSession(), [row])
+
+        budget = catalog_refresh.BUDGET.total_seconds()
+        assert 0 < handed["igdb"] <= budget
+        # Halved, because lookup_one makes two sequential requests.
+        assert 0 < handed["wiki"] <= budget / catalog_refresh.WIKIPEDIA_CALLS
+
+
+class TestWiring:
+    """That the two public reads actually call the refresh, which no test
+    covered while the whole feature hung off exactly those two call sites."""
+
+    def _profile(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(
+            users_service.users_repo,
+            "get_profile_by_username",
+            lambda db, username: SimpleNamespace(id=uuid.uuid4()),
+        )
+
+    def test_the_library_read_refreshes_the_rows_it_loaded(self, monkeypatch: pytest.MonkeyPatch):
+        self._profile(monkeypatch)
+        meta = make_row()
+        entry = SimpleNamespace(id=7, system="Nintendo Switch", rating=None)
+        monkeypatch.setattr(users_service.users_repo, "list_games", lambda db, uid: [(entry, meta)])
+        monkeypatch.setattr(users_service.users_repo, "list_play_sessions", lambda db, ids: [])
+        seen: dict = {}
+        monkeypatch.setattr(
+            users_service.catalog_refresh,
+            "refresh_stale_rows",
+            lambda db, rows: seen.setdefault("rows", rows),
+        )
+
+        games = users_service.get_user_games(FakeSession(), "rgrassian")
+
+        assert seen["rows"] == [meta]
+        assert games[0].name == "Hades II"
+
+    def test_the_wishlist_read_refreshes_the_rows_it_loaded(self, monkeypatch: pytest.MonkeyPatch):
+        self._profile(monkeypatch)
+        meta = make_row()
+        item = SimpleNamespace(
+            id=3, system=None, starred=False, date_added=date(2026, 8, 1), notes=""
+        )
+        monkeypatch.setattr(
+            users_service.users_repo, "list_wishlist_items", lambda db, uid: [(item, meta)]
+        )
+        seen: dict = {}
+        monkeypatch.setattr(
+            users_service.catalog_refresh,
+            "refresh_stale_rows",
+            lambda db, rows: seen.setdefault("rows", rows),
+        )
+
+        wishlist = users_service.get_user_wishlist(FakeSession(), "rgrassian")
+
+        assert seen["rows"] == [meta]
+        assert wishlist[0].name == "Hades II"

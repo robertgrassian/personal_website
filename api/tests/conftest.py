@@ -31,6 +31,7 @@ from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.core.db import get_sessionmaker
+from app.services import catalog_refresh
 from app.services import genres as genre_service
 from app.services import igdb as igdb_service
 
@@ -95,6 +96,21 @@ def stub_genre_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
     # than the add path does; a stub that pins the signature would turn that
     # into a TypeError inside a read.
     monkeypatch.setattr(genre_service, "lookup_one", lambda name, **_kwargs: [])
+
+
+@pytest.fixture(autouse=True)
+def stub_catalog_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stop the public library reads re-sourcing anything.
+
+    Autouse, unlike the two below, because this fires from a READ rather than a
+    write: any DB test that reads a library is exposed, not only the ones that
+    add a game. Today they escape because a row created during the test is
+    never due -- so without this the suite would start reaching Wikipedia the
+    first time a fixture used a backdated row, and no_outbound_http would fail
+    a test that looks unrelated. The refresh has its own module of tests, which
+    call it directly rather than through a route.
+    """
+    monkeypatch.setattr(catalog_refresh, "refresh_stale_rows", lambda db, rows: None)
 
 
 @pytest.fixture
