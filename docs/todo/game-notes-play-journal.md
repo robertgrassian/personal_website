@@ -2,14 +2,15 @@
 
 _Section: **Backlog / Ideas** &middot; index: [`TODO.md`](../../TODO.md)_
 
-Today notes exist only on the wishlist side: `wishlist_items.notes`
-(`api/app/models/wishlist_item.py`, `max_length=1000` in `api/app/schemas/me.py`) with a 2-row
-textarea plus a "Save notes" button in `EditWishlistModal.tsx`. The `games` table has no notes
-column at all.
+Today notes exist only on the wishlist side: `wishlist_games.notes`
+(`api/app/models/wishlist_game.py`, `max_length=1000` in `api/app/schemas/me.py`) with a 2-row
+textarea in `WishlistEditFields.tsx`, on the detail card. The `games` table has no notes
+column at all. (Corrected 2026-09-01: the table and model names were wrong, and the separate "Save
+notes" button is gone -- notes are a draft behind the form's one shared Save since 2026-08-20.)
 
 _The want:_ "when I play a game I usually keep an md file to track progress and write notes; I want
 to do that from the site instead of another app." So the quick-entry textarea stays for one-liners,
-and both modals also get a larger popup view for writing and reading properly. Wishlist behaves the
+and the card's edit form also gets a larger view for writing and reading properly. Wishlist behaves the
 same, for simplicity.
 
 _What makes it more than a column add:_ 1000 chars is a note, not a journal, so the cap needs

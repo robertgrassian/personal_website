@@ -43,7 +43,9 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       is missing is one that is not a personal inbox, and any link to it from the library.
       [Details](docs/todo/feedback-email-address.md)
 
-- [ ] Add "owned" as a field to wishlist games. Inloves migration and checkbox added to edit wishlist game UI.
+- [ ] Add "owned" as a field to wishlist games: a migration plus a checkbox in
+      `WishlistEditFields` (the detail card's wishlist form, not a modal). Decide first what it
+      means next to **promote**, which already moves a bought game into the library.
 
 - [ ] **`AddGameModal` is the last dialog left. Decide whether adding a game moves onto the detail
       card too.** No longer a merge of two: the other dialogs were deleted 2026-08-20. Sequence with
@@ -133,25 +135,14 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 - [ ] Alternate "currently playing" display: a full-width Marquee Banner as a sibling of the CRT.
       [Details](docs/todo/marquee-banner-display.md)
 
-- [ ] Make an "improve" skill that runs a code review on recent changes, follows up on obviously
-      actionable items, cleans up comments, and checks best practices
-
 - [ ] Fun interactive game/toy page, for fun and for learning TypeScript.
       [Details](docs/todo/interactive-toy-page.md)
 
-- [ ] Start filling in `last_played` dates (ISO `YYYY-MM-DD`) for recently played games; build a
-      "recently played" feature on the stats page
-
-- [ ] test that my linting on prs is working
-
 - [ ] Dark mode toggle
 
-- [ ] A fun game to make could be a "shift" inspired game... i liked that one a lot
-
-- [ ] Stats page: average rating per genre? Any other cool ones? Maybe average rating per X, ie
-      ranked genres, ranked consoles
-
-- [ ] Game library "want to play"
+- [ ] Stats page: **average rating** per genre, per console, per decade. The *count* rankings
+      already ship ("Top Genres", systems and decades in `GameStats.tsx`); what is missing is any
+      cut weighted by rating rather than by how many games are in the bucket.
 
 - [ ] Movie library want to watch list, maybe a whole movie's seen section too...
 
