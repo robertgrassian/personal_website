@@ -135,9 +135,6 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 - [ ] Alternate "currently playing" display: a full-width Marquee Banner as a sibling of the CRT.
       [Details](docs/todo/marquee-banner-display.md)
 
-- [ ] Make an "improve" skill that runs a code review on recent changes, follows up on obviously
-      actionable items, cleans up comments, and checks best practices
-
 - [ ] Fun interactive game/toy page, for fun and for learning TypeScript.
       [Details](docs/todo/interactive-toy-page.md)
 

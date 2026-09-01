@@ -33,28 +33,32 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 
 ### Where things live
 
-| Task                                   | File                                                                                                    |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Library read fetches, cache tags       | `src/lib/libraryApi.ts`                                                                                 |
-| Owner writes (client-callable)         | `src/app/video-games/actions.ts` → `src/lib/meApi.ts`                                                   |
-| Filter / group / sort logic            | `src/components/video_games/pipeline.ts`                                                                |
-| Filter/group/sort option lists         | `src/components/video_games/libraryConfig.ts`, `useFilterOptions.ts`                                    |
-| Shared types, `RATINGS`, `systemLabel` | `src/lib/games.ts` (library), `wishlist.ts`, `profile.ts`, `follows.ts`                                 |
-| Shelf UI                               | `GameShelves.tsx` → `ShelfSection.tsx` → `GameCase.tsx` / `GameCaseBack.tsx`                            |
-| Library page shell (both routes)       | `src/components/video_games/LibraryPage.tsx`                                                            |
-| Owner modals                           | `AddGameModal.tsx`, `EditGameModal.tsx`, `EditWishlistModal.tsx`, `ModalShell.tsx`, `ModalBackdrop.tsx` |
-| "Currently playing" CRT                | `src/components/crt/CrtTv.tsx` + `crt.css`                                                              |
-| Can this viewer edit?                  | `FollowControls.tsx` (two hooks), `useViewerRelationship.ts`, `ownedLibrary.ts`                         |
-| Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                                            |
-| Library styles                         | `src/app/video-games/video-games.css`; site tokens in `src/app/globals.css`                             |
-| Mobile keyboard / viewport behavior    | [`docs/mobile-viewport.md`](../docs/mobile-viewport.md); `keyboardBand.ts`, `useModalChrome.ts`         |
-| API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)                                |
-| API endpoint reference, runnable       | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)                            |
-| Migrations                             | `api/alembic/versions/`                                                                                 |
-| Production deploys, migrations in CD   | [`docs/deployment.md`](../docs/deployment.md); `.github/workflows/deploy.yml`                           |
-| Tests                                  | `api/tests/` (pytest); `src/**/*.test.ts` (`npm test`, node --test, no runner installed)                |
+| Task                                   | File                                                                                                                                  |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Library read fetches, cache tags       | `src/lib/libraryApi.ts`                                                                                                               |
+| Owner writes (client-callable)         | `src/app/video-games/actions.ts` → `src/lib/meApi.ts`                                                                                 |
+| Filter / group / sort logic            | `src/components/video_games/pipeline.ts`                                                                                              |
+| Filter/group/sort option lists         | `src/components/video_games/libraryConfig.ts`, `useFilterOptions.ts`                                                                  |
+| Shared types, `RATINGS`, `systemLabel` | `src/lib/games.ts` (library), `wishlist.ts`, `profile.ts`, `follows.ts`                                                               |
+| Shelf UI                               | `GameShelves.tsx` → `ShelfSection.tsx` → `GameCase.tsx`                                                                               |
+| Game detail card (click a case)        | `GameDetailCard.tsx`, which flies the case out and renders `GameCaseBackSurface.tsx` + `GameCaseSpine.tsx`                            |
+| Library page shell (both routes)       | `src/components/video_games/LibraryPage.tsx`                                                                                          |
+| Owner edit surfaces                    | On the detail card: `GameEditFields.tsx`, `WishlistEditFields.tsx`, `GamePlayHistory.tsx`. `AddGameModal.tsx` is the only dialog left |
+| Dialog chrome                          | `ModalFrame.tsx` (backdrop, scroll lock, focus, Escape) → `ModalShell.tsx` (the conventional panel), `ModalBackdrop.tsx`              |
+| "Currently playing" CRT                | `src/components/crt/CrtTv.tsx` + `crt.css`                                                                                            |
+| Can this viewer edit?                  | `FollowControls.tsx` (two hooks), `useViewerRelationship.ts`, `ownedLibrary.ts`                                                       |
+| Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                                                                          |
+| Library styles                         | `src/app/video-games/video-games.css`; site tokens in `src/app/globals.css`                                                           |
+| Mobile keyboard / viewport behavior    | [`docs/mobile-viewport.md`](../docs/mobile-viewport.md); `keyboardBand.ts`, `useModalChrome.ts`                                       |
+| API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)                                                              |
+| API endpoint reference, runnable       | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)                                                          |
+| Migrations                             | `api/alembic/versions/`                                                                                                               |
+| Production deploys, migrations in CD   | [`docs/deployment.md`](../docs/deployment.md); `.github/workflows/deploy.yml`                                                         |
+| Tests                                  | `api/tests/` (pytest); `src/**/*.test.ts` (`npm test`, node --test, no runner installed)                                              |
 
 Dead code worth knowing about: `src/components/video_games/CurrentlyPlaying.tsx` is the **old** stylized CRT and is imported by nothing. The live one is `crt/CrtTv.tsx`, used by `LibraryPage` and `/currently-playing`.
+
+Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were deleted 2026-08-20 when the detail card absorbed them. Their bodies are the `*EditFields` components above, and the one-Save model they established is what any new owner form should adopt.
 
 ## Routes
 
