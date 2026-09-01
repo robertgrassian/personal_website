@@ -6,8 +6,7 @@ import { SessionDateFields } from "./SessionDateFields";
 import { PLAY_CHOICE_LABELS, type PlayedChoice } from "./playChoices";
 import type { PlayDraft } from "./usePlayDraft";
 
-const WITH_NOT_YET: PlayedChoice[] = ["no", "now", "before"];
-const WITHOUT_NOT_YET: PlayedChoice[] = ["now", "before"];
+const CHOICES: PlayedChoice[] = ["no", "now", "before"];
 
 type PlayedFieldsProps = {
   play: PlayDraft;
@@ -16,6 +15,10 @@ type PlayedFieldsProps = {
    *  heading they already have. */
   label: string;
   labelHidden?: boolean;
+  /** What the neutral choice is called here. It is the same answer either way
+   *  (no playthrough to log), but "Not yet" is wrong on a game whose history
+   *  already lists three of them. */
+  neutralLabel?: string;
   disabled: boolean;
 };
 
@@ -30,8 +33,13 @@ type PlayedFieldsProps = {
 //
 // "Session" is the database's word and appears nowhere here, per the same rule
 // the rest of the library follows.
-export function PlayedFields({ play, label, labelHidden = false, disabled }: PlayedFieldsProps) {
-  const choices = play.offersNotYet ? WITH_NOT_YET : WITHOUT_NOT_YET;
+export function PlayedFields({
+  play,
+  label,
+  labelHidden = false,
+  neutralLabel = PLAY_CHOICE_LABELS.no,
+  disabled,
+}: PlayedFieldsProps) {
   const labelId = useId();
   return (
     <div>
@@ -52,11 +60,9 @@ export function PlayedFields({ play, label, labelHidden = false, disabled }: Pla
         role="group"
         aria-labelledby={labelHidden ? undefined : labelId}
         aria-label={labelHidden ? label : undefined}
-        className={`grid gap-1.5 ${labelHidden ? "" : "mt-1 "}${
-          play.offersNotYet ? "grid-cols-3" : "grid-cols-2"
-        }`}
+        className={`grid grid-cols-3 gap-1.5 ${labelHidden ? "" : "mt-1"}`}
       >
-        {choices.map((value) => {
+        {CHOICES.map((value) => {
           const active = play.choice === value;
           return (
             <button
@@ -79,7 +85,7 @@ export function PlayedFields({ play, label, labelHidden = false, disabled }: Pla
                   : "border-shelf-plank text-shelf-text hover:bg-shelf-input")
               }
             >
-              {PLAY_CHOICE_LABELS[value]}
+              {value === "no" ? neutralLabel : PLAY_CHOICE_LABELS[value]}
             </button>
           );
         })}

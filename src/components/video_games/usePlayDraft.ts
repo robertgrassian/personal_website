@@ -12,50 +12,30 @@ import type { PlayedChoice } from "./playChoices";
 export type PlayDraft = {
   choice: PlayedChoice;
   choose: (choice: PlayedChoice) => void;
-  /** Whether "Not yet" is one of the choices, which is what decides between a
-   *  three-button and a two-button control. */
-  offersNotYet: boolean;
   session: SessionDraft;
   reset: () => void;
 };
 
 type PlayDraftOptions = {
-  /** Offer "Not yet", and treat any other choice as asserting that a
-   *  playthrough exists. False on a surface that is already "add an entry to
-   *  this game's history", where "not yet" is not an answer to anything and
-   *  leaving the dates blank is how you decline. */
-  offerNotYet?: boolean;
-  /** Start dated today, for a caller whose own control already asserted the
-   *  playthrough ("Played?"). */
+  /** Open on "played it before", dated today, for a caller whose own control
+   *  already asserted a past playthrough ("Played?"). */
   startToday?: boolean;
   /** The game already has an open session that this Save will not close, so
-   *  "Playing it now" would be a 409. See useSessionDraft. */
+   *  "currently playing" would be a 409. See useSessionDraft. */
   blockedByOpenSession?: boolean;
 };
 
 export function usePlayDraft({
-  offerNotYet = false,
   startToday = false,
   blockedByOpenSession = false,
 }: PlayDraftOptions = {}): PlayDraft {
-  // "before" where "Not yet" is not offered: a history form opens with the To
-  // field showing and nothing chosen for you, which is what it did when this
-  // was a checkbox.
-  //
-  // Opening on "currently playing" was tried and reverted 2026-09-01. The
-  // default cannot fill in today's date, since that would leave Save live on a
-  // form nobody has touched, but an explicit tap does (see `choose`) — so the
-  // button you landed on and the button you came back to behaved differently.
-  const initialChoice: PlayedChoice = offerNotYet ? "no" : "before";
-  const [choice, setChoice] = useState<PlayedChoice>(initialChoice);
+  const [choice, setChoice] = useState<PlayedChoice>(startToday ? "before" : "no");
   const session = useSessionDraft({
     startToday,
     blockedByOpenSession,
-    // Picking anything but "Not yet" asserts there IS a playthrough, so a blank
-    // start date becomes an error rather than silently sending nothing. Without
-    // the "Not yet" choice there is nothing to have asserted: blank dates mean
-    // no playthrough, exactly as they always have.
-    required: offerNotYet && choice !== "no",
+    // Any choice but the neutral one asserts that a playthrough exists, so a
+    // blank start date becomes an error rather than silently sending nothing.
+    required: choice !== "no",
   });
 
   const choose = (next: PlayedChoice) => {
@@ -67,19 +47,22 @@ export function usePlayDraft({
       return;
     }
     session.setStillPlaying(next === "now");
-    // "Playing it now" is meant to be one tap, so it fills in the only date it
-    // needs. Only when empty, so a date already typed under "Played it before"
-    // survives the switch.
+    // A tap is an assertion, unlike the neutral state this form opens in, so
+    // "currently playing" fills in the only date it needs and the common case
+    // is one tap. Only when empty, so a date already typed under "played it
+    // before" survives the switch.
     if (next === "now" && session.startDate === "") session.setStartDate(localToday());
   };
 
   return {
     choice,
     choose,
-    offersNotYet: offerNotYet,
     session,
+    // Always back to neutral, never to `startToday`'s opening choice: reset
+    // means "nothing pending", and returning to a choice with no date would
+    // put a validation error on a form that was just saved.
     reset: () => {
-      setChoice(initialChoice);
+      setChoice("no");
       session.reset();
     },
   };

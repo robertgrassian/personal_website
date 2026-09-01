@@ -11,6 +11,12 @@ _Why they diverged, which is the thing to design around._ They are not two views
 its fields on `draft.igdbId` because an IGDB pick resolves to a SHARED catalog row it must not
 pretend to edit. `EditGameModal` owns a row that already exists.
 
+_The card now has exactly one Save_ (2026-09-01): the play-history face used to carry a second one
+covering only what was on that screen, while the promote's covered both faces, so the same-looking
+button committed different things depending on where you stood. `GameEditFields` owns every draft
+now and renders both faces, which also fixed an unsaved rating being discarded when you opened the
+history. Anything folded onto this surface inherits that single Save.
+
 **The per-field-writes question this used to pose is now answered** (2026-08-19): `EditGameModal`
 has ONE Save, always rendered and disabled until something is pending, and nothing in it writes
 before that press. Rating, system, session and stop-playing all buffer to drafts; only delete stays

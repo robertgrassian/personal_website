@@ -66,7 +66,7 @@ export function AddGameModal({
   // the step unmounts on "Back to search", and dates typed before going back
   // should still be there on the way forward. Created on both targets because
   // hooks cannot be conditional; only the library branch of `save` reads it.
-  const play = usePlayDraft({ offerNotYet: true });
+  const play = usePlayDraft();
 
   // Handed to ModalShell as the initial focus target, so this dialog opens
   // ready to type instead of focused on its close button. Created here because

@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import type { Game, Rating } from "@/lib/games";
+import { localToday, type Game, type Rating } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
 import { deleteGame, promoteAndSave, saveGameEdits } from "@/app/video-games/actions";
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
 import { PlayedFields } from "./PlayedFields";
+import { GamePlayHistory } from "./GamePlayHistory";
 import { usePlayDraft } from "./usePlayDraft";
+import type { PlaySession } from "@/lib/sessions";
 import { buttonClass, saveButtonClass } from "./formStyles";
 import { SuggestInput } from "./SuggestInput";
 import { RequiredField } from "./RequiredField";
@@ -24,15 +26,20 @@ type GameEditFieldsProps = {
   subject: EditSubject;
   // Every system already on a shelf, for the suggestions below.
   existingSystems: string[];
-  // Swap the card to the play history. `stopping` pre-stages the close, so
-  // "Stop Playing" still commits through a Save.
-  onOpenHistory: (options: { stopping: boolean }) => void;
-  // Whether that swap has happened. A real game's history is `GamePlayHistory`,
-  // rendered by the card in place of this component; a promote's is rendered
-  // below instead, because staying mounted is the only thing that keeps the
-  // rating, system and date drafts alive across the switch. One Save creates
-  // the row and logs the playthrough, so they cannot be committed separately.
+  // Swap the card to the play history face.
+  onOpenHistory: () => void;
+  // Whether that swap has happened. BOTH faces are rendered from here, because
+  // staying mounted is the only thing that keeps the rating, system and date
+  // drafts alive across the switch, and one Save commits all of them.
   showingHistory: boolean;
+  // This game's logged sessions, narrowed by the card out of the one
+  // whole-library fetch. Empty for a promote, which has no row to have any.
+  sessions: PlaySession[];
+  sessionsLoading: boolean;
+  sessionsError: string | null;
+  // Arrived by "Played?", which asserts a past playthrough: the dates open
+  // filled in.
+  startWithSession: boolean;
   // Called when a promote's Save also logged a playthrough. Same reason as the
   // add form: the library's one copy of the play history has no other way to
   // learn that the row it holds is out of date.
@@ -54,6 +61,10 @@ export function GameEditFields({
   existingSystems,
   onOpenHistory,
   showingHistory,
+  sessions,
+  sessionsLoading,
+  sessionsError,
+  startWithSession,
   onSessionLogged,
   onClose,
 }: GameEditFieldsProps) {
@@ -74,18 +85,24 @@ export function GameEditFields({
   const [ratingDraft, setRatingDraft] = useState<Rating | "">(savedRating);
   const [systemDraft, setSystemDraft] = useState(savedSystem);
 
-  // Play draft, PROMOTE ONLY: promoteAndSave creates the row and logs the
-  // playthrough in one call, so there is no id to send a session to until this
-  // Save lands. An existing game logs through GamePlayHistory instead, which is
-  // why this stays empty and unread there.
-  //
-  // With "Not yet", as on the add form: a promote is being asked whether the
-  // game has been played at all, not adding a row to a history it has.
-  const play = usePlayDraft({ offerNotYet: true });
-  const sessionDraft = play.session;
+  const openSessionId = promoting ? null : subject.game.openSessionId;
+  const playing = !promoting && subject.game.currentlyPlaying && openSessionId !== null;
 
-  const playing =
-    !promoting && subject.game.currentlyPlaying && subject.game.openSessionId !== null;
+  // Staged, not written on the press, like every other edit here. Staging the
+  // stop first is also what makes a second open session legal: editCalls closes
+  // before it inserts, so the 409 rule only bites while the open one is staying
+  // open.
+  const [stopPending, setStopPending] = useState(false);
+
+  // The play draft for BOTH kinds. A promote has no row for a session to belong
+  // to until promoteAndSave creates one, and an existing game's session is a
+  // second table, so neither can ride along in the same request as the rating:
+  // editCalls sequences them behind the one Save below.
+  const play = usePlayDraft({
+    startToday: startWithSession,
+    blockedByOpenSession: playing && !stopPending,
+  });
+  const sessionDraft = play.session;
 
   // played_games.system is NOT NULL, so this is required in BOTH modes, not
   // just on a promote. Clearing it on an existing game used to do nothing
@@ -98,7 +115,9 @@ export function GameEditFields({
   const systemDirty = systemDraft.trim() !== savedSystem && systemDraft.trim() !== "";
   // A promote is itself the change, so Save is live from the moment the form
   // opens — it just needs a system, which played_games requires.
-  const hasChanges = promoting ? systemDraft.trim() !== "" : ratingDirty || systemDirty;
+  const hasChanges = promoting
+    ? systemDraft.trim() !== ""
+    : ratingDirty || systemDirty || sessionDraft.dirty || stopPending;
   const canSave = hasChanges && !systemMissing && sessionDraft.problem === null && !isPending;
 
   const save = () => {
@@ -122,16 +141,28 @@ export function GameEditFields({
       return;
     }
 
+    // One press covers both faces, so a rating changed here and a playthrough
+    // entered there commit together. editCalls orders them: rating and system
+    // first, then the stop, then the new session.
+    const session = sessionDraft.value;
+    const stopping = stopPending && openSessionId !== null;
     run(
       () =>
         saveGameEdits(subject.game.id, {
           ...(ratingDirty ? { rating: ratingDraft } : {}),
           ...(systemDirty ? { system: systemDraft } : {}),
+          ...(session ? { session } : {}),
+          ...(stopping ? { stopSessionId: openSessionId, stopDate: localToday() } : {}),
         }),
       {
-        // Stays open: revalidated data flows back into `subject`, so the form
-        // shows what was just saved. No transient draft left to clear.
-        onSuccess: () => {},
+        // Stays open on either face: revalidated data flows back into
+        // `subject`, so the form shows what was just saved. Only the drafts
+        // with nowhere to flow back from need clearing.
+        onSuccess: () => {
+          play.reset();
+          setStopPending(false);
+          if (session || stopping) onSessionLogged();
+        },
       }
     );
   };
@@ -146,9 +177,12 @@ export function GameEditFields({
   // every shelf system otherwise.
   const systemSuggestions = source.platforms.length > 0 ? source.platforms : existingSystems;
 
-  // Rendered by BOTH faces, so a promote can commit from either one and the
-  // reason a disabled Save is disabled is never on the screen you just left.
-  const saveFooter = (
+  // Rendered by BOTH faces, so either one can commit and the reason a disabled
+  // Save is disabled is never on the screen you just left. Remove is the one
+  // part that does not follow: it belongs to the game, not to its dates, and
+  // its confirm sheet names the session count of a list you would be standing
+  // in front of.
+  const renderSaveFooter = (showRemove: boolean) => (
     /* Always present, so there is one place to look for "did this save?".
        Disabled until something is actually pending. */
     <div className="mt-5 border-t border-shelf-plank pt-3">
@@ -169,7 +203,7 @@ export function GameEditFields({
         >
           {promoting ? "Save And Move To Library" : "Save"}
         </button>
-        {!promoting && (
+        {!promoting && showRemove && (
           <ConfirmStep
             triggerLabel="Remove from library"
             confirmLabel="Remove"
@@ -218,23 +252,37 @@ export function GameEditFields({
     </div>
   );
 
-  // The promote's play history, standing in for GamePlayHistory: same headings
-  // and same empty state, minus what a row that does not exist yet cannot have.
-  // Its Save is the promote's own, so the move can be committed from here
-  // rather than only from the face behind it.
-  if (promoting && showingHistory) {
+  if (showingHistory) {
     return (
       <>
-        <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-shelf-label">
-          Play History
-        </p>
-        <p className="mt-3 text-sm text-shelf-text-muted italic">
-          Nothing logged yet. Add the first one below.
-        </p>
-        <div className="mt-5">
-          <PlayedFields play={play} label="Have you played it?" disabled={isPending} />
-        </div>
-        {saveFooter}
+        {promoting ? (
+          // A promote's history, standing in for GamePlayHistory: same headings
+          // and same empty state, minus what a row that does not exist yet
+          // cannot have, which is any session to list or to stop.
+          <>
+            <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-shelf-label">
+              Play History
+            </p>
+            <p className="mt-3 text-sm text-shelf-text-muted italic">
+              Nothing logged yet. Add the first one below.
+            </p>
+            <div className="mt-5">
+              <PlayedFields play={play} label="Have you played it?" disabled={isPending} />
+            </div>
+          </>
+        ) : (
+          <GamePlayHistory
+            sessions={sessions}
+            isLoading={sessionsLoading}
+            error={sessionsError}
+            play={play}
+            hasOpenSession={openSessionId !== null}
+            stopPending={stopPending}
+            onStopPendingChange={setStopPending}
+            disabled={isPending}
+          />
+        )}
+        {renderSaveFooter(false)}
       </>
     );
   }
@@ -288,12 +336,13 @@ export function GameEditFields({
 
         {/* Both kinds offer the same button, with the same label: a library
             game with nothing logged shows it too, so "view or add" is already
-            what it says on an empty history. Stop Playing stages the close.
-            Neither writes on the press, so Save still owns every write. */}
+            what it says on an empty history. Stop Playing stages the close and
+            opens the face that shows it staged. Neither writes on the press, so
+            Save still owns every write. */}
         <div className="mt-5 flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => onOpenHistory({ stopping: false })}
+            onClick={onOpenHistory}
             disabled={isPending}
             className={buttonClass}
           >
@@ -302,7 +351,10 @@ export function GameEditFields({
           {playing && (
             <button
               type="button"
-              onClick={() => onOpenHistory({ stopping: true })}
+              onClick={() => {
+                setStopPending(true);
+                onOpenHistory();
+              }}
               disabled={isPending}
               className={buttonClass}
             >
@@ -312,7 +364,7 @@ export function GameEditFields({
         </div>
       </div>
 
-      {saveFooter}
+      {renderSaveFooter(true)}
     </>
   );
 }
