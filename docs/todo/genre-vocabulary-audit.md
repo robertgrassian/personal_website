@@ -33,16 +33,14 @@ through the normalizer so the manual add path stops creating them, versus accept
 letting the backfill clean up after. The owner has said they hold no deliberate genre spellings
 and want Wikipedia's vocabulary unless it is badly wrong, which argues for routing it.
 
-_The premise was unverified against the database, which is why the paragraph below was written._
-
-_The premise is unverified against the database, so start there._ The seed fixture
-(`api/scripts/fixtures/games.csv`) records Star Fox Adventures as `Action-Adventure`, and ~19
+_Superseded by the confirmation above, kept for how it was reasoned about before the data arrived._
+The prediction below turned out half right: the backfill did move the other shooters onto specific
+infobox terms and left this one behind, so it is one bad row, not a systematic split. The seed
+fixture (`api/scripts/fixtures/games.csv`) records Star Fox Adventures as `Action-Adventure`, and ~19
 fixture rows carry some spelling of "shooter", so whatever produced today's state happened **after**
 seeding. Most likely the Wikipedia backfill moved the other shooters onto the more specific infobox
 terms ("First-person shooter", "Third-person shooter") and left this one row on the bare word: that
-is a plausible reading of the code and the fixtures, not something confirmed by querying prod.
-Confirm before fixing, because it changes whether this is one bad row or a systematic
-coarse-vs-specific split.
+was a plausible reading of the code and the fixtures, and the `--plan` snapshot bore it out.
 
 _The audit query names itself, which makes this cheaper than it sounds._ `useFilterOptions` builds
 `allGenres` by flat-mapping every game's genres with **no minimum count**, so a genre held by
