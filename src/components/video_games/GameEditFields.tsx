@@ -9,6 +9,7 @@ import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
 import { PlayedFields } from "./PlayedFields";
 import { GamePlayHistory } from "./GamePlayHistory";
+import { StopPlayingControl } from "./StopPlayingControl";
 import { usePlayDraft } from "./usePlayDraft";
 import type { PlaySession } from "@/lib/sessions";
 import { buttonClass, saveButtonClass } from "./formStyles";
@@ -339,7 +340,7 @@ export function GameEditFields({
             what it says on an empty history. Stop Playing stages the close and
             opens the face that shows it staged. Neither writes on the press, so
             Save still owns every write. */}
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-5 flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onOpenHistory}
@@ -349,17 +350,17 @@ export function GameEditFields({
             View or add play history
           </button>
           {playing && (
-            <button
-              type="button"
-              onClick={() => {
-                setStopPending(true);
-                onOpenHistory();
+            <StopPlayingControl
+              stopPending={stopPending}
+              onChange={(pending) => {
+                setStopPending(pending);
+                // Staging it moves to the face that shows it beside the
+                // sessions it changes. Undoing does not navigate: you are
+                // already looking at the thing you undid.
+                if (pending) onOpenHistory();
               }}
               disabled={isPending}
-              className={buttonClass}
-            >
-              Stop Playing
-            </button>
+            />
           )}
         </div>
       </div>

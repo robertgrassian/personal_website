@@ -3,7 +3,7 @@
 import { formatSessionRange, sessionLengthDays, type PlaySession } from "@/lib/sessions";
 import { PlayedFields } from "./PlayedFields";
 import type { PlayDraft } from "./usePlayDraft";
-import { buttonClass, ghostButtonClass } from "./formStyles";
+import { StopPlayingControl } from "./StopPlayingControl";
 
 type GamePlayHistoryProps = {
   // Newest first, narrowed by the caller out of the one whole-library fetch,
@@ -78,28 +78,11 @@ export function GamePlayHistory({
 
       {hasOpenSession && (
         <div className="mt-4">
-          {stopPending ? (
-            <p className="text-xs text-shelf-text">
-              Will be marked finished today when you save.{" "}
-              <button
-                type="button"
-                onClick={() => onStopPendingChange(false)}
-                disabled={disabled}
-                className={ghostButtonClass}
-              >
-                Undo
-              </button>
-            </p>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onStopPendingChange(true)}
-              disabled={disabled}
-              className={buttonClass}
-            >
-              Stop Playing
-            </button>
-          )}
+          <StopPlayingControl
+            stopPending={stopPending}
+            onChange={onStopPendingChange}
+            disabled={disabled}
+          />
         </div>
       )}
 

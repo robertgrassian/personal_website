@@ -8,6 +8,11 @@ that govern this file (sections, caps, what goes where) live in the `proj-todo` 
 The organizing goal is **sharing the site with people**, so Up Next holds what should be true
 before that happens.
 
+- [ ] **"Played?" on a wishlist game you already own leaves the wishlist entry behind, and its Save
+      just says "Save".** (Promoted by request 2026-09-01.) Not the promote flow: that one does
+      remove the row. `WishlistEditFields` calls the leftover deliberate, so re-decide it.
+      [Details](docs/todo/played-on-owned-wishlist-game.md)
+
 - [ ] **Take a pass at every button, then make reusable components out of the shared class
       strings.** (Promoted by request 2026-08-30.) The tinted trigger vs outlined confirm that
       prompted it is deliberate and reasoned in `formStyles.ts`: this re-decides those rules, not
@@ -32,6 +37,11 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       a decision, not a tweak. [Details](docs/todo/owner-affordance-hydration-pop.md)
 
 ## Backlog / Ideas
+
+- [ ] **Rethink the staged "Stop Playing" notice and its Undo, both too easy to miss.** The stop is
+      the one pending edit with no control still showing its state, so bigger text is not the
+      answer. Decide with **Show a confirmation toast after logging a session**.
+      [Details](docs/todo/stop-playing-staged-notice.md)
 
 - [ ] **A site email address for feedback, so people without a GitHub account can report bugs and
       ideas.** `/privacy` already publishes `rgrassian@gmail.com` twice, so an address exists: what

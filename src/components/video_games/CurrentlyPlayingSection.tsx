@@ -34,7 +34,7 @@ export function CurrentlyPlayingSection({
   // CREATE a row use useIsConfirmedOwner", but the reason it gives is whether
   // the server can still refuse, and it can here: POST /me/games/{id}/sessions
   // hangs off an existing game row and 404s on someone else's. POST /me/games
-  // is the exception because it has no row to aim at. GamePlayHistory already
+  // is the exception because it has no row to aim at. The detail card already
   // opens sessions behind useIsLikelyOwner, so the confirmed hook would gate
   // one write two different ways.
   const canManage = useIsLikelyOwner();

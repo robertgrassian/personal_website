@@ -62,10 +62,12 @@ export function AddGameModal({
 
   const { isPending, error, setError, run } = useServerAction();
 
-  // Held here rather than in the confirm step, for the same reason `draft` is:
-  // the step unmounts on "Back to search", and dates typed before going back
-  // should still be there on the way forward. Created on both targets because
-  // hooks cannot be conditional; only the library branch of `save` reads it.
+  // Held here rather than in the confirm step because `save` is here and
+  // submits it, and because the step unmounts on "Back to search". Reset by
+  // every new pick below: the dates belonged to the game you left, and a
+  // confirm form that arrives blank except for a playthrough is how you log
+  // one game's dates against another. Created on both targets because hooks
+  // cannot be conditional; only the library branch of `save` reads it.
   const play = usePlayDraft();
 
   // Handed to ModalShell as the initial focus target, so this dialog opens
@@ -76,6 +78,7 @@ export function AddGameModal({
   const pickResult = (r: IgdbSearchResult, query: string) => {
     setError(null);
     setLastQuery(query);
+    play.reset();
     setDraft({
       name: r.name,
       // Only prefilled when IGDB knows of exactly one platform, where there is
@@ -99,6 +102,7 @@ export function AddGameModal({
   const startManual = (query: string) => {
     setError(null);
     setLastQuery(query);
+    play.reset();
     setDraft({
       name: query.trim(),
       system: "",
