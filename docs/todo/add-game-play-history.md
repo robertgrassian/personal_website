@@ -9,11 +9,15 @@ years ago captures when. **Do not call it a "session" in the UI** — that is th
 nothing user-facing uses it today. "Playing this now" plus something like "I've played this before"
 reads as one natural part of the add form.
 
-_What exists to build on:_ `EditGameModal` already has both halves — a start/stop control and a
-"From"/"To" past-dates form — and both go through `logSession` in `video-games/actions.ts`, which
-takes `(gameId, startDate, endDate | null)` and treats a **null end date as the open session** that
-makes a game currently-playing. So "playing now" is a past-dates log with the end left blank, and
-the add form needs no new backend concept, only a new caller. `AddGameModal` today is the IGDB
+_What exists to build on:_ the detail card's play-history face (`GamePlayHistory`, reached from
+"View or add play history" in `GameEditFields`) already has both halves — a "Stop Playing" control
+and a "From"/"To" form in `SessionDateFields` — and both commit through
+`saveGameEdits(gameId, { session })` in `video-games/actions.ts`, whose `session` is
+`{ startDate, endDate | null }` and treats a **null end date as the open session** that makes a game
+currently-playing. So "playing now" is a past-dates log with the end left blank, and the add form
+needs no new backend concept, only a new caller. (Path names updated 2026-09-01: this used to say
+`EditGameModal` and a `logSession` action, both of which were deleted when the card absorbed the
+modals and the one-Save redesign landed.) `AddGameModal` today is the IGDB
 search step plus `GameDraftForm`, which has no session controls at all.
 
 _The one real blocker, and it is not in the UI:_ logging a session needs the new game's id, and the
@@ -31,9 +35,11 @@ off, so this section must disappear when the target is `wishlist`. That collides
 inside this same modal: the switcher would have to show and hide this section, and decide what
 happens to dates already typed when you flip to wishlist. Sequence the two deliberately.
 
-_Reuse, do not re-type, the date form._ **"Logging a past session should pick the whole range in one
-calendar popup"** already plans to pull that From/To control out of `EditGameModal`; building
-a second copy here is what that item is trying to prevent. Same for **"Library-level 'create
+_Reuse, do not re-type, the date form._ It is already a standalone component: `SessionDateFields`
+is controlled, stateless and paired with `useSessionDraft`, so the add form renders it rather than
+growing its own dates. **"Logging a past session should pick the whole range in one calendar
+popup"** would then replace it in both places at once; building a second copy here is what that
+item is trying to prevent. Same for **"Library-level 'create
 session' button"**, whose stretch goal ("add a game I just started and open its session in one go")
 is this exact gap approached from the other direction — folding them together is reasonable.
 
