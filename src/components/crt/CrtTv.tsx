@@ -35,6 +35,10 @@ function formatDay(iso: string): string {
   });
 }
 
+// Shared by the meta label's two branches so the owner's button and the
+// visitor's static text are the same type at the same size.
+const META_LABEL_CLASS = "text-link text-[11px] font-semibold uppercase tracking-[0.18em]";
+
 // Pad a 1-based channel index to two digits for the OSD readout: 1 → "01".
 function channelLabel(index: number): string {
   return String(index + 1).padStart(2, "0");
@@ -49,9 +53,15 @@ type CrtTvProps = {
   // it reads as a miniature of the same TV. Omitted (false) on the standalone
   // /currently-playing route, which keeps the full-size hero treatment.
   compact?: boolean;
+  // Owner-only: turns the meta label into a button that opens the manage
+  // panel. Its presence doubles as "this viewer can act on the set", which is
+  // what switches the empty-state copy from a visitor's "check back" to an
+  // invitation. A separate `canManage` flag would only ever be true alongside
+  // this callback.
+  onManage?: () => void;
 };
 
-export function CrtTv({ games, compact = false }: CrtTvProps) {
+export function CrtTv({ games, compact = false, onManage }: CrtTvProps) {
   // Which channel (game) is on screen.
   const [activeIndex, setActiveIndex] = useState(0);
   // True during the static burst between channels — drives the `.is-switching` class.
@@ -327,9 +337,30 @@ export function CrtTv({ games, compact = false }: CrtTvProps) {
       {/* Metadata beside (compact) or below (full-size) the set. */}
       <div className={metaClass}>
         <div className="flex items-center gap-3">
-          <p className="text-link text-[11px] font-semibold uppercase tracking-[0.18em]">
-            {hasGames ? "Currently playing" : "No signal"}
-          </p>
+          {/* The label is the manage panel's trigger for an owner and plain
+              text for everyone else. Both branches carry the identical type
+              classes, and the button adds p-0 and leading-[inherit] on top:
+              default button padding would grow this row, and .pcrt-stage--compact
+              is a bottom-aligned flex row, so a taller first row pushes the TV
+              and the whole page down. */}
+          {onManage ? (
+            <button
+              type="button"
+              onClick={onManage}
+              // "Currently playing" names a state, not an action, so the
+              // accessible name has to say what pressing it does.
+              aria-label="Manage currently playing games"
+              // [text-align:inherit] undoes the UA stylesheet's `text-align:
+              // center` on buttons, which is invisible on one line and wrong
+              // the moment the label wraps: .pcrt-meta--compact aligns the
+              // block left, and a centred second line broke that on a phone.
+              className={`${META_LABEL_CLASS} [text-align:inherit] p-0 leading-[inherit] cursor-pointer underline decoration-dotted underline-offset-4 hover:opacity-80 transition-opacity`}
+            >
+              {hasGames ? "Currently playing" : "Start a game"}
+            </button>
+          ) : (
+            <p className={META_LABEL_CLASS}>{hasGames ? "Currently playing" : "No signal"}</p>
+          )}
           {/* Channel pips: one clickable dot per game, the active one filled. A
               plain button group (role="group", aria-pressed) conveys the selected
               game to assistive tech. */}
@@ -341,7 +372,11 @@ export function CrtTv({ games, compact = false }: CrtTvProps) {
             >
               {games.map((g, i) => (
                 <button
-                  key={g.name}
+                  // Keyed on the row id, not the name: two library entries can
+                  // share a name across systems (five games are called "Star
+                  // Fox"), and the manage panel makes having both open at once
+                  // a two-tap operation rather than a shelf walk twice.
+                  key={g.id}
                   type="button"
                   aria-pressed={i === activeIndex}
                   aria-label={g.name}
@@ -389,8 +424,13 @@ export function CrtTv({ games, compact = false }: CrtTvProps) {
         ) : (
           <>
             <h2 className="mt-1 text-2xl font-bold text-foreground">Nothing playing</h2>
+            {/* An owner can fix this and a visitor cannot, so they get
+                different sentences: "check back" is useless advice to the
+                person holding the remote. */}
             <p className="mt-0.5 text-sm text-muted">
-              Nothing&rsquo;s on right now. Check back when a game is in progress.
+              {onManage
+                ? "Pick something from your library to put it on screen."
+                : "Nothing’s on right now. Check back when a game is in progress."}
             </p>
           </>
         )}
