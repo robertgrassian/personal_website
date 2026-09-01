@@ -13,6 +13,11 @@ before that happens.
       **Fold "+ Add to wishlist" into a single "+ Add game"**.
       [Details](docs/todo/add-game-play-history.md)
 
+- [ ] **Drop `game_metadata.created_at`, now unmapped.** Phase two: the model stopped mapping it
+      in the catalog-refresh work, and the `DROP` cannot ride that same deploy, since the build
+      prerenders `/video-games` against the still-deployed old code, which `SELECT`s it. Ship once
+      that is live.
+
 - [ ] **Take a pass at every button, then make reusable components out of the shared class
       strings.** (Promoted by request 2026-08-30.) The tinted trigger vs outlined confirm that
       prompted it is deliberate and reasoned in `formStyles.ts`: this re-decides those rules, not

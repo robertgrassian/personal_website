@@ -13,7 +13,8 @@ everything else (rate limiting, token caching, parsing) for real.
 
 import logging
 import uuid
-from datetime import UTC, datetime, timedelta
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
 
 import httpx
 from fastapi import status
@@ -133,10 +134,19 @@ def _fetch_twitch_token(settings: Settings) -> tuple[str, datetime]:
 
 
 def _query_igdb(
-    settings: Settings, token: str, body: str, url: str = _IGDB_GAMES_URL
+    settings: Settings,
+    token: str,
+    body: str,
+    url: str = _IGDB_GAMES_URL,
+    timeout: float | None = None,
 ) -> httpx.Response:
     """POST an Apicalypse query to an IGDB endpoint. Returns the raw response —
-    the caller inspects the status so it can retry once on 401."""
+    the caller inspects the status so it can retry once on 401.
+
+    ``timeout`` overrides _HTTP_TIMEOUT for callers on a tighter deadline than
+    a browser search: the catalog refresh runs inside a public read whose own
+    client gives up after five seconds, so a ten-second ceiling there would
+    fail the page rather than the lookup."""
     try:
         return httpx.post(
             url,
@@ -146,10 +156,20 @@ def _query_igdb(
                 "Content-Type": "text/plain",
             },
             content=body,
-            timeout=_HTTP_TIMEOUT,
+            timeout=_HTTP_TIMEOUT if timeout is None else timeout,
         )
     except httpx.HTTPError as exc:
         raise IgdbUpstreamError("could not reach IGDB") from exc
+
+
+def _get_cached_token(db: Session) -> str | None:
+    """The stored Twitch token if it is good for a while yet, else None. Split
+    out so a caller on a deadline can find out whether IGDB is reachable
+    WITHOUT paying for a mint (see _run_query_cached_token)."""
+    cached = igdb_repo.get_token(db)
+    if cached is not None and cached.expires_at > datetime.now(UTC) + TOKEN_EXPIRY_MARGIN:
+        return cached.access_token
+    return None
 
 
 def _get_valid_token(db: Session, settings: Settings, *, force_refresh: bool = False) -> str:
@@ -157,9 +177,9 @@ def _get_valid_token(db: Session, settings: Settings, *, force_refresh: bool = F
     near expiry. The cache is a DB row, not process memory, because every
     serverless instance must share one token."""
     if not force_refresh:
-        cached = igdb_repo.get_token(db)
-        if cached is not None and cached.expires_at > datetime.now(UTC) + TOKEN_EXPIRY_MARGIN:
-            return cached.access_token
+        cached = _get_cached_token(db)
+        if cached is not None:
+            return cached
     access_token, expires_at = _fetch_twitch_token(settings)
     igdb_repo.upsert_token(db, access_token, expires_at)
     return access_token
@@ -169,7 +189,12 @@ def _run_query(
     db: Session, settings: Settings, body: str, url: str = _IGDB_GAMES_URL
 ) -> list[dict]:
     """Send one Apicalypse query and return its rows, refreshing the cached
-    token and retrying exactly once if IGDB rejects it as expired."""
+    token and retrying exactly once if IGDB rejects it as expired.
+
+    Reliable rather than bounded: this can cost up to four HTTP requests (two
+    of them token mints on their own ten-second ceiling). A caller that cannot
+    afford that wants _run_query_cached_token instead.
+    """
     token = _get_valid_token(db, settings)
     response = _query_igdb(settings, token, body, url)
     if response.status_code == 401:
@@ -179,6 +204,34 @@ def _run_query(
         response = _query_igdb(settings, token, body, url)
     if response.status_code != 200:
         raise IgdbUpstreamError(f"IGDB answered {response.status_code}")
+    return response.json()
+
+
+def _run_query_cached_token(
+    db: Session, settings: Settings, body: str, timeout: float
+) -> list[dict] | None:
+    """One Apicalypse query on a HARD one-request budget, or None.
+
+    Everything _run_query does to be reliable costs an unbounded extra request:
+    minting a token when the cache is cold, and re-minting on a 401. That is
+    right where a user is waiting on a search and wrong on a deadline, because
+    _fetch_twitch_token has its own ten-second ceiling that no timeout argument
+    reaches -- so "two seconds" would really have been up to twenty-four.
+
+    So this makes exactly one HTTP call and gives up otherwise. A cold token
+    cache means no refresh this round rather than a slow one; the search and
+    add paths mint on their own schedule and this rides on whatever they left.
+    """
+    token = _get_cached_token(db)
+    if token is None:
+        logger.info("Skipping a deadline-bound IGDB query: no usable cached token")
+        return None
+    response = _query_igdb(settings, token, body, _IGDB_GAMES_URL, timeout)
+    if response.status_code != 200:
+        # Including a 401. Recovering from that means minting, which is the
+        # unbounded request this function exists to refuse.
+        logger.info("Deadline-bound IGDB query answered %s", response.status_code)
+        return None
     return response.json()
 
 
@@ -424,6 +477,58 @@ def search_games(db: Session, user_id: uuid.UUID, query: str, page: int = 1) -> 
     return IgdbSearchResponse(results=[], has_more=False)
 
 
+@dataclass(frozen=True)
+class IgdbGameFacts:
+    """What IGDB knows about one game that the catalog stores.
+
+    Deliberately not the game's NAME. IGDB's title is frequently not the one
+    this library wants (scripts/backfill_titles.py is a hand-checked list of
+    the cases where it is wrong), and the stored name is what the Wikipedia
+    genre lookup searches on, so overwriting it from here would break genres
+    for the row it just "fixed".
+    """
+
+    release_date: date | None
+    platforms: list[str]
+    cover_url: str
+
+
+def _fetch_one_game(
+    db: Session, igdb_id: int, fields: str, what: str, *, deadline_timeout: float | None = None
+) -> dict | None:
+    """One IGDB row by id, or None on a miss, a misconfiguration or an outage.
+
+    Never raises, which is the shared rule for every lookup that rides on
+    another request (see lookup_platforms and genres.lookup_one): a third-party
+    problem must not fail the add or read that triggered it.
+
+    ``deadline_timeout`` switches to the one-request budget above. Without it
+    this takes the reliable path, which can mint a token and retry.
+    """
+    settings = get_settings()
+    if not settings.twitch_client_id or not settings.twitch_client_secret:
+        return None
+    # Interpolated as an int rather than escaped as text: Apicalypse has no
+    # bound parameters, and int() is what makes the interpolation safe.
+    body = f"{fields} where id = {int(igdb_id)}; limit 1;"
+    try:
+        if deadline_timeout is None:
+            rows = _run_query(db, settings, body)
+        else:
+            rows = _run_query_cached_token(db, settings, body, deadline_timeout)
+    except Exception:
+        logger.exception("%s failed for IGDB id %s", what, igdb_id)
+        return None
+    return rows[0] if rows else None
+
+
+def _platform_names(row: dict) -> list[str]:
+    """IGDB's platform names off a game row, sorted. The sort is what makes
+    scripts/backfill_platforms.py's "nothing to change" true rather than
+    merely likely, so every path that writes this column shares it."""
+    return sorted(p["name"] for p in row.get("platforms") or [] if p.get("name"))
+
+
 def lookup_platforms(db: Session, igdb_id: int) -> list[str]:
     """Every platform IGDB lists for one game, in IGDB's own names. [] on a miss.
 
@@ -441,17 +546,38 @@ def lookup_platforms(db: Session, igdb_id: int) -> list[str]:
         client can aim at IGDB directly -- it rides on a write already bounded
         by rate_limit_writes, one call per new catalog row.
     """
-    settings = get_settings()
-    if not settings.twitch_client_id or not settings.twitch_client_secret:
-        return []
-    # Interpolated as an int rather than escaped as text: Apicalypse has no
-    # bound parameters, and int() is what makes the interpolation safe.
-    body = f"fields platforms.name; where id = {int(igdb_id)}; limit 1;"
-    try:
-        rows = _run_query(db, settings, body)
-    except Exception:
-        logger.exception("Platform lookup failed for IGDB id %s", igdb_id)
-        return []
-    if not rows:
-        return []
-    return sorted(p["name"] for p in rows[0].get("platforms") or [] if p.get("name"))
+    row = _fetch_one_game(db, igdb_id, "fields platforms.name;", "Platform lookup")
+    return _platform_names(row) if row else []
+
+
+def lookup_game_facts(db: Session, igdb_id: int, *, timeout: float) -> IgdbGameFacts | None:
+    """Everything the catalog re-sources from IGDB, in ONE request. None on a
+    miss, a misconfiguration, an outage or a cold token cache.
+
+    For the staleness refresh (services/catalog_refresh.py), which needs the
+    release date and the cover as well as the platforms lookup_platforms
+    already answers -- and needs them without paying three round trips inside
+    a read someone is waiting on. Same never-raises rule as lookup_platforms.
+
+    ``timeout`` is required, not optional: this is only ever called from a path
+    that has a deadline, and it bounds the whole call rather than one leg of it
+    (see _run_query_cached_token).
+    """
+    row = _fetch_one_game(
+        db,
+        igdb_id,
+        "fields first_release_date, platforms.name, cover.url;",
+        "Catalog refresh lookup",
+        deadline_timeout=timeout,
+    )
+    if row is None:
+        return None
+    release_ts = row.get("first_release_date")
+    return IgdbGameFacts(
+        # IGDB dates are unix timestamps (UTC midnight of release day). Absent
+        # for an announced-but-undated game, which is the case this whole
+        # refresh exists for: it becomes a real date once IGDB has one.
+        release_date=(datetime.fromtimestamp(release_ts, tz=UTC).date() if release_ts else None),
+        platforms=_platform_names(row),
+        cover_url=_upgrade_cover_url((row.get("cover") or {}).get("url") or ""),
+    )

@@ -1,6 +1,11 @@
 """Business logic for the public user reads: resolve a profile, compose the
 repository queries, derive play state (spec §4.3), and build the wire DTOs.
 
+The library and wishlist reads also carry the catalog staleness refresh
+(services/catalog_refresh.py), which is why two otherwise pure read paths can
+write: serving a library is the only regular event this site has, so it is
+where a row that has gone out of date gets noticed.
+
 Not-found style: services raise ``UserNotFoundError`` (a domain exception with
 no HTTP knowledge) and routers map it to a 404. Chosen over returning None so
 call sites can't silently forget the check and the error carries the username
@@ -24,6 +29,7 @@ from app.core.errors import DomainError
 from app.models import GameMetadata, PlayedGame, PlaySession, WishlistGame
 from app.repositories import users as users_repo
 from app.schemas.users import GameRead, PlaySessionRead, ProfileRead, WishlistGameRead
+from app.services import catalog_refresh
 
 
 class UserNotFoundError(DomainError):
@@ -133,6 +139,10 @@ def get_user_games(db: Session, username: str) -> list[GameRead]:
     """
     profile = _require_profile(db, username)
     entries = users_repo.list_games(db, profile.id)
+    # Before the DTOs are built, so anything re-sourced lands in THIS response
+    # rather than one revalidation later. Usually a no-op: it works off the
+    # rows already loaded and only reaches the network when one is due.
+    catalog_refresh.refresh_stale_rows(db, [meta for _, meta in entries])
     sessions_by_game: dict[int, list[PlaySession]] = defaultdict(list)
     for session in users_repo.list_play_sessions(db, [g.id for g, _ in entries]):
         sessions_by_game[session.game_id].append(session)
@@ -165,10 +175,12 @@ def get_user_sessions(db: Session, username: str) -> list[PlaySessionRead]:
 
 def get_user_wishlist(db: Session, username: str) -> list[WishlistGameRead]:
     profile = _require_profile(db, username)
-    return [
-        to_wishlist_read(item, meta)
-        for item, meta in users_repo.list_wishlist_items(db, profile.id)
-    ]
+    entries = users_repo.list_wishlist_items(db, profile.id)
+    # Refreshed like the library, and the wishlist is where it earns the most:
+    # a game added before its release date was announced is the case this
+    # exists for. See services/catalog_refresh.py.
+    catalog_refresh.refresh_stale_rows(db, [meta for _, meta in entries])
+    return [to_wishlist_read(item, meta) for item, meta in entries]
 
 
 def get_user_profile(db: Session, username: str) -> ProfileRead:

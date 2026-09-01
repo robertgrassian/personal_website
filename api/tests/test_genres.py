@@ -199,7 +199,7 @@ def build_stub(search_hits, articles):
     """A _get stub: `search_hits` maps a query to article titles, `articles`
     maps an article title to its lead wikitext."""
 
-    def fake_get(url, params):
+    def fake_get(url, params, timeout=None):
         if params.get("list") == "search":
             return FakeResponse(
                 {"query": {"search": [{"title": t} for t in search_hits[params["srsearch"]]]}}
@@ -357,7 +357,7 @@ def test_the_seeded_title_survives_a_failed_search(monkeypatch):
     that names its own article."""
     inner = build_stub({}, {"Hollow Knight": GAME("[[Metroidvania]]")})
 
-    def fake_get(url, params):
+    def fake_get(url, params, timeout=None):
         if params.get("list") == "search":
             raise httpx.ConnectError("boom")
         return inner(url, params)
@@ -375,7 +375,7 @@ def test_a_title_containing_a_pipe_is_not_seeded(monkeypatch):
     inner = build_stub({"Portal 2| video game": ["Portal 2"]}, {"Portal 2": GAME("[[Puzzle]]")})
     requested = []
 
-    def fake_get(url, params):
+    def fake_get(url, params, timeout=None):
         if params.get("prop") == "revisions":
             requested.extend(params["titles"].split("|"))
         return inner(url, params)
@@ -391,7 +391,7 @@ def test_candidate_wikitext_is_fetched_in_batches(monkeypatch):
     each; MediaWiki takes 50 titles at a time."""
     calls = {"search": 0, "wikitext": 0}
 
-    def fake_get(url, params):
+    def fake_get(url, params, timeout=None):
         if params.get("list") == "search":
             calls["search"] += 1
             return FakeResponse(
@@ -423,7 +423,7 @@ def test_survives_a_malformed_search_response(monkeypatch):
     """Wikimedia can serve an HTML error page with a 200, so the failure is a
     JSON/KeyError rather than an HTTPError."""
 
-    def fake_get(url, params):
+    def fake_get(url, params, timeout=None):
         if params.get("list") == "search":
             if "Bad" in params["srsearch"]:
                 return FakeResponse({"unexpected": "shape"})
@@ -450,7 +450,7 @@ def test_survives_a_malformed_search_response(monkeypatch):
 def test_falls_back_to_wikidata_when_the_infobox_has_no_genre(monkeypatch):
     """Some articles carry the template but leave `genre` empty."""
 
-    def fake_get(url, params):
+    def fake_get(url, params, timeout=None):
         if params.get("list") == "search":
             return FakeResponse({"query": {"search": [{"title": "Ball x Pit"}]}})
         if params.get("prop") == "revisions":
@@ -1072,7 +1072,7 @@ def test_lookup_one_skips_the_wikidata_fallback(monkeypatch):
     lookup_many would go on to ask Wikidata."""
     urls: list[str] = []
 
-    def fake_get(url, params):
+    def fake_get(url, params, timeout=None):
         urls.append(url)
         if params.get("list") == "search":
             return FakeResponse({"query": {"search": [{"title": "Ball x Pit"}]}})
