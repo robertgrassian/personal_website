@@ -38,6 +38,11 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 ## Backlog / Ideas
 
+- [ ] **A "currently playing" view: see everything open, close any of it, start something new,
+      from one place.** Not two systems: an open session with no end date IS currently-playing.
+      Absorbs **Library-level "create session" button**.
+      [Details](docs/todo/currently-playing-manager.md)
+
 - [ ] **A site email address for feedback, so people without a GitHub account can report bugs and
       ideas.** `/privacy` already publishes `rgrassian@gmail.com` twice, so an address exists: what
       is missing is one that is not a personal inbox, and any link to it from the library.
@@ -140,7 +145,7 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 - [ ] Dark mode toggle
 
-- [ ] Stats page: **average rating** per genre, per console, per decade. The *count* rankings
+- [ ] Stats page: **average rating** per genre, per console, per decade. The _count_ rankings
       already ship ("Top Genres", systems and decades in `GameStats.tsx`); what is missing is any
       cut weighted by rating rather than by how many games are in the bucket.
 
