@@ -8,11 +8,6 @@ that govern this file (sections, caps, what goes where) live in the `proj-todo` 
 The organizing goal is **sharing the site with people**, so Up Next holds what should be true
 before that happens.
 
-- [ ] **When adding a game, let me say I'm playing it now, or that I played it before: a play
-      history section in the add-game form.** (Promoted by request 2026-08-09.) Collides with
-      **Fold "+ Add to wishlist" into a single "+ Add game"**.
-      [Details](docs/todo/add-game-play-history.md)
-
 - [ ] **Take a pass at every button, then make reusable components out of the shared class
       strings.** (Promoted by request 2026-08-30.) The tinted trigger vs outlined confirm that
       prompted it is deliberate and reasoned in `formStyles.ts`: this re-decides those rules, not
@@ -48,8 +43,8 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       means next to **promote**, which already moves a bought game into the library.
 
 - [ ] **`AddGameModal` is the last dialog left. Decide whether adding a game moves onto the detail
-      card too.** No longer a merge of two: the other dialogs were deleted 2026-08-20. Sequence with
-      **When adding a game, let me say I'm playing it now**.
+      card too.** No longer a merge of two: the other dialogs were deleted 2026-08-20, and the add
+      form has since taken the card's one-Save model and its play-history fields.
       [Details](docs/todo/merge-game-modals.md)
 
 - [ ] **Audit the genre vocabulary, fix the wrong values in the database with a script, and stop
@@ -106,8 +101,8 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       2026-08-20. Would unblock **Audit the genre vocabulary**.
       [Details](docs/todo/fully-editable-entries.md)
 
-- [ ] **Fold "+ Add to wishlist" into a single "+ Add game" that picks its destination.** Collides
-      with **When adding a game, let me say I'm playing it now**.
+- [ ] **Fold "+ Add to wishlist" into a single "+ Add game" that picks its destination.** The
+      switcher has to show and hide the add form's play-history section, which is library-only.
       [Details](docs/todo/merge-add-buttons.md)
 
 - [ ] **A username rename feature must delete `usernameByUserId` (`src/lib/meApi.ts`).**

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { localToday } from "@/lib/games";
+import { PLAY_CHOICE_LABELS } from "./playChoices";
 
 /** A play session being typed in, with every rule about what makes it valid.
  *  Held here rather than in each form because both places that log a session
@@ -33,11 +34,17 @@ type SessionDraftOptions = {
   /** The game already has an open session that this Save will not close. A
    *  second one is a 409 from `create_my_session`, so it is refused here. */
   blockedByOpenSession?: boolean;
+  /** The caller has already asserted that there IS a playthrough, so an empty
+   *  start date is a problem rather than "no session". The add form's
+   *  "Playing it now" / "Played it before" choice is the only such caller: the
+   *  edit surfaces leave the dates blank to mean nothing was entered. */
+  required?: boolean;
 };
 
 export function useSessionDraft({
   startToday = false,
   blockedByOpenSession = false,
+  required = false,
 }: SessionDraftOptions = {}): SessionDraft {
   const [startDate, setStartDate] = useState(startToday ? localToday() : "");
   const [endDate, setEndDate] = useState("");
@@ -53,13 +60,15 @@ export function useSessionDraft({
 
   const problem = endWithoutStart
     ? "Add a start date, or clear the end date."
-    : dirty && !stillPlaying && endDate === ""
-      ? "Add an end date, or tick 'I'm still playing this'."
-      : dirty && !stillPlaying && endDate !== "" && endDate < startDate
-        ? "The end date is before the start date."
-        : dirty && stillPlaying && blockedByOpenSession
-          ? "You are already playing this. Stop playing first, or give this session an end date."
-          : null;
+    : required && !dirty
+      ? "Add the date you started."
+      : dirty && !stillPlaying && endDate === ""
+        ? `Add an end date, or pick '${PLAY_CHOICE_LABELS.now}'.`
+        : dirty && !stillPlaying && endDate !== "" && endDate < startDate
+          ? "The end date is before the start date."
+          : dirty && stillPlaying && blockedByOpenSession
+            ? `You are already playing this. Stop playing first, or pick '${PLAY_CHOICE_LABELS.before}'.`
+            : null;
 
   return {
     startDate,

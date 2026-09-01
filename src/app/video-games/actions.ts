@@ -283,7 +283,12 @@ export async function getPlayHistory(username: string): Promise<PlayHistoryResul
 }
 
 /** Add a game to the library (from an IGDB pick or manual entry). */
-export async function addGame(game: NewGame): Promise<MutateResult> {
+export async function addGame(
+  game: NewGame,
+  // Optional, and only ever a session: the add form can say "I'm playing this
+  // now" or give past dates. Rating and system are part of the POST itself.
+  edits: Pick<GameEdits, "session"> = {}
+): Promise<MutateResult> {
   const normalized = normalizeSharedFields(game);
   // A game needs a system and a valid rating on top of the shared fields; a
   // wishlist entry does not, which is why these two stay here.
@@ -291,7 +296,34 @@ export async function addGame(game: NewGame): Promise<MutateResult> {
     return { ok: false, message: "Invalid add request." };
   }
 
-  return write(() => createMyGame(normalized), [gamesTag]);
+  // The same two-step shape as promoteAndSave: a create whose 201 carries the
+  // id the session needs, since a session is a row in another table and cannot
+  // ride along in the POST. A failure after the game landed is reported as a
+  // partial application, never as a plain failure — the game really is in the
+  // library, and one with no dates is a normal state to leave it in.
+  return writeApplied(async () => {
+    const created = await createMyGame(normalized);
+    if (!created.ok) return { result: { ok: false, message: created.message }, applied: false };
+    if (edits.session === undefined) return { result: { ok: true }, applied: true };
+
+    // Every message says to finish from the library rather than inviting a
+    // retry: the add form is still open, and pressing Add again would attempt
+    // a duplicate the API refuses with a 409 on (name, system).
+    const partial = (rest: string): WriteOutcome => ({
+      result: { ok: false, message: `Added to your library, but ${rest}` },
+      applied: true,
+    });
+    const finishThere = "Open it from your library to add them.";
+    // Nothing can be logged without the new row id, which only the 201 carries.
+    if (created.gameId === null) return partial(`the play dates were not saved. ${finishThere}`);
+    const calls = editCalls(created.gameId, edits);
+    if (calls === null) return partial(`the play dates were invalid. ${finishThere}`);
+
+    const { result } = await runInOrder(calls);
+    return result.ok
+      ? { result: { ok: true }, applied: true }
+      : partial(`the play dates were not saved. ${result.message}`);
+  }, sessionEditTags(edits));
 }
 
 /** Remove a game from the library; its play sessions cascade away with it. */

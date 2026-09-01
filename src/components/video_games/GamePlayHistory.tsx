@@ -5,8 +5,8 @@ import { localToday, type Game } from "@/lib/games";
 import { formatSessionRange, sessionLengthDays, type PlaySession } from "@/lib/sessions";
 import { saveGameEdits } from "@/app/video-games/actions";
 import { useServerAction } from "./useServerAction";
-import { SessionDateFields } from "./SessionDateFields";
-import { useSessionDraft } from "./useSessionDraft";
+import { PlayedFields } from "./PlayedFields";
+import { usePlayDraft } from "./usePlayDraft";
 import { buttonClass, ghostButtonClass, saveButtonClass } from "./formStyles";
 
 type GamePlayHistoryProps = {
@@ -65,10 +65,14 @@ export function GamePlayHistory({
   // Staging the stop first is what makes a second open session legal: the
   // actions layer closes before it inserts, so the 409 rule only bites while
   // the open one is staying open.
-  const sessionDraft = useSessionDraft({
+  //
+  // No "Not yet" choice: this form is already inside the game's play history,
+  // where the way to log nothing is to leave the dates alone.
+  const play = usePlayDraft({
     startToday: startToday && !alreadyOpen,
     blockedByOpenSession: alreadyOpen && !stopPending,
   });
+  const sessionDraft = play.session;
 
   const hasChanges = sessionDraft.dirty || stopPending;
   const canSave = hasChanges && sessionDraft.problem === null && !isPending;
@@ -85,7 +89,7 @@ export function GamePlayHistory({
       {
         // Stays on this view so the new row is visible; clear the drafts only.
         onSuccess: () => {
-          sessionDraft.reset();
+          play.reset();
           setStopPending(false);
           onSaved();
         },
@@ -145,10 +149,19 @@ export function GamePlayHistory({
         </div>
       )}
 
+      {/* Not "Add a Session": session is the database's word, and no
+          user-facing copy in the library uses it. */}
       <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
-        Add a Session
+        Add a Playthrough
       </p>
-      <SessionDateFields draft={sessionDraft} disabled={isPending} />
+      <div className="mt-2">
+        <PlayedFields
+          play={play}
+          label="Was this a past playthrough?"
+          labelHidden
+          disabled={isPending}
+        />
+      </div>
 
       <div className="mt-5 border-t border-shelf-plank pt-3">
         <button type="button" onClick={save} disabled={!canSave} className={saveButtonClass}>

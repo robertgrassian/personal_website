@@ -6,6 +6,8 @@ import { buttonClass, ghostButtonClass, inputClass, labelClass } from "./formSty
 import { SuggestInput } from "./SuggestInput";
 import { RatingPicker } from "./RatingPicker";
 import { CatalogInfo } from "./CatalogInfo";
+import { PlayedFields } from "./PlayedFields";
+import type { PlayDraft } from "./usePlayDraft";
 
 // The confirm step's working copy: NewGame except genres, which stay a raw
 // comma-separated string while typing (splitting on every keystroke would
@@ -24,6 +26,10 @@ type GameDraftFormProps = {
   // The library's current shelf systems, offered as suggestions so new games
   // land on existing shelves ("SNES") instead of IGDB's names.
   existingSystems: string[];
+  // Whether this game has been played, and when. Held by AddGameModal, which
+  // is what submits it. Unread on the wishlist target: a wishlist entry has no
+  // library row for a playthrough to belong to.
+  play: PlayDraft;
   isPending: boolean;
   onBack: () => void;
   onSave: () => void;
@@ -38,6 +44,7 @@ export function GameDraftForm({
   draft,
   setDraft,
   existingSystems,
+  play,
   isPending,
   onBack,
   onSave,
@@ -72,8 +79,12 @@ export function GameDraftForm({
   };
 
   // Wishlist entries may leave the system undecided; library games can't.
+  // The play dates block the add too, so a half-entered range is refused here
+  // rather than being dropped silently on the way to the API.
   const saveDisabled =
-    isPending || !draft.name.trim() || (target === "library" && !draft.system.trim());
+    isPending ||
+    !draft.name.trim() ||
+    (target === "library" && (!draft.system.trim() || play.session.problem !== null));
 
   return (
     // Fragment, not one element: the scrolling body and the pinned buttons have
@@ -202,6 +213,13 @@ export function GameDraftForm({
               />
               Star it (priority wishlist)
             </label>
+          )}
+
+          {/* Library only: a wishlist entry is not in the library and has no
+              row to hang a playthrough off. When the destination switcher
+              lands, this is the section it has to show and hide. */}
+          {target === "library" && (
+            <PlayedFields play={play} label="Have you played it?" disabled={isPending} />
           )}
         </div>
       </div>

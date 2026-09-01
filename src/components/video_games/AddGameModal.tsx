@@ -9,6 +9,7 @@ import { useServerAction } from "./useServerAction";
 import type { MutateResult } from "@/lib/meApi";
 import { GameSearchStep } from "./GameSearchStep";
 import { GameDraftForm, draftGenres, type Draft } from "./GameDraftForm";
+import { usePlayDraft } from "./usePlayDraft";
 
 type AddGameModalProps = {
   // Where the confirmed game goes. Same search/confirm flow either way;
@@ -50,6 +51,12 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
   const [lastQuery, setLastQuery] = useState("");
 
   const { isPending, error, setError, run } = useServerAction();
+
+  // Held here rather than in the confirm step, for the same reason `draft` is:
+  // the step unmounts on "Back to search", and dates typed before going back
+  // should still be there on the way forward. Created on both targets because
+  // hooks cannot be conditional; only the library branch of `save` reads it.
+  const play = usePlayDraft({ offerNotYet: true });
 
   // Handed to ModalShell as the initial focus target, so this dialog opens
   // ready to type instead of focused on its close button. Created here because
@@ -112,7 +119,10 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
     const submit = (): Promise<MutateResult> => {
       if (target === "library") {
         const game: NewGame = { ...shared, rating: draft.rating };
-        return addGame(game);
+        // Two writes behind one press: the game, then a playthrough against
+        // the id its 201 returns. addGame owns that sequencing, including what
+        // to say when the game lands and the dates do not.
+        return addGame(game, play.session.value ? { session: play.session.value } : {});
       }
       const item: NewWishlistItem = {
         ...shared,
@@ -166,6 +176,7 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
           draft={draft}
           setDraft={setDraft}
           existingSystems={existingSystems}
+          play={play}
           isPending={isPending}
           onBack={() => setDraft(null)}
           onSave={save}

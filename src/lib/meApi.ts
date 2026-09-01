@@ -329,18 +329,30 @@ async function mutate(
   method: "POST" | "PUT" | "PATCH" | "DELETE",
   body: Record<string, unknown> | null,
   what: string,
-  // Only the two create paths pass this. Everything else is a plain database
-  // write and has no business taking longer than the default.
+  // Only the wishlist create passes this. Everything else here is a plain
+  // database write and has no business taking longer than the default.
   timeoutMs?: number
 ): Promise<MutateResult> {
   const res = await callMeApi<void>(path, { method, body, what, timeoutMs });
   return res.ok ? { ok: true } : { ok: false, message: res.message };
 }
 
-/** Add a game to the caller's library. `rating: ""` and `igdbId: null` etc.
- *  are sent as-is — the API treats ""/null as absent for optional fields. */
-export function createMyGame(game: NewGame): Promise<MutateResult> {
-  return mutate(`${API_PREFIX}/me/games`, "POST", { ...game }, "add the game", TIMEOUT_MS.add);
+/** Add a game to the caller's library, returning the id of the row it created.
+ *  `rating: ""` and `igdbId: null` etc. are sent as-is — the API treats
+ *  ""/null as absent for optional fields.
+ *
+ *  Like the promote below, this does not go through `mutate`: the add form can
+ *  log a playthrough in the same press, and that needs a game id that does not
+ *  exist until this call answers. */
+export async function createMyGame(game: NewGame): Promise<CreatedGameResult> {
+  const res = await callMeApi<{ id: number }>(`${API_PREFIX}/me/games`, {
+    method: "POST",
+    body: { ...game },
+    what: "add the game",
+    timeoutMs: TIMEOUT_MS.add,
+  });
+  if (!res.ok) return { ok: false, message: res.message };
+  return { ok: true, gameId: typeof res.data?.id === "number" ? res.data.id : null };
 }
 
 /** Remove a game (and, server-side via cascade, its play sessions). */
@@ -382,7 +394,7 @@ export function deleteMyWishlistItem(itemId: number): Promise<MutateResult> {
 export async function promoteMyWishlistItem(
   itemId: number,
   system: string
-): Promise<PromoteResult> {
+): Promise<CreatedGameResult> {
   const res = await callMeApi<{ id: number }>(`${API_PREFIX}/me/wishlist/${itemId}/promote`, {
     method: "POST",
     body: { system },
@@ -396,7 +408,12 @@ export async function promoteMyWishlistItem(
   return { ok: true, gameId: res.data.id };
 }
 
-export type PromoteResult = { ok: true; gameId: number | null } | { ok: false; message: string };
+/** A write that CREATES a library row, answering with its id so the caller can
+ *  write against it in the same press. `gameId: null` is a 201 whose body did
+ *  not parse: the row really exists, but nothing can be hung off it. */
+export type CreatedGameResult =
+  | { ok: true; gameId: number | null }
+  | { ok: false; message: string };
 
 // Search results ride in the ok branch; failures reuse the message shape so
 // the modal can render either with one code path.

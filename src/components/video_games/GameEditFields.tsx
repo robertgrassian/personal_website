@@ -7,8 +7,8 @@ import { deleteGame, promoteAndSave, saveGameEdits } from "@/app/video-games/act
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
-import { SessionDateFields } from "./SessionDateFields";
-import { useSessionDraft } from "./useSessionDraft";
+import { PlayedFields } from "./PlayedFields";
+import { usePlayDraft } from "./usePlayDraft";
 import { buttonClass, saveButtonClass } from "./formStyles";
 import { SuggestInput } from "./SuggestInput";
 import { RequiredField } from "./RequiredField";
@@ -69,11 +69,15 @@ export function GameEditFields({
   const [ratingDraft, setRatingDraft] = useState<Rating | "">(savedRating);
   const [systemDraft, setSystemDraft] = useState(savedSystem);
 
-  // Session draft, PROMOTE ONLY: promoteAndSave creates the row and logs the
+  // Play draft, PROMOTE ONLY: promoteAndSave creates the row and logs the
   // playthrough in one call, so there is no id to send a session to until this
   // Save lands. An existing game logs through GamePlayHistory instead, which is
   // why this stays empty and unread there.
-  const sessionDraft = useSessionDraft();
+  //
+  // With "Not yet", as on the add form: a promote is being asked whether the
+  // game has been played at all, not adding a row to a history it has.
+  const play = usePlayDraft({ offerNotYet: true });
+  const sessionDraft = play.session;
 
   const playing =
     !promoting && subject.game.currentlyPlaying && subject.game.openSessionId !== null;
@@ -216,10 +220,9 @@ export function GameEditFields({
         <p className="mt-3 text-sm text-shelf-text-muted italic">
           Nothing logged yet. Add the first one below.
         </p>
-        <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
-          Add a Session
-        </p>
-        <SessionDateFields draft={sessionDraft} disabled={isPending} />
+        <div className="mt-5">
+          <PlayedFields play={play} label="Have you played it?" disabled={isPending} />
+        </div>
         {saveFooter}
       </>
     );

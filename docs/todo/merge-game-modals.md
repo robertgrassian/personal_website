@@ -40,5 +40,8 @@ motion, the way a promote does. And the search step is a real step, not a field:
 for reading a game you already have, not for browsing results. The cheap version is that `AddGameForm`
 reuses `GameEditFields`' Save model and field set without the card shape at all.
 
-_Still sequence with_ **"When adding a game, let me say I'm playing it now"** in Up Next, which adds
-a play-history section to the add form.
+_The add form has since closed part of the gap_ (2026-09-01): it took `SessionDateFields` and a
+"Have you played it?" section of its own, and `addGame` now creates the row and logs a playthrough
+in one press, the way `promoteAndSave` does. What is still unshared is the identity half (the cover
+header, `CatalogInfo`, and the manual path's name/genres/release-date fields), which is the part
+`GameEditFields` must not grow, since for an IGDB pick those belong to the shared catalog row.
