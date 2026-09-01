@@ -55,7 +55,13 @@ export function StatsPanel({
     setView("history");
   };
 
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  // Opening focus lands on the panel itself, not on the close button. A
+  // programmatic focus() on a button paints the UA focus ring, and a touch has
+  // no later keystroke to clear it, so the X read as pressed until the next tap
+  // landed somewhere else. Focusing the dialog container is the ARIA pattern
+  // anyway: screen readers announce the aria-label, and Tab still walks the
+  // panel's controls in order from here.
+  const panelRef = useRef<HTMLElement>(null);
 
   // Re-opening starts on Overview rather than where the last visit ended.
   useEffect(() => {
@@ -69,7 +75,7 @@ export function StatsPanel({
   // back to the opener on close), shared with the three owner dialogs. This
   // panel stays mounted while closed — it slides in via a transform rather than
   // mounting — so it passes isOpen as `enabled` where those pass nothing.
-  useModalChrome(onClose, closeButtonRef, isOpen);
+  useModalChrome(onClose, panelRef, isOpen);
 
   return (
     <>
@@ -83,12 +89,16 @@ export function StatsPanel({
 
       {/* Slide-over panel */}
       <aside
+        ref={panelRef}
+        // -1 makes the container programmatically focusable without adding it
+        // to the tab order; outline-none keeps that focus invisible.
+        tabIndex={-1}
         aria-label={view === "history" ? "Play history" : "Library stats"}
         aria-modal="true"
         aria-hidden={!isOpen}
         inert={!isOpen}
         role="dialog"
-        className={`fixed top-[var(--nav-offset)] right-0 z-40 h-[calc(100%-var(--nav-offset))] flex flex-col pb-[var(--safe-bottom)] pl-[var(--safe-left)] pr-[var(--safe-right)] bg-background border-l border-divider shadow-2xl transition-[transform,width] duration-300 ease-in-out ${
+        className={`fixed top-[var(--nav-offset)] right-0 z-40 outline-none h-[calc(100%-var(--nav-offset))] flex flex-col pb-[var(--safe-bottom)] pl-[var(--safe-left)] pr-[var(--safe-right)] bg-background border-l border-divider shadow-2xl transition-[transform,width] duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         } ${
           // The wide width is the query tab's alone, so the history keeps the
@@ -127,7 +137,6 @@ export function StatsPanel({
             </div>
           </div>
           <button
-            ref={closeButtonRef}
             type="button"
             onClick={onClose}
             aria-label="Close stats panel"
