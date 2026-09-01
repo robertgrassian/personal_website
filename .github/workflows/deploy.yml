@@ -60,7 +60,7 @@ jobs:
       migrations: ${{ steps.check.outputs.migrations }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # The diff below needs both ends of the push; the default checkout is
           # a single commit.
@@ -124,10 +124,10 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -141,6 +141,66 @@ jobs:
 
       - name: Migrate
         run: uv run alembic upgrade head
+
+  # Says out loud that `migrate` is waiting, by commenting the run's URL on the
+  # PR that was just merged. GitHub only surfaces a pending environment approval
+  # as an email and a badge on the Actions tab, so a deploy can sit blocked for
+  # hours before anyone notices it is asking for something.
+  #
+  # Runs ALONGSIDE `migrate` rather than before or after it. A job that needed
+  # `migrate` would not start until the approval it exists to ask for had already
+  # been given, and one that `migrate` needed would gate the migration on a
+  # comment succeeding.
+  #
+  # Nothing depends on this job, and continue-on-error keeps a failed comment
+  # (a deleted PR, a GitHub outage) from painting the run red when the deploy
+  # itself is fine.
+  notify:
+    needs: changes
+    if: needs.changes.outputs.migrations == 'true' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+
+    # The only job here that writes anything back to GitHub, and deliberately
+    # the only one holding no database or deploy credential.
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Comment the approval link on the merged PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # A commit can reach main without a PR (a direct push, or an admin
+          # merge), in which case there is nothing to comment on and that is not
+          # a failure.
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq '.[0].number')"
+          if [ -z "$pr" ] || [ "$pr" = "null" ]; then
+            echo "No PR is associated with $GITHUB_SHA; nothing to notify."
+            exit 0
+          fi
+
+          # Body via an unindented heredoc, not an inline --body: the YAML block
+          # scalar would otherwise carry this step's indentation into the comment
+          # and Markdown would render the whole thing as a code block.
+          cat > body.md <<EOF
+          ## Production deploy is waiting for your approval
+
+          This merge changed \`api/alembic/versions/\`, so the \`migrate\` job is paused on
+          the \`production\` environment's required reviewer. **Production is still
+          running the previous revision until you approve.**
+
+          ### [Review the pending deployment →]($RUN_URL)
+
+          Open that run and press **Review deployments**. Nothing ships either way
+          without it: \`verify\` refuses to deploy unless the database reports it is
+          at this commit's head revision.
+          EOF
+
+          gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --body-file body.md
 
   # The actual gate on deploying. Everything above is best-effort scheduling;
   # this asks the database directly whether it is at the revision this commit
@@ -177,10 +237,10 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -235,10 +295,10 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
 
