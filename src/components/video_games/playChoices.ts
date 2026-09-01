@@ -16,6 +16,6 @@ export type PlayedChoice = "no" | "now" | "before";
  *  no control of its own, so the string cannot live there. */
 export const PLAY_CHOICE_LABELS: Record<PlayedChoice, string> = {
   no: "Not yet",
-  now: "Playing it now",
+  now: "Currently playing",
   before: "Played it before",
 };

@@ -33,6 +33,10 @@ type GameEditFieldsProps = {
   // rating, system and date drafts alive across the switch. One Save creates
   // the row and logs the playthrough, so they cannot be committed separately.
   showingHistory: boolean;
+  // Called when a promote's Save also logged a playthrough. Same reason as the
+  // add form: the library's one copy of the play history has no other way to
+  // learn that the row it holds is out of date.
+  onSessionLogged: () => void;
   onClose: () => void;
 };
 
@@ -50,6 +54,7 @@ export function GameEditFields({
   existingSystems,
   onOpenHistory,
   showingHistory,
+  onSessionLogged,
   onClose,
 }: GameEditFieldsProps) {
   const { isPending, error, run } = useServerAction();
@@ -100,13 +105,19 @@ export function GameEditFields({
     if (promoting) {
       // The wishlist row is gone once this lands, so the subject stops
       // existing: close rather than sit on a stale item.
+      const session = sessionDraft.value;
       run(
         () =>
           promoteAndSave(subject.item.id, systemDraft, {
             ...(ratingDirty ? { rating: ratingDraft } : {}),
-            ...(sessionDraft.value ? { session: sessionDraft.value } : {}),
+            ...(session ? { session } : {}),
           }),
-        { onSuccess: onClose }
+        {
+          onSuccess: () => {
+            if (session) onSessionLogged();
+            onClose();
+          },
+        }
       );
       return;
     }

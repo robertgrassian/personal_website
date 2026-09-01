@@ -23,6 +23,10 @@ type AddGameModalProps = {
   // Folded name → the systems that name is already on, for whichever collection
   // this dialog is adding to. Built in GameLibrary, which holds both lists.
   ownedNames: Map<string, string[]>;
+  // Called when the add also logged a playthrough, so the library's one copy of
+  // the play history can re-read. Without it the new game's dates are missing
+  // from the card and the stats panel until a reload.
+  onSessionLogged: () => void;
   onClose: () => void;
 };
 
@@ -36,7 +40,13 @@ type AddGameModalProps = {
 // Keeping them in one component meant seven search state slots stayed alive
 // and re-rendered on every keystroke typed into the confirm form. Each now
 // unmounts when the other is showing.
-export function AddGameModal({ target, existingSystems, ownedNames, onClose }: AddGameModalProps) {
+export function AddGameModal({
+  target,
+  existingSystems,
+  ownedNames,
+  onSessionLogged,
+  onClose,
+}: AddGameModalProps) {
   // null = search step; set = confirm step.
   const [draft, setDraft] = useState<Draft | null>(null);
   // Remembered at hand-off, not on every keystroke, so "Back to search" can
@@ -116,13 +126,14 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
       imageUrl: draft.imageUrl,
       igdbId: draft.igdbId,
     };
+    const session = target === "library" ? play.session.value : undefined;
     const submit = (): Promise<MutateResult> => {
       if (target === "library") {
         const game: NewGame = { ...shared, rating: draft.rating };
         // Two writes behind one press: the game, then a playthrough against
         // the id its 201 returns. addGame owns that sequencing, including what
         // to say when the game lands and the dates do not.
-        return addGame(game, play.session.value ? { session: play.session.value } : {});
+        return addGame(game, session ? { session } : {});
       }
       const item: NewWishlistItem = {
         ...shared,
@@ -132,7 +143,12 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
       };
       return addWishlistItem(item);
     };
-    run(submit, { onSuccess: onClose });
+    run(submit, {
+      onSuccess: () => {
+        if (session) onSessionLogged();
+        onClose();
+      },
+    });
   };
 
   const heading = target === "library" ? "Add a game" : "Add to wishlist";

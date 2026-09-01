@@ -66,7 +66,13 @@ export function PlayedFields({ play, label, labelHidden = false, disabled }: Pla
               disabled={disabled}
               onClick={() => play.choose(value)}
               className={
-                "rounded-md border px-2 py-1.5 text-xs transition-colors cursor-pointer " +
+                // Taller on touch, matching dangerSubtleButtonClass: three
+                // choices across a phone are narrow enough already without
+                // being 28px high. leading-tight because the longest label
+                // wraps to two lines there, and the grid makes all three that
+                // tall when one is.
+                "rounded-md border px-2 py-2 pointer-fine:py-1.5 text-xs leading-tight " +
+                "transition-colors cursor-pointer " +
                 "disabled:opacity-50 disabled:cursor-default " +
                 (active
                   ? "border-transparent bg-link font-medium text-background"

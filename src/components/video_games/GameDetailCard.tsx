@@ -359,6 +359,7 @@ export function GameDetailCard({
                             existingSystems={existingSystems}
                             onOpenHistory={openHistory}
                             showingHistory={promoteHistory}
+                            onSessionLogged={playHistory.refresh}
                             onClose={close}
                           />
                         )}

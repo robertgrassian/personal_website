@@ -39,8 +39,13 @@ export function usePlayDraft({
   blockedByOpenSession = false,
 }: PlayDraftOptions = {}): PlayDraft {
   // "before" where "Not yet" is not offered: a history form opens with the To
-  // field showing and nothing selected for you, which is what it did when this
+  // field showing and nothing chosen for you, which is what it did when this
   // was a checkbox.
+  //
+  // Opening on "currently playing" was tried and reverted 2026-09-01. The
+  // default cannot fill in today's date, since that would leave Save live on a
+  // form nobody has touched, but an explicit tap does (see `choose`) — so the
+  // button you landed on and the button you came back to behaved differently.
   const initialChoice: PlayedChoice = offerNotYet ? "no" : "before";
   const [choice, setChoice] = useState<PlayedChoice>(initialChoice);
   const session = useSessionDraft({

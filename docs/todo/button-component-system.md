@@ -12,6 +12,14 @@ either.
 
 Stated preference: probably no background, but undecided.
 
+_A second case, reported 2026-09-01 while testing the add form:_ "Add to library" reads as unstyled
+next to the rest of the dialog: it is `buttonClass`, outlined with no fill, sitting beside "Back to
+search", and it is the primary action of the whole dialog. This is the filled-vs-outlined rule
+above working exactly as written (nothing is pending behind an add, so it is not a Save), which is
+the clearest evidence yet that the rule is the thing to re-decide rather than this one button.
+Whatever wins has to answer what the primary action of a dialog looks like when it is not
+committing a draft, since `accentButtonClass` is currently reserved for page-level CTAs.
+
 ## The premise to correct before deciding anything
 
 This is not drift, and there is no missing abstraction to add. `formStyles.ts` already centralizes

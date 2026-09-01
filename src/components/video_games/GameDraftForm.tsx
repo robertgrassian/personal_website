@@ -103,8 +103,15 @@ export function GameDraftForm({
           fields to their old width with clip-free room around them. The panel's
           p-5 absorbs the negative margin. The alternative, focus:ring-inset in
           formStyles, would have changed the ring everywhere it is used,
-          including the filter bar, which is not clipped and has no bug. */}
-      <div className="mt-4 -mx-1 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1">
+          including the filter bar, which is not clipped and has no bug.
+
+          pb-1 is the same fix on the bottom edge, needed once the play dates
+          became the last thing in the form: a box-shadow adds nothing to a
+          scroll container's scrollable area, so the last field's ring was cut
+          off along the bottom while its other three sides survived. No negative
+          margin to match, because this box is flex-1 and already fills the
+          space: the padding costs the layout nothing. */}
+      <div className="mt-4 -mx-1 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1 pb-1">
         {/* Which game you picked, not a field: without it the form is a system
             box with no subject. `relative` is load-bearing — CatalogInfo
             anchors its panel to this row. Manual entries skip it because their
