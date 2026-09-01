@@ -167,6 +167,29 @@ reasoning behind the shape, which the models themselves don't record.
 - **Play state is derived in Python**, not SQL: an open session (NULL `end_date`) means
   currently playing, and the newest `end_date` is last played, merged in the service layer
   from two queries. Window functions are a profiling-driven optimization only.
+- **Two temporal types, chosen by who decided the value.** `timestamptz` for a moment the
+  SYSTEM recorded (`game_metadata.refreshed_at`, `profiles.created_at`, `follows.created_at`,
+  `played_games.created_at`); `date` for a calendar day a PERSON chose
+  (`play_sessions.start_date` / `end_date`, `wishlist_games.date_added`,
+  `game_metadata.release_date`). `wishlist_games.date_added` and `played_games.created_at`
+  look like the same field under two names and are not: one is a day someone picked and
+  shows on the wire as `dateAdded`, the other is an insert timestamp nothing reads.
+  <br>
+  **Not epoch milliseconds in a `bigint`**, which is the usual reflex from a JVM
+  background and solves a problem Postgres does not have. The pain there is
+  `TIMESTAMP WITHOUT TIME ZONE` plus a JDBC driver applying the JVM's default zone on the
+  way in and out: the column never held an instant, and the conversion was implicit.
+  `timestamptz` stores no zone at all -- it normalizes to UTC on write and holds an instant,
+  which IS the simple model epoch-millis is reached for, and psycopg hands it back as an
+  aware UTC `datetime` with no local-zone step anywhere. Storing an integer instead would
+  buy nothing and cost `now()`, `interval` arithmetic, `date_trunc`, and a value anyone can
+  read in psql or the Supabase table editor without dividing by a thousand. The wire format
+  is unaffected either way: the API emits ISO strings, and `""` for absent.
+  <br>
+  **A timestamp earns its column by being read.** `game_metadata` carried a `created_at`
+  that nothing ever queried, and whose value was a lie for every row predating the catalog
+  normalization -- they all said the day that migration ran. `created_by_user_id` is the
+  provenance that was actually wanted. Prefer no column to a decorative one.
 - **Alembic is scoped to the `public` schema.** The `auth` schema belongs to Supabase's
   GoTrue, and autogenerate would otherwise see those tables as undeclared and try to drop
   them. The `profiles → auth.users` FK is declared in a migration, but that table is never
