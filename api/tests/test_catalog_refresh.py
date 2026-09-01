@@ -20,7 +20,10 @@ NOW = datetime(2026, 9, 1, tzinfo=UTC)
 
 def make_row(**overrides) -> GameMetadata:
     """A complete, freshly refreshed shared catalog row. Tests override the one
-    field they are about, so "why is this due?" is visible in the call."""
+    field they are about, so "why is this due?" is visible in the call.
+
+    created_at is deliberately absent: nothing in the refresh reads it, and
+    setting it here would suggest otherwise."""
     defaults = {
         "id": 1,
         "igdb_id": 1051,
@@ -29,7 +32,6 @@ def make_row(**overrides) -> GameMetadata:
         "platforms": ["PC (Microsoft Windows)"],
         "release_date": date(2026, 5, 6),
         "image_url": "https://images.igdb.com/cover.jpg",
-        "created_at": NOW - timedelta(days=400),
         "refreshed_at": NOW,
     }
     return GameMetadata(**{**defaults, **overrides})
@@ -99,12 +101,10 @@ class TestIsDue:
         row.refreshed_at = NOW - timedelta(days=2)
         assert catalog_refresh.is_due(row, NOW) is True
 
-    def test_a_null_stamp_falls_back_to_created_at(self):
-        # Rows predating the column read as "checked when they were created",
-        # which is true — the add path sources them.
-        assert catalog_refresh.is_due(make_row(refreshed_at=None), NOW) is True
-        fresh = make_row(refreshed_at=None, created_at=NOW - timedelta(days=1))
-        assert catalog_refresh.is_due(fresh, NOW) is False
+    def test_a_freshly_added_row_is_not_due(self):
+        # The column defaults to now() on insert, and that is true rather than
+        # convenient: the add path sources genres and platforms on the way in.
+        assert catalog_refresh.is_due(make_row(), NOW) is False
 
 
 class TestDueRows:

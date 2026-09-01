@@ -12,9 +12,11 @@ were sourced when they were created, so created_at is the honest answer to
 "when was this last checked" — and stamping now() instead would tell the
 refresh that a two-year-old row is fresh, which is exactly backwards.
 
-NULL is still permitted and means the same thing as created_at (the refresh
-falls back to it), so a row inserted by anything that does not know about this
-column is treated as never refreshed rather than as permanently fresh.
+NOT NULL, with the same now() default created_at carries. A nullable column
+would need a fallback for the NULL, and the only honest fallback is created_at
+— which for any row inserted after this migration is set by its own default on
+the same INSERT, so the fallback would return precisely what the default here
+returns. One column with one meaning instead.
 
 Revision ID: e2b7c4f10a58
 Revises: d1a83f6c25e7
@@ -32,11 +34,21 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Added nullable, backfilled, then tightened. Postgres 11+ fills existing
+    # rows from the server default without rewriting the table, so those rows
+    # briefly say now() before the UPDATE below corrects them to created_at --
+    # which is why NOT NULL is set last rather than declared up front.
     op.add_column(
         "game_metadata",
-        sa.Column("refreshed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "refreshed_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
     )
     op.execute("UPDATE game_metadata SET refreshed_at = created_at")
+    op.alter_column("game_metadata", "refreshed_at", nullable=False)
 
 
 def downgrade() -> None:

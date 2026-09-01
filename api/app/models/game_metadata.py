@@ -73,10 +73,12 @@ class GameMetadata(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     # When IGDB and Wikipedia were last asked about this row, so a read can tell
-    # a checked-yesterday row from one nobody has looked at since 2024. NULL
-    # reads as created_at (see services/catalog_refresh.py): a row written by
-    # something that does not set it is never-refreshed, not permanently fresh.
-    refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # a checked-yesterday row from one nobody has looked at since 2024 (see
+    # services/catalog_refresh.py). Defaults like created_at, which is the right
+    # answer for a new row: the add path sources it on the way in.
+    refreshed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     __table_args__ = (
         UniqueConstraint("igdb_id", name="uq_game_metadata_igdb_id"),

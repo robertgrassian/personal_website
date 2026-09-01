@@ -76,9 +76,11 @@ reasoning behind the shape, which the models themselves don't record.
   wishlisted game gets a release date, a game ships on another console, a genre
   is corrected. Serving a library therefore re-sources the two most out-of-date
   rows it just loaded (`app/services/catalog_refresh.py`), which is why the two
-  read services can write. A row missing any sourced field is retried daily, a
-  complete one after a month, and NULL reads as `created_at` so a row predating
-  the column is not treated as permanently fresh. The stamp is written *before*
+  read services can write. A row missing any sourced field is retried daily and
+  a complete one after a month; the column is NOT NULL and defaults like
+  `created_at`, which is true for a new row because the add path sources it on
+  the way in, while the migration backfills existing rows from `created_at`
+  rather than stamping them fresh. The stamp is written *before*
   the lookups, so a failure counts as an attempt and a game with no announced
   date cannot be retried on every page view. Hand-entered rows (`igdb_id IS
   NULL`) are skipped, and the game's **name** is never overwritten: IGDB's title

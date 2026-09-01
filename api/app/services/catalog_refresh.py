@@ -94,14 +94,6 @@ IGDB_TIMEOUT = 2.0
 WIKIPEDIA_TIMEOUT = 2.0
 
 
-def _last_checked(meta: GameMetadata) -> datetime:
-    """When this row was last re-sourced. NULL refreshed_at falls back to
-    created_at, because a row is sourced when it is created -- and because a
-    NULL that read as "infinitely stale" would make every row due at once the
-    moment this column shipped."""
-    return meta.refreshed_at or meta.created_at
-
-
 def is_incomplete(meta: GameMetadata) -> bool:
     """Whether the catalog is missing something it could know about this game.
 
@@ -118,7 +110,7 @@ def is_due(meta: GameMetadata, now: datetime) -> bool:
     if meta.igdb_id is None:
         return False
     interval = INCOMPLETE_RETRY_AFTER if is_incomplete(meta) else STALE_AFTER
-    return now - _last_checked(meta) >= interval
+    return now - meta.refreshed_at >= interval
 
 
 def _due_rows(rows: list[GameMetadata], now: datetime) -> list[GameMetadata]:
@@ -130,7 +122,7 @@ def _due_rows(rows: list[GameMetadata], now: datetime) -> list[GameMetadata]:
     through its rows instead of re-picking the same one every read.
     """
     due = [meta for meta in rows if is_due(meta, now)]
-    due.sort(key=lambda meta: (not is_incomplete(meta), _last_checked(meta)))
+    due.sort(key=lambda meta: (not is_incomplete(meta), meta.refreshed_at))
     return due[:MAX_ROWS_PER_READ]
 
 
