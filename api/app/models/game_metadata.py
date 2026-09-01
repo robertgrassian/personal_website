@@ -72,6 +72,11 @@ class GameMetadata(Base):
         Uuid, ForeignKey("profiles.id", ondelete="SET NULL")
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # When IGDB and Wikipedia were last asked about this row, so a read can tell
+    # a checked-yesterday row from one nobody has looked at since 2024. NULL
+    # reads as created_at (see services/catalog_refresh.py): a row written by
+    # something that does not set it is never-refreshed, not permanently fresh.
+    refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         UniqueConstraint("igdb_id", name="uq_game_metadata_igdb_id"),

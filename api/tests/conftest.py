@@ -91,7 +91,10 @@ def stub_genre_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
     request body, so those tests assert on what they sent rather than on what
     Wikipedia says today. Tests that want the sourcing itself override this.
     """
-    monkeypatch.setattr(genre_service, "lookup_one", lambda name: [])
+    # **_kwargs because the catalog refresh calls this with a tighter timeout
+    # than the add path does; a stub that pins the signature would turn that
+    # into a TypeError inside a read.
+    monkeypatch.setattr(genre_service, "lookup_one", lambda name, **_kwargs: [])
 
 
 @pytest.fixture

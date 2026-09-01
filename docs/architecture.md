@@ -68,6 +68,17 @@ also owns origin resolution (`requireLibraryApiOrigin`) and the cache tags.
 There is **no fallback data source**: an unresolvable origin throws, which fails
 the build for the static library pages instead of shipping an empty shelf.
 
+**The library and wishlist reads also write.** Before building the response,
+`services/users.py` hands the catalog rows it just loaded to
+`services/catalog_refresh.py`, which re-sources the couple that are most out of
+date from IGDB and Wikipedia and stamps them. It is bounded by a row cap and a
+wall-clock budget deliberately smaller than `REQUEST_TIMEOUT_MS` in
+`libraryApi.ts`, since overrunning that fails the render rather than degrading
+it. The rules are in that module; the reason it lives on the read path is that
+serving a page is the only regular event this site has. Note the consequence of
+the caching below it: a library nobody visits and nobody edits never refreshes,
+because nothing ever reaches Postgres to notice.
+
 Filtering, grouping and sorting happen **client-side**, after the fetch, in
 `components/video_games/pipeline.ts` — pure functions over the already-loaded
 array, with no React in them. The API returns a whole library and the browser

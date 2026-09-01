@@ -71,6 +71,21 @@ reasoning behind the shape, which the models themselves don't record.
   `scripts/backfill_genres.py`, which is a repair tool rather than the only source of good
   genres. Hand-entered games keep whatever the owner typed; the lookup runs only if they
   left it blank.
+- **`game_metadata.refreshed_at` is when the row was last re-sourced, and a read
+  is what re-sources it.** The catalog stores facts that change after an add: a
+  wishlisted game gets a release date, a game ships on another console, a genre
+  is corrected. Serving a library therefore re-sources the two most out-of-date
+  rows it just loaded (`app/services/catalog_refresh.py`), which is why the two
+  read services can write. A row missing any sourced field is retried daily, a
+  complete one after a month, and NULL reads as `created_at` so a row predating
+  the column is not treated as permanently fresh. The stamp is written *before*
+  the lookups, so a failure counts as an attempt and a game with no announced
+  date cannot be retried on every page view. Hand-entered rows (`igdb_id IS
+  NULL`) are skipped, and the game's **name** is never overwritten: IGDB's title
+  is often not this library's (`scripts/backfill_titles.py`), and the stored
+  name is what the Wikipedia genre lookup searches on. The backfill scripts
+  remain the bulk repair tools; this is the trickle that keeps an active library
+  from drifting.
 - **Known gap: creating a shared row is first-write-wins and unvalidated.** Nothing checks
   the client's `igdb_id` against IGDB, so whoever adds a given IGDB game first defines the
   name and release date every later adder inherits — and no UI path edits a shared

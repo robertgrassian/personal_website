@@ -263,9 +263,15 @@ class GenreLookup:
         return bool(self.genres)
 
 
-def _get(url: str, params: dict) -> httpx.Response:
-    """The single outbound-HTTP seam. Tests monkeypatch this."""
-    timeout = _SPARQL_TIMEOUT if url == WIKIDATA_SPARQL else _HTTP_TIMEOUT
+def _get(url: str, params: dict, timeout: float | None = None) -> httpx.Response:
+    """The single outbound-HTTP seam. Tests monkeypatch this.
+
+    ``timeout`` overrides the per-endpoint defaults for a caller on a tighter
+    deadline: the catalog refresh runs inside a public read whose own client
+    gives up after five seconds, so the 8s default would fail the page rather
+    than the lookup."""
+    if timeout is None:
+        timeout = _SPARQL_TIMEOUT if url == WIKIDATA_SPARQL else _HTTP_TIMEOUT
     return httpx.get(url, params=params, headers={"User-Agent": USER_AGENT}, timeout=timeout)
 
 
@@ -445,7 +451,7 @@ def _rank_key(name: str, article: str, *, is_series: bool):
     )
 
 
-def search_candidates(title: str) -> list[str]:
+def search_candidates(title: str, *, timeout: float | None = None) -> list[str]:
     """Candidate Wikipedia article titles for a game.
 
     " video game" is appended to the search terms to bias away from the film or
@@ -462,13 +468,14 @@ def search_candidates(title: str) -> list[str]:
             "srlimit": SEARCH_CANDIDATES,
             "format": "json",
         },
+        timeout,
     )
     response.raise_for_status()
     hits = (response.json().get("query") or {}).get("search") or []
     return [hit["title"] for hit in hits if hit.get("title")]
 
 
-def lead_sections(titles: list[str]) -> dict[str, str]:
+def lead_sections(titles: list[str], *, timeout: float | None = None) -> dict[str, str]:
     """Lead-section wikitext for many articles in one request.
 
     Section 0 is where the infobox lives, so this deliberately does not fetch
@@ -490,6 +497,7 @@ def lead_sections(titles: list[str]) -> dict[str, str]:
             "format": "json",
             "formatversion": 2,
         },
+        timeout,
     )
     response.raise_for_status()
     out: dict[str, str] = {}
@@ -597,7 +605,7 @@ def genres_for_qids(qids: list[str]) -> dict[str, list[str]]:
 MIN_WRITE_CONFIDENCE = 0.97
 
 
-def lookup_one(title: str) -> list[str]:
+def lookup_one(title: str, *, timeout: float | None = None) -> list[str]:
     """Genres for a single title, for the add-game write path. [] on a miss.
 
     Three differences from lookup_many, all because a user is waiting on the
@@ -614,7 +622,7 @@ def lookup_one(title: str) -> list[str]:
         client's genres stand in); accepting one is invisible and sticky.
     """
     try:
-        result = lookup_many([title], wikidata_fallback=False)[title]
+        result = lookup_many([title], wikidata_fallback=False, timeout=timeout)[title]
     except Exception:
         logger.exception("Genre lookup failed for %r", title)
         return []
@@ -633,7 +641,11 @@ def lookup_one(title: str) -> list[str]:
 
 
 def lookup_many(
-    titles: list[str], *, on_progress=None, wikidata_fallback: bool = True
+    titles: list[str],
+    *,
+    on_progress=None,
+    wikidata_fallback: bool = True,
+    timeout: float | None = None,
 ) -> dict[str, GenreLookup]:
     """Resolve many titles: one Wikipedia search each, then a single batched
     Wikidata query for all the ids found.
@@ -651,7 +663,7 @@ def lookup_many(
         # keys parsed here (KeyError). One bad title must not abandon a run that
         # is a hundred-odd requests deep.
         try:
-            candidates[title] = search_candidates(title)
+            candidates[title] = search_candidates(title, timeout=timeout)
         except Exception:
             logger.exception("Wikipedia search failed for %r", title)
             candidates[title] = []
@@ -683,7 +695,7 @@ def lookup_many(
     BATCH = 50
     for i in range(0, len(unique), BATCH):
         try:
-            wikitext.update(lead_sections(unique[i : i + BATCH]))
+            wikitext.update(lead_sections(unique[i : i + BATCH], timeout=timeout))
         except Exception:
             logger.exception("Wikitext batch %d failed", i)
 

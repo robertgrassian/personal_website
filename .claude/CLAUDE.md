@@ -36,6 +36,7 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | Task                                   | File                                                                                                    |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Library read fetches, cache tags       | `src/lib/libraryApi.ts`                                                                                 |
+| Stale/missing catalog data refresh     | `api/app/services/catalog_refresh.py`                                                                   |
 | Owner writes (client-callable)         | `src/app/video-games/actions.ts` → `src/lib/meApi.ts`                                                   |
 | Filter / group / sort logic            | `src/components/video_games/pipeline.ts`                                                                |
 | Filter/group/sort option lists         | `src/components/video_games/libraryConfig.ts`, `useFilterOptions.ts`                                    |

@@ -86,6 +86,17 @@ lead + IGDB genres run **offline inside the backfill's plan step**, where a huma
 changing row: the review gate that makes a bad automated genre survivable exists only there, not in
 the live add path. Do not put a model in the write path first.
 
+_A one-off UPDATE is no longer a fix, as of the catalog refresh (2026-09-01)._
+`api/app/services/catalog_refresh.py` re-sources a stale row's genres from Wikipedia during a public
+read and **overwrites** what is stored, so correcting Star Fox Adventures' `Shooter` with a targeted
+`UPDATE` would survive at most thirty days. That settles the open question above in favour of the
+answer this doc already leaned toward: the correction has to live in the lookup, as a
+`SOURCE_SYNONYMS` / `THEME_VALUES` entry in `api/app/services/genres.py` or an `OVERRIDES` entry in
+`scripts/backfill_genres.py`, which is also the only kind of fix that "stops them coming back".
+Same constraint applies to **"Make library and wishlist entries fully editable"**: a genre edited by
+hand through a future UI is a value the refresh does not know is deliberate, so that item now has to
+decide how an edited row opts out (a flag on the row, or a stored override) before it ships genres.
+
 _The constraint that applies to every fix here:_ genres live on the **shared** `game_metadata` row,
 so correcting one rewrites the genre for every user who owns that game (the runbook says this
 outright). Fine for one curator, re-think before strangers.
