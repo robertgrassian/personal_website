@@ -8,14 +8,21 @@ running beside the git integration would race it, and a lost race means new code
 schema. Preview deploys are untouched, since only `main` is disabled: every PR still gets its
 preview and its Vercel build check, and no preview branch can ever migrate.
 
-Four jobs run on a push to `main`:
+Five jobs run on a push to `main`:
 
 | Job       | What it does                                                                                                           |
 | --------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `changes` | Diffs the push for anything under `api/alembic/versions/`. Decides only whether an approval is needed.                 |
 | `migrate` | Runs when that diff is non-empty, in the `Production` environment, whose required reviewer pauses the run for a click. |
+| `notify`  | Comments the run's URL on the merged PR so the pending approval is visible. Runs beside `migrate`; blocks nothing.      |
 | `verify`  | Asks the database whether it is at this commit's head revision. **This is the gate.**                                  |
 | `deploy`  | `vercel deploy --prod`, gated on `needs.verify.result == 'success'`.                                                   |
+
+`notify` exists because a pending environment approval is easy to miss: GitHub announces it with
+an email and a badge on the Actions tab, and a deploy can sit waiting for hours before anyone
+looks. It runs alongside `migrate` rather than around it, since a job that waited on `migrate`
+could not announce the approval it is meant to request. Nothing depends on it and it is
+`continue-on-error`, so a failed comment never holds up a deploy.
 
 **`verify` is what makes the pipeline safe, not the diff.** The push diff can be wrong in several
 ordinary ways: the concurrency group cancels a run that was still queued, so its migration never
