@@ -38,6 +38,9 @@
   /* Border and text are the same red on a solid shelf, and diverge only on the
      detail card, which fills. */
   --shelf-danger-text: var(--shelf-danger);
+  /* Load-bearing HERE and nowhere else: with no fill behind it, the border is
+     the only thing giving this button a shape. The card drops it. */
+  --shelf-danger-border: var(--shelf-danger);
   /* What sits BEHIND a destructive button at rest. Transparent on a solid
      shelf, where the red already clears contrast on its own; the detail card
      overrides it, because nothing there is solid. */
@@ -385,13 +388,15 @@
      scrim is dark in both schemes, but the page around the card is not, and
      the same red glows harder against a dark surround.
 
-     The border stays the light red rather than the fill's, so the edge is
-     defined on a dark cover where fill and backdrop are close.
+     No border: the fill defines the edge on its own, and a light red outline
+     around it drew more attention than a destructive action should get before
+     you have decided to take it.
 
      Re-measure with scripts/check-danger-contrast.py before changing the fill
      or its alpha. */
   --shelf-danger: #f45f5f;
   --shelf-danger-text: #ffffff;
+  --shelf-danger-border: transparent;
   --shelf-danger-surface: rgba(153, 27, 27, 0.72);
   --shelf-danger-tint: rgba(153, 27, 27, 0.85);
   /* Focus-ring offsets resolve against this, so it has to be the color that is

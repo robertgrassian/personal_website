@@ -139,6 +139,7 @@
   --color-shelf-divider: var(--shelf-divider);
   --color-shelf-danger: var(--shelf-danger);
   --color-shelf-danger-text: var(--shelf-danger-text);
+  --color-shelf-danger-border: var(--shelf-danger-border);
   --color-shelf-danger-surface: var(--shelf-danger-surface);
   --color-shelf-danger-tint: var(--shelf-danger-tint);
 
