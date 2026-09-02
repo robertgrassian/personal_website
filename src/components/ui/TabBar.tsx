@@ -29,14 +29,28 @@ type TabBarProps<T extends string> = {
 // them ever applies: font-medium and font-semibold have equal specificity, and
 // which wins is decided by their order in the generated stylesheet, not by the
 // order they appear in a className string.
-const tabClass = "-mb-px whitespace-nowrap border-b-2 py-2.5 transition-colors cursor-pointer";
+// The 3px underline is on EVERY tab, transparent when idle, so the selected
+// one is half again as heavy without any tab changing height when selection
+// moves.
+const tabClass = "-mb-px whitespace-nowrap border-b-[3px] py-2.5 transition-colors cursor-pointer";
 
+// Selection is signalled on three channels, not one. The accent is a muted
+// green by design (see accent.ts), so it cannot carry the whole job by getting
+// louder; what it can do is arrive alongside more weight and more area.
+//
+// Area comes from the underline rather than a background tint, because a tint
+// needs horizontal padding to not read as a highlighter stripe, and the
+// library's strip has no width to spend on it at 320px.
 const selectedClass = "border-link font-semibold text-link";
 
+// Idle drops to font-normal so the gap to `font-semibold` is two steps rather
+// than one. Quieting the unselected state raises the contrast between them
+// without touching the accent at all, which is the only lever here that costs
+// the palette nothing.
 const idleClass: Record<TabTone, string> = {
   shelf:
-    "border-transparent font-medium text-shelf-text-muted hover:border-shelf-plank hover:text-link",
-  page: "border-transparent font-medium text-muted hover:border-divider hover:text-foreground",
+    "border-transparent font-normal text-shelf-text-muted hover:border-shelf-plank hover:text-link",
+  page: "border-transparent font-normal text-muted hover:border-divider hover:text-foreground",
 };
 
 /** An underlined tab strip. Deliberately NOT role="tablist": neither call site

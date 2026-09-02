@@ -112,6 +112,18 @@ type FilterSelectProps = {
   formatLabel?: (option: string) => string;
 };
 
+// Roughly what fits in the capped select below at text-sm before the ellipsis
+// starts. Only used to decide whether a hover title is worth adding, so an
+// approximation is fine: too low costs a redundant tooltip, too high costs
+// nothing that was not already unreadable.
+const TRUNCATION_HINT_CHARS = 22;
+
+// The three narrowing filters share a width rule: full-width in the mobile
+// sheet, content-sized on the bar, and never wider than 11rem. Without the cap
+// the genre select alone could push Sort onto a second row on a desktop.
+// truncate is what turns the overflow into an ellipsis rather than a clip.
+const narrowingFilterWidth = "w-full truncate sm:w-auto sm:max-w-44";
+
 // Renders a <select> with available options at the top and unavailable (disabled) ones below,
 // separated by a divider when both groups are present.
 //
@@ -135,7 +147,22 @@ export function FilterSelect({
   const disabled = options.filter((o) => !available.has(o));
 
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className={className}>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      // A <select> is as wide as its LONGEST option, not its current one, so
+      // one 37-character genre ("Construction and Management Simulation") set
+      // the width of a control that usually shows "Action". The cap ellipsizes
+      // the closed control; the open list is drawn by the browser outside this
+      // box and still shows every name in full.
+      //
+      // The title only appears when an option is actually cut off, which is
+      // also the only time it says anything the control does not.
+      title={
+        value && formatLabel(value).length > TRUNCATION_HINT_CHARS ? formatLabel(value) : undefined
+      }
+      className={className}
+    >
       <option value="">{allLabel}</option>
       {enabled.map((o) => (
         <option key={o} value={o}>
@@ -264,7 +291,7 @@ export function FilterBar(props: FilterBarProps) {
               // groupBy="rating" so the dropdown reads in shelf order.
               options={[...RATINGS.map((r) => r.name), UNRATED_LABEL]}
               available={props.availableRatings}
-              className={`${selectClass} w-full sm:w-auto`}
+              className={`${selectClass} ${narrowingFilterWidth}`}
             />
           )}
 
@@ -276,7 +303,7 @@ export function FilterBar(props: FilterBarProps) {
             options={allSystems}
             available={availableSystems}
             formatLabel={systemLabel}
-            className={`${selectClass} w-full sm:w-auto`}
+            className={`${selectClass} ${narrowingFilterWidth}`}
           />
 
           {/* Genre filter */}
@@ -286,7 +313,7 @@ export function FilterBar(props: FilterBarProps) {
             allLabel="All Genres"
             options={allGenres}
             available={availableGenres}
-            className={`${selectClass} w-full sm:w-auto`}
+            className={`${selectClass} ${narrowingFilterWidth}`}
           />
         </div>
 
