@@ -376,8 +376,14 @@
      through the controls is the look of the card, and a solid chip punches a
      hole in it. Flipping the pairing is what buys that back — white text ON
      red, rather than red text on whatever the cover happens to be, fixes the
-     text's background instead of fighting it, and still holds a 5.30:1 worst
+     text's background instead of fighting it, and still holds a 6.15:1 worst
      case with over a quarter of the cover showing through.
+
+     Darkening the fill only RAISES that number, since the text on it is white,
+     so this one is chosen by eye and the script is a floor rather than a
+     target. It is the rare token here with a dark-scheme override, below: the
+     scrim is dark in both schemes, but the page around the card is not, and
+     the same red glows harder against a dark surround.
 
      The border stays the light red rather than the fill's, so the edge is
      defined on a dark cover where fill and backdrop are close.
@@ -386,8 +392,8 @@
      or its alpha. */
   --shelf-danger: #f45f5f;
   --shelf-danger-text: #ffffff;
-  --shelf-danger-surface: rgba(185, 28, 28, 0.72);
-  --shelf-danger-tint: rgba(185, 28, 28, 0.85);
+  --shelf-danger-surface: rgba(153, 27, 27, 0.72);
+  --shelf-danger-tint: rgba(153, 27, 27, 0.85);
   /* Focus-ring offsets resolve against this, so it has to be the color that is
      actually behind the field rather than the page's shelf background. */
   --shelf-bg: #1a1a2e;
@@ -737,6 +743,14 @@
     --back-blur: 8px;
     --back-img-opacity: 0.55;
     --back-overlay: 0.35;
+  }
+
+  .game-card-surface {
+    /* The only card token that varies by scheme. The rest do not, because the
+       scrim is dark either way; this one does, because brightness is judged
+       against the page BEHIND the card, which is not. One step darker again. */
+    --shelf-danger-surface: rgba(127, 29, 29, 0.72);
+    --shelf-danger-tint: rgba(127, 29, 29, 0.85);
   }
 
   .shelf-filter-bar {
