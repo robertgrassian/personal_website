@@ -4,6 +4,7 @@ import "./globals.css";
 import { Nav } from "@/components/Nav";
 import { ViewportRecorder } from "@/components/dev/ViewportRecorder";
 import { authFlagScript } from "@/lib/authFlag";
+import { ACTIVE_ACCENT } from "@/lib/accent";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -57,7 +58,9 @@ export default function RootLayout({
     // suppressHydrationWarning is load-bearing: the script below stamps
     // data-authed on this element before React hydrates, so the real DOM no
     // longer matches the server's output.
-    <html lang="en" suppressHydrationWarning>
+    // data-accent selects the palette in globals.css. Server-rendered from a
+    // constant today; the same attribute is what a per-user accent would set.
+    <html lang="en" data-accent={ACTIVE_ACCENT} suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {/* Pre-paint auth flag (src/lib/authFlag.ts). Must be a plain <script>
             first in <body>, NOT next/script: a classic inline script blocks the

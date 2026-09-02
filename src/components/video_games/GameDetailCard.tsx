@@ -297,7 +297,7 @@ export function GameDetailCard({
                     <p className="mt-2 text-sm font-semibold text-gray-100">★ {ratingEntry.name}</p>
                   )}
                   {starred && (
-                    <p className="mt-2 text-sm font-semibold text-amber-300">★ Starred</p>
+                    <p className="mt-2 text-sm font-semibold text-accent-on-dark">★ Starred</p>
                   )}
                   {/* Every genre, wrapped. The 96px face could show two and
                       counted the rest in text you could not open, which is the

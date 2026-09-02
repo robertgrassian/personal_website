@@ -12,7 +12,7 @@ type RequiredFieldProps = {
 // itself. Wraps rather than takes a className so it works with any control,
 // including SuggestInput, which owns its own input element.
 //
-// Amber, not red: an empty required field is unfinished, not wrong, and a
+// The accent, not red: an empty required field is unfinished, not wrong, and a
 // dialog that opens already showing a red error is accusing the user of a
 // mistake they have not made. Red is for a value that IS wrong.
 //
@@ -22,7 +22,13 @@ type RequiredFieldProps = {
 export function RequiredField({ missing, children }: RequiredFieldProps) {
   if (!missing) return <>{children}</>;
   return (
-    <div className="rounded shadow-[0_0_0_3px_rgba(245,158,11,0.35)] ring-1 ring-amber-500 dark:shadow-[0_0_0_3px_rgba(251,191,36,0.30)] dark:ring-amber-400">
+    // The on-dark accent, NOT --link: this renders only inside GameEditFields,
+    // which renders only on the detail card, and that card is dark in both
+    // schemes. --link goes dark in light mode and the ring disappears.
+    //
+    // One pair of classes rather than a dark: variant, because these two
+    // tokens do not flip at all.
+    <div className="rounded shadow-[0_0_0_3px_var(--accent-glow-on-dark)] ring-1 ring-accent-on-dark">
       {children}
     </div>
   );
