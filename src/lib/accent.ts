@@ -20,19 +20,21 @@ export const ACCENTS = {
     light: "#8f6212",
     dark: "#d9a441",
   },
-  // Green, held at hue ~105 so it cannot drift yellow: at hue 82 it reads as
-  // pea rather than sage, which is the failure mode to check for first if
-  // these are ever retuned.
+  // Green. Both values sit at OKLCH hue 140, which is a true green: the pea /
+  // olive failure this went through twice lives nearer hue 110, so hue is the
+  // dial to check first if these are ever retuned, not saturation.
   //
-  // The two schemes carry very different saturations on purpose. In light mode
-  // the accent is forced dark, because it is both link text on white and the
-  // fill under white button text, and a dark color only reads as a HUE if it
-  // is saturated: at 22% it was indistinguishable from black. Dark mode has
-  // the opposite problem, where saturation is what tips green into pea, so it
-  // stays lower and buys its presence from lightness instead.
+  // Chroma is what makes it read as a color rather than as a grey. Light mode
+  // is the constrained scheme, because the accent is forced dark there (it is
+  // link text on white AND the fill under white button text), and an earlier
+  // pass answered "too pea" by dropping chroma in BOTH schemes. That was the
+  // wrong axis: low chroma at low lightness is just black with a tint. These
+  // values sit near the top of the sRGB gamut for their lightness, C 0.150 of
+  // a possible ~0.165 light and 0.125 dark, which is where the presence comes
+  // from. Contrast: 5.53:1 on white, 9.66:1 on the dark background.
   sage: {
-    light: "#417a2e",
-    dark: "#8dbb81",
+    light: "#2b7815",
+    dark: "#85c577",
   },
 } as const;
 

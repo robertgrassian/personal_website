@@ -60,7 +60,7 @@ export function Nav() {
                 // startsWith handles nested routes (e.g. /video-games/start)
                 className={`text-xs sm:text-sm whitespace-nowrap transition-colors duration-150 ${
                   (activePaths ?? [href]).some((p) => pathname.startsWith(p))
-                    ? "text-link font-medium"
+                    ? "text-link font-semibold"
                     : "text-subtle hover:text-link"
                 }`}
               >
