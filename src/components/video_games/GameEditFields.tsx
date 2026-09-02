@@ -231,7 +231,7 @@ export function GameEditFields({
         </Button>
         {!promoting && showRemove && (
           <ConfirmStep
-            triggerLabel="Remove from library"
+            triggerLabel="Remove"
             confirmLabel="Remove"
             triggerClassName="ml-auto"
             layout="sheet"

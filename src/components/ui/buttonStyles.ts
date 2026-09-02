@@ -68,8 +68,18 @@ const variantClass: Record<ButtonVariant, string> = {
   // Shelf tokens, not red-600/red-400: this renders on the account page's light
   // shelf AND on the detail card's dark scrim, and a `dark:` pairing cannot
   // tell those apart.
+  //
+  // The rest surface is a token because it has to differ per surface: it is
+  // transparent on a solid shelf and a near-opaque black on the detail card,
+  // whose backdrop is the game's own cover art and so cannot be relied on for
+  // contrast. That substrate is legibility, not hierarchy — red still never
+  // takes the accent fill, which is what would make it read as the default
+  // action next to Cancel.
+  //
+  // Full-opacity border, not /60: the outline is the other half of what makes
+  // this findable on a busy backdrop.
   danger:
-    "rounded-md border border-shelf-danger/60 text-shelf-danger " +
+    "rounded-md border border-shelf-danger bg-shelf-danger-surface text-shelf-danger " +
     `hover:bg-shelf-danger-tint transition-colors cursor-pointer ${disabledClass}`,
 
   // Underlined rather than bordered, so a secondary action inside a form

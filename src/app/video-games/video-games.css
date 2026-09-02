@@ -35,8 +35,11 @@
      light shelf, the dark shelf, and the card, whose scrim is dark in BOTH
      schemes. A `dark:` variant can only describe two of them. */
   --shelf-danger: #dc2626;
+  /* What sits BEHIND a destructive button at rest. Transparent on a solid
+     shelf, where the red already clears contrast on its own; the detail card
+     overrides it, because nothing there is solid. */
+  --shelf-danger-surface: transparent;
   --shelf-danger-tint: rgba(220, 38, 38, 0.14);
-  --shelf-danger-tint-hover: rgba(220, 38, 38, 0.24);
 
   /* --- Game case system fallback colors (shown when no cover art is available) ---
      Keyed on IGDB's platform names, which is what played_games.system stores
@@ -360,16 +363,22 @@
   --shelf-input-placeholder: #cbd5e1;
   --shelf-input-ring: #fbbf24;
   --shelf-divider: rgba(255, 255, 255, 0.2);
-  /* Dark fill, light text. A pale fill lightens the scrim under the label,
-     which then needs paler text to clear contrast, and the pair lands on pink.
+  /* Light red on a near-opaque BLACK substrate, which is the only pairing
+     that survives this surface. The card's backdrop is the cover's blurred art
+     over a per-system base color under only a 25% black overlay, so it ranges
+     from near-black to pale cream, and unaided red text measures 5.79:1 on a
+     dark cover but 1.25:1 on a yellow one.
 
-     At the contrast floor: the 12px label needs 4.5:1 and this is 4.86:1 at
-     rest, 4.57:1 on hover. One step darker (#f25555) drops hover to 4.27:1,
-     and red-500 fails on every fill, bottoming out at 4.25:1 on red-800.
-     Re-measure before darkening. */
+     Black rather than a dark red: measured across six representative covers,
+     black at 0.82 holds a 5.21:1 worst case, while #3f0d0d bottoms out at 3.82
+     and #4c1010 at 3.53 — a dark red substrate is too close in luminance to
+     the red text above it.
+
+     The alpha is what makes this robust, so re-measure before lowering it: at
+     0.55 the worst case falls to 2.63:1. scripts/check-danger-contrast.py. */
   --shelf-danger: #f45f5f;
-  --shelf-danger-tint: rgba(153, 27, 27, 0.26);
-  --shelf-danger-tint-hover: rgba(153, 27, 27, 0.36);
+  --shelf-danger-surface: rgba(0, 0, 0, 0.82);
+  --shelf-danger-tint: rgba(0, 0, 0, 0.92);
   /* Focus-ring offsets resolve against this, so it has to be the color that is
      actually behind the field rather than the page's shelf background. */
   --shelf-bg: #1a1a2e;
@@ -752,7 +761,6 @@
     /* --- Destructive actions and error text --- */
     --shelf-danger: #f87171;
     --shelf-danger-tint: rgba(248, 113, 113, 0.16);
-    --shelf-danger-tint-hover: rgba(248, 113, 113, 0.26);
 
     /* --- Filter bar chrome --- */
     --shelf-control-label: #9ca3af;
