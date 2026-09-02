@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { APP_NAME } from "@/lib/appName";
-import { accentButtonClass } from "./formStyles";
+import { primaryLargeButtonClass } from "./formStyles";
 
 // Sign-up call to action for logged-out visitors on /video-games.
 //
@@ -51,7 +51,7 @@ export function SignupCta() {
           // on the login page: the accent flips amber-700 → amber-500 between
           // light and dark, and the background token flips with it, so the
           // label stays readable both ways (plain white would not).
-          className={`${accentButtonClass} text-sm`}
+          className={`${primaryLargeButtonClass} text-sm`}
         >
           Sign in to start your library
         </Link>

@@ -72,16 +72,19 @@ export function PlayedFields({
               disabled={disabled}
               onClick={() => play.choose(value)}
               className={
-                // Taller on touch, matching dangerSubtleButtonClass: three
-                // choices across a phone are narrow enough already without
-                // being 28px high. leading-tight because the longest label
-                // wraps to two lines there, and the grid makes all three that
-                // tall when one is.
+                // Taller on touch: three choices across a phone are narrow
+                // enough already without being 28px high. leading-tight because
+                // the longest label wraps to two lines there, and the grid
+                // makes all three that tall when one is.
+                //
+                // Selected is accent border + accent text, never the filled
+                // recipe: a fill would compete with Save for the card's one
+                // primary action. See formStyles.
                 "rounded-md border px-2 py-2 pointer-fine:py-1.5 text-xs leading-tight " +
                 "transition-colors cursor-pointer " +
                 "disabled:opacity-50 disabled:cursor-default " +
                 (active
-                  ? "border-transparent bg-link font-medium text-background"
+                  ? "border-link bg-shelf-input font-medium text-link"
                   : "border-shelf-plank text-shelf-text hover:bg-shelf-input")
               }
             >

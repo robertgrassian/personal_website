@@ -29,7 +29,7 @@ import { useFilterOptions } from "./useFilterOptions";
 import { useKeepResultsInView } from "./useKeepResultsInView";
 import { useHideOnScrollDown } from "./useHideOnScrollDown";
 import type { UrlState } from "./useGameLibraryUrlState";
-import { accentButtonClass } from "./formStyles";
+import { primaryLargeButtonClass } from "./formStyles";
 import { systemLabel } from "@/lib/games";
 
 // Loaded on demand rather than in the page bundle. The panel pulls in GameStats
@@ -450,7 +450,7 @@ export function GameShelves({
                   // Site amber accent + text-background, the same pairing the
                   // login button and the sign-up CTA use, so it reads correctly
                   // in light and dark.
-                  className={`${accentButtonClass} text-sm`}
+                  className={`${primaryLargeButtonClass} text-sm`}
                 >
                   {view === "played" ? "Add your first game" : "Add your first wish"}
                 </button>

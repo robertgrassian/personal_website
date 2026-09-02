@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { localToday, type NewGame } from "@/lib/games";
-import { buttonClass, ghostButtonClass, inputClass, labelClass } from "./formStyles";
+import { ghostButtonClass, inputClass, labelClass, primaryButtonClass } from "./formStyles";
 import { SuggestInput } from "./SuggestInput";
 import { RatingPicker } from "./RatingPicker";
 import { CatalogInfo } from "./CatalogInfo";
@@ -234,7 +234,12 @@ export function GameDraftForm({
       {/* Pinned below the scroll area, so "Add to library" is reachable
           without scrolling to the bottom of a long form. */}
       <div className="mt-4 flex shrink-0 items-center gap-3">
-        <button type="button" onClick={onSave} disabled={saveDisabled} className={buttonClass}>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saveDisabled}
+          className={primaryButtonClass}
+        >
           {target === "library" ? "Add to library" : "Add to wishlist"}
         </button>
         <button type="button" onClick={onBack} disabled={isPending} className={ghostButtonClass}>

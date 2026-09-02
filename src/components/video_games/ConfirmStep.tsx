@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { buttonClass, dangerButtonClass, dangerSubtleButtonClass } from "./formStyles";
+import { buttonClass, dangerButtonClass } from "./formStyles";
 
 // An action behind a two-step confirm: a quiet trigger that swaps itself for a
 // prompt plus Confirm / Cancel. Red by default, since removes were the only
@@ -43,9 +43,6 @@ type ConfirmStepProps = {
   error?: string | null;
   /** Extra classes for the trigger, for the callers that need `mt-3 block`. */
   triggerClassName?: string;
-  /** "outlined" standalone; "subtle" is smaller and tinted, for a trigger
-   *  sharing a row with a Save that must stay the default action. */
-  triggerVariant?: "outlined" | "subtle";
   /** "danger" paints both halves red, for an action that destroys a row.
    *  "neutral" is the same two steps in the ordinary button colors, for one
    *  that is merely worth a second look: the currently-playing panel closes a
@@ -80,19 +77,17 @@ export function ConfirmStep({
   confirmDisabled = false,
   error = null,
   triggerClassName = "",
-  triggerVariant = "outlined",
   tone = "danger",
   layout = "inline",
   onConfirmingChange,
 }: ConfirmStepProps) {
   const [confirming, setConfirming] = useState(false);
   const sheet = layout === "sheet";
-  // formStyles has no subtle neutral recipe, so a neutral confirm is outlined
-  // whichever variant is asked for. Add the class here if a call site ever
-  // needs the tinted version rather than letting the two drift.
+  // One class for the trigger AND the confirm, so the two halves of a step
+  // cannot disagree. They used to: the trigger had a tinted variant to keep a
+  // Save beside it the default action, which the fill on Save now does by
+  // itself.
   const actionClass = tone === "neutral" ? buttonClass : dangerButtonClass;
-  const triggerClass =
-    tone === "danger" && triggerVariant === "subtle" ? dangerSubtleButtonClass : actionClass;
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   // Which way the step last moved, so the effect below can tell a close from
@@ -165,7 +160,7 @@ export function ConfirmStep({
       // invisible, not unmounted: visibility:hidden keeps the button's box, so
       // the row it sits in stays exactly as tall as before, and drops it out of
       // the tab order at the same time.
-      className={`${triggerClassName} ${triggerClass} ${
+      className={`${triggerClassName} ${actionClass} ${
         sheet && confirming ? "invisible" : ""
       }`.trim()}
     >

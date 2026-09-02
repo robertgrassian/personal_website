@@ -32,7 +32,7 @@ import { CloseIcon } from "@/components/Icon";
 import { useModalChrome } from "./useModalChrome";
 import { ModalBackdrop } from "./ModalBackdrop";
 import { FilterSelect, type FilterControlProps } from "./FilterBar";
-import { accentButtonClass, filterSelectClass } from "./formStyles";
+import { primaryLargeButtonClass, filterSelectClass } from "./formStyles";
 
 // The full control union, group/sort members included, even though this
 // component renders only the filters. GameShelves spreads one object into both
@@ -199,7 +199,11 @@ export function FilterSheet(props: FilterSheetProps) {
           {/* Filters apply as they are tapped, so this only dismisses. It is
               still the primary button: it carries the count, which is the
               feedback the shelves would give if the sheet were not over them. */}
-          <button type="button" onClick={onClose} className={`${accentButtonClass} flex-1 text-sm`}>
+          <button
+            type="button"
+            onClick={onClose}
+            className={`${primaryLargeButtonClass} flex-1 text-sm`}
+          >
             Show {resultCount} {resultCount === 1 ? "game" : "games"}
           </button>
         </div>

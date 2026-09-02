@@ -37,39 +37,59 @@ export const labelClass =
 // ---------------------------------------------------------------------------
 // Button recipes
 //
-// Compose buttons from these rather than writing the classes inline. Each one
-// encodes a light/dark pairing, and the repo's rule is that no color may work in
-// only one scheme — a copied-and-tweaked literal breaks that rule easily, since
-// the tweak is usually made while looking at one scheme.
+// THE RULE: hierarchy comes from fill, and a surface has AT MOST ONE filled
+// button, its primary action. Everything else there is outlined, text-only, or
+// quiet chrome.
+//
+// "Surface" means whatever is in focus, not the whole screen. An open dialog is
+// a surface of its own, so its primary may be filled while the page CTA behind
+// it is too. A surface may also have ZERO fills: the detail card with nothing
+// edited has no primary action, and the fill arrives with Save.
+//
+// Red is never filled, as trigger or as confirm. A filled red button beside
+// Cancel reads as the default, which a destructive confirm must never be, so
+// the confirm sheet is the one surface that deliberately runs with no fill at
+// all.
+//
+// A selected toggle is a STATE, not a primary action, so it does not take the
+// fill either. Selected tabs and pills use accent border plus accent text; see
+// PlayedFields and RatingPicker.
+//
+// This replaced an earlier rule where filled meant "commits a pending draft".
+// That one was followed exactly and still read as inconsistent: it left the add
+// dialog's own primary action outlined, and it paired a tinted destructive
+// trigger with an outlined confirm in the same interaction.
+//
+// Each recipe encodes a light/dark pairing, and the repo's rule is that no
+// color may work in only one scheme. A copied-and-tweaked literal breaks that
+// easily, since the tweak is usually made while looking at one scheme.
 //
 // Call sites keep positional modifiers (`mt-2`, `block`, `w-full`) rather than
 // baking them in, so these stay about appearance and the layout stays local.
 // ---------------------------------------------------------------------------
 
-// Default modal button: outlined, neutral. Cancel, "Log a past session",
-// "Save", and the rest of the non-destructive actions.
+// The default: outlined, neutral. Anything that is not the primary action, not
+// destructive and not text-only. Cancel, "Log a past session", "Played?".
 export const buttonClass =
   "rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text " +
   "hover:bg-shelf-input transition-colors cursor-pointer " +
   "disabled:opacity-50 disabled:cursor-default";
 
-// The filled pairing, shared by the two recipes below. `bg-link` with
+// The filled pairing, shared by the two primaries below. `bg-link` with
 // `text-background` is what works in both schemes, because both tokens flip
 // together — a literal color on either side would invert wrongly in one.
 const filledBaseClass =
   "rounded-md bg-link font-medium text-background " +
   "transition-opacity hover:opacity-90 cursor-pointer disabled:opacity-50";
 
-// The commit half of a draft-then-save edit: rating, system, wishlist notes,
-// logged sessions. Filled rather than outlined because it appears only once
-// there are unsaved changes, so it has to read as the thing to press instead of
-// as more chrome belonging to the field above it.
-//
-// The line this draws: filled means "commit a pending draft", outlined means an
-// action with nothing pending behind it ("Move to library", "Add to library").
-// Two filled buttons can otherwise end up side by side competing, which is what
-// keeping the dialog-level actions on `buttonClass` avoids.
-export const saveButtonClass = `${filledBaseClass} px-3 py-1.5 text-sm disabled:cursor-default`;
+// The one filled button on a surface: Save, "Add to library", Follow.
+export const primaryButtonClass = `${filledBaseClass} px-3 py-1.5 text-sm disabled:cursor-default`;
+
+// The same primary, roomier, for a page-level call to action: sign in, sign up,
+// "Add your first game". Carries no text size, because call sites set their
+// own — onboarding's submit is deliberately a step larger than the in-library
+// ones.
+export const primaryLargeButtonClass = `${filledBaseClass} px-4 py-2`;
 
 // Text-only affordance for secondary actions inside a form ("Clear rating",
 // "Enter manually"). Underlined rather than bordered so it reads as a link-like
@@ -78,9 +98,9 @@ export const ghostButtonClass =
   "text-xs text-shelf-text-muted underline underline-offset-2 " +
   "hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50";
 
-// The confirm half of a destructive two-step. Outlined in red rather than
-// filled: it sits next to a Cancel button, and a filled red button next to a
-// neutral one reads as the default action, which this must never be.
+// Destructive, for BOTH halves of a two-step: the trigger and the confirm it
+// opens. One recipe rather than two, so the pair cannot disagree with itself,
+// which is what a tinted trigger above an outlined confirm was doing.
 //
 // Shelf tokens, not red-600/red-400: this renders on the account page's light
 // shelf AND on the card's dark scrim, and a `dark:` pairing cannot tell those
@@ -89,17 +109,6 @@ export const dangerButtonClass =
   "rounded-md border border-shelf-danger/60 px-3 py-1.5 text-sm " +
   "text-shelf-danger hover:bg-shelf-danger-tint transition-colors cursor-pointer " +
   "disabled:opacity-50 disabled:cursor-default";
-
-// A destructive trigger sharing a row with Save: smaller and tinted rather than
-// outlined, so the row keeps one obvious default action.
-//
-// Padding splits on pointer type, not a breakpoint: on touch it matches Save's
-// height, with a mouse it is visibly smaller. A 24px tap target is not the
-// "smaller" anyone wanted.
-export const dangerSubtleButtonClass =
-  "rounded-md bg-shelf-danger-tint px-2.5 py-2 pointer-fine:py-1 text-xs " +
-  "text-shelf-danger hover:bg-shelf-danger-tint-hover " +
-  "transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default";
 
 // One row inside the library header's menu (LibraryHeaderMenu): Back to my
 // library, Suggestion/Issue?, Account, Sign in / Sign out. Shared so a mix of
@@ -128,8 +137,3 @@ export const headerMenuItemClass =
   "block w-full whitespace-nowrap rounded-md px-3 py-2 text-left text-sm " +
   "text-shelf-text-muted hover:bg-shelf-input hover:text-link cursor-pointer " +
   "transition-colors duration-150";
-
-// The page-level call to action: sign in, sign up, "Add game". Roomier than
-// saveButtonClass, and carries no text size — call sites set their own, because
-// the onboarding submit is deliberately a step larger than the in-library ones.
-export const accentButtonClass = `${filledBaseClass} px-4 py-2`;

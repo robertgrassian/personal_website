@@ -17,7 +17,7 @@ import { GamePlayHistory } from "./GamePlayHistory";
 import { StopPlayingControl } from "./StopPlayingControl";
 import { usePlayDraft } from "./usePlayDraft";
 import type { PlaySession } from "@/lib/sessions";
-import { buttonClass, saveButtonClass } from "./formStyles";
+import { buttonClass, primaryButtonClass } from "./formStyles";
 import { SuggestInput } from "./SuggestInput";
 import { RequiredField } from "./RequiredField";
 
@@ -223,7 +223,7 @@ export function GameEditFields({
           type="button"
           onClick={save}
           disabled={!canSave || confirmingRemove}
-          className={saveButtonClass}
+          className={primaryButtonClass}
         >
           {/* Named after what the press does that you cannot undo. The
               promote's wording is the sibling of this one: both answers to
@@ -238,7 +238,6 @@ export function GameEditFields({
           <ConfirmStep
             triggerLabel="Remove from library"
             confirmLabel="Remove"
-            triggerVariant="subtle"
             triggerClassName="ml-auto"
             layout="sheet"
             onConfirmingChange={setConfirmingRemove}

@@ -6,7 +6,7 @@ import { deleteWishlistItem, updateWishlistItem } from "@/app/video-games/action
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { SuggestInput } from "./SuggestInput";
-import { inputClass, labelClass, buttonClass, saveButtonClass } from "./formStyles";
+import { inputClass, labelClass, buttonClass, primaryButtonClass } from "./formStyles";
 
 type WishlistEditFieldsProps = {
   item: WishlistGame;
@@ -124,7 +124,7 @@ export function WishlistEditFields({
         {/* Always present, so there is one place to look for "did this save?".
           Disabled until something is actually pending. */}
         <div className="mt-6 border-t border-shelf-plank pt-4">
-          <button type="button" onClick={save} disabled={!canSave} className={saveButtonClass}>
+          <button type="button" onClick={save} disabled={!canSave} className={primaryButtonClass}>
             Save
           </button>
           {/* Not while the remove confirm is up: it renders the same error
