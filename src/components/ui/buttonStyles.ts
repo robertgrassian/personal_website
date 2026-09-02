@@ -79,10 +79,11 @@ const variantClass: Record<ButtonVariant, string> = {
   // which is the thing that would make it read as the default action next to
   // Cancel; a red button does not.
   //
-  // Full-opacity border, not /60: the outline is the other half of what makes
-  // this findable on a busy backdrop.
+  // The border is a token for the same reason: it is the only thing giving
+  // this button a shape on a solid shelf, and it is transparent on the card,
+  // where the fill already does that and an outline only drew the eye.
   danger:
-    "rounded-md border border-shelf-danger bg-shelf-danger-surface text-shelf-danger-text " +
+    "rounded-md border border-shelf-danger-border bg-shelf-danger-surface text-shelf-danger-text " +
     `hover:bg-shelf-danger-tint transition-colors cursor-pointer ${disabledClass}`,
 
   // Underlined rather than bordered, so a secondary action inside a form
