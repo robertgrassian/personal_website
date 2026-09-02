@@ -5,7 +5,7 @@ import type { ComponentPropsWithRef } from "react";
  *  scrim, so an icon there needs no colors of its own.
  *
  *  `library` is the header's own convention: everything interactive there
- *  highlights amber, matching the view tabs, the follow-count links and the
+ *  highlights in the accent, matching the view tabs, the follow-count links
  *  menu rows this opens. */
 type IconButtonTone = "shelf" | "page" | "library";
 

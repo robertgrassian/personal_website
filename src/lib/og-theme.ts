@@ -8,17 +8,23 @@
 //
 // When updating a color in globals.css or video-games.css, update it here too.
 
+import { ACCENTS, ACTIVE_ACCENT } from "./accent";
+
 export const OG = {
   // ── Text ───────────────────────────────────────────────────────────────────
   textPrimary: "#ededed", // --foreground (dark)
   textMuted: "#9ca3af", // --muted (dark)
 
   // ── Accent ─────────────────────────────────────────────────────────────────
-  // Mirrors --link in light mode (#b45309, amber-700).
-  // This is the same color used by the BackToHome component (text-link).
-  // Intentionally the muted amber-700 tone — not the brighter amber-500 (#f59e0b)
-  // used in dark mode, which reads as too saturated/yellow in a static image context.
-  accent: "#b45309",
+  // The DARK value, because the OG canvas is pageDark below, and this is the
+  // value that scheme's accent was picked against: on #0a0a0a the light value
+  // measures 3.3-3.7:1 and the dark one 8.8-10:1.
+  //
+  // This used to hold the light value on purpose, to avoid amber-500 reading
+  // as too saturated in a static image. That objection was to amber
+  // specifically; both current accents are muted, so the value actually
+  // designed for a dark ground is now the right one.
+  accent: ACCENTS[ACTIVE_ACCENT].dark,
 
   // ── Page background ────────────────────────────────────────────────────────
   pageDark: "#0a0a0a", // --background (dark)

@@ -45,8 +45,24 @@
   --muted: #4b5563; /* gray-600 */
   --subtle: #6b7280; /* gray-500 */
   --divider: #e5e7eb; /* gray-200 */
-  --link: #b45309; /* amber-700 — also referenced as OG.accent in src/lib/og-theme.ts */
-  --link-hover: #92400e; /* amber-800 */
+  /* Accent. The palettes are keyed by [data-accent], which layout.tsx stamps
+     from ACTIVE_ACCENT in src/lib/accent.ts; keep the hexes here and there in
+     step. Bare :root carries brass so the page is never accentless if the
+     attribute is missing.
+
+     --accent-on-dark is the dark-scheme value made available in BOTH schemes,
+     for the surfaces that are dark either way: the detail card's focus ring
+     and its starred label. Those cannot use --link, which goes dark in light
+     mode and disappears against the card. */
+  --link: #8f6212;
+  --link-hover: #734d0d;
+  --accent-on-dark: #d9a441;
+  /* The accent at low alpha, for the required-field glow. A token rather than
+     a color-mix() written inline in a Tailwind arbitrary value: that class
+     name has to escape commas and percent signs, and Tailwind emitted it with
+     the space before 35% eaten, plus a fallback rule at FULL opacity. Derived
+     from --link, so it follows both the accent and the color scheme. */
+  --accent-glow: color-mix(in srgb, var(--link) 35%, transparent);
 
   /* Rating bar/badge colors — darker shades for light mode (readable on light track) */
   --rating-s: #d97706; /* amber-600 */
@@ -61,6 +77,22 @@
   /* Stats chart accent colors */
   --stats-genres: #7c3aed; /* violet-700 */
   --stats-decades: #0891b2; /* cyan-600 */
+}
+
+/* ── Accent palettes ────────────────────────────────────────────────────────
+   Light values here, dark values in the media query below. Both accents are
+   defined in both schemes, so neither depends on the other's cascade. */
+
+:root[data-accent="brass"] {
+  --link: #8f6212;
+  --link-hover: #734d0d;
+  --accent-on-dark: #d9a441;
+}
+
+:root[data-accent="sage"] {
+  --link: #4a6540;
+  --link-hover: #3b5133;
+  --accent-on-dark: #7f9e78;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -81,9 +113,6 @@
        visibly quieter than --muted. */
     --subtle: #7f8795; /* between gray-500 and gray-400 */
     --divider: #374151; /* gray-700 */
-    --link: #f59e0b; /* amber-500 */
-    --link-hover: #fbbf24; /* amber-400 */
-
     /* Rating colors — lighter/brighter so bars pop against the dark divider track */
     --rating-s: #fbbf24; /* amber-400 */
     --rating-a: #2dd4bf; /* teal-400 */
@@ -97,6 +126,17 @@
     /* Stats chart accent colors */
     --stats-genres: #a78bfa; /* violet-400 */
     --stats-decades: #22d3ee; /* cyan-400 */
+  }
+
+  :root,
+  :root[data-accent="brass"] {
+    --link: #d9a441;
+    --link-hover: #e8bb68;
+  }
+
+  :root[data-accent="sage"] {
+    --link: #7f9e78;
+    --link-hover: #93ae8c;
   }
 
   /* Native date inputs render their calendar-picker icon from the browser's
@@ -118,6 +158,8 @@
   --color-divider: var(--divider);
   --color-link: var(--link);
   --color-link-hover: var(--link-hover);
+  --color-accent-on-dark: var(--accent-on-dark);
+  --color-accent-glow: var(--accent-glow);
 
   /* Shelf tokens — defined on .shelf-theme in video-games/video-games.css.
      Registered here so Tailwind generates utility classes (bg-shelf-bg, text-shelf-label, etc.).

@@ -84,7 +84,7 @@ export function WishlistEditFields({
             checked={starredDraft}
             onChange={(e) => setStarredDraft(e.target.checked)}
             disabled={isPending}
-            className="accent-amber-500"
+            className="accent-link"
           />
           Starred (priority wishlist)
         </label>

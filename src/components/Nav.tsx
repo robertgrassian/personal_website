@@ -51,7 +51,7 @@ export function Nav() {
           <span className="block">Grassian</span>
         </Link>
 
-        {/* Page links — active route gets the amber accent color */}
+        {/* Page links — active route gets the accent color */}
         <ul className="flex items-center gap-3 sm:gap-6 list-none">
           {links.map(({ href, label, activePaths }) => (
             <li key={href}>

@@ -217,7 +217,7 @@ export function GameDraftForm({
                 type="checkbox"
                 checked={draft.starred}
                 onChange={(e) => setDraft({ ...draft, starred: e.target.checked })}
-                className="accent-amber-500"
+                className="accent-link"
               />
               Star it (priority wishlist)
             </label>

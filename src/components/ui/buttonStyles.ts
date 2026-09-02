@@ -94,7 +94,7 @@ const variantClass: Record<ButtonVariant, string> = {
 
   // Borderless, tinting on hover. The library header's actions and the header
   // menu's rows: chrome that has to stay quiet next to the shelves but still
-  // highlight amber like every other interactive thing in the library.
+  // highlight in the accent like every other interactive thing in the library.
   subtle:
     "rounded-md text-shelf-text-muted hover:bg-shelf-input hover:text-link " +
     `transition-colors duration-150 cursor-pointer ${disabledClass}`,
