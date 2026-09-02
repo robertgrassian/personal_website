@@ -17,7 +17,7 @@ import { GamePlayHistory } from "./GamePlayHistory";
 import { StopPlayingControl } from "./StopPlayingControl";
 import { usePlayDraft } from "./usePlayDraft";
 import type { PlaySession } from "@/lib/sessions";
-import { buttonClass, saveButtonClass } from "./formStyles";
+import { Button } from "@/components/ui/Button";
 import { SuggestInput } from "./SuggestInput";
 import { RequiredField } from "./RequiredField";
 
@@ -219,12 +219,7 @@ export function GameEditFields({
           the card sizes to its contents and would otherwise grow the whole
           case the moment the confirm opened. */}
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={save}
-          disabled={!canSave || confirmingRemove}
-          className={saveButtonClass}
-        >
+        <Button variant="primary" onClick={save} disabled={!canSave || confirmingRemove}>
           {/* Named after what the press does that you cannot undo. The
               promote's wording is the sibling of this one: both answers to
               "Played?" move the entry off the wishlist. */}
@@ -233,12 +228,11 @@ export function GameEditFields({
             : clearingWishlist
               ? "Save And Remove From Wishlist"
               : "Save"}
-        </button>
+        </Button>
         {!promoting && showRemove && (
           <ConfirmStep
-            triggerLabel="Remove from library"
+            triggerLabel="Remove"
             confirmLabel="Remove"
-            triggerVariant="subtle"
             triggerClassName="ml-auto"
             layout="sheet"
             onConfirmingChange={setConfirmingRemove}
@@ -371,14 +365,9 @@ export function GameEditFields({
             opens the face that shows it staged. Neither writes on the press, so
             Save still owns every write. */}
         <div className="mt-5 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={onOpenHistory}
-            disabled={isPending}
-            className={buttonClass}
-          >
+          <Button onClick={onOpenHistory} disabled={isPending}>
             View or add play history
-          </button>
+          </Button>
           {playing && (
             <StopPlayingControl
               stopPending={stopPending}

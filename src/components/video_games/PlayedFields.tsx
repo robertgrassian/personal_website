@@ -5,6 +5,7 @@ import { labelClass } from "./formStyles";
 import { SessionDateFields } from "./SessionDateFields";
 import { PLAY_CHOICE_LABELS, type PlayedChoice } from "./playChoices";
 import type { PlayDraft } from "./usePlayDraft";
+import { toggleClasses } from "@/components/ui/buttonStyles";
 
 const CHOICES: PlayedChoice[] = ["no", "now", "before"];
 
@@ -72,17 +73,14 @@ export function PlayedFields({
               disabled={disabled}
               onClick={() => play.choose(value)}
               className={
-                // Taller on touch, matching dangerSubtleButtonClass: three
-                // choices across a phone are narrow enough already without
-                // being 28px high. leading-tight because the longest label
-                // wraps to two lines there, and the grid makes all three that
-                // tall when one is.
+                // Taller on touch: three choices across a phone are narrow
+                // enough already without being 28px high. leading-tight because
+                // the longest label wraps to two lines there, and the grid
+                // makes all three that tall when one is.
                 "rounded-md border px-2 py-2 pointer-fine:py-1.5 text-xs leading-tight " +
                 "transition-colors cursor-pointer " +
                 "disabled:opacity-50 disabled:cursor-default " +
-                (active
-                  ? "border-transparent bg-link font-medium text-background"
-                  : "border-shelf-plank text-shelf-text hover:bg-shelf-input")
+                toggleClasses(active)
               }
             >
               {value === "no" ? neutralLabel : PLAY_CHOICE_LABELS[value]}

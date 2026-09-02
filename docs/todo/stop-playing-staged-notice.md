@@ -6,7 +6,7 @@ _Section: **Backlog / Ideas** &middot; index: [`TODO.md`](../../TODO.md)_
 
 Pressing "Stop Playing" does not write anything. It stages the close, and the only thing that says
 so is one line in `GamePlayHistory`: "Will be marked finished today when you save." followed by an
-Undo. The line is `text-xs`, the Undo is `ghostButtonClass` (an underlined 12px text link), and the
+Undo. The line is `text-xs`, the Undo is `<Button variant="ghost">` (an underlined 12px text link), and the
 whole thing sits between the session list and the "Add a Playthrough" heading. It is easy to miss
 that anything is pending, and harder still to spot how to take it back.
 

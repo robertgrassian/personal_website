@@ -17,6 +17,8 @@ import { ownedKey } from "./GameSearchStep";
 import { foldForSearch } from "./pipeline";
 import type { GameCaseInput } from "./GameCase";
 import { LibraryCardProvider, type CardLaunch, type CardOrigin } from "./LibraryCardContext";
+import { Button } from "@/components/ui/Button";
+import { TabBar } from "@/components/ui/TabBar";
 
 type GameLibraryProps = {
   // Every played game, rated and unrated alike — one list through one pipeline.
@@ -36,6 +38,12 @@ type GameLibraryProps = {
 // lives in GameShelves — this component used to hold both, which meant the
 // whole filter/group/sort pipeline was declared on a component that also
 // renders a list of usernames.
+// Layout only, so it lives here rather than in the button recipes: both
+// actions have to survive a 320px phone beside the two view tabs.
+const headerActionClass =
+  "flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 " +
+  "whitespace-nowrap text-xs min-[375px]:text-sm";
+
 export function GameLibrary({
   games,
   wishlist,
@@ -327,48 +335,41 @@ export function GameLibrary({
     <div className="flex items-center justify-between border-b border-shelf-plank pl-2 min-[375px]:pl-4 min-[375px]:pr-2.5 sm:pr-1.5">
       {/* gap, not a margin per tab: a trailing mr on the last tab spent 8px of
           the width this inset needed. */}
-      <div className="flex gap-2 sm:gap-4">
-        {VALID_GAME_VIEW.map((v) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => setView(v)}
-            // Measured: text-sm with this spacing needs 375px to fit the two
-            // tabs plus both buttons on one row, so text-xs takes over below
-            // that. Desktop keeps text-sm.
-            className={`py-2.5 whitespace-nowrap text-xs min-[375px]:text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
-              view === v
-                ? "border-link text-link"
-                : "border-transparent text-shelf-text-muted hover:text-link hover:border-shelf-plank"
-            }`}
-          >
-            {VIEW_LABEL[v]}
-          </button>
-        ))}
-      </div>
+      {/* Measured: text-sm with this spacing needs 375px to fit the two tabs
+          plus both buttons on one row, so text-xs takes over below that.
+          Desktop keeps text-sm. */}
+      <TabBar
+        tabs={VALID_GAME_VIEW.map((v) => ({ value: v, label: VIEW_LABEL[v] }))}
+        value={view}
+        onChange={setView}
+        className="gap-2 sm:gap-4"
+        tabClassName="text-xs min-[375px]:text-sm"
+      />
       <div className="flex items-center gap-0 sm:gap-1">
         {canAdd && isGameView(view) && (
-          <button
-            type="button"
+          <Button
+            variant="subtle"
+            size="none"
             onClick={handleAddGame}
-            className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 rounded-md text-shelf-text-muted text-xs min-[375px]:text-sm whitespace-nowrap hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
+            className={headerActionClass}
           >
             <span aria-hidden="true" className="text-base leading-none">
               +
             </span>
             <span>{view === "played" ? "Add game" : "Add to wishlist"}</span>
-          </button>
+          </Button>
         )}
         {view === "played" && (
-          <button
-            type="button"
+          <Button
+            variant="subtle"
+            size="none"
             onClick={handleStatsOpen}
             aria-label="Open library stats"
-            className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 rounded-md text-shelf-text-muted text-xs min-[375px]:text-sm whitespace-nowrap hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
+            className={headerActionClass}
           >
             <ChartBarIcon className="w-4 h-4 shrink-0" aria-hidden />
             <span>Stats</span>
-          </button>
+          </Button>
         )}
       </div>
     </div>

@@ -10,6 +10,8 @@ import { ModalBackdrop } from "./ModalBackdrop";
 import { sessionsInLibrary } from "@/lib/sessions";
 import { PlayHistoryList } from "./PlayHistoryList";
 import type { PlayHistoryState } from "./usePlayHistory";
+import { IconButton } from "@/components/ui/IconButton";
+import { TabBar } from "@/components/ui/TabBar";
 
 type StatsPanelProps = {
   games: Game[];
@@ -25,6 +27,11 @@ type StatsPanelProps = {
 };
 
 type PanelTab = "overview" | "query";
+
+const STATS_TABS: readonly { value: PanelTab; label: string }[] = [
+  { value: "overview", label: "overview" },
+  { value: "query", label: "query" },
+];
 
 // The history REPLACES the tabs rather than becoming a third one: it is a
 // drill-down from one list inside Overview, not a peer of them. Same shell, so
@@ -114,14 +121,14 @@ export function StatsPanel({
             {view === "history" && (
               // -ml-2 eats into the header padding so the touch target does not
               // shift the title.
-              <button
-                type="button"
+              <IconButton
+                label="Back to library stats"
+                tone="page"
                 onClick={() => setView("stats")}
-                aria-label="Back to library stats"
-                className="-ml-2 shrink-0 rounded-md p-1.5 text-muted hover:bg-divider hover:text-foreground transition-colors cursor-pointer"
+                className="-ml-2"
               >
                 <ArrowLeftIcon className="w-5 h-5" aria-hidden />
-              </button>
+              </IconButton>
             )}
             <div className="min-w-0">
               <h2 className="text-base font-bold text-emphasis">
@@ -136,34 +143,23 @@ export function StatsPanel({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close stats panel"
-            className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-divider transition-colors"
-          >
-            <CloseIcon className="w-5 h-5 cursor-pointer" aria-hidden />
-          </button>
+          <IconButton label="Close stats panel" tone="page" onClick={onClose}>
+            <CloseIcon className="w-5 h-5" aria-hidden />
+          </IconButton>
         </div>
 
         {/* Tab strip, hidden in the history view. */}
         <div
           className={`flex border-b border-divider px-6 shrink-0 ${view === "history" ? "hidden" : ""}`}
         >
-          {(["overview", "query"] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`py-2.5 mr-4 text-sm font-medium border-b-2 -mb-px capitalize transition-colors cursor-pointer ${
-                activeTab === tab
-                  ? "border-link text-link"
-                  : "border-transparent text-muted hover:text-foreground hover:border-divider"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+          <TabBar
+            tabs={STATS_TABS}
+            value={activeTab}
+            onChange={setActiveTab}
+            tone="page"
+            className="gap-4"
+            tabClassName="text-sm capitalize"
+          />
         </div>
 
         {/* Scrollable content — both panels stay mounted to preserve query state across tab switches */}

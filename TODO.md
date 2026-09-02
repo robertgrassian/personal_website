@@ -8,11 +8,6 @@ that govern this file (sections, caps, what goes where) live in the `proj-todo` 
 The organizing goal is **sharing the site with people**, so Up Next holds what should be true
 before that happens.
 
-- [ ] **Take a pass at every button, then make reusable components out of the shared class
-      strings.** (Promoted by request 2026-08-30.) The tinted trigger vs outlined confirm that
-      prompted it is deliberate and reasoned in `formStyles.ts`: this re-decides those rules, not
-      drift. [Details](docs/todo/button-component-system.md)
-
 ## Bugs
 
 _Confirmed defects that are not urgent enough for Up Next. Roughly severity-ordered, worst first._

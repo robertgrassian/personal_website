@@ -138,8 +138,9 @@
   --color-shelf-control-label: var(--shelf-control-label);
   --color-shelf-divider: var(--shelf-divider);
   --color-shelf-danger: var(--shelf-danger);
+  --color-shelf-danger-text: var(--shelf-danger-text);
+  --color-shelf-danger-surface: var(--shelf-danger-surface);
   --color-shelf-danger-tint: var(--shelf-danger-tint);
-  --color-shelf-danger-tint-hover: var(--shelf-danger-tint-hover);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);

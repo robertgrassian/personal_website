@@ -35,8 +35,14 @@
      light shelf, the dark shelf, and the card, whose scrim is dark in BOTH
      schemes. A `dark:` variant can only describe two of them. */
   --shelf-danger: #dc2626;
+  /* Border and text are the same red on a solid shelf, and diverge only on the
+     detail card, which fills. */
+  --shelf-danger-text: var(--shelf-danger);
+  /* What sits BEHIND a destructive button at rest. Transparent on a solid
+     shelf, where the red already clears contrast on its own; the detail card
+     overrides it, because nothing there is solid. */
+  --shelf-danger-surface: transparent;
   --shelf-danger-tint: rgba(220, 38, 38, 0.14);
-  --shelf-danger-tint-hover: rgba(220, 38, 38, 0.24);
 
   /* --- Game case system fallback colors (shown when no cover art is available) ---
      Keyed on IGDB's platform names, which is what played_games.system stores
@@ -360,16 +366,34 @@
   --shelf-input-placeholder: #cbd5e1;
   --shelf-input-ring: #fbbf24;
   --shelf-divider: rgba(255, 255, 255, 0.2);
-  /* Dark fill, light text. A pale fill lightens the scrim under the label,
-     which then needs paler text to clear contrast, and the pair lands on pink.
+  /* The one place a destructive button FILLS, because it is the one surface
+     with no predictable backdrop: the card's is the cover's blurred art over a
+     per-system base color under only a 25% black overlay, so it ranges from
+     near-black to pale cream. Red text alone measures 5.79:1 on a dark cover
+     and 1.25:1 on a yellow one.
 
-     At the contrast floor: the 12px label needs 4.5:1 and this is 4.86:1 at
-     rest, 4.57:1 on hover. One step darker (#f25555) drops hover to 4.27:1,
-     and red-500 fails on every fill, bottoming out at 4.25:1 on red-800.
-     Re-measure before darkening. */
+     Translucent on purpose, at 0.72 rather than opaque: the cover reading
+     through the controls is the look of the card, and a solid chip punches a
+     hole in it. Flipping the pairing is what buys that back — white text ON
+     red, rather than red text on whatever the cover happens to be, fixes the
+     text's background instead of fighting it, and still holds a 6.15:1 worst
+     case with over a quarter of the cover showing through.
+
+     Darkening the fill only RAISES that number, since the text on it is white,
+     so this one is chosen by eye and the script is a floor rather than a
+     target. It is the rare token here with a dark-scheme override, below: the
+     scrim is dark in both schemes, but the page around the card is not, and
+     the same red glows harder against a dark surround.
+
+     The border stays the light red rather than the fill's, so the edge is
+     defined on a dark cover where fill and backdrop are close.
+
+     Re-measure with scripts/check-danger-contrast.py before changing the fill
+     or its alpha. */
   --shelf-danger: #f45f5f;
-  --shelf-danger-tint: rgba(153, 27, 27, 0.26);
-  --shelf-danger-tint-hover: rgba(153, 27, 27, 0.36);
+  --shelf-danger-text: #ffffff;
+  --shelf-danger-surface: rgba(153, 27, 27, 0.72);
+  --shelf-danger-tint: rgba(153, 27, 27, 0.85);
   /* Focus-ring offsets resolve against this, so it has to be the color that is
      actually behind the field rather than the page's shelf background. */
   --shelf-bg: #1a1a2e;
@@ -721,6 +745,14 @@
     --back-overlay: 0.35;
   }
 
+  .game-card-surface {
+    /* The only card token that varies by scheme. The rest do not, because the
+       scrim is dark either way; this one does, because brightness is judged
+       against the page BEHIND the card, which is not. One step darker again. */
+    --shelf-danger-surface: rgba(127, 29, 29, 0.72);
+    --shelf-danger-tint: rgba(127, 29, 29, 0.85);
+  }
+
   .shelf-filter-bar {
     box-shadow: none;
     border-bottom: 1px solid var(--shelf-divider);
@@ -752,7 +784,6 @@
     /* --- Destructive actions and error text --- */
     --shelf-danger: #f87171;
     --shelf-danger-tint: rgba(248, 113, 113, 0.16);
-    --shelf-danger-tint-hover: rgba(248, 113, 113, 0.26);
 
     /* --- Filter bar chrome --- */
     --shelf-control-label: #9ca3af;

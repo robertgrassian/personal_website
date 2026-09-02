@@ -4,7 +4,8 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import type { IgdbSearchResult } from "@/lib/games";
 import { searchGames } from "@/app/video-games/actions";
-import { ghostButtonClass, inputClass } from "./formStyles";
+import { Button } from "@/components/ui/Button";
+import { inputClass } from "./formStyles";
 import { foldForSearch } from "./pipeline";
 
 // The identity of a game for "do I already have this?", as one map key.
@@ -252,28 +253,31 @@ export function GameSearchStep({
               sense. No scroll listener needed to get that behaviour. */}
           {hasMore && (
             <li className="pt-1">
-              <button
-                type="button"
+              {/* size="none" so the call site can set text-xs: this is the
+                  least important control in the list and should not match the
+                  dialog's real buttons. */}
+              <Button
+                size="none"
+                className="w-full py-1.5 text-xs"
                 onClick={loadMore}
                 disabled={loadingMore}
-                className="w-full rounded-md border border-shelf-plank py-1.5 text-xs text-shelf-text-muted hover:bg-shelf-input hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
               >
                 {loadingMore ? "Loading…" : "Show more results"}
-              </button>
+              </Button>
             </li>
           )}
         </ul>
       )}
 
-      <button
-        type="button"
+      <Button
+        variant="ghost"
         onClick={() => onManual(query)}
         // self-start because a flex column stretches its children:
         // without it this underlined link would span the full width.
-        className={`mt-4 shrink-0 self-start ${ghostButtonClass}`}
+        className="mt-4 shrink-0 self-start"
       >
         Can&rsquo;t find it? Add it manually
-      </button>
+      </Button>
     </>
   );
 }

@@ -22,6 +22,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { CloseIcon, MenuIcon } from "@/components/Icon";
+import { IconButton } from "@/components/ui/IconButton";
 
 export function LibraryHeaderMenu({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -77,26 +78,27 @@ export function LibraryHeaderMenu({ children }: { children: ReactNode }) {
         }
       }}
     >
-      <button
+      <IconButton
         ref={buttonRef}
-        type="button"
+        tone="library"
+        size="none"
         onClick={() => setOpen((isOpen) => !isOpen)}
         aria-expanded={open}
         // Only while the panel exists: aria-controls pointing at an absent id
         // is a broken reference to a screen reader.
         aria-controls={open ? panelId : undefined}
-        aria-label={open ? "Close menu" : "Open menu"}
+        label={open ? "Close menu" : "Open menu"}
         // -mr-2 pulls the icon's padding back over the page gutter so the glyph
         // itself lines up with the content edge, while the tap target keeps its
-        // full 40px.
-        className="-mr-2 cursor-pointer rounded-md p-2 text-shelf-text-muted transition-colors duration-150 hover:text-link"
+        // full 40px. size="none" because p-2 is that target, not IconButton's.
+        className="-mr-2 p-2"
       >
         {open ? (
           <CloseIcon className="h-5 w-5" aria-hidden />
         ) : (
           <MenuIcon className="h-5 w-5" aria-hidden />
         )}
-      </button>
+      </IconButton>
 
       {open && (
         <div

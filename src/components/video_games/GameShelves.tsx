@@ -29,7 +29,7 @@ import { useFilterOptions } from "./useFilterOptions";
 import { useKeepResultsInView } from "./useKeepResultsInView";
 import { useHideOnScrollDown } from "./useHideOnScrollDown";
 import type { UrlState } from "./useGameLibraryUrlState";
-import { accentButtonClass } from "./formStyles";
+import { Button } from "@/components/ui/Button";
 import { systemLabel } from "@/lib/games";
 
 // Loaded on demand rather than in the page bundle. The panel pulls in GameStats
@@ -359,13 +359,9 @@ export function GameShelves({
             <span className="text-shelf-text-muted text-sm">
               {filteredCount} of {activeTotal} games
             </span>
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="text-shelf-text-muted text-sm underline underline-offset-2 cursor-pointer hover:text-shelf-text transition-colors"
-            >
+            <Button variant="ghost" size="md" onClick={clearFilters}>
               Clear filters
-            </button>
+            </Button>
           </div>
         )}
 
@@ -444,16 +440,9 @@ export function GameShelves({
                 } is empty.`}
               </p>
               {canAdd && (
-                <button
-                  type="button"
-                  onClick={onAddGame}
-                  // Site amber accent + text-background, the same pairing the
-                  // login button and the sign-up CTA use, so it reads correctly
-                  // in light and dark.
-                  className={`${accentButtonClass} text-sm`}
-                >
+                <Button variant="primary" size="md" className="text-sm" onClick={onAddGame}>
                   {view === "played" ? "Add your first game" : "Add your first wish"}
-                </button>
+                </Button>
               )}
             </div>
           ) : (
