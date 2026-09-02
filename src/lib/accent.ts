@@ -20,21 +20,24 @@ export const ACCENTS = {
     light: "#8f6212",
     dark: "#d9a441",
   },
-  // Green. Both values sit at OKLCH hue 140, which is a true green: the pea /
-  // olive failure this went through twice lives nearer hue 110, so hue is the
-  // dial to check first if these are ever retuned, not saturation.
+  // Green, at OKLCH hue ~139 and deliberately LOW chroma: C 0.124 light and
+  // 0.095 dark, against an sRGB ceiling near 0.165 and 0.238. That gap is the
+  // point. Sage is a muted green by definition, so the restraint is the
+  // identity, not a shortfall in it.
   //
-  // Chroma is what makes it read as a color rather than as a grey. Light mode
-  // is the constrained scheme, because the accent is forced dark there (it is
-  // link text on white AND the fill under white button text), and an earlier
-  // pass answered "too pea" by dropping chroma in BOTH schemes. That was the
-  // wrong axis: low chroma at low lightness is just black with a tint. These
-  // values sit near the top of the sRGB gamut for their lightness, C 0.150 of
-  // a possible ~0.165 light and 0.125 dark, which is where the presence comes
-  // from. Contrast: 5.53:1 on white, 9.66:1 on the dark background.
+  // Two retunes are already spent here, so do not repeat them:
+  //   - hue 82 read as pea. That is a HUE fault, cured at ~139; dropping
+  //     chroma does not cure it and costs the color its presence.
+  //   - chroma raised toward the gamut edge (light #2b7815) read as a plain
+  //     bright green and lost the sage.
+  // If the accent needs more presence, reach for weight, underline thickness
+  // or a tint at the call site. Those channels are free; this hue's chroma is
+  // not, because spending it is what stops it being sage.
+  //
+  // Contrast: 5.19:1 on white, 9.01:1 on the dark background.
   sage: {
-    light: "#2b7815",
-    dark: "#85c577",
+    light: "#417a2e",
+    dark: "#8dbb81",
   },
 } as const;
 

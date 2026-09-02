@@ -24,14 +24,19 @@ type TabBarProps<T extends string> = {
 
 // A selected tab is a STATE, not a primary action, so it takes accent border
 // and accent text rather than the fill a primary button gets. See buttonStyles.
-const tabClass =
-  "-mb-px whitespace-nowrap border-b-2 py-2.5 font-medium transition-colors cursor-pointer";
+//
+// The weight lives on the state classes rather than here, so that only one of
+// them ever applies: font-medium and font-semibold have equal specificity, and
+// which wins is decided by their order in the generated stylesheet, not by the
+// order they appear in a className string.
+const tabClass = "-mb-px whitespace-nowrap border-b-2 py-2.5 transition-colors cursor-pointer";
 
-const selectedClass = "border-link text-link";
+const selectedClass = "border-link font-semibold text-link";
 
 const idleClass: Record<TabTone, string> = {
-  shelf: "border-transparent text-shelf-text-muted hover:border-shelf-plank hover:text-link",
-  page: "border-transparent text-muted hover:border-divider hover:text-foreground",
+  shelf:
+    "border-transparent font-medium text-shelf-text-muted hover:border-shelf-plank hover:text-link",
+  page: "border-transparent font-medium text-muted hover:border-divider hover:text-foreground",
 };
 
 /** An underlined tab strip. Deliberately NOT role="tablist": neither call site
@@ -56,7 +61,16 @@ export function TabBar<T extends string>({
           aria-current={tab.value === value ? "true" : undefined}
           className={`${tabClass} ${tab.value === value ? selectedClass : idleClass[tone]} ${tabClassName}`.trim()}
         >
-          {tab.label}
+          {/* Every tab reserves the width its label takes at font-semibold, so
+              selecting one does not nudge the rest of the strip sideways. The
+              two copies are stacked in a single grid cell: the hidden one sets
+              the width, the visible one draws at the state's actual weight. */}
+          <span className="grid">
+            <span aria-hidden="true" className="invisible col-start-1 row-start-1 font-semibold">
+              {tab.label}
+            </span>
+            <span className="col-start-1 row-start-1">{tab.label}</span>
+          </span>
         </button>
       ))}
     </div>
