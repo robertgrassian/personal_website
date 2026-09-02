@@ -112,6 +112,19 @@ type FilterSelectProps = {
   formatLabel?: (option: string) => string;
 };
 
+// Roughly what fits in the capped select at text-sm. Only decides whether a
+// hover title is worth adding, so an approximation is fine.
+const TRUNCATION_HINT_CHARS = 22;
+
+// A <select> is laid out to fit its LONGEST option, not its current value, so
+// the 38-character "Construction and Management Simulation" sized the genre
+// filter and pushed Sort onto a second row on a desktop. Capping is safe here
+// in a way it would not be for the sort labels: the open list is drawn by the
+// browser outside this box and still shows every name in full.
+//
+// Full-width in the mobile sheet, content-sized on the bar under the cap.
+const narrowingFilterWidth = "w-full truncate sm:w-auto sm:max-w-44";
+
 // Renders a <select> with available options at the top and unavailable (disabled) ones below,
 // separated by a divider when both groups are present.
 //
@@ -135,7 +148,17 @@ export function FilterSelect({
   const disabled = options.filter((o) => !available.has(o));
 
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className={className}>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      // Only on values long enough for the caller's width cap to ellipsize:
+      // a tooltip repeating text already on screen is noise, and it delays the
+      // one case that needs it.
+      title={
+        value && formatLabel(value).length > TRUNCATION_HINT_CHARS ? formatLabel(value) : undefined
+      }
+      className={className}
+    >
       <option value="">{allLabel}</option>
       {enabled.map((o) => (
         <option key={o} value={o}>
@@ -264,7 +287,7 @@ export function FilterBar(props: FilterBarProps) {
               // groupBy="rating" so the dropdown reads in shelf order.
               options={[...RATINGS.map((r) => r.name), UNRATED_LABEL]}
               available={props.availableRatings}
-              className={`${selectClass} w-full sm:w-auto`}
+              className={`${selectClass} ${narrowingFilterWidth}`}
             />
           )}
 
@@ -276,7 +299,7 @@ export function FilterBar(props: FilterBarProps) {
             options={allSystems}
             available={availableSystems}
             formatLabel={systemLabel}
-            className={`${selectClass} w-full sm:w-auto`}
+            className={`${selectClass} ${narrowingFilterWidth}`}
           />
 
           {/* Genre filter */}
@@ -286,7 +309,7 @@ export function FilterBar(props: FilterBarProps) {
             allLabel="All Genres"
             options={allGenres}
             available={availableGenres}
-            className={`${selectClass} w-full sm:w-auto`}
+            className={`${selectClass} ${narrowingFilterWidth}`}
           />
         </div>
 
