@@ -14,6 +14,7 @@ import { GameEditFields } from "./GameEditFields";
 import { WishlistEditFields } from "./WishlistEditFields";
 import { sessionsByGame } from "@/lib/sessions";
 import type { PlayHistoryState } from "./usePlayHistory";
+import { IconButton } from "@/components/ui/IconButton";
 
 /** Which of the three things the card is showing. A viewer's card is NOT a
  *  fourth kind: it is `game` with the edit region simply not rendered, so
@@ -247,14 +248,14 @@ export function GameDetailCard({
               <div className="flex shrink-0 items-start gap-2 px-5 pt-4">
                 <div className="-my-2 -ml-2 flex h-11 w-11 shrink-0 items-center justify-center sm:-my-1 sm:-ml-1 sm:h-9 sm:w-9">
                   {historyOpen && (
-                    <button
-                      type="button"
+                    <IconButton
+                      label="Back to game details"
+                      size="none"
                       onClick={() => setHistoryOpen(false)}
-                      aria-label="Back to game details"
-                      className="flex h-full w-full items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                      className="flex h-full w-full items-center justify-center"
                     >
                       <ArrowLeftIcon className="h-6 w-6 sm:h-5 sm:w-5" aria-hidden />
-                    </button>
+                    </IconButton>
                   )}
                 </div>
                 {/* min-w-0 so a long title wraps instead of pushing the close
@@ -267,14 +268,14 @@ export function GameDetailCard({
                 </h2>
                 {/* 44px touch target on phones; the negative margins keep it
                     from growing the header row. */}
-                <button
-                  type="button"
+                <IconButton
+                  label="Close"
+                  size="touch"
                   onClick={close}
-                  aria-label="Close"
-                  className="-mr-2 -mb-2 -mt-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:-mr-1 sm:-mb-1 sm:-mt-1 sm:h-9 sm:w-9"
+                  className="-mr-2 -mb-2 -mt-2 sm:-mr-1 sm:-mb-1 sm:-mt-1"
                 >
                   <CloseIcon className="h-6 w-6 sm:h-5 sm:w-5" aria-hidden />
-                </button>
+                </IconButton>
               </div>
 
               {/* The card's one scrolling part. overscroll-contain keeps a flick

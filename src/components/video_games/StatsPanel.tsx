@@ -10,6 +10,7 @@ import { ModalBackdrop } from "./ModalBackdrop";
 import { sessionsInLibrary } from "@/lib/sessions";
 import { PlayHistoryList } from "./PlayHistoryList";
 import type { PlayHistoryState } from "./usePlayHistory";
+import { IconButton } from "@/components/ui/IconButton";
 
 type StatsPanelProps = {
   games: Game[];
@@ -114,14 +115,14 @@ export function StatsPanel({
             {view === "history" && (
               // -ml-2 eats into the header padding so the touch target does not
               // shift the title.
-              <button
-                type="button"
+              <IconButton
+                label="Back to library stats"
+                tone="page"
                 onClick={() => setView("stats")}
-                aria-label="Back to library stats"
-                className="-ml-2 shrink-0 rounded-md p-1.5 text-muted hover:bg-divider hover:text-foreground transition-colors cursor-pointer"
+                className="-ml-2"
               >
                 <ArrowLeftIcon className="w-5 h-5" aria-hidden />
-              </button>
+              </IconButton>
             )}
             <div className="min-w-0">
               <h2 className="text-base font-bold text-emphasis">
@@ -136,14 +137,9 @@ export function StatsPanel({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close stats panel"
-            className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-divider transition-colors"
-          >
-            <CloseIcon className="w-5 h-5 cursor-pointer" aria-hidden />
-          </button>
+          <IconButton label="Close stats panel" tone="page" onClick={onClose}>
+            <CloseIcon className="w-5 h-5" aria-hidden />
+          </IconButton>
         </div>
 
         {/* Tab strip, hidden in the history view. */}

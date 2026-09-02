@@ -34,6 +34,7 @@ import { ModalBackdrop } from "./ModalBackdrop";
 import { FilterSelect, type FilterControlProps } from "./FilterBar";
 import { Button } from "@/components/ui/Button";
 import { filterSelectClass } from "./formStyles";
+import { IconButton } from "@/components/ui/IconButton";
 
 // The full control union, group/sort members included, even though this
 // component renders only the filters. GameShelves spreads one object into both
@@ -127,15 +128,9 @@ export function FilterSheet(props: FilterSheetProps) {
       >
         <div className="flex shrink-0 items-center justify-between border-b border-divider px-5 py-4">
           <h2 className="text-base font-bold text-emphasis">Filters</h2>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={onClose}
-            aria-label="Close filters"
-            className="rounded-md p-1.5 text-muted transition-colors hover:bg-divider hover:text-foreground"
-          >
-            <CloseIcon className="h-5 w-5 cursor-pointer" aria-hidden />
-          </button>
+          <IconButton ref={closeButtonRef} label="Close filters" tone="page" onClick={onClose}>
+            <CloseIcon className="h-5 w-5" aria-hidden />
+          </IconButton>
         </div>
 
         {/* min-h-0 rather than flex-1: the sheet is sized by its content and
