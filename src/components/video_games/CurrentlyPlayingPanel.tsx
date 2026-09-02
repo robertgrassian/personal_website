@@ -17,7 +17,8 @@ import { useServerAction } from "./useServerAction";
 import { ConfirmStep } from "./ConfirmStep";
 import { startableGames } from "./playingPicker";
 import { ModalShell } from "./ModalShell";
-import { buttonClass, inputClass } from "./formStyles";
+import { Button } from "@/components/ui/Button";
+import { inputClass } from "./formStyles";
 
 const headingClass = "text-xs font-semibold uppercase tracking-widest text-shelf-label";
 const coverClass = "h-[54px] w-10 shrink-0 rounded object-cover";
@@ -211,14 +212,9 @@ export function CurrentlyPlayingPanel({
                     tap while scrolling a long list would open a session that
                     can only be closed, never removed. */}
                   <span className={rowCellClass}>
-                    <button
-                      type="button"
-                      onClick={() => start(game)}
-                      disabled={isPending}
-                      className={buttonClass}
-                    >
+                    <Button onClick={() => start(game)} disabled={isPending}>
                       {busy(game.id, "start") ? "Starting…" : "Start"}
-                    </button>
+                    </Button>
                   </span>
                 </li>
               ))}

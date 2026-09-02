@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { APP_NAME } from "@/lib/appName";
-import { primaryLargeButtonClass } from "./formStyles";
+import { buttonClasses } from "@/components/ui/buttonStyles";
 
 // Sign-up call to action for logged-out visitors on /video-games.
 //
@@ -47,11 +47,9 @@ export function SignupCta() {
       <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
         <Link
           href="/video-games/start"
-          // bg-link is the site's amber accent, paired with text-background as
-          // on the login page: the accent flips amber-700 → amber-500 between
-          // light and dark, and the background token flips with it, so the
-          // label stays readable both ways (plain white would not).
-          className={`${primaryLargeButtonClass} text-sm`}
+          // The class string rather than <Button>, because this has to be a
+          // next/link for client-side navigation.
+          className={`${buttonClasses("primary", "md")} text-sm`}
         >
           Sign in to start your library
         </Link>

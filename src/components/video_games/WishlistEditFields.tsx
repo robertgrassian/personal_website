@@ -6,7 +6,8 @@ import { deleteWishlistItem, updateWishlistItem } from "@/app/video-games/action
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { SuggestInput } from "./SuggestInput";
-import { inputClass, labelClass, buttonClass, primaryButtonClass } from "./formStyles";
+import { Button } from "@/components/ui/Button";
+import { inputClass, labelClass } from "./formStyles";
 
 type WishlistEditFieldsProps = {
   item: WishlistGame;
@@ -124,9 +125,9 @@ export function WishlistEditFields({
         {/* Always present, so there is one place to look for "did this save?".
           Disabled until something is actually pending. */}
         <div className="mt-6 border-t border-shelf-plank pt-4">
-          <button type="button" onClick={save} disabled={!canSave} className={primaryButtonClass}>
+          <Button variant="primary" onClick={save} disabled={!canSave}>
             Save
-          </button>
+          </Button>
           {/* Not while the remove confirm is up: it renders the same error
             itself, and the sheet covers this line anyway. */}
           {error && !confirmingRemove && (
@@ -142,16 +143,11 @@ export function WishlistEditFields({
             can answer; everything that follows from it (which console, how
             was it, when did you play) belongs to the library form, which
             already asks all three. */}
-        {/* Outlined, not filled: the Save above is the filled one, and the
-            repo's rule is that filled means "commit a pending draft". */}
-        <button
-          type="button"
-          onClick={onPlayed}
-          disabled={isPending || confirmingRemove}
-          className={buttonClass}
-        >
+        {/* Outlined, not filled: this surface's one fill belongs to the Save
+            above. */}
+        <Button onClick={onPlayed} disabled={isPending || confirmingRemove}>
           Played?
-        </button>
+        </Button>
 
         <ConfirmStep
           triggerLabel="Remove from wishlist"

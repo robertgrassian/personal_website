@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo } from "react";
 import type { Game } from "@/lib/games";
 import { RATINGS } from "@/lib/games";
 import { baseGameGenres } from "@/lib/baseGame";
+import { Button } from "@/components/ui/Button";
 
 // --- Row types ---
 
@@ -327,21 +328,18 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
           placeholder="SELECT * FROM games LIMIT 10"
         />
         <div className="flex items-center gap-3 mt-3">
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            size="md"
             onClick={() => runQuery(sql)}
             disabled={isRunning || !sql.trim()}
-            className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-link text-white hover:bg-link-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            className="flex items-center gap-2 text-sm"
           >
             {isRunning ? "Running..." : "Run Query"}
-          </button>
-          <button
-            type="button"
-            onClick={handleClear}
-            className="px-3 py-2 rounded-md text-sm text-muted border border-divider hover:text-foreground hover:border-foreground/30 transition-colors cursor-pointer"
-          >
+          </Button>
+          <Button variant="secondary" size="md" onClick={handleClear} className="text-sm">
             Clear
-          </button>
+          </Button>
           <span className="ml-auto text-xs text-muted hidden sm:inline">Cmd+Enter to run</span>
         </div>
       </section>

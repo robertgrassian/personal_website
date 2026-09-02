@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { buttonClass, dangerButtonClass } from "./formStyles";
+import { Button } from "@/components/ui/Button";
 
 // An action behind a two-step confirm: a quiet trigger that swaps itself for a
 // prompt plus Confirm / Cancel. Red by default, since removes were the only
@@ -83,11 +83,11 @@ export function ConfirmStep({
 }: ConfirmStepProps) {
   const [confirming, setConfirming] = useState(false);
   const sheet = layout === "sheet";
-  // One class for the trigger AND the confirm, so the two halves of a step
+  // One variant for the trigger AND the confirm, so the two halves of a step
   // cannot disagree. They used to: the trigger had a tinted variant to keep a
   // Save beside it the default action, which the fill on Save now does by
   // itself.
-  const actionClass = tone === "neutral" ? buttonClass : dangerButtonClass;
+  const actionVariant = tone === "neutral" ? "secondary" : "danger";
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   // Which way the step last moved, so the effect below can tell a close from
@@ -152,20 +152,18 @@ export function ConfirmStep({
   }, [sheet, confirming]);
 
   const trigger = (
-    <button
+    <Button
       ref={triggerRef}
-      type="button"
+      variant={actionVariant}
       onClick={open}
       disabled={disabled}
       // invisible, not unmounted: visibility:hidden keeps the button's box, so
       // the row it sits in stays exactly as tall as before, and drops it out of
       // the tab order at the same time.
-      className={`${triggerClassName} ${actionClass} ${
-        sheet && confirming ? "invisible" : ""
-      }`.trim()}
+      className={`${triggerClassName} ${sheet && confirming ? "invisible" : ""}`.trim()}
     >
       {triggerLabel}
-    </button>
+    </Button>
   );
 
   const panel = (
@@ -194,17 +192,12 @@ export function ConfirmStep({
         </p>
       )}
       <div className={`${sheet ? "mt-3" : "mt-2"} flex gap-2`}>
-        <button
-          type="button"
-          onClick={onConfirm}
-          disabled={disabled || confirmDisabled}
-          className={actionClass}
-        >
+        <Button variant={actionVariant} onClick={onConfirm} disabled={disabled || confirmDisabled}>
           {confirmLabel}
-        </button>
-        <button type="button" onClick={cancel} disabled={disabled} className={buttonClass}>
+        </Button>
+        <Button onClick={cancel} disabled={disabled}>
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   );

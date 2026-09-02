@@ -20,6 +20,7 @@
 import Link from "next/link";
 import { createContext, useContext, type ReactNode } from "react";
 import { CheckIcon } from "@/components/Icon";
+import { Button } from "@/components/ui/Button";
 import { useDebugMode } from "@/lib/debugMode";
 import { useServerAction } from "./useServerAction";
 import { headerMenuItemClass } from "./formStyles";
@@ -152,19 +153,18 @@ export function FollowButton() {
     // relative + an absolutely positioned error: a failure must not reflow the
     // heading row and push the handle and counts down.
     <span className="relative inline-flex">
-      <button
-        type="button"
+      {/* Follow is filled: on someone else's library it is the surface's one
+          primary action, and nothing else there is filled (Add game renders
+          only on your own). Following is outlined, because it is a state
+          rather than a call to action.
+
+          size="none" for the smaller padding these carry in a heading row. */}
+      <Button
+        variant={isFollowing ? "secondary" : "primary"}
+        size="none"
         onClick={toggle}
         disabled={isPending}
-        // Two visual states: following is a quiet outline (it is a state, not a
-        // call to action), not-following is the site's amber accent paired with
-        // text-background, the same pairing the sign-up CTA uses so it reads
-        // correctly in light and dark.
-        className={
-          isFollowing
-            ? "flex items-center gap-1 rounded-md border border-shelf-plank px-2.5 py-1 text-xs font-medium text-shelf-text-muted transition-colors hover:border-link hover:text-link cursor-pointer disabled:opacity-60"
-            : "rounded-md bg-link px-2.5 py-1 text-xs font-medium text-background transition-opacity hover:opacity-90 cursor-pointer disabled:opacity-60"
-        }
+        className={`px-2.5 py-1 text-xs font-medium ${isFollowing ? "flex items-center gap-1" : ""}`}
       >
         {isFollowing ? (
           <>
@@ -174,7 +174,7 @@ export function FollowButton() {
         ) : (
           "Follow"
         )}
-      </button>
+      </Button>
       {/* role="status" so the failure is announced rather than only seen. */}
       {error && (
         <span

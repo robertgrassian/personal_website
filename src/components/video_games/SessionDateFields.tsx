@@ -2,7 +2,8 @@
 
 import { useEffect, useId, useRef } from "react";
 import { localToday } from "@/lib/games";
-import { fieldClass, ghostButtonClass } from "./formStyles";
+import { Button } from "@/components/ui/Button";
+import { fieldClass } from "./formStyles";
 import type { SessionDraft } from "./useSessionDraft";
 
 // Date inputs size to their content rather than filling the row, so they take
@@ -21,7 +22,7 @@ const captionRowClass =
   "flex items-center gap-2 text-[10px] uppercase tracking-wide text-shelf-label";
 // Negative margin cancels the padding, so the touch area is bigger than the
 // 10px caption line without the line growing to fit it.
-const clearButtonClass = `-my-1.5 py-1.5 text-[10px] normal-case ${ghostButtonClass}`;
+const clearButtonClass = "-my-1.5 py-1.5 text-[10px] normal-case";
 
 // Deliberately NO showPicker() call on click. Calling it from an onClick
 // fights the browser: clicking the calendar glyph already opens the picker
@@ -119,13 +120,13 @@ export function SessionDateFields({ draft, disabled }: SessionDateFieldsProps) {
           <div className={captionRowClass}>
             <label htmlFor={startId}>From</label>
             {clearable && startDate !== "" && (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
                 onClick={() => draft.setStartDate("")}
                 className={clearButtonClass}
               >
                 Clear
-              </button>
+              </Button>
             )}
           </div>
           <input
@@ -151,13 +152,13 @@ export function SessionDateFields({ draft, disabled }: SessionDateFieldsProps) {
           <div className={captionRowClass}>
             <label htmlFor={endId}>To</label>
             {clearable && endDate !== "" && (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
                 onClick={() => draft.setEndDate("")}
                 className={clearButtonClass}
               >
                 Clear
-              </button>
+              </Button>
             )}
           </div>
           <input

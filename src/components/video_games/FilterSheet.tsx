@@ -32,7 +32,8 @@ import { CloseIcon } from "@/components/Icon";
 import { useModalChrome } from "./useModalChrome";
 import { ModalBackdrop } from "./ModalBackdrop";
 import { FilterSelect, type FilterControlProps } from "./FilterBar";
-import { primaryLargeButtonClass, filterSelectClass } from "./formStyles";
+import { Button } from "@/components/ui/Button";
+import { filterSelectClass } from "./formStyles";
 
 // The full control union, group/sort members included, even though this
 // component renders only the filters. GameShelves spreads one object into both
@@ -184,28 +185,25 @@ export function FilterSheet(props: FilterSheetProps) {
         {/* pb picks whichever is larger, the padding or the iPhone home
             indicator inset, so the confirm button is never under it. */}
         <div className="flex shrink-0 items-center gap-3 border-t border-divider px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <button
-            type="button"
+          {/* "Clear filters", not "Clear all": `clearFilters` deletes search,
+              rating, system and genre only, deliberately leaving groupBy and
+              sortOrder in the URL. Those are not in this sheet, but they are
+              still state a visitor would expect "all" to have covered. */}
+          <Button
+            variant="ghost"
+            size="md"
             onClick={onClearFilters}
             disabled={!hasActiveFilters}
-            // "Clear filters", not "Clear all": `clearFilters` deletes search,
-            // rating, system and genre only, deliberately leaving groupBy and
-            // sortOrder in the URL. Those are not in this sheet, but they are
-            // still state a visitor would expect "all" to have covered.
-            className="shrink-0 text-sm text-muted underline underline-offset-4 transition-colors hover:text-foreground disabled:cursor-default disabled:no-underline disabled:opacity-40"
+            className="shrink-0 disabled:no-underline"
           >
             Clear filters
-          </button>
+          </Button>
           {/* Filters apply as they are tapped, so this only dismisses. It is
               still the primary button: it carries the count, which is the
               feedback the shelves would give if the sheet were not over them. */}
-          <button
-            type="button"
-            onClick={onClose}
-            className={`${primaryLargeButtonClass} flex-1 text-sm`}
-          >
+          <Button variant="primary" size="md" onClick={onClose} className="flex-1 text-sm">
             Show {resultCount} {resultCount === 1 ? "game" : "games"}
-          </button>
+          </Button>
         </div>
       </aside>
     </>

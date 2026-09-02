@@ -1,6 +1,6 @@
 "use client";
 
-import { buttonClass, ghostButtonClass } from "./formStyles";
+import { Button } from "@/components/ui/Button";
 
 type StopPlayingControlProps = {
   stopPending: boolean;
@@ -19,28 +19,18 @@ type StopPlayingControlProps = {
 export function StopPlayingControl({ stopPending, onChange, disabled }: StopPlayingControlProps) {
   if (!stopPending) {
     return (
-      <button
-        type="button"
-        onClick={() => onChange(true)}
-        disabled={disabled}
-        className={buttonClass}
-      >
+      <Button onClick={() => onChange(true)} disabled={disabled}>
         Stop Playing
-      </button>
+      </Button>
     );
   }
 
   return (
     <p className="text-xs text-shelf-text">
       Will be marked finished today when you save.{" "}
-      <button
-        type="button"
-        onClick={() => onChange(false)}
-        disabled={disabled}
-        className={ghostButtonClass}
-      >
+      <Button variant="ghost" onClick={() => onChange(false)} disabled={disabled}>
         Undo
-      </button>
+      </Button>
     </p>
   );
 }
