@@ -25,13 +25,12 @@ type TabBarProps<T extends string> = {
 // A selected tab is a STATE, not a primary action, so it takes accent border
 // and accent text rather than the fill a primary button gets. See buttonStyles.
 //
-// The weight lives on the state classes rather than here, so that only one of
-// them ever applies: font-medium and font-semibold have equal specificity, and
-// which wins is decided by their order in the generated stylesheet, not by the
-// order they appear in a className string.
-// The 3px underline is on EVERY tab, transparent when idle, so the selected
-// one is half again as heavy without any tab changing height when selection
-// moves.
+// Both state-varying properties are set below rather than here. The weight,
+// because font-normal and font-semibold have equal specificity and which wins
+// would be decided by their order in the generated stylesheet, not by the order
+// they appear in a className string. The underline width, because holding it at
+// 3px for every tab and only coloring it per state means selection never
+// changes a tab's height.
 const tabClass = "-mb-px whitespace-nowrap border-b-[3px] py-2.5 transition-colors cursor-pointer";
 
 // Selection is signalled on three channels, not one. The accent is a muted
