@@ -25,12 +25,11 @@
 // when open, but this pair sits in the header's always-mounted slot.
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { setAuthFlag } from "@/lib/authFlag";
 import { forgetOwnedLibrary, forgetOwnedLibraryForOtherUser } from "@/lib/ownedLibrary";
 // Shared with the other rows of the header menu, so the list stays one look.
-import { headerMenuItemClass } from "@/components/video_games/formStyles";
+import { MenuItem } from "@/components/ui/MenuItem";
 
 export function AuthButton() {
   const router = useRouter();
@@ -73,12 +72,12 @@ export function AuthButton() {
   // wrapper box. Only one is ever displayed, so spacing is unaffected.
   return (
     <>
-      <Link href="/video-games/start" className={headerMenuItemClass} data-hide-authed="">
+      <MenuItem href="/video-games/start" data-hide-authed="">
         Sign in
-      </Link>
-      <button type="button" onClick={signOut} className={headerMenuItemClass} data-hide-anon="">
+      </MenuItem>
+      <MenuItem onClick={signOut} data-hide-anon="">
         Sign out
-      </button>
+      </MenuItem>
     </>
   );
 }

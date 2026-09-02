@@ -36,31 +36,3 @@ export const filterSelectClass = `${filterFieldClass} cursor-pointer`;
 // `flex flex-wrap` row of date labels.
 export const labelClass =
   "flex min-w-0 flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label";
-
-// One row inside the library header's menu (LibraryHeaderMenu): Back to my
-// library, Suggestion/Issue?, Account, Sign in / Sign out. Shared so a mix of
-// <a>, next/link and <button> reads as one list.
-//
-// No underline, unlike an inline text link: these are stacked rows in a panel,
-// where the row itself is the affordance and four underlines would be noise.
-// Hover tints the whole row instead.
-//
-// Shelf tokens, not the global ones: this sits on the library's own background
-// (.shelf-theme), where text-subtle would be low-contrast. Both tokens carry
-// light and dark values.
-//
-// Amber on hover, matching the view tabs, the Add game / Stats buttons and the
-// follow-count links, so every interactive element in the library highlights
-// the same way.
-//
-// text-left because a <button> centers its text by default and the anchors
-// beside it do not; block + w-full so the whole row is the target, not just
-// the glyphs.
-//
-// cursor-pointer is not redundant: Tailwind v4's preflight sets buttons to
-// cursor: default, so "Sign out" would otherwise show an arrow while the
-// "Account" link above it shows a hand.
-export const headerMenuItemClass =
-  "block w-full whitespace-nowrap rounded-md px-3 py-2 text-left text-sm " +
-  "text-shelf-text-muted hover:bg-shelf-input hover:text-link cursor-pointer " +
-  "transition-colors duration-150";

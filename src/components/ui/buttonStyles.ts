@@ -98,3 +98,41 @@ export function buttonClasses(variant: ButtonVariant, size: ButtonSize): string 
   const sizes = variant === "ghost" ? ghostSizeClass : sizeClass;
   return `${variantClass[variant]} ${sizes[size]}`.trim();
 }
+
+// A pressed pill in a "pick one of these" group: the play choices, the rating
+// letters. Selected takes accent border and accent text, NEVER the primary
+// fill, because a selected toggle is a state rather than the surface's primary
+// action, and the fill belongs to Save.
+export function toggleClasses(active: boolean): string {
+  return active
+    ? "border-link bg-shelf-input font-medium text-link"
+    : "border-shelf-plank text-shelf-text hover:bg-shelf-input";
+}
+
+// One row inside the library header's menu (LibraryHeaderMenu): Back to my
+// library, Suggestion/Issue?, Account, Sign in / Sign out. Behind <MenuItem>,
+// which is what makes a mix of <a>, next/link and <button> read as one list.
+//
+// No underline, unlike an inline text link: these are stacked rows in a panel,
+// where the row itself is the affordance and four underlines would be noise.
+// Hover tints the whole row instead.
+//
+// Shelf tokens, not the global ones: this sits on the library's own background
+// (.shelf-theme), where text-subtle would be low-contrast. Both tokens carry
+// light and dark values.
+//
+// Amber on hover, matching the view tabs, the Add game / Stats buttons and the
+// follow-count links, so every interactive element in the library highlights
+// the same way.
+//
+// text-left because a <button> centers its text by default and the anchors
+// beside it do not; block + w-full so the whole row is the target, not just
+// the glyphs.
+//
+// cursor-pointer is not redundant: Tailwind v4's preflight sets buttons to
+// cursor: default, so "Sign out" would otherwise show an arrow while the
+// "Account" link above it shows a hand.
+export const menuItemClass =
+  "block w-full whitespace-nowrap rounded-md px-3 py-2 text-left text-sm " +
+  "text-shelf-text-muted hover:bg-shelf-input hover:text-link cursor-pointer " +
+  "transition-colors duration-150";

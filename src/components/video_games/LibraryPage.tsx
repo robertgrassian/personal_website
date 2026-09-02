@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 // The stylesheets live with the component that needs them rather than in each
 // route's layout: two routes render this shell now, and a per-route import
@@ -30,7 +29,7 @@ import {
 } from "@/components/video_games/FollowCountLinks";
 import { SignupCta } from "@/components/video_games/SignupCta";
 import { LibraryHeaderMenu } from "@/components/video_games/LibraryHeaderMenu";
-import { headerMenuItemClass } from "@/components/video_games/formStyles";
+import { MenuItem } from "@/components/ui/MenuItem";
 import { NEW_ISSUE_URL } from "@/lib/feedback";
 import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 
@@ -257,23 +256,16 @@ export async function LibraryPage({
                     long, and someone who just hit a bug is not going to scroll
                     past every shelf to report it. Plain <a>, not next/link,
                     because the target is off-site. */}
-                <a
-                  href={NEW_ISSUE_URL}
-                  target="_blank"
-                  // Without noopener the opened tab holds a window.opener handle
-                  // back to this one and can navigate it elsewhere.
-                  rel="noopener noreferrer"
-                  className={headerMenuItemClass}
-                >
+                <MenuItem href={NEW_ISSUE_URL} external>
                   Suggestion/Issue?
-                </a>
+                </MenuItem>
                 {/* Always rendered, hidden from signed-out visitors by CSS on the
                     pre-paint flag — the same mechanism AuthButton uses, so the
                     menu never reshuffles a beat after paint. The page itself
                     re-checks the session server-side; this flag is display only. */}
-                <Link href="/video-games/account" className={headerMenuItemClass} data-hide-anon="">
+                <MenuItem href="/video-games/account" data-hide-anon="">
                   Account
-                </Link>
+                </MenuItem>
                 <AuthButton />
               </LibraryHeaderMenu>
             </div>

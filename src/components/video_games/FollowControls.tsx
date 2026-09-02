@@ -17,13 +17,12 @@
 // server and arrive as an already-rendered tree, so wrapping the header in this
 // does not turn the heading into client-side JavaScript.
 
-import Link from "next/link";
 import { createContext, useContext, type ReactNode } from "react";
 import { CheckIcon } from "@/components/Icon";
 import { Button } from "@/components/ui/Button";
 import { useDebugMode } from "@/lib/debugMode";
 import { useServerAction } from "./useServerAction";
-import { headerMenuItemClass } from "./formStyles";
+import { MenuItem } from "@/components/ui/MenuItem";
 import { followUserAction, unfollowUserAction } from "@/app/video-games/actions";
 import {
   useViewerRelationship,
@@ -195,11 +194,8 @@ export function BackToMyLibrary() {
   // /library is already a force-dynamic resolver that redirects a signed-in
   // viewer to their own shelf, so this needs no username of its own.
   //
-  // The shared class rather than the copy that used to live here: this is a row
-  // of the header menu like Account and Sign out, and the two drifted once.
-  return (
-    <Link href="/library" className={headerMenuItemClass}>
-      Back to my library
-    </Link>
-  );
+  // The shared component rather than the copy that used to live here: this is
+  // a row of the header menu like Account and Sign out, and the two drifted
+  // once.
+  return <MenuItem href="/library">Back to my library</MenuItem>;
 }
