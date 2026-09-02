@@ -30,9 +30,13 @@ type GameDetailCardProps = {
   // construction, so the caller only ever passes that subject when true.
   canEdit: boolean;
   existingSystems: string[];
-  // "Played?" on a game already in the library: open its play history dated
-  // today. A promote ignores this, having no row to log against yet.
+  // "Played?" on a game already in the library: open its play history with the
+  // choice already answered and dated today. A promote ignores this, having no
+  // row to log against yet.
   startWithSession?: boolean;
+  // The wishlist entry "Played?" was pressed on, when the game turned out to be
+  // in the library already. Its Save clears that entry. null everywhere else.
+  wishlistItemId?: number | null;
   // "Played?" on a wishlist card. Handled by the caller, which is where both
   // collections are in hand.
   onPlayed: () => void;
@@ -78,6 +82,7 @@ export function GameDetailCard({
   canEdit,
   existingSystems,
   startWithSession = false,
+  wishlistItemId = null,
   onPlayed,
   dominantColor,
   isDark,
@@ -348,6 +353,7 @@ export function GameDetailCard({
                         sessionsLoading={playHistory.isLoading}
                         sessionsError={playHistory.error}
                         startWithSession={startWithSession}
+                        wishlistItemId={wishlistItemId}
                         onSessionLogged={playHistory.refresh}
                         onClose={close}
                       />

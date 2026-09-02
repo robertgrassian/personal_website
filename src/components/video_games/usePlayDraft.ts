@@ -17,21 +17,26 @@ export type PlayDraft = {
 };
 
 type PlayDraftOptions = {
-  /** Open on "played it before", dated today, for a caller whose own control
-   *  already asserted a past playthrough ("Played?"). */
-  startToday?: boolean;
+  /** What the form opens on, for a caller whose own control already asserted
+   *  something ("Played?"). Anything but "no" opens dated today, so the choice
+   *  arrives valid and Save is live without a second tap.
+   *
+   *  A choice rather than the boolean this replaced: the opening answer is not
+   *  always "played it before", and a boolean could not say which. */
+  initialChoice?: PlayedChoice;
   /** The game already has an open session that this Save will not close, so
    *  "currently playing" would be a 409. See useSessionDraft. */
   blockedByOpenSession?: boolean;
 };
 
 export function usePlayDraft({
-  startToday = false,
+  initialChoice = "no",
   blockedByOpenSession = false,
 }: PlayDraftOptions = {}): PlayDraft {
-  const [choice, setChoice] = useState<PlayedChoice>(startToday ? "before" : "no");
+  const [choice, setChoice] = useState<PlayedChoice>(initialChoice);
   const session = useSessionDraft({
-    startToday,
+    startToday: initialChoice !== "no",
+    startStillPlaying: initialChoice === "now",
     blockedByOpenSession,
     // Any choice but the neutral one asserts that a playthrough exists, so a
     // blank start date becomes an error rather than silently sending nothing.
@@ -58,7 +63,7 @@ export function usePlayDraft({
     choice,
     choose,
     session,
-    // Always back to neutral, never to `startToday`'s opening choice: reset
+    // Always back to neutral, never to `initialChoice`: reset
     // means "nothing pending", and returning to a choice with no date would
     // put a validation error on a form that was just saved.
     reset: () => {

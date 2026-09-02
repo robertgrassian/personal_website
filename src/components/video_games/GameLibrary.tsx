@@ -94,6 +94,10 @@ export function GameLibrary({
     // opens its play history. A promote collects no session: it opens the
     // ordinary edit form, and the playthrough is logged after the move.
     startWithSession: boolean;
+    // The wishlist entry that "Played?" was pressed on, kept only for the
+    // branch that swaps to an owned game: that swap otherwise throws the id
+    // away, and Save needs it to clear the entry.
+    wishlistItemId: number | null;
   };
   const [expanded, setExpanded] = useState<Expanded | null>(null);
 
@@ -162,7 +166,13 @@ export function GameLibrary({
   // what lets the React.memo on GameCase actually bite.
   const handleOpenCard = useCallback(
     (game: GameCaseInput, launch: CardLaunch) => {
-      setExpanded({ kind: cardKind, id: game.id, ...launch, startWithSession: false });
+      setExpanded({
+        kind: cardKind,
+        id: game.id,
+        ...launch,
+        startWithSession: false,
+        wishlistItemId: null,
+      });
     },
     [cardKind]
   );
@@ -179,7 +189,9 @@ export function GameLibrary({
       current === null
         ? null
         : owned === undefined
-          ? { ...current, kind: "promote", origin: null, startWithSession: false }
+          ? // The promote clears the wishlist row by moving it, so it needs no
+            // id of its own kept here.
+            { ...current, kind: "promote", origin: null, startWithSession: false }
           : {
               kind: "game",
               id: owned.id,
@@ -187,6 +199,10 @@ export function GameLibrary({
               dominantColor: current.dominantColor,
               isDark: current.isDark,
               startWithSession: true,
+              // The only thing that survives the swap to say where this came
+              // from: `expandedWishlistItem` goes undefined the moment the kind
+              // is "game".
+              wishlistItemId: expandedWishlistItem.id,
             }
     );
   }, [expandedWishlistItem, ownedInLibrary]);
@@ -231,6 +247,16 @@ export function GameLibrary({
     }
     return { kind: "wishlist", item: expandedWishlistItem };
   }, [expanded, expandedGame, expandedWishlistItem, canEdit]);
+
+  // Resolved from the id every render rather than cleared by a callback, the
+  // same way expandedGame and expandedWishlistItem are: once Save has deleted
+  // the row, the revalidated wishlist no longer lists it and this goes null on
+  // its own. A stale id degrades to "nothing to remove", never to a button
+  // offering to delete a row that is already gone.
+  const clearsWishlistItemId = useMemo(() => {
+    const id = expanded?.wishlistItemId ?? null;
+    return id !== null && wishlist.some((item) => item.id === id) ? id : null;
+  }, [expanded, wishlist]);
 
   const existingSystems = useMemo(() => [...new Set(games.map((g) => g.system))].sort(), [games]);
 
@@ -394,6 +420,7 @@ export function GameLibrary({
             canEdit={canEdit}
             existingSystems={existingSystems}
             startWithSession={expanded.startWithSession}
+            wishlistItemId={clearsWishlistItemId}
             onPlayed={handlePlayed}
             dominantColor={expanded.dominantColor}
             isDark={expanded.isDark}

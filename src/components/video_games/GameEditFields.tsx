@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { localToday, type Game, type Rating } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
-import { deleteGame, promoteAndSave, saveGameEdits } from "@/app/video-games/actions";
+import {
+  deleteGame,
+  promoteAndSave,
+  saveGameEdits,
+  saveGameEditsAndClearWishlist,
+} from "@/app/video-games/actions";
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
@@ -38,9 +43,14 @@ type GameEditFieldsProps = {
   sessions: PlaySession[];
   sessionsLoading: boolean;
   sessionsError: string | null;
-  // Arrived by "Played?", which asserts a past playthrough: the dates open
-  // filled in.
+  // Arrived by "Played?", so the play choice opens answered and dated today
+  // rather than neutral.
   startWithSession: boolean;
+  // The wishlist entry that sent us here by "Played?", when the game was
+  // already in the library. Save clears it, which is what the unowned answer to
+  // the same button has always done via the promote. null in every other way
+  // into this form, including opening the same game from its shelf case.
+  wishlistItemId: number | null;
   // Called when a promote's Save also logged a playthrough. Same reason as the
   // add form: the library's one copy of the play history has no other way to
   // learn that the row it holds is out of date.
@@ -66,6 +76,7 @@ export function GameEditFields({
   sessionsLoading,
   sessionsError,
   startWithSession,
+  wishlistItemId,
   onSessionLogged,
   onClose,
 }: GameEditFieldsProps) {
@@ -99,11 +110,18 @@ export function GameEditFields({
   // to until promoteAndSave creates one, and an existing game's session is a
   // second table, so neither can ride along in the same request as the rating:
   // editCalls sequences them behind the one Save below.
+  // Not when already playing: "currently playing" would be a second open
+  // session, so the form would open showing its own error with Save disabled —
+  // on a press whose main job is clearing the wishlist entry.
   const play = usePlayDraft({
-    startToday: startWithSession,
+    initialChoice: startWithSession && !playing ? "now" : "no",
     blockedByOpenSession: playing && !stopPending,
   });
   const sessionDraft = play.session;
+
+  // The wishlist removal is itself a pending change, so Save is live from the
+  // moment the form opens, exactly as it is for a promote.
+  const clearingWishlist = !promoting && wishlistItemId !== null;
 
   // played_games.system is NOT NULL, so this is required in BOTH modes, not
   // just on a promote. Clearing it on an existing game used to do nothing
@@ -118,7 +136,7 @@ export function GameEditFields({
   // opens — it just needs a system, which played_games requires.
   const hasChanges = promoting
     ? systemDraft.trim() !== ""
-    : ratingDirty || systemDirty || sessionDraft.dirty || stopPending;
+    : clearingWishlist || ratingDirty || systemDirty || sessionDraft.dirty || stopPending;
   const canSave = hasChanges && !systemMissing && sessionDraft.problem === null && !isPending;
 
   const save = () => {
@@ -147,14 +165,19 @@ export function GameEditFields({
     // first, then the stop, then the new session.
     const session = sessionDraft.value;
     const stopping = stopPending && openSessionId !== null;
+    const edits = {
+      ...(ratingDirty ? { rating: ratingDraft } : {}),
+      ...(systemDirty ? { system: systemDraft } : {}),
+      ...(session ? { session } : {}),
+      ...(stopping ? { stopSessionId: openSessionId, stopDate: localToday() } : {}),
+    };
     run(
       () =>
-        saveGameEdits(subject.game.id, {
-          ...(ratingDirty ? { rating: ratingDraft } : {}),
-          ...(systemDirty ? { system: systemDraft } : {}),
-          ...(session ? { session } : {}),
-          ...(stopping ? { stopSessionId: openSessionId, stopDate: localToday() } : {}),
-        }),
+        // Same edits either way; the wishlist variant just also deletes the row
+        // that sent us here, and revalidates the wishlist for it.
+        wishlistItemId === null
+          ? saveGameEdits(subject.game.id, edits)
+          : saveGameEditsAndClearWishlist(subject.game.id, wishlistItemId, edits),
       {
         // Stays open on either face: revalidated data flows back into
         // `subject`, so the form shows what was just saved. Only the drafts
@@ -202,7 +225,14 @@ export function GameEditFields({
           disabled={!canSave || confirmingRemove}
           className={saveButtonClass}
         >
-          {promoting ? "Save And Move To Library" : "Save"}
+          {/* Named after what the press does that you cannot undo. The
+              promote's wording is the sibling of this one: both answers to
+              "Played?" move the entry off the wishlist. */}
+          {promoting
+            ? "Save And Move To Library"
+            : clearingWishlist
+              ? "Save And Remove From Wishlist"
+              : "Save"}
         </button>
         {!promoting && showRemove && (
           <ConfirmStep
