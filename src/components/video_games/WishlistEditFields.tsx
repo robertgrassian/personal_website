@@ -15,8 +15,10 @@ type WishlistEditFieldsProps = {
   // "Played?" — hand off to the library edit form, which owns rating, system
   // and sessions. The caller decides what that form edits: the row you already
   // own, or a promote that creates one. This form does not need to know which,
-  // and deliberately does not ask: a wishlist entry for a game you already own
-  // is legitimate (you want to replay it), so both answers are ordinary.
+  // because both answers now end the same way — the entry leaves the wishlist
+  // on Save either way. It used to matter: the owned branch kept the entry, on
+  // the reasoning that wanting to replay a game you own is legitimate. Having
+  // one button do opposite things to the wishlist is what retired that.
   onPlayed: () => void;
   onClose: () => void;
 };

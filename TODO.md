@@ -8,11 +8,6 @@ that govern this file (sections, caps, what goes where) live in the `proj-todo` 
 The organizing goal is **sharing the site with people**, so Up Next holds what should be true
 before that happens.
 
-- [ ] **"Played?" on a wishlist game you already own leaves the wishlist entry behind, and its Save
-      just says "Save".** (Promoted by request 2026-09-01.) Not the promote flow: that one does
-      remove the row. `WishlistEditFields` calls the leftover deliberate, so re-decide it.
-      [Details](docs/todo/played-on-owned-wishlist-game.md)
-
 - [ ] **Take a pass at every button, then make reusable components out of the shared class
       strings.** (Promoted by request 2026-08-30.) The tinted trigger vs outlined confirm that
       prompted it is deliberate and reasoned in `formStyles.ts`: this re-decides those rules, not

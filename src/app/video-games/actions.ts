@@ -465,6 +465,51 @@ export async function saveGameEdits(gameId: number, edits: GameEdits): Promise<M
   return writeApplied(() => runInOrder(calls), sessionEditTags(edits));
 }
 
+/** One press of Save on a library game reached by answering "Played?" on a
+ *  wishlist entry for a game you already own. The same edits as above, plus
+ *  the wishlist row that sent you here.
+ *
+ *  This is the owned half of what promoteAndSave is for the unowned half: both
+ *  answers to "Played?" now clear the wishlist entry, so the same button stops
+ *  meaning two different things depending on something the caller cannot see.
+ *
+ *  Validation runs before the delete rather than after, which promoteAndSave
+ *  cannot do (its edits need an id only the promote's 201 carries). That buys
+ *  one fewer partial: bad dates are refused with the wishlist row still there.
+ */
+export async function saveGameEditsAndClearWishlist(
+  gameId: number,
+  wishlistItemId: number,
+  edits: GameEdits
+): Promise<MutateResult> {
+  const bad = rejectBadId(gameId, "save") ?? rejectBadId(wishlistItemId, "wishlist");
+  if (bad) return bad;
+  const calls = editCalls(gameId, edits);
+  if (calls === null) return { ok: false, message: "Invalid edit." };
+
+  return writeApplied(async () => {
+    // The removal first: it is what the press is named after, and the edits are
+    // the extras riding along with it.
+    const removed = await deleteMyWishlistItem(wishlistItemId);
+    if (!removed.ok) return { result: removed, applied: false };
+
+    const { result } = await runInOrder(calls);
+    return result.ok
+      ? { result: { ok: true }, applied: true }
+      : {
+          // Not "that failed": the entry really is gone, and the card is still
+          // open on a game whose wishlist row no longer exists to remove twice.
+          result: {
+            ok: false,
+            message: `Removed from your wishlist, but the rest was not saved. ${result.message}`,
+          },
+          applied: true,
+        };
+    // wishlistTag on top of a normal Save, for the same reason promoteAndSave
+    // needs it: the wishlist lost an entry.
+  }, [...sessionEditTags(edits), wishlistTag]);
+}
+
 /** One press of Save on a wishlist entry being promoted: the move itself, plus
  *  whatever else the dialog collected on the way through. The system is
  *  required rather than optional because played_games.system is NOT NULL and

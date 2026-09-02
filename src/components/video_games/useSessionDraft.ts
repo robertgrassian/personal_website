@@ -31,6 +31,10 @@ type SessionDraftOptions = {
   /** Start dated today, for a caller whose own control already asserted the
    *  session ("Played?"). */
   startToday?: boolean;
+  /** Open with no end date, which is what makes that opening session an OPEN
+   *  one. Only meaningful alongside startToday: without a start there is no
+   *  session for it to describe. */
+  startStillPlaying?: boolean;
   /** The game already has an open session that this Save will not close. A
    *  second one is a 409 from `create_my_session`, so it is refused here. */
   blockedByOpenSession?: boolean;
@@ -43,6 +47,7 @@ type SessionDraftOptions = {
 
 export function useSessionDraft({
   startToday = false,
+  startStillPlaying = false,
   blockedByOpenSession = false,
   required = false,
 }: SessionDraftOptions = {}): SessionDraft {
@@ -50,7 +55,7 @@ export function useSessionDraft({
   const [endDate, setEndDate] = useState("");
   // The explicit form of "no end yet". An empty end date is still what reaches
   // the API; a blank field just is not an instruction anyone can see they gave.
-  const [stillPlaying, setStillPlaying] = useState(false);
+  const [stillPlaying, setStillPlaying] = useState(startStillPlaying);
 
   const dirty = startDate !== "";
   // An end with no start is not "no session", it is a session whose start the
