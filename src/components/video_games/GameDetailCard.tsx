@@ -12,7 +12,6 @@ import { DURATION_MS, useCardFlight } from "./useCardFlight";
 import type { CardOrigin } from "./LibraryCardContext";
 import { GameEditFields } from "./GameEditFields";
 import { WishlistEditFields } from "./WishlistEditFields";
-import { GamePlayHistory } from "./GamePlayHistory";
 import { sessionsByGame } from "@/lib/sessions";
 import type { PlayHistoryState } from "./usePlayHistory";
 
@@ -92,20 +91,17 @@ export function GameDetailCard({
   const titleId = useId();
   const source = subject.kind === "game" ? subject.game : subject.item;
 
-  // null = the detail face. `stopping` remembers which button opened the
-  // history, so "Stop Playing" arrives with the close staged. Answering
-  // "Played?" on a game already owned opens straight into it: that IS a
-  // session.
-  const [history, setHistory] = useState<{ stopping: boolean } | null>(
-    startWithSession && subject.kind === "game" ? { stopping: false } : null
-  );
+  // Which of the card's two faces is up. Answering "Played?" on a game already
+  // owned opens straight into the history: that IS a playthrough. Which button
+  // opened it is no longer remembered here, because "Stop Playing" now stages
+  // the close in the form that owns every other pending edit.
+  const [historyOpen, setHistoryOpen] = useState(startWithSession && subject.kind === "game");
   // A promote has no rows to fetch: its history face is a draft of the first
-  // session, rendered by GameEditFields rather than by GamePlayHistory.
-  const openHistory = ({ stopping }: { stopping: boolean }) => {
+  // playthrough, with nothing to list above it.
+  const openHistory = () => {
     if (subject.kind === "game") onRequestHistory();
-    setHistory({ stopping });
+    setHistoryOpen(true);
   };
-  const promoteHistory = history !== null && subject.kind === "promote";
 
   // The initializer covers a card that MOUNTS on "Played?". This covers the
   // other way in: for a game already owned the subject swaps from wishlist to
@@ -113,7 +109,7 @@ export function GameDetailCard({
   useEffect(() => {
     if (!startWithSession || subject.kind !== "game") return;
     onRequestHistory();
-    setHistory({ stopping: false });
+    setHistoryOpen(true);
   }, [startWithSession, subject.kind, onRequestHistory]);
 
   // `close` runs the return flight and calls onClose when it lands, so every
@@ -245,10 +241,10 @@ export function GameDetailCard({
                   without growing the header row. */}
               <div className="flex shrink-0 items-start gap-2 px-5 pt-4">
                 <div className="-my-2 -ml-2 flex h-11 w-11 shrink-0 items-center justify-center sm:-my-1 sm:-ml-1 sm:h-9 sm:w-9">
-                  {history !== null && (
+                  {historyOpen && (
                     <button
                       type="button"
-                      onClick={() => setHistory(null)}
+                      onClick={() => setHistoryOpen(false)}
                       aria-label="Back to game details"
                       className="flex h-full w-full items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
                     >
@@ -279,92 +275,84 @@ export function GameDetailCard({
               {/* The card's one scrolling part. overscroll-contain keeps a flick
                 at the end of the form off the library behind it. */}
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
-                {history !== null && subject.kind === "game" ? (
-                  // Reached only from the owner-only region below, so no
-                  // permission check here. Sessions are narrowed from the one
-                  // whole-library fetch, so this costs no extra request.
-                  <div className="px-5 pb-4 pt-1">
-                    <GamePlayHistory
-                      game={subject.game}
-                      sessions={sessionsByGame(playHistory.sessions).get(subject.game.id) ?? []}
-                      isLoading={playHistory.isLoading}
-                      error={playHistory.error}
-                      startToday={startWithSession}
-                      startStopping={history.stopping}
-                      onSaved={playHistory.refresh}
-                    />
-                  </div>
-                ) : (
-                  <>
-                    {/* Hidden rather than unmounted while a promote's history
-                        face is up: the edit form below has to survive the
-                        switch, since the drafts it holds are what that face's
-                        Save commits. Keeping this slot in the tree, occupied by
-                        `false`, is what stops React re-mounting the form. */}
-                    <div className="px-5 pb-4 pt-2" hidden={promoteHistory}>
-                      <p className="text-sm font-medium text-gray-100">
-                        {systemLabel(source.system)}
-                      </p>
-                      <p className="mt-0.5 text-xs text-gray-300">
-                        Released {formatDate(source.releaseDate)}
-                      </p>
-                      {ratingEntry && (
-                        <p className="mt-2 text-sm font-semibold text-gray-100">
-                          ★ {ratingEntry.name}
-                        </p>
-                      )}
-                      {starred && (
-                        <p className="mt-2 text-sm font-semibold text-amber-300">★ Starred</p>
-                      )}
-                      {/* Every genre, wrapped. The 96px face could show two and
-                    counted the rest in text you could not open, which is the
-                    whole reason this surface exists. */}
-                      {source.genres.length > 0 && (
-                        <ul className="mt-3 flex flex-wrap gap-1.5">
-                          {source.genres.map((genre) => (
-                            <li
-                              key={genre}
-                              className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] text-gray-100"
-                            >
-                              {genre}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                {/* Hidden rather than unmounted while the history face is up,
+                    for both kinds: the edit form below has to survive the
+                    switch, since the drafts it holds are what either face's
+                    Save commits. Keeping this slot in the tree, occupied by
+                    `false`, is what stops React re-mounting the form. Before
+                    that applied to a real game too, opening the history threw
+                    away an unsaved rating. */}
+                <div className="px-5 pb-4 pt-2" hidden={historyOpen}>
+                  <p className="text-sm font-medium text-gray-100">{systemLabel(source.system)}</p>
+                  <p className="mt-0.5 text-xs text-gray-300">
+                    Released {formatDate(source.releaseDate)}
+                  </p>
+                  {ratingEntry && (
+                    <p className="mt-2 text-sm font-semibold text-gray-100">★ {ratingEntry.name}</p>
+                  )}
+                  {starred && (
+                    <p className="mt-2 text-sm font-semibold text-amber-300">★ Starred</p>
+                  )}
+                  {/* Every genre, wrapped. The 96px face could show two and
+                      counted the rest in text you could not open, which is the
+                      whole reason this surface exists. */}
+                  {source.genres.length > 0 && (
+                    <ul className="mt-3 flex flex-wrap gap-1.5">
+                      {source.genres.map((genre) => (
+                        <li
+                          key={genre}
+                          className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] text-gray-100"
+                        >
+                          {genre}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
 
-                    {editable && (
-                      // One surface all the way down. The fields carry their own
-                      // translucent backgrounds (the shelf tokens are re-pointed
-                      // for this scrim in video-games.css), so a second, darker
-                      // panel behind them only split the card into two halves. If
-                      // a bright cover ever costs the labels their contrast,
-                      // --back-overlay is the lever, not another layer.
-                      //
-                      // No divider on the history face: there is nothing above
-                      // it to divide from, and GamePlayHistory has none either.
-                      <div
-                        className={`px-5 pb-4 pt-1${promoteHistory ? "" : " border-t border-white/15"}`}
-                      >
-                        {subject.kind === "wishlist" ? (
-                          <WishlistEditFields
-                            item={subject.item}
-                            existingSystems={existingSystems}
-                            onPlayed={onPlayed}
-                            onClose={close}
-                          />
-                        ) : (
-                          <GameEditFields
-                            subject={subject}
-                            existingSystems={existingSystems}
-                            onOpenHistory={openHistory}
-                            showingHistory={promoteHistory}
-                            onClose={close}
-                          />
-                        )}
-                      </div>
+                {editable && (
+                  // One surface all the way down. The fields carry their own
+                  // translucent backgrounds (the shelf tokens are re-pointed
+                  // for this scrim in video-games.css), so a second, darker
+                  // panel behind them only split the card into two halves. If
+                  // a bright cover ever costs the labels their contrast,
+                  // --back-overlay is the lever, not another layer.
+                  //
+                  // No divider on the history face: there is nothing above it
+                  // to divide from.
+                  <div
+                    className={`px-5 pb-4 pt-1${historyOpen ? "" : " border-t border-white/15"}`}
+                  >
+                    {subject.kind === "wishlist" ? (
+                      <WishlistEditFields
+                        item={subject.item}
+                        existingSystems={existingSystems}
+                        onPlayed={onPlayed}
+                        onClose={close}
+                      />
+                    ) : (
+                      <GameEditFields
+                        subject={subject}
+                        existingSystems={existingSystems}
+                        onOpenHistory={openHistory}
+                        showingHistory={historyOpen}
+                        // Narrowed only while the face that shows them is up:
+                        // sessionsByGame walks the whole library's sessions, and
+                        // the card re-renders for reasons that have nothing to
+                        // do with this list.
+                        sessions={
+                          historyOpen && subject.kind === "game"
+                            ? (sessionsByGame(playHistory.sessions).get(subject.game.id) ?? [])
+                            : []
+                        }
+                        sessionsLoading={playHistory.isLoading}
+                        sessionsError={playHistory.error}
+                        startWithSession={startWithSession}
+                        onSessionLogged={playHistory.refresh}
+                        onClose={close}
+                      />
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             </div>

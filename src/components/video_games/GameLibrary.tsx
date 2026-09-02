@@ -409,6 +409,7 @@ export function GameLibrary({
             target={addTarget}
             existingSystems={existingSystems}
             ownedNames={ownedNames}
+            onSessionLogged={playHistory.refresh}
             onClose={() => setAddOpen(false)}
           />
         )}

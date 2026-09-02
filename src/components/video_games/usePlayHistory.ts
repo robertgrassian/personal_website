@@ -10,7 +10,10 @@ export type PlayHistoryState = {
   isLoading: boolean;
   error: string | null;
   /** Re-read after a write. The action purges the cache tag, but this hook
-   *  holds its own copy and nothing tells it the server data moved. */
+   *  holds its own copy and nothing tells it the server data moved. Every write
+   *  that can log a playthrough has to call this, including the two that create
+   *  the game as well: an add and a promote leave the list on screen stale for
+   *  the rest of the visit otherwise. No-op until something has been read. */
   refresh: () => void;
 };
 
@@ -56,6 +59,9 @@ export function usePlayHistory(enabled: boolean): PlayHistoryState {
   }, [enabled, username, load]);
 
   const refresh = useCallback(() => {
+    // Nothing read yet means nothing to re-read: the first open fetches current
+    // data anyway, and loading here would pay for a panel nobody has opened.
+    if (loadedFor.current === null) return;
     void load();
   }, [load]);
 

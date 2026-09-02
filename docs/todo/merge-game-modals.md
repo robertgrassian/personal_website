@@ -11,6 +11,12 @@ _Why they diverged, which is the thing to design around._ They are not two views
 its fields on `draft.igdbId` because an IGDB pick resolves to a SHARED catalog row it must not
 pretend to edit. `EditGameModal` owns a row that already exists.
 
+_The card now has exactly one Save_ (2026-09-01): the play-history face used to carry a second one
+covering only what was on that screen, while the promote's covered both faces, so the same-looking
+button committed different things depending on where you stood. `GameEditFields` owns every draft
+now and renders both faces, which also fixed an unsaved rating being discarded when you opened the
+history. Anything folded onto this surface inherits that single Save.
+
 **The per-field-writes question this used to pose is now answered** (2026-08-19): `EditGameModal`
 has ONE Save, always rendered and disabled until something is pending, and nothing in it writes
 before that press. Rating, system, session and stop-playing all buffer to drafts; only delete stays
@@ -40,5 +46,8 @@ motion, the way a promote does. And the search step is a real step, not a field:
 for reading a game you already have, not for browsing results. The cheap version is that `AddGameForm`
 reuses `GameEditFields`' Save model and field set without the card shape at all.
 
-_Still sequence with_ **"When adding a game, let me say I'm playing it now"** in Up Next, which adds
-a play-history section to the add form.
+_The add form has since closed part of the gap_ (2026-09-01): it took `SessionDateFields` and a
+"Have you played it?" section of its own, and `addGame` now creates the row and logs a playthrough
+in one press, the way `promoteAndSave` does. What is still unshared is the identity half (the cover
+header, `CatalogInfo`, and the manual path's name/genres/release-date fields), which is the part
+`GameEditFields` must not grow, since for an IGDB pick those belong to the shared catalog row.

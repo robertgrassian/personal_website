@@ -1,28 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import { localToday, type Game } from "@/lib/games";
 import { formatSessionRange, sessionLengthDays, type PlaySession } from "@/lib/sessions";
-import { saveGameEdits } from "@/app/video-games/actions";
-import { useServerAction } from "./useServerAction";
-import { SessionDateFields } from "./SessionDateFields";
-import { useSessionDraft } from "./useSessionDraft";
-import { buttonClass, ghostButtonClass, saveButtonClass } from "./formStyles";
+import { PlayedFields } from "./PlayedFields";
+import type { PlayDraft } from "./usePlayDraft";
+import { StopPlayingControl } from "./StopPlayingControl";
 
 type GamePlayHistoryProps = {
-  game: Game;
   // Newest first, narrowed by the caller out of the one whole-library fetch,
   // so opening this view costs no extra request.
   sessions: PlaySession[];
   isLoading: boolean;
   error: string | null;
-  // Arrived by "Played?", which already asserts the session: dates start
-  // filled and Save is live.
-  startToday: boolean;
-  // Arrived by "Stop playing", which stages the close. Save still commits it.
-  startStopping: boolean;
-  // Re-read after a save, so the new row appears in the list above.
-  onSaved: () => void;
+  play: PlayDraft;
+  // Whether there is an open session for "Stop Playing" to close.
+  hasOpenSession: boolean;
+  stopPending: boolean;
+  onStopPendingChange: (pending: boolean) => void;
+  disabled: boolean;
 };
 
 // One logged session, on the card's scrim. Not PlayHistoryList: that one uses
@@ -42,57 +36,21 @@ function SessionRow({ session }: { session: PlaySession }) {
 // A single game's play history, and the form that adds to it. Reached only from
 // GameEditFields' owner-only region, so it needs no permission check.
 //
-// Its own Save, not the card's: rating and system edit the game row, these
-// insert into another table, and one button would have to explain a half
-// failure of two unrelated things.
+// Holds no draft and owns no Save: GameEditFields owns both and renders this as
+// one of its two faces. This used to have a Save of its own covering only what
+// was on this screen, which meant the same-looking button committed different
+// things depending on the face you were on and on whether the subject was a
+// promote.
 export function GamePlayHistory({
-  game,
   sessions,
   isLoading,
   error,
-  startToday,
-  startStopping,
-  onSaved,
+  play,
+  hasOpenSession,
+  stopPending,
+  onStopPendingChange,
+  disabled,
 }: GamePlayHistoryProps) {
-  const { isPending, error: saveError, run } = useServerAction();
-
-  const openSessionId = game.openSessionId;
-  const alreadyOpen = openSessionId !== null;
-
-  // A pending edit like any other, not an immediate write.
-  const [stopPending, setStopPending] = useState(startStopping && alreadyOpen);
-
-  // Staging the stop first is what makes a second open session legal: the
-  // actions layer closes before it inserts, so the 409 rule only bites while
-  // the open one is staying open.
-  const sessionDraft = useSessionDraft({
-    startToday: startToday && !alreadyOpen,
-    blockedByOpenSession: alreadyOpen && !stopPending,
-  });
-
-  const hasChanges = sessionDraft.dirty || stopPending;
-  const canSave = hasChanges && sessionDraft.problem === null && !isPending;
-
-  const save = () => {
-    run(
-      () =>
-        saveGameEdits(game.id, {
-          ...(sessionDraft.value ? { session: sessionDraft.value } : {}),
-          ...(stopPending && openSessionId !== null
-            ? { stopSessionId: openSessionId, stopDate: localToday() }
-            : {}),
-        }),
-      {
-        // Stays on this view so the new row is visible; clear the drafts only.
-        onSuccess: () => {
-          sessionDraft.reset();
-          setStopPending(false);
-          onSaved();
-        },
-      }
-    );
-  };
-
   return (
     <>
       <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-shelf-label">
@@ -118,47 +76,31 @@ export function GamePlayHistory({
         </p>
       )}
 
-      {alreadyOpen && (
+      {hasOpenSession && (
         <div className="mt-4">
-          {stopPending ? (
-            <p className="text-xs text-shelf-text">
-              Will be marked finished today when you save.{" "}
-              <button
-                type="button"
-                onClick={() => setStopPending(false)}
-                disabled={isPending}
-                className={ghostButtonClass}
-              >
-                Undo
-              </button>
-            </p>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setStopPending(true)}
-              disabled={isPending}
-              className={buttonClass}
-            >
-              Stop Playing
-            </button>
-          )}
+          <StopPlayingControl
+            stopPending={stopPending}
+            onChange={onStopPendingChange}
+            disabled={disabled}
+          />
         </div>
       )}
 
+      {/* Not "Add a Session": session is the database's word, and no
+          user-facing copy in the library uses it. */}
       <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
-        Add a Session
+        Add a Playthrough
       </p>
-      <SessionDateFields draft={sessionDraft} disabled={isPending} />
-
-      <div className="mt-5 border-t border-shelf-plank pt-3">
-        <button type="button" onClick={save} disabled={!canSave} className={saveButtonClass}>
-          Save
-        </button>
-        {saveError && (
-          <p role="alert" className="mt-2 text-xs text-shelf-danger">
-            {saveError}
-          </p>
-        )}
+      <div className="mt-2">
+        <PlayedFields
+          play={play}
+          label="Add a playthrough"
+          labelHidden
+          // "Not yet" would be wrong here: the list above may already show
+          // several. This choice means "not adding one".
+          neutralLabel="None"
+          disabled={disabled}
+        />
       </div>
     </>
   );

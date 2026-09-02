@@ -85,14 +85,19 @@ type SessionDateFieldsProps = {
   disabled: boolean;
 };
 
-// A play session being entered: the dates, and the checkbox that says there is
-// no end date yet. Deliberately holds no state and performs no write — the
-// draft owns the first and the dialog's single Save owns the second. Extracted
-// so neither can drift between the places a session can be logged.
+// The dates of a play session being entered. Deliberately holds no state and
+// performs no write — the draft owns the first and the dialog's single Save
+// owns the second. Extracted so neither can drift between the places a session
+// can be logged.
+//
+// It does NOT ask whether the session has ended: `PlayedFields`, its only
+// caller, asks that as one of its choices and this reads the answer off the
+// draft. The checkbox that used to sit below the fields was a second way to
+// answer a question already on the screen.
 export function SessionDateFields({ draft, disabled }: SessionDateFieldsProps) {
   const { startDate, stillPlaying, problem } = draft;
-  // The "To" field shows empty while the checkbox says there is no end, without
-  // discarding a date already typed: unticking it puts the date back.
+  // The "To" field keeps a date already typed while it is hidden, so picking
+  // "Played it before" again puts it back.
   const endDate = stillPlaying ? "" : draft.endDate;
   const startRef = useNativeValueSync(startDate, draft.setStartDate);
   const endRef = useNativeValueSync(endDate, draft.setEndDate);
@@ -136,10 +141,16 @@ export function SessionDateFields({ draft, disabled }: SessionDateFieldsProps) {
             className={dateInputClass}
           />
         </div>
-        <div className={fieldColumnClass}>
-          <div className={`${captionRowClass}${stillPlaying ? " opacity-50" : ""}`}>
+        <div
+          className={fieldColumnClass}
+          // Dropped from the layout rather than greyed out: "Playing it now"
+          // should show one date, not one date beside a disabled box asking
+          // when something that has not ended ended.
+          hidden={stillPlaying}
+        >
+          <div className={captionRowClass}>
             <label htmlFor={endId}>To</label>
-            {clearable && !stillPlaying && endDate !== "" && (
+            {clearable && endDate !== "" && (
               <button
                 type="button"
                 onClick={() => draft.setEndDate("")}
@@ -156,7 +167,7 @@ export function SessionDateFields({ draft, disabled }: SessionDateFieldsProps) {
             value={endDate}
             min={startDate || undefined}
             max={localToday()}
-            disabled={disabled || stillPlaying}
+            disabled={disabled}
             onChange={(e) => draft.setEndDate(e.target.value)}
             aria-invalid={problem !== null}
             aria-describedby={problem === null ? undefined : problemId}
@@ -173,22 +184,6 @@ export function SessionDateFields({ draft, disabled }: SessionDateFieldsProps) {
           {problem}
         </p>
       )}
-
-      {/* The label wraps the input, so the row is the tap target; py-1.5 makes
-          it big enough on a phone.
-
-          Fixed amber, not --link: this scrim is dark in BOTH schemes (see
-          .game-card-surface), so light mode's amber-700 would be dark-on-dark. */}
-      <label className="mt-2 flex cursor-pointer items-center gap-2 py-1.5 text-sm text-shelf-text">
-        <input
-          type="checkbox"
-          checked={stillPlaying}
-          onChange={(e) => draft.setStillPlaying(e.target.checked)}
-          disabled={disabled}
-          className="h-4 w-4 shrink-0 accent-amber-400 cursor-pointer disabled:cursor-default"
-        />
-        I&apos;m still playing this
-      </label>
     </div>
   );
 }
