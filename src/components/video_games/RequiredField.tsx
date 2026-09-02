@@ -22,9 +22,14 @@ type RequiredFieldProps = {
 export function RequiredField({ missing, children }: RequiredFieldProps) {
   if (!missing) return <>{children}</>;
   return (
-    // One pair of classes for both schemes now: --link and --accent-glow both
-    // flip already, which the two hardcoded amber literals they replaced had
-    // to do by hand with a dark: variant.
-    <div className="rounded shadow-[0_0_0_3px_var(--accent-glow)] ring-1 ring-link">{children}</div>
+    // The on-dark accent, NOT --link: this renders only inside GameEditFields,
+    // which renders only on the detail card, and that card is dark in both
+    // schemes. --link goes dark in light mode and the ring disappears.
+    //
+    // One pair of classes rather than a dark: variant, because these two
+    // tokens do not flip at all.
+    <div className="rounded shadow-[0_0_0_3px_var(--accent-glow-on-dark)] ring-1 ring-accent-on-dark">
+      {children}
+    </div>
   );
 }

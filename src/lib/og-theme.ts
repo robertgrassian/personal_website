@@ -10,6 +10,13 @@
 
 import { ACCENTS, ACTIVE_ACCENT } from "./accent";
 
+// Satori has no color-mix(), so an accent at partial alpha has to be built
+// here rather than in the JSX.
+function rgba(hex: string, alpha: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
 export const OG = {
   // ── Text ───────────────────────────────────────────────────────────────────
   textPrimary: "#ededed", // --foreground (dark)
@@ -25,6 +32,9 @@ export const OG = {
   // specifically; both current accents are muted, so the value actually
   // designed for a dark ground is now the right one.
   accent: ACCENTS[ACTIVE_ACCENT].dark,
+
+  // The same accent as a background glow, for the gradient variant.
+  accentGlow: rgba(ACCENTS[ACTIVE_ACCENT].dark, 0.55),
 
   // ── Page background ────────────────────────────────────────────────────────
   pageDark: "#0a0a0a", // --background (dark)

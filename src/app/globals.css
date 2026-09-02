@@ -57,12 +57,15 @@
   --link: #8f6212;
   --link-hover: #734d0d;
   --accent-on-dark: #d9a441;
-  /* The accent at low alpha, for the required-field glow. A token rather than
-     a color-mix() written inline in a Tailwind arbitrary value: that class
-     name has to escape commas and percent signs, and Tailwind emitted it with
-     the space before 35% eaten, plus a fallback rule at FULL opacity. Derived
-     from --link, so it follows both the accent and the color scheme. */
-  --accent-glow: color-mix(in srgb, var(--link) 35%, transparent);
+  /* The low-alpha companion to --accent-on-dark, for the required-field glow.
+     Derived from THAT rather than from --link, because its only consumer is on
+     the detail card, which is dark in both schemes.
+
+     A token rather than a color-mix() written inline in a Tailwind arbitrary
+     value: that class name has to escape commas and percent signs, and
+     Tailwind emitted it with the space before 35% eaten, plus a fallback rule
+     at FULL opacity. */
+  --accent-glow-on-dark: color-mix(in srgb, var(--accent-on-dark) 35%, transparent);
 
   /* Rating bar/badge colors — darker shades for light mode (readable on light track) */
   --rating-s: #d97706; /* amber-600 */
@@ -159,7 +162,6 @@
   --color-link: var(--link);
   --color-link-hover: var(--link-hover);
   --color-accent-on-dark: var(--accent-on-dark);
-  --color-accent-glow: var(--accent-glow);
 
   /* Shelf tokens — defined on .shelf-theme in video-games/video-games.css.
      Registered here so Tailwind generates utility classes (bg-shelf-bg, text-shelf-label, etc.).
