@@ -27,9 +27,8 @@ type FollowCountLinksProps = {
 // identically apart from the active highlight and there is no layout shift
 // when hydration swaps one for the other.
 const BASE = "underline underline-offset-2 decoration-shelf-plank transition-colors";
-// decoration-2 as well as the color: the active count then reads as selected
-// from the underline alone, which survives both color schemes and does not
-// reflow the row the way a weight change would.
+// decoration-2 gives the active state a second signal besides color. Underline
+// width rather than font weight, because a heavier label would reflow the row.
 const ACTIVE = "text-link decoration-link decoration-2";
 // Same accent hover as the view tabs and the Add game / Stats buttons, so every
 // interactive thing on this page answers to one color.

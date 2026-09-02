@@ -20,19 +20,17 @@ export const ACCENTS = {
     light: "#8f6212",
     dark: "#d9a441",
   },
-  // Green, at OKLCH hue ~139 and deliberately LOW chroma: C 0.124 light and
-  // 0.095 dark, against an sRGB ceiling near 0.165 and 0.238. That gap is the
-  // point. Sage is a muted green by definition, so the restraint is the
-  // identity, not a shortfall in it.
+  // Green, at OKLCH hue ~139 and deliberately low chroma: C 0.124 light and
+  // 0.095 dark, against an sRGB ceiling near 0.165 and 0.238 at those
+  // lightnesses. The unspent headroom is the point, because a muted green is
+  // what sage IS.
   //
-  // Two retunes are already spent here, so do not repeat them:
-  //   - hue 82 read as pea. That is a HUE fault, cured at ~139; dropping
-  //     chroma does not cure it and costs the color its presence.
-  //   - chroma raised toward the gamut edge (light #2b7815) read as a plain
-  //     bright green and lost the sage.
-  // If the accent needs more presence, reach for weight, underline thickness
-  // or a tint at the call site. Those channels are free; this hue's chroma is
-  // not, because spending it is what stops it being sage.
+  // Two retunes are spent here, so do not repeat either. Yellower hues read as
+  // pea, which is a hue fault and is fixed by staying near 139: lowering chroma
+  // does not fix it and costs the color its presence. Raising chroma toward the
+  // ceiling (light #2b7815) reads as a plain bright green and loses the sage.
+  // If the accent needs more presence, it has to come from a call site, not
+  // from here.
   //
   // Contrast: 5.19:1 on white, 9.01:1 on the dark background.
   sage: {

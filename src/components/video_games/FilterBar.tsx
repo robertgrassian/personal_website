@@ -112,16 +112,17 @@ type FilterSelectProps = {
   formatLabel?: (option: string) => string;
 };
 
-// Roughly what fits in the capped select below at text-sm before the ellipsis
-// starts. Only used to decide whether a hover title is worth adding, so an
-// approximation is fine: too low costs a redundant tooltip, too high costs
-// nothing that was not already unreadable.
+// Roughly what fits in the capped select at text-sm. Only decides whether a
+// hover title is worth adding, so an approximation is fine.
 const TRUNCATION_HINT_CHARS = 22;
 
-// The three narrowing filters share a width rule: full-width in the mobile
-// sheet, content-sized on the bar, and never wider than 11rem. Without the cap
-// the genre select alone could push Sort onto a second row on a desktop.
-// truncate is what turns the overflow into an ellipsis rather than a clip.
+// A <select> is laid out to fit its LONGEST option, not its current value, so
+// the 38-character "Construction and Management Simulation" sized the genre
+// filter and pushed Sort onto a second row on a desktop. Capping is safe here
+// in a way it would not be for the sort labels: the open list is drawn by the
+// browser outside this box and still shows every name in full.
+//
+// Full-width in the mobile sheet, content-sized on the bar under the cap.
 const narrowingFilterWidth = "w-full truncate sm:w-auto sm:max-w-44";
 
 // Renders a <select> with available options at the top and unavailable (disabled) ones below,
@@ -150,14 +151,9 @@ export function FilterSelect({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      // A <select> is as wide as its LONGEST option, not its current one, so
-      // one 37-character genre ("Construction and Management Simulation") set
-      // the width of a control that usually shows "Action". The cap ellipsizes
-      // the closed control; the open list is drawn by the browser outside this
-      // box and still shows every name in full.
-      //
-      // The title only appears when an option is actually cut off, which is
-      // also the only time it says anything the control does not.
+      // Only on values long enough for the caller's width cap to ellipsize:
+      // a tooltip repeating text already on screen is noise, and it delays the
+      // one case that needs it.
       title={
         value && formatLabel(value).length > TRUNCATION_HINT_CHARS ? formatLabel(value) : undefined
       }

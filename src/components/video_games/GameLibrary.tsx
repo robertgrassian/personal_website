@@ -338,9 +338,8 @@ export function GameLibrary({
       {/* Measured: text-sm with this spacing needs 375px to fit the two tabs
           plus both buttons on one row, so text-xs takes over below that.
           Desktop keeps text-sm. */}
-      {/* The gap drops to 6px under 375px, buying back the couple of pixels
-          TabBar now reserves for the selected tab's bolder label. Above that
-          width there is slack, so the spacing is left alone. */}
+      {/* 6px under 375px, buying back the couple of pixels TabBar reserves for
+          the selected tab's bolder label. Wider screens have the slack. */}
       <TabBar
         tabs={VALID_GAME_VIEW.map((v) => ({ value: v, label: VIEW_LABEL[v] }))}
         value={view}
