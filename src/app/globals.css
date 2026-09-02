@@ -93,9 +93,9 @@
 }
 
 :root[data-accent="sage"] {
-  --link: #4a6540;
-  --link-hover: #3b5133;
-  --accent-on-dark: #7f9e78;
+  --link: #417a2e;
+  --link-hover: #336024;
+  --accent-on-dark: #8dbb81;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -138,8 +138,8 @@
   }
 
   :root[data-accent="sage"] {
-    --link: #7f9e78;
-    --link-hover: #93ae8c;
+    --link: #8dbb81;
+    --link-hover: #a8cb9f;
   }
 
   /* Native date inputs render their calendar-picker icon from the browser's

@@ -20,12 +20,19 @@ export const ACCENTS = {
     light: "#8f6212",
     dark: "#d9a441",
   },
-  // Grey-green. Deliberately low saturation and off the yellow end of green:
-  // at 35% saturation and hue 82 it reads as pea rather than as sage, which is
-  // the failure mode to check for if these are ever retuned.
+  // Green, held at hue ~105 so it cannot drift yellow: at hue 82 it reads as
+  // pea rather than sage, which is the failure mode to check for first if
+  // these are ever retuned.
+  //
+  // The two schemes carry very different saturations on purpose. In light mode
+  // the accent is forced dark, because it is both link text on white and the
+  // fill under white button text, and a dark color only reads as a HUE if it
+  // is saturated: at 22% it was indistinguishable from black. Dark mode has
+  // the opposite problem, where saturation is what tips green into pea, so it
+  // stays lower and buys its presence from lightness instead.
   sage: {
-    light: "#4a6540",
-    dark: "#7f9e78",
+    light: "#417a2e",
+    dark: "#8dbb81",
   },
 } as const;
 
