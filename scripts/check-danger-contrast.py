@@ -1,18 +1,23 @@
-"""Contrast of the destructive button's red against the detail card.
+"""Contrast of the destructive button on the game detail card.
 
 The card's backdrop is the game's own cover art (blurred, over a per-system
 base color, under a 25% black overlay), so it is different for every game and
 cannot be checked by eye on one screenshot. This measures the shipped tokens
 against representative covers instead.
 
+The fill is deliberately translucent, because the cover reading through the
+controls is the look of the card. That is what this exists to keep honest: the
+alpha can come down for looks right up until this fails.
+
 Run: python3 scripts/check-danger-contrast.py
-Keep in sync with --shelf-danger* in src/app/video-games/video-games.css.
+Keep in sync with --shelf-danger* on .game-card-surface in
+src/app/video-games/video-games.css.
 """
 
-# --shelf-danger and --shelf-danger-surface on .game-card-surface.
-TEXT = "#f45f5f"
-SURFACE = ((0, 0, 0), 0.82)  # rest
-HOVER = ((0, 0, 0), 0.92)
+# --shelf-danger-text over --shelf-danger-surface on .game-card-surface.
+TEXT = "#ffffff"
+SURFACE = ((185, 28, 28), 0.72)  # rest
+HOVER = ((185, 28, 28), 0.85)
 BACK_OVERLAY = 0.25  # --back-overlay
 FLOOR = 4.5  # WCAG AA, normal-size text
 

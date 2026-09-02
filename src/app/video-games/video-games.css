@@ -35,6 +35,9 @@
      light shelf, the dark shelf, and the card, whose scrim is dark in BOTH
      schemes. A `dark:` variant can only describe two of them. */
   --shelf-danger: #dc2626;
+  /* Border and text are the same red on a solid shelf, and diverge only on the
+     detail card, which fills. */
+  --shelf-danger-text: var(--shelf-danger);
   /* What sits BEHIND a destructive button at rest. Transparent on a solid
      shelf, where the red already clears contrast on its own; the detail card
      overrides it, because nothing there is solid. */
@@ -363,22 +366,28 @@
   --shelf-input-placeholder: #cbd5e1;
   --shelf-input-ring: #fbbf24;
   --shelf-divider: rgba(255, 255, 255, 0.2);
-  /* Light red on a near-opaque BLACK substrate, which is the only pairing
-     that survives this surface. The card's backdrop is the cover's blurred art
-     over a per-system base color under only a 25% black overlay, so it ranges
-     from near-black to pale cream, and unaided red text measures 5.79:1 on a
-     dark cover but 1.25:1 on a yellow one.
+  /* The one place a destructive button FILLS, because it is the one surface
+     with no predictable backdrop: the card's is the cover's blurred art over a
+     per-system base color under only a 25% black overlay, so it ranges from
+     near-black to pale cream. Red text alone measures 5.79:1 on a dark cover
+     and 1.25:1 on a yellow one.
 
-     Black rather than a dark red: measured across six representative covers,
-     black at 0.82 holds a 5.21:1 worst case, while #3f0d0d bottoms out at 3.82
-     and #4c1010 at 3.53 — a dark red substrate is too close in luminance to
-     the red text above it.
+     Translucent on purpose, at 0.72 rather than opaque: the cover reading
+     through the controls is the look of the card, and a solid chip punches a
+     hole in it. Flipping the pairing is what buys that back — white text ON
+     red, rather than red text on whatever the cover happens to be, fixes the
+     text's background instead of fighting it, and still holds a 5.30:1 worst
+     case with over a quarter of the cover showing through.
 
-     The alpha is what makes this robust, so re-measure before lowering it: at
-     0.55 the worst case falls to 2.63:1. scripts/check-danger-contrast.py. */
+     The border stays the light red rather than the fill's, so the edge is
+     defined on a dark cover where fill and backdrop are close.
+
+     Re-measure with scripts/check-danger-contrast.py before changing the fill
+     or its alpha. */
   --shelf-danger: #f45f5f;
-  --shelf-danger-surface: rgba(0, 0, 0, 0.82);
-  --shelf-danger-tint: rgba(0, 0, 0, 0.92);
+  --shelf-danger-text: #ffffff;
+  --shelf-danger-surface: rgba(185, 28, 28, 0.72);
+  --shelf-danger-tint: rgba(185, 28, 28, 0.85);
   /* Focus-ring offsets resolve against this, so it has to be the color that is
      actually behind the field rather than the page's shelf background. */
   --shelf-bg: #1a1a2e;

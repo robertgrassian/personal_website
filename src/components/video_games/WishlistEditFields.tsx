@@ -150,7 +150,7 @@ export function WishlistEditFields({
         </Button>
 
         <ConfirmStep
-          triggerLabel="Remove from wishlist"
+          triggerLabel="Remove"
           triggerClassName="mt-3 block"
           confirmLabel="Remove"
           layout="sheet"

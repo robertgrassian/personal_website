@@ -69,17 +69,20 @@ const variantClass: Record<ButtonVariant, string> = {
   // shelf AND on the detail card's dark scrim, and a `dark:` pairing cannot
   // tell those apart.
   //
-  // The rest surface is a token because it has to differ per surface: it is
-  // transparent on a solid shelf and a near-opaque black on the detail card,
-  // whose backdrop is the game's own cover art and so cannot be relied on for
-  // contrast. That substrate is legibility, not hierarchy — red still never
-  // takes the accent fill, which is what would make it read as the default
-  // action next to Cancel.
+  // Surface and text are tokens because they have to differ per surface. On a
+  // solid shelf this is an outline: transparent behind red text. On the detail
+  // card it fills with translucent red and flips to white text, because that
+  // card's backdrop is the game's own cover art and red text on an unknown
+  // color cannot be made to work. See video-games.css for the measurements.
+  //
+  // So red DOES fill, on that one surface. It is still never the accent fill,
+  // which is the thing that would make it read as the default action next to
+  // Cancel; a red button does not.
   //
   // Full-opacity border, not /60: the outline is the other half of what makes
   // this findable on a busy backdrop.
   danger:
-    "rounded-md border border-shelf-danger bg-shelf-danger-surface text-shelf-danger " +
+    "rounded-md border border-shelf-danger bg-shelf-danger-surface text-shelf-danger-text " +
     `hover:bg-shelf-danger-tint transition-colors cursor-pointer ${disabledClass}`,
 
   // Underlined rather than bordered, so a secondary action inside a form
