@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { columnsThatFit, evenGap, splitIntoBoards, type Board } from "./boards";
+import { columnsThatFit, splitIntoBoards, type Board } from "./boards";
 
 // Cuts a group's games into one board per row, and sizes the case's
 // perspective. Both answers depend on measurements only the browser has, which
@@ -27,17 +27,18 @@ export function useShelfBoards<T>(games: T[]): {
       const row = caseEl.querySelector<HTMLElement>(".shelf-row");
       if (row !== null) {
         const style = getComputedStyle(row);
+        // getBoundingClientRect, not clientWidth: this number becomes the
+        // grid's track count, and clientWidth rounds, so half a pixel of
+        // rounding up claims a track that does not fit and overflows the shelf.
         const available =
-          row.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-        const fits = columnsThatFit({ available });
-        // Whatever is left over after the covers, split equally into the gaps
-        // between them and the two at the ends. The row centres itself, so
-        // setting the one value here puts the same air against each upright.
-        //
-        // Deliberately NOT read back off the computed style: the row's gap IS
-        // this value, so measuring it to compute it would feed itself. The
-        // column count uses the fixed MIN_GAP in boards.ts instead.
-        caseEl.style.setProperty("--shelf-even-gap", `${evenGap({ available, columns: fits })}px`);
+          row.getBoundingClientRect().width -
+          parseFloat(style.paddingLeft) -
+          parseFloat(style.paddingRight);
+        const fits = columnsThatFit({ available, gap: parseFloat(style.columnGap) || 0 });
+        // Handed to the grid as an explicit track count. The board holds
+        // exactly this many covers, so the two can never disagree about how
+        // many fit, which is the only way a board can end up two rows tall.
+        caseEl.style.setProperty("--shelf-cols", String(fits));
         setColumns((current) => (current === fits ? current : fits));
       }
       // The perspective distance is a multiple of THIS case's height, not a

@@ -40,7 +40,7 @@
   --shelf-board-h: 14px;
   --shelf-stile-w: 25px;
   --shelf-bay-depth: 32px;
-  --shelf-gap: 3px;
+  --shelf-gap: 12px;
 
   /* Broad lighting across a piece, as opposed to the grain drawn on it. */
   --shelf-band-h: linear-gradient(
@@ -304,23 +304,22 @@
     56px 512px;
 }
 
-/* The games, standing on the board. The row centres its contents and takes its
-   column gap from --shelf-even-gap, which useShelfBoards derives from whatever
-   width is left after the covers: a full row then has exactly that much air
-   between each pair AND against each upright, with no horizontal padding of
-   its own doing a second, different job. A part-full row keeps the same gap
-   and sits centred rather than spreading itself across the shelf.
+/* The games, standing on the board. A grid of fixed 96px tracks whose whole
+   track block is centred: items fill it left to right, so a full board has
+   equal margins against both uprights and a part-full one stays left aligned
+   inside the same centred block. That is the layout the library had before the
+   redesign, and the gap is the 12px it had too.
 
-   The fallback matches MIN_GAP in boards.ts, and is only ever used for the one
-   render before anything has been measured. */
+   The track count is explicit once useShelfBoards has measured, because the
+   board holds exactly that many covers and a grid that disagreed by one would
+   overflow the shelf. `auto-fill` is the fallback for the single render before
+   anything is measured, and computes the same answer from the same widths. */
 .shelf-row {
   position: relative;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: repeat(var(--shelf-cols, auto-fill), 96px);
+  gap: var(--shelf-gap);
   justify-content: center;
-  column-gap: var(--shelf-even-gap, 3px);
-  row-gap: 3px;
   padding: 18px 0 var(--shelf-board-h);
 }
 .shelf-row .game-case-inner::after {
