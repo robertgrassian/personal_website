@@ -8,8 +8,13 @@
   --shelf-bg: #faf9f7;
   --shelf-plank: #5c3a1e;
   /* Text decoration, not shelf structure: judged against the page background
-     rather than lit like a plank, which is why it is its own token. */
-  --shelf-underline: #5c3a1e;
+     rather than lit like a plank, which is why it is its own token.
+
+     Warm to sit on the walnut page, but near-neutral on purpose: at C 0.017 it
+     cannot be read as a faded accent whichever accent is active. The walnut it
+     replaces was C 0.064 at hue 59, 17deg off brass, so under that palette the
+     resting underline looked like a dimmer version of the active one. */
+  --shelf-underline: #857d74;
   --shelf-edge: #3d2613;
   --shelf-edge-bottom: #170f07; /* darker edge for lip gradient: manually darkened from --shelf-edge */
   --shelf-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
@@ -770,9 +775,11 @@
     /* --- Shelf structure: deep walnut on dark --- */
     --shelf-bg: #0f0d0b;
     --shelf-plank: #2a1a0e;
-    /* A lighter walnut, not the plank's: the dark plank is a mass lit from the
-       page, so reusing it here measured 1.16:1 and vanished. 5.25:1. */
-    --shelf-underline: #a97c50;
+    /* The light value's counterpart, not the plank's: the dark plank is a mass
+       lit from the page, so reusing it here measured 1.16:1 and vanished.
+       4.19:1, staying under the label's 7.64 so the underline does not
+       outshout the text it belongs to. */
+    --shelf-underline: #7d736a;
     --shelf-edge: #8b5e3c;
     --shelf-edge-bottom: #37251a; /* manually darkened from --shelf-edge */
     --shelf-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
