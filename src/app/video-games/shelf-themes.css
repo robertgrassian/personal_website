@@ -304,19 +304,25 @@
     56px 512px;
 }
 
-/* The games, standing on the board. Shoulder to shoulder rather than in a
-   12px grid: the even gap on all four sides is what made the old shelf read as
-   search results instead of a full shelf. */
+/* The games, standing on the board. The row centres its contents and takes its
+   column gap from --shelf-even-gap, which useShelfBoards derives from whatever
+   width is left after the covers: a full row then has exactly that much air
+   between each pair AND against each upright, with no horizontal padding of
+   its own doing a second, different job. A part-full row keeps the same gap
+   and sits centred rather than spreading itself across the shelf.
+
+   The fallback matches MIN_GAP in boards.ts, and is only ever used for the one
+   render before anything has been measured. */
 .shelf-row {
   position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: var(--shelf-gap);
-  padding: 18px 16px var(--shelf-board-h);
+  justify-content: center;
+  column-gap: var(--shelf-even-gap, 3px);
+  row-gap: 3px;
+  padding: 18px 0 var(--shelf-board-h);
 }
-/* Where a case meets the board. Two rules, and the cover stops being an image
-   in a box and becomes an object with weight. */
 .shelf-row .game-case-inner::after {
   content: "";
   position: absolute;
@@ -327,18 +333,6 @@
   pointer-events: none;
   background: radial-gradient(ellipse at 50% 0%, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 72%);
 }
-/* A row that ran out has nothing holding its last case upright. `data-short`
-   comes from the board rather than from :last-child alone, because the last
-   case of a FULL row has its neighbours to lean on and must stay square.
-
-   `transform` and not a Tailwind translate utility: v4 sets the standalone
-   `translate` property, so the hover lift composes with this instead of
-   overwriting it. */
-.shelf-row[data-short] > :last-child .game-case-inner {
-  transform: rotate(5.5deg);
-  transform-origin: bottom left;
-}
-
 /* On a phone the furniture is what costs a cover: 25px uprights and 16px of
    row padding is 82px of a 390px screen, inside the page's own 48px, and that
    is exactly the difference between three covers on a shelf and two. Both
@@ -352,7 +346,7 @@
     --shelf-stile-w: 12px;
   }
   .shelf-row {
-    padding: 12px 2px var(--shelf-board-h);
+    padding-top: 12px;
   }
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { columnsThatFit, splitIntoBoards, type Board } from "./boards";
+import { columnsThatFit, evenGap, splitIntoBoards, type Board } from "./boards";
 
 // Cuts a group's games into one board per row, and sizes the case's
 // perspective. Both answers depend on measurements only the browser has, which
@@ -29,10 +29,16 @@ export function useShelfBoards<T>(games: T[]): {
         const style = getComputedStyle(row);
         const available =
           row.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-        setColumns((current) => {
-          const next = columnsThatFit({ available, gap: parseFloat(style.columnGap) || 0 });
-          return current === next ? current : next;
-        });
+        const fits = columnsThatFit({ available });
+        // Whatever is left over after the covers, split equally into the gaps
+        // between them and the two at the ends. The row centres itself, so
+        // setting the one value here puts the same air against each upright.
+        //
+        // Deliberately NOT read back off the computed style: the row's gap IS
+        // this value, so measuring it to compute it would feed itself. The
+        // column count uses the fixed MIN_GAP in boards.ts instead.
+        caseEl.style.setProperty("--shelf-even-gap", `${evenGap({ available, columns: fits })}px`);
+        setColumns((current) => (current === fits ? current : fits));
       }
       // The perspective distance is a multiple of THIS case's height, not a
       // constant. One vanishing point for a whole page means the distance from
@@ -53,8 +59,7 @@ export function useShelfBoards<T>(games: T[]): {
   }, []);
 
   const boards = useMemo(
-    () =>
-      columns === 0 ? [{ games, isFirst: true, isShort: false }] : splitIntoBoards(games, columns),
+    () => (columns === 0 ? [{ games, isFirst: true }] : splitIntoBoards(games, columns)),
     [games, columns]
   );
 

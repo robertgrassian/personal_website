@@ -52,10 +52,10 @@ export function BuiltInGroup({ label, games }: ShelfGroupProps) {
             <div className="shelf-wall shelf-wall-r" />
             <div className="shelf-wall shelf-wall-f" />
             <div className="shelf-board" />
-            {/* data-short is what leans the last case: a row that ran out has
-                nothing holding it upright. A full row must not lean, which is
-                why this is the board's answer and not `:last-child` alone. */}
-            <div className="shelf-row" data-short={board.isShort ? "" : undefined}>
+            {/* The row centres itself and takes its gap from --shelf-even-gap,
+                which useShelfBoards derives from the leftover width, so the
+                air between covers and the air against the uprights match. */}
+            <div className="shelf-row">
               {board.games.map((game) => (
                 <GameCase key={game.name + "-" + game.system} game={game} />
               ))}
