@@ -26,7 +26,7 @@ type FollowCountLinksProps = {
 // Shared by the links and by the static fallback below, so the two render
 // identically apart from the active highlight and there is no layout shift
 // when hydration swaps one for the other.
-const BASE = "underline underline-offset-2 decoration-shelf-plank transition-colors";
+const BASE = "underline underline-offset-2 decoration-shelf-border transition-colors";
 // decoration-2 gives the active state a second signal besides color. Underline
 // width rather than font weight, because a heavier label would reflow the row.
 const ACTIVE = "text-link decoration-link decoration-2";

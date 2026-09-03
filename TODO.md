@@ -111,8 +111,9 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 - [ ] Profile pictures for user accounts (post-v1: likely Supabase Storage plus an upload/crop flow,
       shown in the profile header and follower lists)
 
-- [ ] Homepage customization per user (post-v1: hero/backdrop, shelf styling, featured games. Scope
-      TBD)
+- [ ] **Per-user library customization, starting with letting someone pick their own shelf theme.**
+      The shelf half stopped being a design problem when shelf themes shipped: what is left is a
+      column, an API field and a picker. [Details](docs/todo/library-customization.md)
 
 - [ ] Staging environment: previews are read-only against prod, so writes first run for real in
       prod. [Details](docs/todo/staging-environment.md)

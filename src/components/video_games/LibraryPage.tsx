@@ -5,6 +5,8 @@ import { notFound } from "next/navigation";
 // would be two places to remember. App Router allows CSS imports from any
 // component, unlike the Pages Router's global-CSS restriction.
 import "@/app/video-games/video-games.css";
+import "@/app/video-games/shelf-themes.css";
+import { ACTIVE_SHELF_THEME } from "@/lib/shelfTheme";
 import "@/components/crt/crt.css";
 import {
   getFollowers,
@@ -144,7 +146,7 @@ export async function LibraryPage({
   const wishlistCount = wishlist.length;
 
   return (
-    <main className="min-h-screen bg-shelf-bg shelf-theme">
+    <main className="min-h-screen bg-shelf-bg shelf-theme" data-shelf-theme={ACTIVE_SHELF_THEME}>
       {/* Wraps the whole page, not just the header: GameLibrary reads
           useIsLikelyOwner() from this context to decide whether to render edit
           controls. Spanning a server-rendered subtree costs nothing, because

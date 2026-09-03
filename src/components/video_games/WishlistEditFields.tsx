@@ -124,7 +124,7 @@ export function WishlistEditFields({
 
         {/* Always present, so there is one place to look for "did this save?".
           Disabled until something is actually pending. */}
-        <div className="mt-6 border-t border-shelf-plank pt-4">
+        <div className="mt-6 border-t border-shelf-border pt-4">
           <Button variant="primary" onClick={save} disabled={!canSave}>
             Save
           </Button>
@@ -138,7 +138,7 @@ export function WishlistEditFields({
         </div>
       </div>
 
-      <div className="mt-4 border-t border-shelf-plank pt-3">
+      <div className="mt-4 border-t border-shelf-border pt-3">
         {/* One button for both cases. "Played?" is the question the wishlist
             can answer; everything that follows from it (which console, how
             was it, when did you play) belongs to the library form, which

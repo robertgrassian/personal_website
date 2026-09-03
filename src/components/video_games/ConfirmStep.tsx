@@ -180,7 +180,7 @@ export function ConfirmStep({
             // rounded corners. Frosted rather than solid, the same recipe as
             // the nav and the homepage tiles; the blur is what obscures the
             // form behind it, which a scrim alone only ghosted.
-            "game-card-confirm absolute inset-x-0 bottom-0 z-30 border-t border-shelf-plank " +
+            "game-card-confirm absolute inset-x-0 bottom-0 z-30 border-t border-shelf-border " +
             "bg-black/45 backdrop-blur-md px-5 py-4 focus:outline-none"
           : "mt-3 w-full focus:outline-none"
       }

@@ -209,7 +209,7 @@ export function GameSearchStep({
                 <button
                   type="button"
                   onClick={() => onPick(r, query)}
-                  className="flex w-full items-center gap-3 rounded-md border border-transparent p-2 text-left hover:border-shelf-plank hover:bg-shelf-input transition-colors cursor-pointer"
+                  className="flex w-full items-center gap-3 rounded-md border border-transparent p-2 text-left hover:border-shelf-border hover:bg-shelf-input transition-colors cursor-pointer"
                 >
                   {r.coverUrl ? (
                     <Image

@@ -61,7 +61,7 @@ export function ModalShell({
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className={`pointer-events-auto relative min-w-0 rounded-lg border border-shelf-plank bg-shelf-bg p-4 sm:p-5 shadow-2xl ${panelClassName}`}
+        className={`pointer-events-auto relative min-w-0 rounded-lg border border-shelf-border bg-shelf-bg p-4 sm:p-5 shadow-2xl ${panelClassName}`}
       >
         {/* shrink-0 keeps the header at its natural height as the scrolling
             body below grows. */}

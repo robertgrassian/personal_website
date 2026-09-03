@@ -28,7 +28,9 @@ const PADDING_X = 23;
 // of the actual game library shelf where a strip of wood shows above the covers.
 const PLANK_OVERHANG = 24;
 
-// Grain background for the plank, ported from .shelf-plank-grain in video-games.css.
+// Grain background for the plank. This is the OG image's own wood, and the
+// only stacked-gradient grain left in the repo: the shelf itself draws grain
+// with an SVG filter now (shelf-themes.css), and Satori runs no filters.
 // CSS variables resolved to their dark-mode values.
 const PLANK_BACKGROUND = [
   // Fine grain rhythm 1 — tight 9px repeat

@@ -332,7 +332,7 @@ export function GameLibrary({
     // 375px up and the smallest phones get 8px instead of a wrapped row. The
     // right pad is 16px MINUS the trailing button's own px, so the Stats label
     // (not its padding box) lands on the same 16px margin.
-    <div className="flex items-center justify-between border-b border-shelf-plank pl-2 min-[375px]:pl-4 min-[375px]:pr-2.5 sm:pr-1.5">
+    <div className="flex items-center justify-between border-b border-shelf-border pl-2 min-[375px]:pl-4 min-[375px]:pr-2.5 sm:pr-1.5">
       {/* gap, not a margin per tab: a trailing mr on the last tab spent 8px of
           the width this inset needed. */}
       {/* Measured: text-sm with this spacing needs 375px to fit the two tabs

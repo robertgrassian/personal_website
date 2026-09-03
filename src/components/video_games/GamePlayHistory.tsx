@@ -24,7 +24,7 @@ type GamePlayHistoryProps = {
 function SessionRow({ session }: { session: PlaySession }) {
   const days = sessionLengthDays(session);
   return (
-    <li className="flex items-baseline justify-between gap-3 border-b border-shelf-plank py-2 last:border-b-0">
+    <li className="flex items-baseline justify-between gap-3 border-b border-shelf-border py-2 last:border-b-0">
       <span className="min-w-0 text-sm text-shelf-text">{formatSessionRange(session)}</span>
       <span className="shrink-0 text-xs tabular-nums text-shelf-text-muted">
         {session.endDate === null ? "Playing" : days === 1 ? "1 day" : `${days} days`}

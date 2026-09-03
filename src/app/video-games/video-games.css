@@ -6,7 +6,13 @@
 .shelf-theme {
   /* --- Shelf structure: dark walnut --- */
   --shelf-bg: #faf9f7;
-  --shelf-plank: #5c3a1e;
+  /* The library's generic border colour: modal panels, the tab strip, the
+     suggestion list. Named for the job rather than for wood, because a
+     shelf theme may have no wood in it. */
+  --shelf-border: #5c3a1e;
+  /* The CRT's wooden chassis, which is its own object and does not follow
+     the shelf theme. */
+  --crt-body: #5c3a1e;
   --shelf-edge: #3d2613;
   --shelf-edge-bottom: #170f07; /* darker edge for lip gradient: manually darkened from --shelf-edge */
   --shelf-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
@@ -100,80 +106,6 @@
 }
 .shelf-theme [data-system="PC (Microsoft Windows)"] {
   --system-fallback: #374151;
-}
-
-/* Wood grain texture — layered gradients over the plank color for a realistic look.
-   Fine grain lines at two rhythms, broad color bands, and subtle knot hints.
-   Only the CSS variables below change in dark mode — the gradients are defined once. */
-.shelf-plank-grain {
-  /* Grain color tokens */
-  --g1a: rgba(0, 0, 0, 0.1); /* primary fine grain, dominant stripe */
-  --g1b: rgba(0, 0, 0, 0.06); /* primary fine grain, secondary stripe */
-  --g2a: rgba(255, 255, 255, 0.08); /* secondary grain rhythm, dominant */
-  --g2b: rgba(255, 255, 255, 0.05); /* secondary grain rhythm, secondary */
-  --g3wa: rgba(255, 200, 120, 0.08); /* broad warm band, stronger */
-  --g3wb: rgba(255, 200, 120, 0.06); /* broad warm band, softer */
-  --g3da: rgba(0, 0, 0, 0.04); /* broad dark band at 35% */
-  --g3db: rgba(0, 0, 0, 0.05); /* broad dark band at 85% */
-  --g4: rgba(0, 0, 0, 0.06); /* large knot radial */
-  --g5: rgba(0, 0, 0, 0.04); /* small knot radial */
-  --gsh-top: rgba(255, 255, 255, 0.1); /* inset top highlight */
-  --gsh-bot: rgba(0, 0, 0, 0.15); /* inset bottom shadow */
-  --lip: 5px; /* ::after lip thickness */
-
-  background-image:
-    repeating-linear-gradient(
-      90deg,
-      var(--g1a) 0px,
-      transparent 1px,
-      transparent 2px,
-      var(--g1b) 3px,
-      transparent 4px,
-      transparent 9px
-    ),
-    repeating-linear-gradient(
-      90deg,
-      var(--g2a) 0px,
-      transparent 1px,
-      transparent 5px,
-      var(--g2b) 6px,
-      transparent 7px,
-      transparent 15px
-    ),
-    linear-gradient(
-      90deg,
-      transparent 0%,
-      var(--g3wa) 10%,
-      transparent 20%,
-      var(--g3da) 35%,
-      transparent 45%,
-      var(--g3wb) 60%,
-      transparent 70%,
-      var(--g3db) 85%,
-      transparent 100%
-    ),
-    radial-gradient(ellipse 60px 30px at 25% 60%, var(--g4) 0%, transparent 70%),
-    radial-gradient(ellipse 40px 20px at 72% 35%, var(--g5) 0%, transparent 70%);
-  box-shadow:
-    inset 0 2px 4px var(--gsh-top),
-    inset 0 -2px 6px var(--gsh-bot),
-    var(--shelf-shadow);
-  /* 3D lip: remove bottom rounding so the gradient edge sits flush */
-  position: relative;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-/* 3D front edge — gradient pseudo-element for a beveled shelf lip */
-.shelf-plank-grain::after {
-  content: "";
-  position: absolute;
-  bottom: calc(-1 * var(--lip));
-  left: 0;
-  right: 0;
-  height: var(--lip);
-  background: linear-gradient(to bottom, var(--shelf-edge) 0%, var(--shelf-edge-bottom) 100%);
-  border-radius: 0 0 2px 2px;
 }
 
 /* Filter bar separation from shelf content — shadow in light mode, border in dark mode. */
@@ -362,7 +294,7 @@
   --shelf-text-muted: #d1d5db;
   --shelf-label: #e5e7eb;
   --shelf-label-muted: #9ca3af;
-  --shelf-plank: rgba(255, 255, 255, 0.25);
+  --shelf-border: rgba(255, 255, 255, 0.25);
   --shelf-input: rgba(255, 255, 255, 0.14);
   --shelf-input-border: rgba(255, 255, 255, 0.3);
   --shelf-input-text: #f9fafb;
@@ -439,7 +371,7 @@
   display: flex;
   gap: 10px;
   padding: 12px;
-  background-color: var(--shelf-plank);
+  background-color: var(--crt-body);
   background-image:
     repeating-linear-gradient(
       0deg,
@@ -766,7 +698,8 @@
   .shelf-theme {
     /* --- Shelf structure: deep walnut on dark --- */
     --shelf-bg: #0f0d0b;
-    --shelf-plank: #2a1a0e;
+    --shelf-border: #2a1a0e;
+    --crt-body: #2a1a0e;
     --shelf-edge: #8b5e3c;
     --shelf-edge-bottom: #37251a; /* manually darkened from --shelf-edge */
     --shelf-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
@@ -793,21 +726,5 @@
     /* --- Filter bar chrome --- */
     --shelf-control-label: #9ca3af;
     --shelf-divider: #3d3530;
-  }
-
-  .shelf-plank-grain {
-    --g1a: rgba(255, 255, 255, 0.06);
-    --g1b: rgba(255, 255, 255, 0.03);
-    --g2a: rgba(0, 0, 0, 0.12);
-    --g2b: rgba(0, 0, 0, 0.08);
-    --g3wa: rgba(255, 180, 80, 0.04);
-    --g3wb: rgba(255, 180, 80, 0.03);
-    --g3da: rgba(0, 0, 0, 0.06);
-    --g3db: rgba(0, 0, 0, 0.07);
-    --g4: rgba(0, 0, 0, 0.08);
-    --g5: rgba(0, 0, 0, 0.06);
-    --gsh-top: rgba(255, 255, 255, 0.04);
-    --gsh-bot: rgba(0, 0, 0, 0.3);
-    --lip: 7px;
   }
 }

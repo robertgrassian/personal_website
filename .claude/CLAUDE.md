@@ -41,7 +41,8 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | Filter / group / sort logic            | `src/components/video_games/pipeline.ts`                                                                                                                        |
 | Filter/group/sort option lists         | `src/components/video_games/libraryConfig.ts`, `useFilterOptions.ts`                                                                                            |
 | Shared types, `RATINGS`, `systemLabel` | `src/lib/games.ts` (library), `wishlist.ts`, `profile.ts`, `follows.ts`                                                                                         |
-| Shelf UI                               | `GameShelves.tsx` → `ShelfSection.tsx` → `GameCase.tsx`                                                                                                         |
+| Shelf UI                               | `GameShelves.tsx` → the active theme's group in `shelves/` → `GameCase.tsx`                                                                                     |
+| Which shelf design is worn             | `src/lib/shelfTheme.ts` (the switch), `shelves/index.ts` (name → component)                                                                                     |
 | Game detail card (click a case)        | `GameDetailCard.tsx`, which flies the case out and renders `GameCaseBackSurface.tsx` + `GameCaseSpine.tsx`                                                      |
 | Library page shell (both routes)       | `src/components/video_games/LibraryPage.tsx`                                                                                                                    |
 | Owner edit surfaces                    | On the detail card: `GameEditFields.tsx`, `WishlistEditFields.tsx`, `GamePlayHistory.tsx`. Two dialogs left: `AddGameModal.tsx` and `CurrentlyPlayingPanel.tsx` |
@@ -49,7 +50,7 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | "Currently playing" CRT                | `src/components/crt/CrtTv.tsx` + `crt.css`, wrapped by `CurrentlyPlayingSection.tsx`, which owns the owner-only manage panel                                    |
 | Can this viewer edit?                  | `FollowControls.tsx` (two hooks), `useViewerRelationship.ts`, `ownedLibrary.ts`                                                                                 |
 | Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                                                                                                    |
-| Library styles                         | `src/app/video-games/video-games.css`; site tokens in `src/app/globals.css`                                                                                     |
+| Library styles                         | `video-games.css` (shared chrome), `shelf-themes.css` (per-theme surfaces), both in `src/app/video-games/`; site tokens in `src/app/globals.css`                |
 | Mobile keyboard / viewport behavior    | [`docs/mobile-viewport.md`](../docs/mobile-viewport.md); `keyboardBand.ts`, `useModalChrome.ts`                                                                 |
 | API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)                                                                                        |
 | API endpoint reference, runnable       | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)                                                                                    |
@@ -57,9 +58,7 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | Production deploys, migrations in CD   | [`docs/deployment.md`](../docs/deployment.md); `.github/workflows/deploy.yml`                                                                                   |
 | Tests                                  | `api/tests/` (pytest); `src/**/*.test.ts` (`npm test`, node --test, no runner installed)                                                                        |
 
-Dead code worth knowing about: `src/components/video_games/CurrentlyPlaying.tsx` is the **old** stylized CRT and is imported by nothing. The live one is `crt/CrtTv.tsx`, used by `LibraryPage` and `/currently-playing`.
-
-Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were deleted 2026-08-20 when the detail card absorbed them. Their bodies are the `*EditFields` components above, and the one-Save model they established is what any new owner form should adopt.
+Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were deleted 2026-08-20 when the detail card absorbed them. Their bodies are the `*EditFields` components above, and the one-Save model they established is what any new owner form should adopt. `ShelfSection.tsx` became `shelves/PlainGroup.tsx` when the shelf themes landed, and `CurrentlyPlaying.tsx` (the old stylized CRT, imported by nothing) went with it, because the wood-grain CSS it depended on was deleted in the same change. The live CRT is `crt/CrtTv.tsx`.
 
 ## Routes
 
@@ -83,6 +82,15 @@ Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were
 - **Never use em dashes (—) in user-facing text.** This covers anything a visitor can read or hear: JSX text, button and heading copy, `aria-label`s, `alt` text, `metadata` titles and descriptions, error messages, placeholder copy. Use a colon when the second half explains the first, a comma for an aside, or split into two sentences. Code comments are exempt, and so is the `—` used as a "no value" placeholder in table-like output. Applies to Markdown that ships as a page (`/privacy`), not to `TODO.md` or docs.
 - **Routes use kebab-case, never snake_case** (`/video-games`, `/currently-playing`, `/video-games/start`). Renamed from underscores 2026-07-28; the old URLs are kept alive by permanent redirects in `next.config.ts`, which must stay. Note this is a _URL_ convention — `src/components/video_games/` and snake_case SQL column names (`currently_playing`) are deliberately untouched.
 - **The game library owns the `/video-games` prefix.** Everything belonging to it nests there, including per-user libraries at `/video-games/u/[username]` (moved off a top-level `/u/` 2026-07-29, redirect in `next.config.ts`). New library surfaces go under that prefix rather than at the top level. Auth is the deliberate exception: `/onboarding` and `/auth/*` stay top-level because identity is site-wide, not the library's.
+- **The shelf is a theme, not a layout.** `ACTIVE_SHELF_THEME` in `src/lib/shelfTheme.ts` picks
+  between the groups in `src/components/video_games/shelves/`, and `LibraryPage` stamps
+  `data-shelf-theme` beside `shelf-theme`. A theme owns exactly two things: how ONE group of
+  games is laid out, and the surface tokens in `shelf-themes.css`. Everything else — the
+  pipeline, the sticky chrome, `GameCase`, the detail card and its flight — is shared and must
+  stay that way, or the second theme stops being cheap. Same shape as the accent switch below,
+  and for the same reason: per-user library styling swaps the constant for a value read per
+  request and nothing else moves. **Adding a theme means all three: a name, a component, a
+  token block.**
 - **The accent color is a switch, not a literal.** `ACTIVE_ACCENT` in `src/lib/accent.ts` picks
   between the palettes defined on `[data-accent]` in `globals.css`; `layout.tsx` stamps the
   attribute. Use `--link` / `text-link` for accent color, `--accent-on-dark` for surfaces that are

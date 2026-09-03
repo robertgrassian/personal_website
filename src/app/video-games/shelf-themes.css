@@ -1,0 +1,361 @@
+/* Shelf themes: how one group of games is presented, and what furniture is
+   around it. The names here must match SHELF_THEMES in src/lib/shelfTheme.ts
+   and SHELF_GROUPS in components/video_games/shelves; all three move together.
+
+   Everything a theme does NOT own -- the filter chrome, inputs, dividers,
+   danger colours, the detail card -- stays in video-games.css and is shared.
+   The line between them is that a theme owns the SURFACE a game sits on and
+   the ground behind it, and nothing else.
+
+   Selectors are `.shelf-theme[data-shelf-theme="..."]` rather than the bare
+   attribute so they beat the base `.shelf-theme` block on specificity rather
+   than on which stylesheet happens to be imported second. */
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BUILT-IN — a walnut bookcase per group, a board per row, in perspective
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.shelf-theme[data-shelf-theme="built-in"] {
+  /* The room. Deeper than the plain theme's ground on purpose: the walnut is
+     fixed, so every step darker widens the gap between the furniture and what
+     it stands on. It stops helping below this -- at true black there is no
+     room left and the case reads as a cutout. */
+  --shelf-bg: #efe9df;
+  --shelf-room-light: radial-gradient(
+    120% 70% at 50% -10%,
+    rgba(255, 253, 247, 0.9) 0%,
+    rgba(255, 253, 247, 0) 60%
+  );
+
+  --shelf-wood: #6b4423;
+  --shelf-carcass: #4a2e17;
+  --shelf-panel: #2f1e0f;
+  /* Wood in a dim room is darker, not featureless: this dims the timber
+     without touching the grain that is drawn on it. */
+  --shelf-wood-dim: 1;
+
+  --shelf-board-h: 14px;
+  --shelf-stile-w: 25px;
+  --shelf-bay-depth: 32px;
+  --shelf-gap: 3px;
+
+  /* Broad lighting across a piece, as opposed to the grain drawn on it. */
+  --shelf-band-h: linear-gradient(
+    0deg,
+    transparent 4%,
+    rgba(255, 205, 145, 0.09) 22%,
+    transparent 40%,
+    rgba(0, 0, 0, 0.13) 58%,
+    transparent 76%,
+    rgba(255, 205, 145, 0.09) 92%
+  );
+  --shelf-band-v: linear-gradient(
+    90deg,
+    transparent 4%,
+    rgba(255, 205, 145, 0.09) 20%,
+    transparent 38%,
+    rgba(0, 0, 0, 0.13) 56%,
+    transparent 74%,
+    rgba(255, 205, 145, 0.09) 92%
+  );
+
+  /* Grain, drawn by one feTurbulence per piece with its base frequency
+     stretched ~50:1 along the length of the board. Fractal noise has no
+     period, so nothing repeats; stacked repeating-gradients (what this site
+     used to draw wood with) can only ever read as stripes, because stripes are
+     what a repeating gradient is. Zero bytes over the wire, no JS, and it
+     re-themes by editing two colour matrices.
+
+     A board's grain runs along its length: horizontal for shelves, crown and
+     plinth, vertical for the uprights and the back panel. */
+  --shelf-grain-h: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='512'%20height='56'%3E%3Cfilter%20id='a'%20color-interpolation-filters='sRGB'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.006%200.3'%20numOctaves='5'%20seed='11'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='matrix'%20values='0%200%200%200%200.204%200%200%200%200%200.118%200%200%200%200%200.051%201.7%200%200%200%20-0.78'/%3E%3C/filter%3E%3Cfilter%20id='b'%20color-interpolation-filters='sRGB'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.0025%200.05'%20numOctaves='3'%20seed='5'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='matrix'%20values='0%200%200%200%200.588%200%200%200%200%200.416%200%200%200%200%200.235%200.85%200%200%200%20-0.42'/%3E%3C/filter%3E%3Crect%20width='100%25'%20height='100%25'%20filter='url%28%23a%29'/%3E%3Crect%20width='100%25'%20height='100%25'%20filter='url%28%23b%29'/%3E%3C/svg%3E");
+  --shelf-grain-v: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='56'%20height='512'%3E%3Cfilter%20id='a'%20color-interpolation-filters='sRGB'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.3%200.006'%20numOctaves='5'%20seed='11'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='matrix'%20values='0%200%200%200%200.204%200%200%200%200%200.118%200%200%200%200%200.051%201.7%200%200%200%20-0.78'/%3E%3C/filter%3E%3Cfilter%20id='b'%20color-interpolation-filters='sRGB'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.05%200.0025'%20numOctaves='3'%20seed='5'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='matrix'%20values='0%200%200%200%200.588%200%200%200%200%200.416%200%200%200%200%200.235%200.85%200%200%200%20-0.42'/%3E%3C/filter%3E%3Crect%20width='100%25'%20height='100%25'%20filter='url%28%23a%29'/%3E%3Crect%20width='100%25'%20height='100%25'%20filter='url%28%23b%29'/%3E%3C/svg%3E");
+}
+
+/* The light in the room, painted once at the top of the page rather than
+   fixed, so it costs nothing on scroll. */
+.shelf-theme[data-shelf-theme="built-in"] {
+  background-image: var(--shelf-room-light);
+  background-repeat: no-repeat;
+  background-size: 100% 720px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .shelf-theme[data-shelf-theme="built-in"] {
+    --shelf-bg: #080706;
+    --shelf-wood-dim: 0.82;
+    --shelf-room-light: radial-gradient(
+      110% 55% at 50% -8%,
+      rgba(255, 222, 176, 0.045) 0%,
+      rgba(255, 222, 176, 0) 62%
+    );
+  }
+}
+
+/* ── The name, in the page's own type, above the case ────────────────────── */
+.shelf-case-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 11px 2px;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--shelf-text);
+}
+.shelf-case-head i {
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--shelf-divider);
+}
+.shelf-case-head span {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--shelf-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── The carcass ─────────────────────────────────────────────────────────── */
+.shelf-case {
+  position: relative;
+  padding: 0 var(--shelf-stile-w);
+  background-color: var(--shelf-carcass);
+  background-image: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.35),
+    rgba(255, 255, 255, 0.04) 30%,
+    rgba(0, 0, 0, 0.3)
+  );
+  box-shadow: 0 24px 46px -20px rgba(0, 0, 0, 0.6);
+  /* `perspective` itself is set inline by useShelfBoards, from this case's own
+     measured height. Nothing between here and the faces below may set
+     `overflow` or `filter`: both silently flatten a 3D subtree, and the
+     failure is invisible until faces start overlapping the row above. */
+  perspective-origin: 50% 46%;
+}
+.shelf-crown,
+.shelf-plinth,
+.shelf-stile,
+.shelf-board,
+.shelf-wall {
+  background-color: var(--shelf-wood);
+  filter: brightness(var(--shelf-wood-dim));
+}
+.shelf-stile {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--shelf-stile-w);
+  z-index: 6;
+  /* The uprights face the room squarely and catch more light than a shelf edge
+     shadowed by the games on it, which is also what makes them read as
+     separate boards rather than as a painted border. */
+  filter: brightness(calc(var(--shelf-wood-dim) * 1.14));
+  background-image: var(--shelf-grain-v), var(--shelf-band-v);
+  background-size:
+    56px 512px,
+    auto;
+}
+.shelf-stile-l {
+  left: 0;
+  box-shadow:
+    inset -3px 0 6px -3px rgba(0, 0, 0, 0.55),
+    inset 2px 0 0 rgba(255, 255, 255, 0.06);
+}
+.shelf-stile-r {
+  right: 0;
+  box-shadow:
+    inset 3px 0 6px -3px rgba(0, 0, 0, 0.55),
+    inset -2px 0 0 rgba(255, 255, 255, 0.06);
+}
+.shelf-crown,
+.shelf-plinth {
+  position: relative;
+  z-index: 7;
+  margin: 0 calc(-1 * var(--shelf-stile-w));
+  background-image: var(--shelf-grain-h), var(--shelf-band-h);
+  background-size:
+    512px 56px,
+    auto;
+}
+.shelf-crown {
+  height: 17px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 240, 215, 0.22),
+    0 4px 9px rgba(0, 0, 0, 0.4);
+}
+.shelf-plinth {
+  height: 19px;
+  box-shadow:
+    inset 0 1px 0 rgba(0, 0, 0, 0.4),
+    inset 0 -1px 0 rgba(255, 240, 215, 0.12);
+}
+
+/* ── One bay per board, and every bay is a box ────────────────────────────── */
+.shelf-bay {
+  position: relative;
+  transform-style: preserve-3d;
+}
+.shelf-back {
+  position: absolute;
+  inset: 0 0 var(--shelf-board-h) 0;
+  background-color: var(--shelf-panel);
+  /* No grain on this one. A tile narrow enough to read as fibre repeats every
+     few inches across a shelf this wide, and the back panel is the one large
+     unbroken surface in a bay, so that repeat becomes the most visible thing
+     on the page. It sits in shadow anyway and loses nothing. */
+  background-image:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.52) 0%, rgba(0, 0, 0, 0.1) 30%, rgba(0, 0, 0, 0) 62%),
+    linear-gradient(0deg, rgba(255, 240, 220, 0.06) 0%, rgba(255, 240, 220, 0) 20%);
+  filter: brightness(var(--shelf-wood-dim));
+  transform: translateZ(calc(-1 * var(--shelf-bay-depth)));
+}
+.shelf-board {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--shelf-board-h);
+  background-image: var(--shelf-grain-h), var(--shelf-band-h);
+  background-size:
+    512px 56px,
+    auto;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 236, 204, 0.26),
+    0 3px 7px rgba(0, 0, 0, 0.45);
+}
+
+/* The four inner faces. Each one's normal points into the bay, so culling its
+   back face is exactly right: a bay above your eye draws its ceiling and one
+   below draws its floor, with nothing computed per shelf.
+
+   Each is pushed back a pixel BEFORE its rotation (transforms read
+   right-to-left, so the translate applies in the bay's space, not the face's).
+   That is what stops the browser sorting a side wall in front of the outermost
+   cover, and it does it without moving the games: the cases stay at exactly
+   z = 0, where perspective maps 1:1, so getBoundingClientRect stays pixel
+   exact and the detail card's flight measures what it always did. */
+.shelf-wall {
+  position: absolute;
+  backface-visibility: hidden;
+}
+.shelf-wall-t {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: var(--shelf-bay-depth);
+  transform-origin: top center;
+  transform: translateZ(-1px) rotateX(-90deg);
+  background-image:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.46), rgba(0, 0, 0, 0.82)), var(--shelf-grain-h);
+  background-size:
+    auto,
+    512px 56px;
+}
+.shelf-wall-f {
+  left: 0;
+  right: 0;
+  bottom: var(--shelf-board-h);
+  height: var(--shelf-bay-depth);
+  transform-origin: bottom center;
+  transform: translateZ(-1px) rotateX(90deg);
+  background-image:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.52), rgba(255, 240, 215, 0.1)), var(--shelf-grain-h);
+  background-size:
+    auto,
+    512px 56px;
+}
+.shelf-wall-l {
+  left: 0;
+  top: 0;
+  bottom: var(--shelf-board-h);
+  width: var(--shelf-bay-depth);
+  transform-origin: left center;
+  transform: translateZ(-1px) rotateY(90deg);
+  background-image:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.66)), var(--shelf-grain-v);
+  background-size:
+    auto,
+    56px 512px;
+}
+.shelf-wall-r {
+  right: 0;
+  top: 0;
+  bottom: var(--shelf-board-h);
+  width: var(--shelf-bay-depth);
+  transform-origin: right center;
+  transform: translateZ(-1px) rotateY(-90deg);
+  background-image:
+    linear-gradient(270deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.66)), var(--shelf-grain-v);
+  background-size:
+    auto,
+    56px 512px;
+}
+
+/* The games, standing on the board. Shoulder to shoulder rather than in a
+   12px grid: the even gap on all four sides is what made the old shelf read as
+   search results instead of a full shelf. */
+.shelf-row {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--shelf-gap);
+  padding: 18px 16px var(--shelf-board-h);
+}
+/* Where a case meets the board. Two rules, and the cover stops being an image
+   in a box and becomes an object with weight. */
+.shelf-row .game-case-inner::after {
+  content: "";
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  bottom: -2px;
+  height: 9px;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 0%, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 72%);
+}
+/* A row that ran out has nothing holding its last case upright. `data-short`
+   comes from the board rather than from :last-child alone, because the last
+   case of a FULL row has its neighbours to lean on and must stay square.
+
+   `transform` and not a Tailwind translate utility: v4 sets the standalone
+   `translate` property, so the hover lift composes with this instead of
+   overwriting it. */
+.shelf-row[data-short] > :last-child .game-case-inner {
+  transform: rotate(5.5deg);
+  transform-origin: bottom left;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PLAIN — one flat plank per group, games in a wrapping grid
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.shelf-theme[data-shelf-theme="plain"] {
+  --shelf-bg: #faf9f7;
+  --shelf-surface: #e9e7e3;
+  --shelf-surface-edge: #d3d0ca;
+  --shelf-surface-top: rgba(255, 255, 255, 0.55);
+  --shelf-surface-shadow: 0 6px 18px rgba(0, 0, 0, 0.09);
+}
+
+@media (prefers-color-scheme: dark) {
+  .shelf-theme[data-shelf-theme="plain"] {
+    --shelf-bg: #0f0d0b;
+    --shelf-surface: #232120;
+    --shelf-surface-edge: #131211;
+    --shelf-surface-top: rgba(255, 255, 255, 0.05);
+    --shelf-surface-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Neutral, and deliberately not wood: the built-in theme is where the timber
+   lives now, and a second, quieter surface is the point of this one. The lip
+   is a border rather than the old ::after pseudo-element, which existed to
+   carry a gradient bevel this theme has no use for. */
+.shelf-plain-plank {
+  border-bottom: 4px solid var(--shelf-surface-edge);
+  box-shadow:
+    inset 0 1px 0 var(--shelf-surface-top),
+    var(--shelf-surface-shadow);
+}

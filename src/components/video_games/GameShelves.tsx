@@ -12,7 +12,7 @@ import {
 import dynamic from "next/dynamic";
 import type { Game } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
-import { ShelfSection } from "./ShelfSection";
+import { SHELF_GROUPS } from "./shelves";
 import { FilterBar } from "./FilterBar";
 import { FilterSheet } from "./FilterSheet";
 import type { GameView } from "./libraryConfig";
@@ -30,6 +30,7 @@ import { useKeepResultsInView } from "./useKeepResultsInView";
 import { useHideOnScrollDown } from "./useHideOnScrollDown";
 import type { UrlState } from "./useGameLibraryUrlState";
 import { Button } from "@/components/ui/Button";
+import { ACTIVE_SHELF_THEME } from "@/lib/shelfTheme";
 import { systemLabel } from "@/lib/games";
 
 // Loaded on demand rather than in the page bundle. The panel pulls in GameStats
@@ -40,6 +41,13 @@ import { systemLabel } from "@/lib/games";
 const StatsPanel = dynamic(() => import("./StatsPanel").then((m) => m.StatsPanel), {
   ssr: false,
 });
+
+// The one place a shelf theme is chosen. Everything in this file is shared by
+// every theme -- the pipeline, the sticky chrome, the stats panel -- and a
+// theme decides only how ONE group of games is laid out. Resolved at module
+// scope because it cannot change without a reload today; when it becomes a
+// per-user setting this reads from props instead and nothing else moves.
+const ShelfGroup = SHELF_GROUPS[ACTIVE_SHELF_THEME];
 
 type GameShelvesProps = {
   games: Game[];
@@ -451,12 +459,12 @@ export function GameShelves({
             </p>
           )
         ) : (
-          // ShelfSection brings its own top margin, so this only needs to
+          // A shelf group brings its own top margin, so this only needs to
           // offset the group from the filter bar above it. Both halve on
           // phones.
           <div className="mt-3 sm:mt-6">
             {activeShelves.map((shelf) => (
-              <ShelfSection
+              <ShelfGroup
                 key={shelf.label}
                 label={groupBy === "system" ? systemLabel(shelf.label) : shelf.label}
                 games={shelf.games}

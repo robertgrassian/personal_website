@@ -209,7 +209,7 @@ export function GameEditFields({
   const renderSaveFooter = (showRemove: boolean) => (
     /* Always present, so there is one place to look for "did this save?".
        Disabled until something is actually pending. */
-    <div className="mt-5 border-t border-shelf-plank pt-3">
+    <div className="mt-5 border-t border-shelf-border pt-3">
       {/* ml-auto puts Remove at the far edge: Save is pressed constantly and
           adjacent is what a destructive control must not be.
 
