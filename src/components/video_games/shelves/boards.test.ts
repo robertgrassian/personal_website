@@ -33,23 +33,9 @@ test("a viewport too narrow for one case still renders one", () => {
 });
 
 test("games split one row per board", () => {
-  const boards = splitIntoBoards([1, 2, 3, 4, 5, 6, 7], 3);
-  assert.deepEqual(
-    boards.map((b) => b.games),
-    [[1, 2, 3], [4, 5, 6], [7]]
-  );
-});
-
-test("only the first board carries the group name", () => {
-  const boards = splitIntoBoards([1, 2, 3, 4], 2);
-  assert.deepEqual(
-    boards.map((b) => b.isFirst),
-    [true, false]
-  );
+  assert.deepEqual(splitIntoBoards([1, 2, 3, 4, 5, 6, 7], 3), [[1, 2, 3], [4, 5, 6], [7]]);
 });
 
 test("an empty group still gets a shelf to be empty on", () => {
-  const boards = splitIntoBoards([], 5);
-  assert.equal(boards.length, 1);
-  assert.deepEqual(boards[0].games, []);
+  assert.deepEqual(splitIntoBoards([], 5), [[]]);
 });

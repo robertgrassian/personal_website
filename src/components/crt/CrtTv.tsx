@@ -1,7 +1,7 @@
 // A from-scratch, photorealistic CRT television, shared by the /video-games
 // library page and the standalone /currently-playing route. Unlike the older
-// stylized wood-cabinet TV (components/video_games/CurrentlyPlaying.tsx, now
-// unused), this is a '90s black-plastic set rendered entirely in CSS/SVG (see
+// stylized wood-cabinet TV (video_games/CurrentlyPlaying.tsx, deleted 2026-09),
+// this is a '90s black-plastic set rendered entirely in CSS/SVG (see
 // ./crt.css). It cycles through the currently-playing games like TV channels
 // and, when nothing is playing, sits on a permanent "NO SIGNAL" snow screen so
 // the page is never blank.

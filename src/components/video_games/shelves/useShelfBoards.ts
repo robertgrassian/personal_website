@@ -10,14 +10,13 @@ import { columnsThatFit, splitIntoBoards, type Board } from "./boards";
 export function useShelfBoards<T>(games: T[]): {
   caseRef: React.RefObject<HTMLDivElement | null>;
   boards: Board<T>[];
+  columns: number;
 } {
   const caseRef = useRef<HTMLDivElement>(null);
-  // 0 means "not measured yet". The server has no viewport, so the first render
-  // is one tall bay holding the whole group. The measurement below runs in a
-  // LAYOUT effect, which commits before the browser paints, so re-cutting into
-  // boards is not a visible reflow. What a slow connection can still show is
-  // the server's one-bay layout in the moment before hydration runs — which is
-  // the other shelf layout we considered, not a broken state.
+  // 0 means "not measured yet": one tall bay holding the whole group, which
+  // the CSS lays out with auto-fill. The measurement below runs in a LAYOUT
+  // effect, which commits before the browser paints, so that render is never
+  // seen and re-cutting into boards is not a visible reflow.
   const [columns, setColumns] = useState(0);
 
   useLayoutEffect(() => {
@@ -26,36 +25,37 @@ export function useShelfBoards<T>(games: T[]): {
 
     const sync = () => {
       const row = caseEl.querySelector<HTMLElement>(".shelf-row");
-      if (row !== null) {
-        const style = getComputedStyle(row);
-        // getBoundingClientRect, not clientWidth: this number becomes the
-        // grid's track count, and clientWidth rounds, so half a pixel of
-        // rounding up claims a track that does not fit and overflows the shelf.
-        const available =
-          row.getBoundingClientRect().width -
-          parseFloat(style.paddingLeft) -
-          parseFloat(style.paddingRight);
-        const fits = columnsThatFit({ available, gap: parseFloat(style.columnGap) || 0 });
-        // Handed to the grid as an explicit track count. The board holds
-        // exactly this many covers, so the two can never disagree about how
-        // many fit, which is the only way a board can end up two rows tall.
-        caseEl.style.setProperty("--shelf-cols", String(fits));
-        setColumns((current) => (current === fits ? current : fits));
-      }
+      if (row === null) return;
+      const style = getComputedStyle(row);
+      // getBoundingClientRect, not clientWidth: this number becomes the
+      // grid's track count, and clientWidth rounds, so half a pixel of
+      // rounding up claims a track that does not fit and overflows the shelf.
+      const available =
+        row.getBoundingClientRect().width -
+        parseFloat(style.paddingLeft) -
+        parseFloat(style.paddingRight);
+      const fits = columnsThatFit({ available, gap: parseFloat(style.columnGap) || 0 });
+      setColumns((current) => (current === fits ? current : fits));
     };
 
     sync();
-    // Re-cut on any width change. Setting a custom property cannot change
-    // layout, so this does not feed itself.
+    // Re-cut on any width change. This does feed itself -- the track count
+    // changes the case's height -- but it converges: a ResizeObserver only
+    // reports width changes here, and the width a given track count produces
+    // does not depend on that count.
     const observer = new ResizeObserver(sync);
     observer.observe(caseEl);
     return () => observer.disconnect();
   }, []);
 
   const boards = useMemo(
-    () => (columns === 0 ? [{ games, isFirst: true }] : splitIntoBoards(games, columns)),
+    () => (columns === 0 ? [games] : splitIntoBoards(games, columns)),
     [games, columns]
   );
 
-  return { caseRef, boards };
+  // columns goes to the grid as its explicit track count, from the same state
+  // that cut the boards: set imperatively it would land a frame early, putting
+  // more covers on a board than the grid had tracks for and wrapping one onto a
+  // second, floorless row.
+  return { caseRef, boards, columns };
 }

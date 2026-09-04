@@ -5,9 +5,9 @@ import type { ShelfGroupProps } from "./index";
 // per group and a wrapping grid of covers. Purely presentational — whether a
 // card is editable is read from LibraryCardContext by GameCase itself.
 //
-// This is a server component on purpose. It measures nothing and owns no state,
-// which is most of why it stays the right answer on a phone: the whole group
-// arrives in the prerendered HTML with nothing to settle after hydration.
+// No "use client" of its own, and it needs none: it measures nothing and owns
+// no state. It is still pulled into the client bundle by GameShelves, but it
+// hydrates to exactly the markup the server sent, with nothing to settle.
 export function PlainGroup({ label, games }: ShelfGroupProps) {
   return (
     // Halved on phones. This gap repeats between every group, not just above

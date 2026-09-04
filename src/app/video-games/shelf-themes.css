@@ -40,6 +40,8 @@
   --shelf-board-h: 14px;
   --shelf-stile-w: 25px;
   --shelf-gap: 12px;
+  /* Headroom over a row. Also half of the row-gap arithmetic below. */
+  --shelf-row-top: 18px;
 
   /* The inside of a bay, drawn as a fixed projection rather than with real 3D.
      Three numbers describe it: how far the back panel sits in from each
@@ -85,7 +87,12 @@
 }
 
 /* The light in the room, painted once at the top of the page rather than
-   fixed, so it costs nothing on scroll. */
+   fixed, so it costs nothing on scroll. It is on the theme rather than on the
+   pages that hold a shelf: scoping it with :has(.shelf-case) was measured and
+   is worse, because the shelf mounts behind a Suspense boundary, so the ground
+   would arrive a few hundred ms after the page did, on every load. The account
+   page getting the same light with no furniture under it is the cheaper
+   inconsistency, and it is in the same room. */
 .shelf-theme[data-shelf-theme="built-in"] {
   background-image: var(--shelf-room-light);
   background-repeat: no-repeat;
@@ -319,9 +326,15 @@
   position: relative;
   display: grid;
   grid-template-columns: repeat(var(--shelf-cols, auto-fill), 96px);
-  gap: var(--shelf-gap);
+  column-gap: var(--shelf-gap);
+  /* Not --shelf-gap. This applies only to the one un-measured render, where a
+     single bay holds the whole group and the grid wraps inside it; today that
+     render is never painted, because the shelf mounts behind a Suspense
+     boundary rather than arriving in the HTML. Matching the pitch of a real
+     bay costs nothing and means it stays shift-free if that changes. */
+  row-gap: calc(var(--shelf-row-top) + var(--shelf-board-h));
   justify-content: center;
-  padding: 18px 0 var(--shelf-board-h);
+  padding: var(--shelf-row-top) 0 var(--shelf-board-h);
 }
 .shelf-row .game-case-inner::after {
   content: "";
@@ -337,20 +350,18 @@
   pointer-events: none;
   background: radial-gradient(ellipse at 50% 0%, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 72%);
 }
-/* On a phone the furniture is what costs a cover: 25px uprights and 16px of
-   row padding is 82px of a 390px screen, inside the page's own 48px, and that
-   is exactly the difference between three covers on a shelf and two. Both
-   shrink below `sm`, and the games end up butting against the uprights, which
-   is what books do in a real bookcase anyway.
+/* On a phone the uprights are what cost a cover: 25px a side is 50px of a
+   390px screen, inside the page's own 48px, and that is exactly the difference
+   between three covers on a shelf and two. They halve below `sm`, and the
+   games end up close against them, which is what books do in a real bookcase
+   anyway. The headroom comes down with them so the bays stay in proportion.
 
    Nothing measures these numbers by hand: useShelfBoards reads the row's
-   computed padding, so the column count follows whatever this says. */
+   computed padding and gap, so the column count follows whatever this says. */
 @media (max-width: 639.98px) {
   .shelf-theme[data-shelf-theme="built-in"] {
     --shelf-stile-w: 12px;
-  }
-  .shelf-row {
-    padding-top: 12px;
+    --shelf-row-top: 12px;
   }
 }
 

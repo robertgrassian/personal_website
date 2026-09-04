@@ -1,21 +1,15 @@
-/* Shelf-specific design tokens, scoped to .shelf-theme.
-   Shelf structure (plank, edge, shadow) uses unique dark walnut tones.
-   Chrome (inputs, labels, filter bar) uses warm-neutral colors that
-   bridge the site palette with the wood aesthetic. */
+/* Library chrome, scoped to .shelf-theme: inputs, labels, the filter bar, the
+   detail card. Warm-neutral, bridging the site palette with the wood.
+
+   What a SHELF looks like is not here. That belongs to whichever theme is worn
+   and lives in shelf-themes.css. */
 
 .shelf-theme {
-  /* --- Shelf structure: dark walnut --- */
   --shelf-bg: #faf9f7;
   /* The library's generic border colour: modal panels, the tab strip, the
      suggestion list. Named for the job rather than for wood, because a
      shelf theme may have no wood in it. */
   --shelf-border: #5c3a1e;
-  /* The CRT's wooden chassis, which is its own object and does not follow
-     the shelf theme. */
-  --crt-body: #5c3a1e;
-  --shelf-edge: #3d2613;
-  --shelf-edge-bottom: #170f07; /* darker edge for lip gradient: manually darkened from --shelf-edge */
-  --shelf-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
 
   /* --- Page text: site neutral palette --- */
   --shelf-text: #171717;
@@ -355,196 +349,6 @@
   animation: game-card-confirm-rise 180ms ease-out;
 }
 
-/* ── Currently Playing CRT ──
-   A wood-paneled CRT television that shows the currently-playing game's cover.
-   Bezel reuses the shelf walnut tones; grain runs vertically (0deg gradients)
-   so it reads as panel veneer rather than a shelf plank.
-   Layers inside .crt-screen, back to front:
-     cover art (cropped to fill) → scanlines → roll bar → glass glare → OSD text. */
-.crt-tv-body {
-  /* Grain/shadow tokens — overridden for dark mode in the media query below. */
-  --crt-grain: rgba(0, 0, 0, 0.1);
-  --crt-warm: rgba(255, 200, 120, 0.08);
-  --crt-sh-top: rgba(255, 255, 255, 0.1);
-  --crt-sh-bot: rgba(0, 0, 0, 0.15);
-
-  display: flex;
-  gap: 10px;
-  padding: 12px;
-  background-color: var(--crt-body);
-  background-image:
-    repeating-linear-gradient(
-      0deg,
-      var(--crt-grain) 0px,
-      transparent 1px,
-      transparent 2px,
-      var(--crt-grain) 3px,
-      transparent 4px,
-      transparent 9px
-    ),
-    linear-gradient(0deg, transparent 0%, var(--crt-warm) 30%, transparent 60%);
-  border-radius: 10px;
-  box-shadow:
-    inset 0 2px 3px var(--crt-sh-top),
-    inset 0 -3px 5px var(--crt-sh-bot),
-    0 8px 20px rgba(0, 0, 0, 0.4);
-}
-
-/* Elliptical border-radius (horizontal / vertical) hints at curved CRT glass.
-   The inset shadow vignettes the corners; the ring is the inner plastic frame. */
-.crt-screen {
-  position: relative;
-  width: 168px;
-  height: 128px;
-  border-radius: 10px / 12px;
-  overflow: hidden;
-  background: #0c0c0c;
-  box-shadow:
-    inset 0 0 18px rgba(0, 0, 0, 0.9),
-    0 0 0 3px #1a1512;
-  /* Force the rounded clip to rasterize into one layer. Without this, browsers
-     clip the animated children (roll bar / picture) against the border-radius on
-     a separate compositor layer, and sub-pixel rounding leaves a bright hairline
-     along the top/bottom edge — visible when zoomed and repainting (scroll/mouse
-     move). translateZ(0) + backface-visibility:hidden pin it to one surface. */
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  isolation: isolate;
-}
-
-/* Power-on: the picture snaps on from a thin over-bright horizontal line and
-   settles to normal brightness — a classic tube turn-on. Plays once per mount.
-   `backwards` fill keeps the collapsed 0% state during the initial delay (so the
-   screen reads as "off" for a beat) but drops the transform once it ends — the
-   end frame equals the default style, and not holding a transform avoids leaving
-   a lingering compositor layer inside the rounded clip. */
-.crt-picture {
-  position: absolute;
-  inset: 0;
-  animation: crt-power-on 0.6s ease-out 0.15s backwards;
-}
-
-@keyframes crt-power-on {
-  0% {
-    transform: scaleY(0.005);
-    filter: brightness(6);
-  }
-  60% {
-    transform: scaleY(1);
-    filter: brightness(1.8);
-  }
-  100% {
-    transform: scaleY(1);
-    filter: brightness(1);
-  }
-}
-
-.crt-scanlines {
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(0, 0, 0, 0.22) 0px,
-    rgba(0, 0, 0, 0.22) 1px,
-    transparent 2px,
-    transparent 3px
-  );
-  pointer-events: none;
-}
-
-.crt-glare {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse 55% 38% at 28% 18%,
-    rgba(255, 255, 255, 0.22) 0%,
-    transparent 70%
-  );
-  pointer-events: none;
-}
-
-/* Roll bar — the faint bright band that drifts down a CRT picture (the
-   artifact you see when filming a tube TV). The band is a fixed-height
-   gradient translated from above the screen to below it; linear timing keeps
-   the drift mechanical. Height/duration are the tuning knobs. */
-.crt-rollbar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 48px;
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    rgba(255, 255, 255, 0.06) 40%,
-    rgba(255, 255, 255, 0.11) 50%,
-    rgba(255, 255, 255, 0.06) 60%,
-    transparent 100%
-  );
-  pointer-events: none;
-  animation: crt-roll 8s linear infinite;
-}
-
-@keyframes crt-roll {
-  from {
-    transform: translateY(-48px);
-  }
-  to {
-    transform: translateY(128px);
-  }
-}
-
-/* VCR-style on-screen display. steps(2, jump-none) snaps between full and dim
-   with no tween — a digital blink, not a smooth pulse. */
-.crt-osd {
-  position: absolute;
-  top: 8px;
-  left: 10px;
-  font-family: var(--font-geist-mono);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  color: #6ee86e;
-  text-shadow: 0 0 6px rgba(110, 232, 110, 0.9);
-  /* Two animations: a one-shot fade-in after the power-on finishes (backwards
-     fill hides the OSD until its delay elapses), then the endless blink. */
-  animation:
-    crt-osd-in 0.2s 0.75s backwards,
-    crt-blink 2.4s 0.95s steps(2, jump-none) infinite;
-}
-
-@keyframes crt-osd-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes crt-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
-}
-
-/* "Live" indicator dot in the metadata eyebrow — smooth pulse, unlike the OSD.
-   currentColor inherits the accent from the parent's text color. */
-.crt-live-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  margin-right: 6px;
-  vertical-align: 1px;
-  animation: crt-blink 2.2s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
   /* The hover lift and the detail card's flight. The flight is skipped in JS
      too (useCardFlight); this covers the transition the lift would still run. */
@@ -555,127 +359,12 @@
     transition: none;
   }
 
-  .game-card-confirm,
-  .crt-osd,
-  .crt-live-dot,
-  .crt-picture {
+  .game-card-confirm {
     animation: none;
   }
-
-  /* A frozen roll bar would just look like a smudge — hide it entirely. */
-  .crt-rollbar {
-    display: none;
-  }
-
-  /* Channel switches happen instantly under reduced motion (see the component),
-     so there's no burst to show — hide the static overlay outright. */
-  .crt-static {
-    display: none;
-  }
-}
-
-.crt-knob {
-  background: radial-gradient(circle at 35% 30%, #6b5a49 0%, #2e2118 75%);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.5),
-    inset 0 1px 1px rgba(255, 255, 255, 0.15);
-}
-
-/* Transparent full-screen click target: clicking anywhere on the picture
-   advances to the next channel. It sits above the picture/glare/OSD (which are
-   pointer-events:none) so every click lands here. Amber focus ring, inset so it
-   isn't clipped by the screen's overflow:hidden, reuses the shelf input-ring
-   token to stay correct in both light and dark. */
-.crt-screen-button {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  border: 0;
-  padding: 0;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-}
-.crt-screen-button:focus-visible {
-  outline: 2px solid var(--shelf-input-ring);
-  outline-offset: -3px;
-}
-
-/* TV snow shown during a channel change. The noise is a tiled SVG feTurbulence
-   image; grayscale + contrast makes it read as monochrome static. It flickers
-   via opacity only (no blend mode, no position jumps) — those combined with the
-   screen's rounded overflow occasionally left a bright horizontal seam.
-   Hidden until the screen gets .is-switching. */
-.crt-static {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-size: 120px 120px;
-  filter: grayscale(1) contrast(1.5) brightness(1.1);
-}
-.crt-screen.is-switching .crt-static {
-  animation: crt-snow 0.12s steps(3) infinite;
-}
-
-/* Flicker the snow's opacity so it shimmers like a detuned channel. */
-@keyframes crt-snow {
-  0% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 0.8;
-  }
-  100% {
-    opacity: 0.65;
-  }
-}
-
-/* Channel pips — one clickable dot per game beside the "Now playing" eyebrow.
-   Each jumps straight to its game; the active one is filled. currentColor
-   inherits the accent from the eyebrow's text-link, so both themes are covered. */
-.crt-channel-pip {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border: 0;
-  padding: 0;
-  appearance: none;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.35;
-  cursor: pointer;
-  transition:
-    opacity 0.2s ease,
-    transform 0.15s ease;
-}
-.crt-channel-pip:hover {
-  opacity: 0.7;
-  transform: scale(1.15);
-}
-.crt-channel-pip.is-active {
-  opacity: 1;
-}
-.crt-channel-pip:focus-visible {
-  outline: 2px solid var(--shelf-input-ring);
-  outline-offset: 2px;
-}
-
-/* Feet reuse the shelf edge gradient so the TV and the plank lip match. */
-.crt-foot {
-  background: linear-gradient(to bottom, var(--shelf-edge), var(--shelf-edge-bottom));
-  border-radius: 0 0 3px 3px;
 }
 
 @media (prefers-color-scheme: dark) {
-  .crt-tv-body {
-    --crt-grain: rgba(255, 255, 255, 0.06);
-    --crt-warm: rgba(255, 180, 80, 0.04);
-    --crt-sh-top: rgba(255, 255, 255, 0.04);
-    --crt-sh-bot: rgba(0, 0, 0, 0.3);
-  }
-
   .game-case-back-surface {
     --back-blur: 8px;
     --back-img-opacity: 0.55;
@@ -696,13 +385,8 @@
   }
 
   .shelf-theme {
-    /* --- Shelf structure: deep walnut on dark --- */
     --shelf-bg: #0f0d0b;
     --shelf-border: #2a1a0e;
-    --crt-body: #2a1a0e;
-    --shelf-edge: #8b5e3c;
-    --shelf-edge-bottom: #37251a; /* manually darkened from --shelf-edge */
-    --shelf-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
 
     /* --- Page text: site neutral palette --- */
     --shelf-text: #ededed;

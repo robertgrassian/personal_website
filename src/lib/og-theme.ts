@@ -47,6 +47,8 @@ export const OG = {
   // --shelf-wood as it RENDERS: the built-in theme dims its timber with
   // filter: brightness(0.82) in dark mode, which Satori cannot apply.
   shelfPlank: "#58381d",
-  shelfEdge: "#8b5e3c", // --shelf-edge
-  shelfEdgeBottom: "#37251a", // --shelf-edge-bottom
+  // The lip under the plank. The OG image is a single flat shelf rather than
+  // the real carcass, so these are its own values with no token behind them.
+  shelfEdge: "#8b5e3c",
+  shelfEdgeBottom: "#37251a",
 } as const;

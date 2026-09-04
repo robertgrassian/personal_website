@@ -27,22 +27,19 @@ export function columnsThatFit({ available, gap, caseWidth = CASE_WIDTH }: FitAr
   return Math.max(1, Math.floor((available + gap) / (caseWidth + gap)));
 }
 
-export type Board<T> = {
-  games: T[];
-  /** Only the first board of a group carries the group's name. */
-  isFirst: boolean;
-};
+/** One row of a case: the games standing on a single board. */
+export type Board<T> = T[];
 
 // One board per row of games, because a bookcase cannot hold three rows of
 // games in one bay. An empty group still yields one board: the case has to
 // have a shelf in it even when a filter has emptied the group.
 export function splitIntoBoards<T>(games: T[], columns: number): Board<T>[] {
   const perBoard = Math.max(1, columns);
-  if (games.length === 0) return [{ games: [], isFirst: true }];
+  if (games.length === 0) return [[]];
 
   const boards: Board<T>[] = [];
   for (let i = 0; i < games.length; i += perBoard) {
-    boards.push({ games: games.slice(i, i + perBoard), isFirst: i === 0 });
+    boards.push(games.slice(i, i + perBoard));
   }
   return boards;
 }
