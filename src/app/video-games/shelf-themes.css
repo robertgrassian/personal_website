@@ -16,16 +16,24 @@
    ══════════════════════════════════════════════════════════════════════════ */
 
 .shelf-theme[data-shelf-theme="built-in"] {
-  /* The room. Deeper than the plain theme's ground on purpose: the walnut is
-     fixed, so every step darker widens the gap between the furniture and what
-     it stands on. It stops helping below this -- at true black there is no
-     room left and the case reads as a cutout. */
-  --shelf-bg: #efe9df;
-  --shelf-room-light: radial-gradient(
-    120% 70% at 50% -10%,
-    rgba(255, 253, 247, 0.9) 0%,
-    rgba(255, 253, 247, 0) 60%
-  );
+  /* The room. In light mode this is the site's own near-white, NOT a warm
+     ground tinted to flatter the walnut: the nav bar, the other pages and the
+     stats panel are all white, so a warm library read as a different site
+     rather than as a lit room. The separation the tint was buying is bought
+     instead by --shelf-case-shadow below, which costs the rest of the site
+     nothing. Dark mode keeps its deep ground, where nothing else is white.
+
+     For the same reason there is no warm wash over a white page: the light in
+     the room only has somewhere to land once the ground is dark. */
+  --shelf-bg: #faf9f7;
+  --shelf-room-light: none;
+
+  /* What lifts the case off the page now that the ground is white: contact
+     under the plinth, and a soft halo carrying it a little past both uprights.
+     Two shadows because one cannot be both -- a tight dark contact edge and a
+     wide faint spread are different blurs. */
+  --shelf-case-shadow:
+    0 20px 40px -18px rgba(60, 44, 30, 0.55), 0 4px 24px -8px rgba(60, 44, 30, 0.22);
 
   --shelf-wood: #6b4423;
   --shelf-carcass: #4a2e17;
@@ -108,6 +116,10 @@
       rgba(255, 222, 176, 0.045) 0%,
       rgba(255, 222, 176, 0) 62%
     );
+    /* Only the contact shadow survives here. The halo is what separates the
+       case from a white page; against a near-black ground there is no lighter
+       value for it to darken, so it is invisible cost. */
+    --shelf-case-shadow: 0 24px 46px -20px rgba(0, 0, 0, 0.75);
   }
 }
 
@@ -145,7 +157,7 @@
     rgba(255, 255, 255, 0.04) 30%,
     rgba(0, 0, 0, 0.3)
   );
-  box-shadow: 0 24px 46px -20px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--shelf-case-shadow);
 }
 .shelf-crown,
 .shelf-plinth,
@@ -263,6 +275,15 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 236, 204, 0.26),
     0 3px 7px rgba(0, 0, 0, 0.45);
+}
+
+/* The bottom bay stands on the plinth, with no board of its own. Two boards
+   14px and 19px thick, stacked with nothing between them, read as one clumsy
+   30px slab and made the case look bottom-heavy. Zeroing the board height here
+   is enough on its own: the row's bottom padding, the back panel and both side
+   walls are all anchored off the same token, so they follow the games down. */
+.shelf-bay-floor {
+  --shelf-board-h: 0px;
 }
 
 /* The floor of the shelf, and the two side walls. Each is a trapezoid: the

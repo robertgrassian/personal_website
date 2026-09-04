@@ -49,27 +49,32 @@ export function BuiltInGroup({ label, games }: ShelfGroupProps) {
         <div className="shelf-stile shelf-stile-l" />
         <div className="shelf-stile shelf-stile-r" />
 
-        {boards.map((board, index) => (
-          // Keyed by position, not by content: a board IS "row n of this
-          // case", and its games change under it on every resize.
-          <div className="shelf-bay" key={index}>
-            <div className="shelf-back" />
-            {/* The floor and the two side walls, as flat trapezoids. There is
+        {boards.map((board, index) => {
+          // The bottom bay has no board: its games stand on the plinth, which
+          // is already a board's worth of timber under them.
+          const isLast = index === boards.length - 1;
+          return (
+            // Keyed by position, not by content: a board IS "row n of this
+            // case", and its games change under it on every resize.
+            <div className={`shelf-bay${isLast ? " shelf-bay-floor" : ""}`} key={index}>
+              <div className="shelf-back" />
+              {/* The floor and the two side walls, as flat trapezoids. There is
                 no ceiling: every bay is seen from the same place, slightly
                 above, so it was never visible. */}
-            <div className="shelf-wall shelf-wall-l" />
-            <div className="shelf-wall shelf-wall-r" />
-            <div className="shelf-wall shelf-wall-f" />
-            <div className="shelf-board" />
-            {/* Fixed-width tracks with a fixed gap, and the whole block
+              <div className="shelf-wall shelf-wall-l" />
+              <div className="shelf-wall shelf-wall-r" />
+              <div className="shelf-wall shelf-wall-f" />
+              {!isLast && <div className="shelf-board" />}
+              {/* Fixed-width tracks with a fixed gap, and the whole block
                 centred, so a full row leaves equal air at both uprights. */}
-            <div className="shelf-row">
-              {board.map((game) => (
-                <GameCase key={game.name + "-" + game.system} game={game} />
-              ))}
+              <div className="shelf-row">
+                {board.map((game) => (
+                  <GameCase key={game.name + "-" + game.system} game={game} />
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         <div className="shelf-plinth" />
       </div>
