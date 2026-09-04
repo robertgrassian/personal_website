@@ -29,11 +29,18 @@
   --shelf-room-light: none;
 
   /* What lifts the case off the page now that the ground is white: contact
-     under the plinth, and a soft halo carrying it a little past both uprights.
-     Two shadows because one cannot be both -- a tight dark contact edge and a
-     wide faint spread are different blurs. */
+     under the plinth, and a soft halo carrying it past both uprights. Two
+     shadows because one cannot be both -- a tight dark contact edge and a wide
+     faint spread are different blurs.
+
+     Watch the SPREAD (the fourth length). It shrinks the shadow box before the
+     blur runs, and a blur only reaches about half its radius beyond that box,
+     so sideways reach is blur/2 - spread. The first attempt here used -18px
+     and -8px against 40px and 24px blurs, which left 2px and 4px of reach and
+     read as no shadow at all. Keeping the glow off the TOP edge is the
+     y-offset's job, not the spread's. */
   --shelf-case-shadow:
-    0 20px 40px -18px rgba(60, 44, 30, 0.55), 0 4px 24px -8px rgba(60, 44, 30, 0.22);
+    0 14px 22px -10px rgba(60, 44, 30, 0.5), 0 9px 32px -4px rgba(60, 44, 30, 0.26);
 
   --shelf-wood: #6b4423;
   --shelf-carcass: #4a2e17;
