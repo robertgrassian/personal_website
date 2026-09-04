@@ -26,7 +26,11 @@ type FollowCountLinksProps = {
 // Shared by the links and by the static fallback below, so the two render
 // identically apart from the active highlight and there is no layout shift
 // when hydration swaps one for the other.
-const BASE = "underline underline-offset-2 decoration-shelf-underline transition-colors";
+// skip-ink:none because browsers default to auto, which breaks the underline
+// around a descender. "following" ends in one, so the gap reads as the rule
+// stopping short of the word rather than as a deliberate cut-out.
+const BASE =
+  "underline underline-offset-2 decoration-shelf-underline transition-colors [text-decoration-skip-ink:none]";
 // decoration-2 gives the active state a second signal besides color. Underline
 // width rather than font weight, because a heavier label would reflow the row.
 const ACTIVE = "text-link decoration-link decoration-2";
