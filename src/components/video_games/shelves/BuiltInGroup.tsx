@@ -7,8 +7,8 @@ import { useShelfBoards } from "./useShelfBoards";
 // One bookcase per group: its own crown, uprights and plinth, standing apart
 // from the others rather than sharing one endless carcass. Each row of games
 // gets its own board, because a bookcase cannot hold three rows in one bay, and
-// each bay is a real box — floor, ceiling, two side walls — in a perspective
-// that belongs to this case alone.
+// each bay is a box: a back panel inset from the opening, the shelf floor in
+// front of it, and a side wall down each edge.
 //
 // The name goes above the case in the page's own type rather than onto the
 // furniture. Etching it into the wood was tried at three sizes and two
@@ -30,8 +30,8 @@ export function BuiltInGroup({ label, games }: ShelfGroupProps) {
         </h2>
       )}
 
-      {/* The carcass. Its `perspective` is set by useShelfBoards from its own
-          measured height. */}
+      {/* The carcass. The ref is what useShelfBoards measures to decide how
+          many covers fit on a board. */}
       <div ref={caseRef} className="shelf-case">
         <div className="shelf-crown" />
         <div className="shelf-stile shelf-stile-l" />
@@ -44,10 +44,9 @@ export function BuiltInGroup({ label, games }: ShelfGroupProps) {
           // DOM between boards instead of rebuilding it.
           <div className="shelf-bay" key={index}>
             <div className="shelf-back" />
-            {/* Four inner faces. Each is culled by backface-visibility exactly
-                when you should not be able to see it, so a bay above your eye
-                shows its ceiling and one below shows its floor. */}
-            <div className="shelf-wall shelf-wall-t" />
+            {/* The floor and the two side walls, as flat trapezoids. There is
+                no ceiling: every bay is seen from the same place, slightly
+                above, so it was never visible. */}
             <div className="shelf-wall shelf-wall-l" />
             <div className="shelf-wall shelf-wall-r" />
             <div className="shelf-wall shelf-wall-f" />

@@ -12,7 +12,7 @@
    than on which stylesheet happens to be imported second. */
 
 /* ══════════════════════════════════════════════════════════════════════════
-   BUILT-IN — a walnut bookcase per group, a board per row, in perspective
+   BUILT-IN — a walnut bookcase per group, a board per row, with depth
    ══════════════════════════════════════════════════════════════════════════ */
 
 .shelf-theme[data-shelf-theme="built-in"] {
@@ -39,8 +39,17 @@
 
   --shelf-board-h: 14px;
   --shelf-stile-w: 25px;
-  --shelf-bay-depth: 32px;
   --shelf-gap: 12px;
+
+  /* The inside of a bay, drawn as a fixed projection rather than with real 3D.
+     Three numbers describe it: how far the back panel sits in from each
+     upright, how much of the shelf floor shows in front of it, and how far the
+     panel rises above the opening. They were the measurements the perspective
+     used to produce, so nothing about the shape changed when the transforms
+     came out. */
+  --shelf-inset: 1.4%;
+  --shelf-floor: 7px;
+  --shelf-lift: 3px;
 
   /* Broad lighting across a piece, as opposed to the grain drawn on it. */
   --shelf-band-h: linear-gradient(
@@ -130,11 +139,6 @@
     rgba(0, 0, 0, 0.3)
   );
   box-shadow: 0 24px 46px -20px rgba(0, 0, 0, 0.6);
-  /* No `perspective` here: it belongs to each bay, so that every shelf in a
-     case renders identically. See .shelf-bay. Nothing between that perspective
-     and the faces below may set `overflow` or `filter`, though: both silently
-     flatten a 3D subtree, and the failure is invisible until faces start
-     overlapping the row above. */
 }
 .shelf-crown,
 .shelf-plinth,
@@ -195,31 +199,31 @@
 }
 
 /* ── One bay per board, and every bay is a box ─────────────────────────────
-   The perspective belongs to the BAY, not to the case, so every shelf is seen
-   from the same place and renders identically.
+   Every bay is seen from the same place, so the projection is a constant and
+   there is nothing here that needs real 3D. The floor and the two side walls
+   are trapezoids cut with clip-path, and the back panel is a rectangle inset
+   from the opening.
 
-   One vanishing point for a whole case is more correct -- a real bookcase does
-   show you the underside of its high shelves and the top of its low ones --
-   but it means the ceiling band above the covers grows the further a bay sits
-   from eye level, so the gap above the artwork changes as you scroll. That
-   reads as an inconsistency rather than as depth, and on a phone, where a case
-   runs to nine bays and only one is on screen at a time, there is no shared
-   view to perceive anyway.
+   It used to be a genuine 3D box: `perspective` and `transform-style:
+   preserve-3d` on the bay, five rotated faces inside it, `backface-visibility`
+   culling the ones you should not see. Correct, and far too expensive. Each of
+   those faces is promoted to its own compositing layer, so a phone showing
+   sixty bays asked for around three hundred of them, and a layer's backing
+   store grows with the square of the zoom. Pinch in far enough and iOS runs out
+   of memory and reloads the tab.
 
-   The origin is above every bay, so each one is seen from slightly overhead:
-   the floor of the shelf shows behind the covers and in the empty part of a
-   part-full row, and the ceiling is culled by backface-visibility. The back
-   panel projects a couple of pixels past the bay's top edge, which is what
-   covers the wedge the ceiling would otherwise have filled. */
+   Nothing was lost by flattening it. The ceiling was already culled at every
+   bay, so it is simply gone; the other three faces always presented the same
+   angle, so a fixed shape draws them exactly. */
 .shelf-bay {
   position: relative;
-  transform-style: preserve-3d;
-  perspective: 1100px;
-  perspective-origin: 50% -55%;
 }
 .shelf-back {
   position: absolute;
-  inset: 0 0 var(--shelf-board-h) 0;
+  left: var(--shelf-inset);
+  right: var(--shelf-inset);
+  top: calc(-1 * var(--shelf-lift));
+  bottom: calc(var(--shelf-board-h) + var(--shelf-floor));
   background-color: var(--shelf-wood);
   /* Wood, then the shelf above's shadow over it. The shadow is heavy at the
      top where the overhang is closest and eases off toward the board, and the
@@ -238,7 +242,6 @@
     auto,
     384px 512px;
   filter: brightness(var(--shelf-wood-dim));
-  transform: translateZ(calc(-1 * var(--shelf-bay-depth)));
 }
 .shelf-board {
   position: absolute;
@@ -255,40 +258,22 @@
     0 3px 7px rgba(0, 0, 0, 0.45);
 }
 
-/* The four inner faces. Each one's normal points into the bay, so culling its
-   back face is exactly right: a bay above your eye draws its ceiling and one
-   below draws its floor, with nothing computed per shelf.
+/* The floor of the shelf, and the two side walls. Each is a trapezoid: the
+   edge nearest you spans the full opening, and the edge at the back is inset,
+   which is the whole of what reads as depth.
 
-   Each is pushed back a pixel BEFORE its rotation (transforms read
-   right-to-left, so the translate applies in the bay's space, not the face's).
-   That is what stops the browser sorting a side wall in front of the outermost
-   cover, and it does it without moving the games: the cases stay at exactly
-   z = 0, where perspective maps 1:1, so getBoundingClientRect stays pixel
-   exact and the detail card's flight measures what it always did. */
+   The clip paths carry no magic numbers. Each face is anchored with top and
+   bottom rather than a height, so its own box already spans the opening and
+   the corners can be written from the same tokens the back panel uses. */
 .shelf-wall {
   position: absolute;
-  backface-visibility: hidden;
-}
-.shelf-wall-t {
-  left: 0;
-  right: 0;
-  top: 0;
-  height: var(--shelf-bay-depth);
-  transform-origin: top center;
-  transform: translateZ(-1px) rotateX(-90deg);
-  background-image:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.46), rgba(0, 0, 0, 0.82)), var(--shelf-grain-h);
-  background-size:
-    auto,
-    512px 56px;
 }
 .shelf-wall-f {
   left: 0;
   right: 0;
   bottom: var(--shelf-board-h);
-  height: var(--shelf-bay-depth);
-  transform-origin: bottom center;
-  transform: translateZ(-1px) rotateX(90deg);
+  height: var(--shelf-floor);
+  clip-path: polygon(0 100%, 100% 100%, calc(100% - var(--shelf-inset)) 0, var(--shelf-inset) 0);
   background-image:
     linear-gradient(180deg, rgba(0, 0, 0, 0.52), rgba(255, 240, 215, 0.1)), var(--shelf-grain-h);
   background-size:
@@ -297,11 +282,10 @@
 }
 .shelf-wall-l {
   left: 0;
-  top: 0;
+  top: calc(-1 * var(--shelf-lift));
   bottom: var(--shelf-board-h);
-  width: var(--shelf-bay-depth);
-  transform-origin: left center;
-  transform: translateZ(-1px) rotateY(90deg);
+  width: var(--shelf-inset);
+  clip-path: polygon(0 var(--shelf-lift), 0 100%, 100% calc(100% - var(--shelf-floor)), 100% 0);
   background-image:
     linear-gradient(90deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.66)), var(--shelf-grain-v);
   background-size:
@@ -310,11 +294,10 @@
 }
 .shelf-wall-r {
   right: 0;
-  top: 0;
+  top: calc(-1 * var(--shelf-lift));
   bottom: var(--shelf-board-h);
-  width: var(--shelf-bay-depth);
-  transform-origin: right center;
-  transform: translateZ(-1px) rotateY(-90deg);
+  width: var(--shelf-inset);
+  clip-path: polygon(100% var(--shelf-lift), 100% 100%, 0 calc(100% - var(--shelf-floor)), 0 0);
   background-image:
     linear-gradient(270deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.66)), var(--shelf-grain-v);
   background-size:
