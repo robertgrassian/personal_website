@@ -315,6 +315,15 @@
 .shelf-bay-floor {
   --shelf-board-h: 0px;
 }
+/* The bottom row's covers sit flush on the plinth, so their contact shadow
+   (game-case-inner::after, entirely below the case) falls into the plinth's
+   band. The plinth is z-index 7 and a bay is z-index auto in the same stacking
+   context, so without this the one row standing on the plinth is the one row
+   with no shadow under it. Only the row is lifted, not the whole bay: the back
+   panel and walls have no business in front of the plinth. */
+.shelf-bay-floor .shelf-row {
+  z-index: 8;
+}
 
 /* The floor of the shelf, and the two side walls. Each is a trapezoid: the
    edge nearest you spans the full opening, and the edge at the back is inset,

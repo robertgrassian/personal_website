@@ -21,6 +21,7 @@
 import sharp from "sharp";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildLattice, turbulence } from "./wood-grain/turbulence.mjs";
 
 const SRC = "scripts/wood-grain";
@@ -40,29 +41,66 @@ const TILES = [
 
 export function parseSvg(svg) {
   const size = svg.match(/width='(\d+)'\s+height='(\d+)'/);
+  if (size === null) throw new Error("source SVG has no single-quoted width/height on <svg>");
   const width = Number(size[1]);
   const height = Number(size[2]);
 
+  // Attributes are read by NAME, not by position, and each filter is matched as
+  // a bounded block. An earlier version used one lazy regex spanning
+  // <filter ...><feTurbulence ...>, which could run past the end of one filter
+  // and pair its id with the NEXT filter's parameters -- baking a tile that
+  // silently did not match its source. CLAUDE.md invites edits to these files,
+  // so wrong-but-quiet is the failure mode worth designing out.
+  const attr = (s, name) => {
+    const m = s.match(new RegExp(`\\b${name}='([^']*)'`));
+    return m === null ? null : m[1];
+  };
+
   const filters = new Map();
-  const re =
-    /<filter id='(\w+)'[\s\S]*?<feTurbulence type='(\w+)' baseFrequency='([\d.]+) ([\d.]+)' numOctaves='(\d+)' seed='(\d+)'( stitchTiles='(\w+)')?\/>[\s\S]*?<feColorMatrix type='matrix' values='([^']+)'/g;
-  let m;
-  while ((m = re.exec(svg)) !== null) {
-    filters.set(m[1], {
-      fractal: m[2] === "fractalNoise",
-      baseFreqX: Number(m[3]),
-      baseFreqY: Number(m[4]),
-      octaves: Number(m[5]),
-      seed: Number(m[6]),
-      stitchTiles: m[8] === "stitch",
-      matrix: m[9].trim().split(/\s+/).map(Number),
+  for (const m of [...svg.matchAll(/<filter\b([\s\S]*?)<\/filter>/g)]) {
+    const body = m[1];
+    const id = attr(body, "id");
+    if (id === null) throw new Error("a <filter> in the source SVG has no id");
+    const turb = body.match(/<feTurbulence\b[^>]*\/>/);
+    const mat = body.match(/<feColorMatrix\b[^>]*\/>/);
+    if (turb === null || mat === null) {
+      throw new Error(`filter '${id}' needs both an feTurbulence and an feColorMatrix`);
+    }
+    const freq = (attr(turb[0], "baseFrequency") ?? "").trim().split(/\s+/).map(Number);
+    if (freq.length === 0 || freq.some(Number.isNaN)) {
+      throw new Error(`filter '${id}' has no usable baseFrequency`);
+    }
+    const values = (attr(mat[0], "values") ?? "").trim().split(/\s+/).map(Number);
+    if (values.length !== 20 || values.some(Number.isNaN)) {
+      throw new Error(`filter '${id}' needs 20 numbers in its feColorMatrix values`);
+    }
+    filters.set(id, {
+      fractal: attr(turb[0], "type") === "fractalNoise",
+      baseFreqX: freq[0],
+      // A single value means the same frequency on both axes, per the spec.
+      baseFreqY: freq.length > 1 ? freq[1] : freq[0],
+      octaves: Number(attr(turb[0], "numOctaves") ?? 1),
+      seed: Number(attr(turb[0], "seed") ?? 0),
+      stitchTiles: attr(turb[0], "stitchTiles") === "stitch",
+      matrix: values,
     });
   }
 
-  // Paint order: the rects reference filters by id, bottom-most first.
-  const layers = [...svg.matchAll(/<rect[^>]*filter='url\(#(\w+)\)'/g)].map((r) =>
-    filters.get(r[1])
-  );
+  // Paint order: the rects reference filters by id, bottom-most first. Anything
+  // this baker cannot paint is an error rather than a silent omission -- a
+  // browser previewing the same file WOULD paint it, so the two would diverge.
+  const layers = [...svg.matchAll(/<rect\b[^>]*>/g)].map(([rect]) => {
+    const ref = (attr(rect, "filter") ?? "").match(/^url\(#(.+)\)$/);
+    if (ref === null) {
+      throw new Error(
+        `unfiltered <rect> in the source SVG: ${rect}. This baker paints nothing else.`
+      );
+    }
+    const layer = filters.get(ref[1]);
+    if (layer === undefined) throw new Error(`<rect> references unknown filter '${ref[1]}'`);
+    return layer;
+  });
+  if (layers.length === 0) throw new Error("no <rect> found in the source SVG");
   return { width, height, layers };
 }
 
@@ -143,19 +181,26 @@ export function buildTile(name, scale) {
   return { bytes, width: composite.w, height: composite.h };
 }
 
-fs.mkdirSync(OUT, { recursive: true });
+// Only bake when run as a script. The parser and tile builder are exported so
+// they can be exercised without writing files.
+const isCli =
+  process.argv[1] !== undefined && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 
-for (const { name, scale, quality } of TILES) {
-  const { bytes, width: w, height: h } = buildTile(name, scale);
+if (isCli) {
+  fs.mkdirSync(OUT, { recursive: true });
 
-  // alphaQuality 100 is not optional: the colour matrices map the noise to a
-  // solid colour with varying alpha, so the alpha channel IS the grain.
-  const buf = await sharp(bytes, {
-    raw: { width: w, height: h, channels: 4 },
-  })
-    .webp({ quality, alphaQuality: 100, effort: 6 })
-    .toBuffer();
+  for (const { name, scale, quality } of TILES) {
+    const { bytes, width: w, height: h } = buildTile(name, scale);
 
-  fs.writeFileSync(path.join(OUT, `${name}.webp`), buf);
-  console.log(`${name}.webp  ${w}x${h}  ${(buf.length / 1024).toFixed(0)}KB`);
+    // alphaQuality 100 is not optional: the colour matrices map the noise to a
+    // solid colour with varying alpha, so the alpha channel IS the grain.
+    const buf = await sharp(bytes, {
+      raw: { width: w, height: h, channels: 4 },
+    })
+      .webp({ quality, alphaQuality: 100, effort: 6 })
+      .toBuffer();
+
+    fs.writeFileSync(path.join(OUT, `${name}.webp`), buf);
+    console.log(`${name}.webp  ${w}x${h}  ${(buf.length / 1024).toFixed(0)}KB`);
+  }
 }

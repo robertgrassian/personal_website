@@ -29,9 +29,9 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 ## Backlog / Ideas
 
 - [ ] **The built-in shelf remounts part of every group's game cases on load**, because the first
-      render puts the whole group in one bay and a layout effect re-cuts it into rows.
-      `useShelfBoards` starts `columns` at 0. Measured ~35 of ~155 cases, not a confirmed
-      user-visible defect. [Details](docs/todo/shelf-recut-remount.md)
+      render puts the whole group in one bay and a layout effect re-cuts it into rows. ~35 of ~155
+      cases. **Promote to Bugs if the doc's focus-loss path reproduces.**
+      [Details](docs/todo/shelf-recut-remount.md)
 
 - [ ] **Rethink the staged "Stop Playing" notice and its Undo, both too easy to miss.** The stop is
       the one pending edit with no control still showing its state, so bigger text is not the

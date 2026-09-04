@@ -122,8 +122,11 @@ const TRUNCATION_HINT_CHARS = 22;
 // in a way it would not be for the sort labels: the open list is drawn by the
 // browser outside this box and still shows every name in full.
 //
-// Full-width in the mobile sheet, content-sized on the bar under the cap.
-const narrowingFilterWidth = "w-full truncate sm:w-auto sm:max-w-44";
+// Bar only. The mobile sheet sizes its own copies of these selects with
+// sheetSelectClass in FilterSheet.tsx; everything here lives inside a
+// `hidden sm:contents` wrapper, so a width for the mobile case would only ever
+// apply while the element is display:none.
+const narrowingFilterWidth = "truncate sm:w-auto sm:max-w-44";
 
 // Renders a <select> with available options at the top and unavailable (disabled) ones below,
 // separated by a divider when both groups are present.

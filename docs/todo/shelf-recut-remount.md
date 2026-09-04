@@ -28,10 +28,28 @@ Two things this is _not_:
   grain. The same probe recorded **zero** re-cuts and zero mounts during a zoom, because the
   library sits in a `max-w-7xl` container: browser zoom does not change its CSS width on a wide
   desktop, so the column count never changes and no re-cut fires.
-- **Not a confirmed user-visible defect**, which is why this is in Backlog / Ideas rather than
+- **Not a confirmed user-visible defect**, which is why this sits in Backlog / Ideas rather than
   Bugs. The colour flash a remount used to cause was already fixed by seeding `GameCase` from the
   module-level cache in `dominant-color.ts`. Whether the recreated `<img>` visibly flashes on a
   cold cache is **unverified** - check that before treating this as a bug.
+
+## The strongest argument that it IS a defect (from code review, unverified)
+
+A remount destroys the focused element. The path a reviewer traced: a keyboard user tabs to a
+cover, then opens any dialog. `lockScroll()` sets `overflow: hidden` on the body, which on a
+platform with classic (non-overlay) scrollbars widens the layout by ~15px. If that crosses a
+column boundary the shelf re-cuts, the focused case unmounts, and focus falls to `<body>`.
+`useModalChrome`'s focus restore then skips it via its own `isConnected` guard, so focus never
+comes back on close and Tab restarts from the top of the document. A window resize or a device
+rotation does the same thing.
+
+**Unverified, and it may not reproduce on this machine**: macOS uses overlay scrollbars, so the
+lock does not change the layout width there. Reproduce on Windows, or with "always show
+scrollbars" enabled, before promoting this to Bugs. If it does reproduce, it is a keyboard
+accessibility defect and outranks everything else on this page.
+
+A second, smaller consequence of the same remount: `imageError` is component state, so a cover
+whose URL 404s re-attempts its load on every re-cut.
 
 ## Approaches, and the trade-off
 
