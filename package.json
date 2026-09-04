@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "grain": "node scripts/generate-wood-grain.mjs",
     "test": "node --experimental-strip-types --test \"src/**/*.test.ts\"",
     "prepare": "husky"
   },
