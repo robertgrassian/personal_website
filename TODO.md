@@ -28,6 +28,11 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 ## Backlog / Ideas
 
+- [ ] **The built-in shelf remounts part of every group's game cases on load**, because the first
+      render puts the whole group in one bay and a layout effect re-cuts it into rows. ~35 of ~155
+      cases. **Promote to Bugs if the doc's focus-loss path reproduces.**
+      [Details](docs/todo/shelf-recut-remount.md)
+
 - [ ] **Rethink the staged "Stop Playing" notice and its Undo, both too easy to miss.** The stop is
       the one pending edit with no control still showing its state, so bigger text is not the
       answer. Decide with **Show a confirmation toast after logging a session**.
@@ -111,8 +116,9 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 - [ ] Profile pictures for user accounts (post-v1: likely Supabase Storage plus an upload/crop flow,
       shown in the profile header and follower lists)
 
-- [ ] Homepage customization per user (post-v1: hero/backdrop, shelf styling, featured games. Scope
-      TBD)
+- [ ] **Per-user library customization, starting with letting someone pick their own shelf theme.**
+      The shelf half stopped being a design problem when shelf themes shipped: what is left is a
+      column, an API field and a picker. [Details](docs/todo/library-customization.md)
 
 - [ ] Staging environment: previews are read-only against prod, so writes first run for real in
       prod. [Details](docs/todo/staging-environment.md)

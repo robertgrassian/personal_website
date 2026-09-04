@@ -34,7 +34,7 @@ const selectedClass = "border-link font-semibold text-link";
 
 const idleClass: Record<TabTone, string> = {
   shelf:
-    "border-transparent font-medium text-shelf-text-muted hover:border-shelf-plank hover:text-link",
+    "border-transparent font-medium text-shelf-text-muted hover:border-shelf-border hover:text-link",
   page: "border-transparent font-medium text-muted hover:border-divider hover:text-foreground",
 };
 

@@ -39,9 +39,17 @@ export const OG = {
   // ── Page background ────────────────────────────────────────────────────────
   pageDark: "#0a0a0a", // --background (dark)
 
-  // ── Shelf (dark mode values from video-games.css .shelf-theme) ─────────────
-  shelfBg: "#0f0d0b", // --shelf-bg
-  shelfPlank: "#2a1a0e", // --shelf-plank
-  shelfEdge: "#8b5e3c", // --shelf-edge
-  shelfEdgeBottom: "#37251a", // --shelf-edge-bottom
+  // ── Shelf (dark mode values for the ACTIVE shelf theme) ────────────────────
+  // These follow ACTIVE_SHELF_THEME in src/lib/shelfTheme.ts, whose dark values
+  // live in shelf-themes.css. They are copied rather than imported for the same
+  // reason the accent hexes are: Satori has no browser, so no var() resolves.
+  shelfBg: "#080706", // --shelf-bg, built-in
+  // --shelf-wood as it RENDERS: in dark mode the built-in theme lays an 18%
+  // black --shelf-shade over the timber, which is 0.82 of it, and Satori
+  // composites no background layers.
+  shelfPlank: "#58381d",
+  // The lip under the plank. The OG image is a single flat shelf rather than
+  // the real carcass, so these are its own values with no token behind them.
+  shelfEdge: "#8b5e3c",
+  shelfEdgeBottom: "#37251a",
 } as const;

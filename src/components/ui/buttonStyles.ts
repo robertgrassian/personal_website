@@ -62,7 +62,7 @@ const variantClass: Record<ButtonVariant, string> = {
 
   // Anything that is not the primary action, not destructive and not text-only.
   secondary:
-    "rounded-md border border-shelf-plank text-shelf-text " +
+    "rounded-md border border-shelf-border text-shelf-text " +
     `hover:bg-shelf-input transition-colors cursor-pointer ${disabledClass}`,
 
   // Shelf tokens, not red-600/red-400: this renders on the account page's light
@@ -120,7 +120,7 @@ export function buttonClasses(variant: ButtonVariant, size: ButtonSize): string 
 export function toggleClasses(active: boolean): string {
   return active
     ? "border-link bg-shelf-input font-medium text-link"
-    : "border-shelf-plank text-shelf-text hover:bg-shelf-input";
+    : "border-shelf-border text-shelf-text hover:bg-shelf-input";
 }
 
 // One row inside the library header's menu (LibraryHeaderMenu): Back to my

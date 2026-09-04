@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "grain": "node scripts/generate-wood-grain.mjs",
     "test": "node --experimental-strip-types --test \"src/**/*.test.ts\"",
     "prepare": "husky"
   },
@@ -38,6 +39,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "prettier": "^3.8.1",
+    "sharp": "^0.34.3",
     "tailwindcss": "^4",
     "typescript": "5.9.3"
   }

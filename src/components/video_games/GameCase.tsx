@@ -3,7 +3,7 @@ import { useState, useRef, useCallback, memo } from "react";
 import Image from "next/image";
 import type { BaseGame } from "@/lib/baseGame";
 import { type Rating, RATINGS } from "@/lib/games";
-import { extractDominantColor } from "@/lib/dominant-color";
+import { cachedDominantColor, extractDominantColor } from "@/lib/dominant-color";
 import { RatingIndicator } from "./RatingIndicator";
 import { useLibraryCard } from "./LibraryCardContext";
 
@@ -22,8 +22,8 @@ type GameCaseProps = {
 };
 
 function GameCaseImpl({ game }: GameCaseProps) {
-  // Both read straight from context instead of arriving as props through
-  // ShelfSection, which stays presentational.
+  // Both read straight from context instead of arriving as props through the
+  // shelf group, which stays presentational.
   const { openCard, kind } = useLibraryCard();
   // `imageError` tracks whether the cover image failed to load (broken URL, network issue, etc.).
   // When true, we fall back to the system color just as if no imageUrl were provided.
@@ -32,9 +32,13 @@ function GameCaseImpl({ game }: GameCaseProps) {
   // Dominant color extracted from the cover art, handed to the detail card so
   // its background matches the cover you just clicked. null means not yet
   // extracted or no image; the card falls back to the console color.
-  const [dominantColor, setDominantColor] = useState<string | null>(null);
+  // Seeded from the module-level cache so a remount (the built-in shelf recuts
+  // its rows on resize) keeps the colour instead of flashing back to the
+  // fallback while it re-reads the canvas.
+  const cached = cachedDominantColor(game.imageUrl);
+  const [dominantColor, setDominantColor] = useState<string | null>(cached?.hex ?? null);
   // Whether that color is dark, which decides the spine text color on the card.
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(cached?.isDark ?? true);
   // Ref to the <img> element inside Next.js <Image> — needed by FastAverageColor
   // to read pixel data from the rendered image via a hidden <canvas>.
   const imageRef = useRef<HTMLImageElement>(null);
@@ -51,13 +55,13 @@ function GameCaseImpl({ game }: GameCaseProps) {
     if (!img) return;
     // Uses a shared FAC instance with a sequential queue — see src/lib/dominant-color.ts.
     // This avoids 100+ simultaneous canvas reads janking the main thread on page load.
-    extractDominantColor(img)
+    extractDominantColor(img, game.imageUrl)
       .then((result) => {
         setDominantColor(result.hex);
         setIsDark(result.isDark);
       })
       .catch(() => {});
-  }, []);
+  }, [game.imageUrl]);
 
   const open = useCallback(() => {
     const el = caseRef.current;
@@ -167,8 +171,8 @@ function GameCaseImpl({ game }: GameCaseProps) {
 
 // Memoized because a keystroke in the search box re-renders every visible card:
 // ~155 cases, ~1,500 elements, reconciling to change nothing. It only bites now
-// that the open callback comes from context — while ShelfSection allocated a
-// fresh `() => onEditGame(game)` per card per render, the props were never
+// that the open callback comes from context — while the shelf group allocated
+// a fresh `() => onEditGame(game)` per card per render, the props were never
 // equal and the memo would have been dead weight. Game objects come from the
 // server payload and keep a stable identity, so the default shallow comparison
 // is enough.

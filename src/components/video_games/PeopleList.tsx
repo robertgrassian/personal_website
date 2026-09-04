@@ -62,7 +62,7 @@ export function PeopleList({ view, users, isOwner }: PeopleListProps) {
           <li key={user.username}>
             <Link
               href={userLibraryPath(user.username)}
-              className="flex items-baseline gap-2 rounded-md border border-shelf-plank bg-shelf-input px-4 py-3 transition-colors hover:border-link"
+              className="flex items-baseline gap-2 rounded-md border border-shelf-border bg-shelf-input px-4 py-3 transition-colors hover:border-link"
             >
               <span className="font-medium text-shelf-text">{user.displayName}</span>
               <span className="text-sm text-shelf-text-muted">@{user.username}</span>

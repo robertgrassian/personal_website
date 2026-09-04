@@ -1,0 +1,465 @@
+/* Shelf themes: how one group of games is presented, and what furniture is
+   around it. The names here must match SHELF_THEMES in src/lib/shelfTheme.ts
+   and SHELF_GROUPS in components/video_games/shelves; all three move together.
+
+   Everything a theme does NOT own -- the filter chrome, inputs, dividers,
+   danger colours, the detail card -- stays in video-games.css and is shared.
+   The line between them is that a theme owns the SURFACE a game sits on and
+   the ground behind it, and nothing else.
+
+   Selectors are `.shelf-theme[data-shelf-theme="..."]` rather than the bare
+   attribute so they beat the base `.shelf-theme` block on specificity rather
+   than on which stylesheet happens to be imported second. */
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BUILT-IN — a walnut bookcase per group, a board per row, with depth
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.shelf-theme[data-shelf-theme="built-in"] {
+  /* The room. In light mode this is the site's own near-white, NOT a warm
+     ground tinted to flatter the walnut: the nav bar, the other pages and the
+     stats panel are all white, so a warm library read as a different site
+     rather than as a lit room. The separation the tint was buying is bought
+     instead by --shelf-case-shadow below, which costs the rest of the site
+     nothing. Dark mode keeps its deep ground, where nothing else is white.
+
+     For the same reason there is no warm wash over a white page: the light in
+     the room only has somewhere to land once the ground is dark. */
+  --shelf-bg: #faf9f7;
+  --shelf-room-light: none;
+
+  /* What lifts the case off the page now that the ground is white: contact
+     under the plinth, and a soft halo carrying it past both uprights. Two
+     shadows because one cannot be both -- a tight dark contact edge and a wide
+     faint spread are different blurs.
+
+     Watch the SPREAD (the fourth length). It shrinks the shadow box before the
+     blur runs, and a blur only reaches about half its radius beyond that box,
+     so sideways reach is blur/2 - spread. The first attempt here used -18px
+     and -8px against 40px and 24px blurs, which left 2px and 4px of reach and
+     read as no shadow at all. Keeping the glow off the TOP edge is the
+     y-offset's job, not the spread's. */
+  --shelf-case-shadow:
+    0 14px 22px -10px rgba(60, 44, 30, 0.5), 0 9px 32px -4px rgba(60, 44, 30, 0.26);
+
+  --shelf-wood: #6b4423;
+  --shelf-carcass: #4a2e17;
+  /* The back panel is the same timber as the rest of the case, seen in the
+     shadow the shelf above casts on it. A flat darker colour reads as a
+     sheet of something else propped behind the games. */
+  --shelf-grain-back: url("/shelf/grain-back.webp");
+  /* The uprights face the room squarely and catch more light than a shelf
+     edge shadowed by the games on it, which is also what makes them read as
+     separate boards rather than as a painted border. This is --shelf-wood
+     times 1.14, baked in rather than applied with brightness(): see below.  */
+  --shelf-wood-lit: #7a4d28;
+
+  /* Wood in a dim room is darker, not featureless. This is a PAINT layer, not
+     a filter: laid over the timber as the topmost background-image, black at
+     alpha a leaves c * (1 - a), which is exactly what brightness(1 - a) does,
+     so dark mode's 0.18 reproduces the old brightness(0.82) precisely.
+
+     It has to be paint because `filter` puts an element on its own rendering
+     surface. Every wooden piece carried one -- five per bay plus four per case,
+     several hundred on a full library -- so a desktop zoom invalidated all of
+     their backing stores at once and the page sat blank while they
+     re-rasterised. In light mode the old value was brightness(1), a no-op that
+     still paid the whole cost. Same class of problem as the bay faces, which
+     came off `perspective` for the same reason. */
+  --shelf-shade: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0));
+
+  --shelf-board-h: 14px;
+  --shelf-stile-w: 25px;
+  --shelf-gap: 12px;
+  /* Headroom over a row. Also half of the row-gap arithmetic below. */
+  --shelf-row-top: 18px;
+
+  /* The inside of a bay, drawn as a fixed projection rather than with real 3D.
+     Three numbers describe it: how far the back panel sits in from each
+     upright, how much of the shelf floor shows in front of it, and how far the
+     panel rises above the opening. They were the measurements the perspective
+     used to produce, so nothing about the shape changed when the transforms
+     came out. */
+  --shelf-inset: 1.4%;
+  --shelf-floor: 7px;
+  --shelf-lift: 3px;
+
+  /* Broad lighting across a piece, as opposed to the grain drawn on it. */
+  --shelf-band-h: linear-gradient(
+    0deg,
+    transparent 4%,
+    rgba(255, 205, 145, 0.09) 22%,
+    transparent 40%,
+    rgba(0, 0, 0, 0.13) 58%,
+    transparent 76%,
+    rgba(255, 205, 145, 0.09) 92%
+  );
+  --shelf-band-v: linear-gradient(
+    90deg,
+    transparent 4%,
+    rgba(255, 205, 145, 0.09) 20%,
+    transparent 38%,
+    rgba(0, 0, 0, 0.13) 56%,
+    transparent 74%,
+    rgba(255, 205, 145, 0.09) 92%
+  );
+
+  /* Grain, from one feTurbulence per piece with its base frequency stretched
+     ~50:1 along the length of the board. Fractal noise has no period, so
+     nothing repeats; stacked repeating-gradients (what this site used to draw
+     wood with) can only ever read as stripes, because stripes are what a
+     repeating gradient is.
+
+     These are BAKED to .webp by scripts/generate-wood-grain.mjs, from the SVGs
+     in scripts/wood-grain/, which stay the source of truth -- re-theme by
+     editing their colour matrices and re-running it. Inline the SVG again and
+     the desktop zoom bug comes straight back: noise is generated per pixel, and
+     the browser re-generates it whenever the raster target size changes, which
+     is precisely what a zoom step does. That blanked the library for most of a
+     second per step. A raster rescales with a cheap filter instead.
+
+     A board's grain runs along its length: horizontal for shelves, crown and
+     plinth, vertical for the uprights and the back panel. */
+  --shelf-grain-h: url("/shelf/grain-h.webp");
+  --shelf-grain-v: url("/shelf/grain-v.webp");
+}
+
+/* The light in the room, painted once at the top of the page rather than
+   fixed, so it costs nothing on scroll. It is on the theme rather than on the
+   pages that hold a shelf: scoping it with :has(.shelf-case) was measured and
+   is worse, because the shelf mounts behind a Suspense boundary, so the ground
+   would arrive a few hundred ms after the page did, on every load. The account
+   page getting the same light with no furniture under it is the cheaper
+   inconsistency, and it is in the same room. */
+.shelf-theme[data-shelf-theme="built-in"] {
+  background-image: var(--shelf-room-light);
+  background-repeat: no-repeat;
+  background-size: 100% 720px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .shelf-theme[data-shelf-theme="built-in"] {
+    --shelf-bg: #080706;
+    --shelf-shade: linear-gradient(rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.18));
+    --shelf-room-light: radial-gradient(
+      110% 55% at 50% -8%,
+      rgba(255, 222, 176, 0.045) 0%,
+      rgba(255, 222, 176, 0) 62%
+    );
+    /* Only the contact shadow survives here. The halo is what separates the
+       case from a white page; against a near-black ground there is no lighter
+       value for it to darken, so it is invisible cost. */
+    --shelf-case-shadow: 0 24px 46px -20px rgba(0, 0, 0, 0.75);
+  }
+}
+
+/* ── The name, in the page's own type, above the case ────────────────────── */
+.shelf-case-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 11px 2px;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--shelf-text);
+}
+.shelf-case-head i {
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--shelf-divider);
+}
+.shelf-case-head span {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--shelf-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── The carcass ─────────────────────────────────────────────────────────── */
+.shelf-case {
+  position: relative;
+  padding: 0 var(--shelf-stile-w);
+  background-color: var(--shelf-carcass);
+  background-image: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.35),
+    rgba(255, 255, 255, 0.04) 30%,
+    rgba(0, 0, 0, 0.3)
+  );
+  box-shadow: var(--shelf-case-shadow);
+}
+.shelf-crown,
+.shelf-plinth,
+.shelf-stile,
+.shelf-board,
+.shelf-wall {
+  background-color: var(--shelf-wood);
+}
+.shelf-stile {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--shelf-stile-w);
+  z-index: 6;
+  background-color: var(--shelf-wood-lit);
+  background-image: var(--shelf-shade), var(--shelf-grain-v), var(--shelf-band-v);
+  background-size:
+    auto,
+    56px 512px,
+    auto;
+}
+.shelf-stile-l {
+  left: 0;
+  box-shadow:
+    inset -3px 0 6px -3px rgba(0, 0, 0, 0.55),
+    inset 2px 0 0 rgba(255, 255, 255, 0.06);
+}
+.shelf-stile-r {
+  right: 0;
+  box-shadow:
+    inset 3px 0 6px -3px rgba(0, 0, 0, 0.55),
+    inset -2px 0 0 rgba(255, 255, 255, 0.06);
+}
+.shelf-crown,
+.shelf-plinth {
+  position: relative;
+  z-index: 7;
+  margin: 0 calc(-1 * var(--shelf-stile-w));
+  background-image: var(--shelf-shade), var(--shelf-grain-h), var(--shelf-band-h);
+  background-size:
+    auto,
+    512px 56px,
+    auto;
+}
+.shelf-crown {
+  height: 17px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 240, 215, 0.22),
+    0 4px 9px rgba(0, 0, 0, 0.4);
+}
+.shelf-plinth {
+  height: 19px;
+  box-shadow:
+    inset 0 1px 0 rgba(0, 0, 0, 0.4),
+    inset 0 -1px 0 rgba(255, 240, 215, 0.12);
+}
+
+/* ── One bay per board, and every bay is a box ─────────────────────────────
+   Every bay is seen from the same place, so the projection is a constant and
+   there is nothing here that needs real 3D. The floor and the two side walls
+   are trapezoids cut with clip-path, and the back panel is a rectangle inset
+   from the opening.
+
+   It used to be a genuine 3D box: `perspective` and `transform-style:
+   preserve-3d` on the bay, five rotated faces inside it, `backface-visibility`
+   culling the ones you should not see. Correct, and far too expensive. Each of
+   those faces is promoted to its own compositing layer, so a phone showing
+   sixty bays asked for around three hundred of them, and a layer's backing
+   store grows with the square of the zoom. Pinch in far enough and iOS runs out
+   of memory and reloads the tab.
+
+   Nothing was lost by flattening it. The ceiling was already culled at every
+   bay, so it is simply gone; the other three faces always presented the same
+   angle, so a fixed shape draws them exactly. */
+.shelf-bay {
+  position: relative;
+}
+.shelf-back {
+  position: absolute;
+  left: var(--shelf-inset);
+  right: var(--shelf-inset);
+  top: calc(-1 * var(--shelf-lift));
+  bottom: calc(var(--shelf-board-h) + var(--shelf-floor));
+  background-color: var(--shelf-wood);
+  /* Wood, then the shelf above's shadow over it. The shadow is heavy at the
+     top where the overhang is closest and eases off toward the board, and the
+     bottom picks up a little bounce back off the floor of the bay. */
+  background-image:
+    var(--shelf-shade),
+    linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.8) 0%,
+      rgba(0, 0, 0, 0.56) 34%,
+      rgba(0, 0, 0, 0.47) 100%
+    ),
+    linear-gradient(0deg, rgba(255, 240, 220, 0.07) 0%, rgba(255, 240, 220, 0) 22%),
+    var(--shelf-grain-back);
+  background-size:
+    auto,
+    auto,
+    auto,
+    384px 512px;
+}
+.shelf-board {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--shelf-board-h);
+  background-image: var(--shelf-shade), var(--shelf-grain-h), var(--shelf-band-h);
+  background-size:
+    auto,
+    512px 56px,
+    auto;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 236, 204, 0.26),
+    0 3px 7px rgba(0, 0, 0, 0.45);
+}
+
+/* The bottom bay stands on the plinth, with no board of its own. Two boards
+   14px and 19px thick, stacked with nothing between them, read as one clumsy
+   30px slab and made the case look bottom-heavy. Zeroing the board height here
+   is enough on its own: the row's bottom padding, the back panel and both side
+   walls are all anchored off the same token, so they follow the games down. */
+.shelf-bay-floor {
+  --shelf-board-h: 0px;
+}
+/* The bottom row's covers sit flush on the plinth, so their contact shadow
+   (game-case-inner::after, entirely below the case) falls into the plinth's
+   band. The plinth is z-index 7 and a bay is z-index auto in the same stacking
+   context, so without this the one row standing on the plinth is the one row
+   with no shadow under it. Only the row is lifted, not the whole bay: the back
+   panel and walls have no business in front of the plinth. */
+.shelf-bay-floor .shelf-row {
+  z-index: 8;
+}
+
+/* The floor of the shelf, and the two side walls. Each is a trapezoid: the
+   edge nearest you spans the full opening, and the edge at the back is inset,
+   which is the whole of what reads as depth.
+
+   The clip paths carry no magic numbers. Each face is anchored with top and
+   bottom rather than a height, so its own box already spans the opening and
+   the corners can be written from the same tokens the back panel uses. */
+.shelf-wall {
+  position: absolute;
+}
+.shelf-wall-f {
+  left: 0;
+  right: 0;
+  bottom: var(--shelf-board-h);
+  height: var(--shelf-floor);
+  clip-path: polygon(0 100%, 100% 100%, calc(100% - var(--shelf-inset)) 0, var(--shelf-inset) 0);
+  background-image:
+    var(--shelf-shade), linear-gradient(180deg, rgba(0, 0, 0, 0.52), rgba(255, 240, 215, 0.1)),
+    var(--shelf-grain-h);
+  background-size:
+    auto,
+    auto,
+    512px 56px;
+}
+.shelf-wall-l {
+  left: 0;
+  top: calc(-1 * var(--shelf-lift));
+  bottom: var(--shelf-board-h);
+  width: var(--shelf-inset);
+  clip-path: polygon(0 var(--shelf-lift), 0 100%, 100% calc(100% - var(--shelf-floor)), 100% 0);
+  background-image:
+    var(--shelf-shade), linear-gradient(90deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.66)),
+    var(--shelf-grain-v);
+  background-size:
+    auto,
+    auto,
+    56px 512px;
+}
+.shelf-wall-r {
+  right: 0;
+  top: calc(-1 * var(--shelf-lift));
+  bottom: var(--shelf-board-h);
+  width: var(--shelf-inset);
+  clip-path: polygon(100% var(--shelf-lift), 100% 100%, 0 calc(100% - var(--shelf-floor)), 0 0);
+  background-image:
+    var(--shelf-shade), linear-gradient(270deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.66)),
+    var(--shelf-grain-v);
+  background-size:
+    auto,
+    auto,
+    56px 512px;
+}
+
+/* The games, standing on the board. A grid of fixed 96px tracks whose whole
+   track block is centred: items fill it left to right, so a full board has
+   equal margins against both uprights and a part-full one stays left aligned
+   inside the same centred block. That is the layout the library had before the
+   redesign, and the gap is the 12px it had too.
+
+   The track count is explicit once useShelfBoards has measured, because the
+   board holds exactly that many covers and a grid that disagreed by one would
+   overflow the shelf. `auto-fill` is the fallback for the single render before
+   anything is measured, and computes the same answer from the same widths. */
+.shelf-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--shelf-cols, auto-fill), 96px);
+  column-gap: var(--shelf-gap);
+  /* Not --shelf-gap. This applies only to the one un-measured render, where a
+     single bay holds the whole group and the grid wraps inside it; today that
+     render is never painted, because the shelf mounts behind a Suspense
+     boundary rather than arriving in the HTML. Matching the pitch of a real
+     bay costs nothing and means it stays shift-free if that changes. */
+  row-gap: calc(var(--shelf-row-top) + var(--shelf-board-h));
+  justify-content: center;
+  padding: var(--shelf-row-top) 0 var(--shelf-board-h);
+}
+.shelf-row .game-case-inner::after {
+  content: "";
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  /* Entirely BELOW the case, not overlapping it. At `bottom: -2px` the box
+     still covered the last 7px of the cover, and since the gradient is darkest
+     at its own top edge, that darkest line landed inside the artwork and read
+     as a rule drawn across every cover. */
+  top: 100%;
+  height: 8px;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 0%, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 72%);
+}
+/* On a phone the uprights are what cost a cover: 25px a side is 50px of a
+   390px screen, inside the page's own 48px, and that is exactly the difference
+   between three covers on a shelf and two. They halve below `sm`, and the
+   games end up close against them, which is what books do in a real bookcase
+   anyway. The headroom comes down with them so the bays stay in proportion.
+
+   Nothing measures these numbers by hand: useShelfBoards reads the row's
+   computed padding and gap, so the column count follows whatever this says. */
+@media (max-width: 639.98px) {
+  .shelf-theme[data-shelf-theme="built-in"] {
+    --shelf-stile-w: 12px;
+    --shelf-row-top: 12px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PLAIN — one flat plank per group, games in a wrapping grid
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.shelf-theme[data-shelf-theme="plain"] {
+  --shelf-bg: #faf9f7;
+  --shelf-surface: #e9e7e3;
+  --shelf-surface-edge: #d3d0ca;
+  --shelf-surface-top: rgba(255, 255, 255, 0.55);
+  --shelf-surface-shadow: 0 6px 18px rgba(0, 0, 0, 0.09);
+}
+
+@media (prefers-color-scheme: dark) {
+  .shelf-theme[data-shelf-theme="plain"] {
+    --shelf-bg: #0f0d0b;
+    --shelf-surface: #232120;
+    --shelf-surface-edge: #131211;
+    --shelf-surface-top: rgba(255, 255, 255, 0.05);
+    --shelf-surface-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Neutral, and deliberately not wood: the built-in theme is where the timber
+   lives now, and a second, quieter surface is the point of this one. The lip
+   is a border rather than the old ::after pseudo-element, which existed to
+   carry a gradient bevel this theme has no use for. */
+.shelf-plain-plank {
+  border-bottom: 4px solid var(--shelf-surface-edge);
+  box-shadow:
+    inset 0 1px 0 var(--shelf-surface-top),
+    var(--shelf-surface-shadow);
+}

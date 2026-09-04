@@ -168,9 +168,9 @@
      The var() references resolve at runtime via CSS cascade, so they correctly
      pick up whichever value .shelf-theme sets for the active color scheme. */
   --color-shelf-bg: var(--shelf-bg);
-  --color-shelf-plank: var(--shelf-plank);
+  --color-shelf-border: var(--shelf-border);
+  --color-shelf-surface: var(--shelf-surface);
   --color-shelf-underline: var(--shelf-underline);
-  --color-shelf-edge: var(--shelf-edge);
   --color-shelf-text: var(--shelf-text);
   --color-shelf-text-muted: var(--shelf-text-muted);
   --color-shelf-label: var(--shelf-label);
