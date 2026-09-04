@@ -10,6 +10,15 @@
      suggestion list. Named for the job rather than for wood, because a
      shelf theme may have no wood in it. */
   --shelf-border: #5c3a1e;
+  /* Text decoration, not a border: judged against the page background rather
+     than against a panel, which is why it is its own token.
+
+     Warm to sit on the page, but near-neutral on purpose: at C 0.017 it cannot
+     be read as a faded accent whichever accent is active. The walnut it
+     replaces (--shelf-border, above) is C 0.064 at hue 59, 17deg off brass, so
+     under that palette the resting underline looked like a dimmer version of
+     the active one. */
+  --shelf-underline: #857d74;
 
   /* --- Page text: site neutral palette --- */
   --shelf-text: #171717;
@@ -387,6 +396,11 @@
   .shelf-theme {
     --shelf-bg: #0f0d0b;
     --shelf-border: #2a1a0e;
+    /* The light value's counterpart, not the border's: the dark border is a
+       mass seen against the page, so reusing it here measured 1.16:1 and
+       vanished. 4.19:1, staying under the label's 7.64 so the underline does
+       not outshout the text it belongs to. */
+    --shelf-underline: #7d736a;
 
     /* --- Page text: site neutral palette --- */
     --shelf-text: #ededed;
