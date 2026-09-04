@@ -130,11 +130,11 @@
     rgba(0, 0, 0, 0.3)
   );
   box-shadow: 0 24px 46px -20px rgba(0, 0, 0, 0.6);
-  /* `perspective` itself is set inline by useShelfBoards, from this case's own
-     measured height. Nothing between here and the faces below may set
-     `overflow` or `filter`: both silently flatten a 3D subtree, and the
-     failure is invisible until faces start overlapping the row above. */
-  perspective-origin: 50% 46%;
+  /* No `perspective` here: it belongs to each bay, so that every shelf in a
+     case renders identically. See .shelf-bay. Nothing between that perspective
+     and the faces below may set `overflow` or `filter`, though: both silently
+     flatten a 3D subtree, and the failure is invisible until faces start
+     overlapping the row above. */
 }
 .shelf-crown,
 .shelf-plinth,
@@ -194,10 +194,28 @@
     inset 0 -1px 0 rgba(255, 240, 215, 0.12);
 }
 
-/* ── One bay per board, and every bay is a box ────────────────────────────── */
+/* ── One bay per board, and every bay is a box ─────────────────────────────
+   The perspective belongs to the BAY, not to the case, so every shelf is seen
+   from the same place and renders identically.
+
+   One vanishing point for a whole case is more correct -- a real bookcase does
+   show you the underside of its high shelves and the top of its low ones --
+   but it means the ceiling band above the covers grows the further a bay sits
+   from eye level, so the gap above the artwork changes as you scroll. That
+   reads as an inconsistency rather than as depth, and on a phone, where a case
+   runs to nine bays and only one is on screen at a time, there is no shared
+   view to perceive anyway.
+
+   The origin is above every bay, so each one is seen from slightly overhead:
+   the floor of the shelf shows behind the covers and in the empty part of a
+   part-full row, and the ceiling is culled by backface-visibility. The back
+   panel projects a couple of pixels past the bay's top edge, which is what
+   covers the wedge the ceiling would otherwise have filled. */
 .shelf-bay {
   position: relative;
   transform-style: preserve-3d;
+  perspective: 1100px;
+  perspective-origin: 50% -55%;
 }
 .shelf-back {
   position: absolute;
@@ -327,8 +345,12 @@
   position: absolute;
   left: -3px;
   right: -3px;
-  bottom: -2px;
-  height: 9px;
+  /* Entirely BELOW the case, not overlapping it. At `bottom: -2px` the box
+     still covered the last 7px of the cover, and since the gradient is darkest
+     at its own top edge, that darkest line landed inside the artwork and read
+     as a rule drawn across every cover. */
+  top: 100%;
+  height: 8px;
   pointer-events: none;
   background: radial-gradient(ellipse at 50% 0%, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 72%);
 }
