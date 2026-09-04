@@ -50,6 +50,7 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | "Currently playing" CRT                | `src/components/crt/CrtTv.tsx` + `crt.css`, wrapped by `CurrentlyPlayingSection.tsx`, which owns the owner-only manage panel                                    |
 | Can this viewer edit?                  | `FollowControls.tsx` (two hooks), `useViewerRelationship.ts`, `ownedLibrary.ts`                                                                                 |
 | Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                                                                                                    |
+| Shelf wood grain (re-theming)          | `scripts/wood-grain/*.svg` (source) → `npm run grain` → `public/shelf/*.webp` (committed). Algorithm in `scripts/wood-grain/turbulence.mjs`                     |
 | Library styles                         | `video-games.css` (shared chrome), `shelf-themes.css` (per-theme surfaces), both in `src/app/video-games/`; site tokens in `src/app/globals.css`                |
 | Mobile keyboard / viewport behavior    | [`docs/mobile-viewport.md`](../docs/mobile-viewport.md); `keyboardBand.ts`, `useModalChrome.ts`                                                                 |
 | API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)                                                                                        |
@@ -91,6 +92,16 @@ Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were
   and for the same reason: per-user library styling swaps the constant for a value read per
   request and nothing else moves. **Adding a theme means all three: a name, a component, a
   token block.**
+- **The shelf's wood grain is baked, not inlined, and both halves of that are load-bearing.**
+  The SVGs in `scripts/wood-grain/` are the source of truth; `npm run grain` renders them to
+  `public/shelf/*.webp`, which are committed. **To tweak the grain, edit an SVG's `baseFrequency`,
+  `numOctaves`, `seed` or colour matrix and re-run it** — every parameter is read back out of the
+  SVG. Two things were tried and are wrong, so do not re-propose either. Putting the SVG back in
+  CSS as a data URI: `feTurbulence` generates its noise per pixel and the browser regenerates it
+  whenever the raster target size changes, which blanked the whole library for about a second on
+  every desktop zoom step. Rasterising the SVG with sharp/librsvg: librsvg ignores `stitchTiles`,
+  so its tiles do not wrap and show a hard line at every repeat. Hence the port of the spec's
+  `feTurbulence` in `turbulence.mjs`, which stitches and matches what Chrome draws.
 - **The accent color is a switch, not a literal.** `ACTIVE_ACCENT` in `src/lib/accent.ts` picks
   between the palettes defined on `[data-accent]` in `globals.css`; `layout.tsx` stamps the
   attribute. Use `--link` / `text-link` for accent color, `--accent-on-dark` for surfaces that are
@@ -135,6 +146,9 @@ Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were
   `/video-games` and its OG image prerender from it, and an unreachable origin fails the build by
   design rather than shipping an empty library
 - `npm run lint` — Run ESLint
+- `npm run grain` — Re-bake the shelf's wood-grain tiles after editing an SVG in
+  `scripts/wood-grain/`. Writes `public/shelf/*.webp`, which are committed; no build step
+  runs this. See the wood-grain convention above before changing how it works
 - `npm test` — Frontend tests (`node --test`, runs TypeScript directly; no test runner dependency)
 - `cd api && uv run pytest` — Python test suite (DB tests skip without `DATABASE_URL`)
 - `cd api && uv run ruff check .` — Python lint

@@ -56,7 +56,7 @@ change about a released game change slowly.
 The bounds are the interesting part, because this runs inside a page load that
 a visitor is waiting on. At most a couple of rows per read, inside a wall-clock
 budget well under the point where the render gives up; the timestamp is written
-*before* the lookups, so a game whose release date has genuinely never been
+_before_ the lookups, so a game whose release date has genuinely never been
 announced costs one attempt a day rather than one per page view; hand-entered
 games are skipped entirely, since there is no canonical source for a game IGDB
 has never heard of; and a lookup that fails is a lookup that failed, never an
@@ -146,6 +146,7 @@ production uses Google. Full setup, resets and troubleshooting are in
 | `npm run dev` / `dev:api` / `dev:full`  | Next.js only / FastAPI only / both                                          |
 | `npm run build`                         | Production build (needs the API running: `/video-games` prerenders from it) |
 | `npm run lint`                          | ESLint                                                                      |
+| `npm run grain`                         | Re-bake the shelf wood-grain tiles from `scripts/wood-grain/*.svg`          |
 | `cd api && uv run pytest`               | Python tests (DB tests skip without `DATABASE_URL`)                         |
 | `cd api && uv run ruff check .`         | Python lint                                                                 |
 | `cd api && uv run alembic upgrade head` | Apply migrations                                                            |
