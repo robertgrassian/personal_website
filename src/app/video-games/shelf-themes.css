@@ -48,9 +48,25 @@
      shadow the shelf above casts on it. A flat darker colour reads as a
      sheet of something else propped behind the games. */
   --shelf-grain-back: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='384'%20height='512'%3E%3Cfilter%20id='a'%20color-interpolation-filters='sRGB'%20x='0'%20y='0'%20width='100%25'%20height='100%25'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.11%200.004'%20numOctaves='4'%20seed='11'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='matrix'%20values='0%200%200%200%200.204%200%200%200%200%200.118%200%200%200%200%200.051%201.7%200%200%200%20-0.9'/%3E%3C/filter%3E%3Cfilter%20id='b'%20color-interpolation-filters='sRGB'%20x='0'%20y='0'%20width='100%25'%20height='100%25'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.02%200.0018'%20numOctaves='3'%20seed='5'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='matrix'%20values='0%200%200%200%200.588%200%200%200%200%200.416%200%200%200%200%200.235%200.55%200%200%200%20-0.3'/%3E%3C/filter%3E%3Crect%20width='100%25'%20height='100%25'%20filter='url%28%23a%29'/%3E%3Crect%20width='100%25'%20height='100%25'%20filter='url%28%23b%29'/%3E%3C/svg%3E");
-  /* Wood in a dim room is darker, not featureless: this dims the timber
-     without touching the grain that is drawn on it. */
-  --shelf-wood-dim: 1;
+  /* The uprights face the room squarely and catch more light than a shelf
+     edge shadowed by the games on it, which is also what makes them read as
+     separate boards rather than as a painted border. This is --shelf-wood
+     times 1.14, baked in rather than applied with brightness(): see below.  */
+  --shelf-wood-lit: #7a4d28;
+
+  /* Wood in a dim room is darker, not featureless. This is a PAINT layer, not
+     a filter: laid over the timber as the topmost background-image, black at
+     alpha a leaves c * (1 - a), which is exactly what brightness(1 - a) does,
+     so dark mode's 0.18 reproduces the old brightness(0.82) precisely.
+
+     It has to be paint because `filter` puts an element on its own rendering
+     surface. Every wooden piece carried one -- five per bay plus four per case,
+     several hundred on a full library -- so a desktop zoom invalidated all of
+     their backing stores at once and the page sat blank while they
+     re-rasterised. In light mode the old value was brightness(1), a no-op that
+     still paid the whole cost. Same class of problem as the bay faces, which
+     came off `perspective` for the same reason. */
+  --shelf-shade: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0));
 
   --shelf-board-h: 14px;
   --shelf-stile-w: 25px;
@@ -117,7 +133,7 @@
 @media (prefers-color-scheme: dark) {
   .shelf-theme[data-shelf-theme="built-in"] {
     --shelf-bg: #080706;
-    --shelf-wood-dim: 0.82;
+    --shelf-shade: linear-gradient(rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.18));
     --shelf-room-light: radial-gradient(
       110% 55% at 50% -8%,
       rgba(255, 222, 176, 0.045) 0%,
@@ -172,7 +188,6 @@
 .shelf-board,
 .shelf-wall {
   background-color: var(--shelf-wood);
-  filter: brightness(var(--shelf-wood-dim));
 }
 .shelf-stile {
   position: absolute;
@@ -180,12 +195,10 @@
   bottom: 0;
   width: var(--shelf-stile-w);
   z-index: 6;
-  /* The uprights face the room squarely and catch more light than a shelf edge
-     shadowed by the games on it, which is also what makes them read as
-     separate boards rather than as a painted border. */
-  filter: brightness(calc(var(--shelf-wood-dim) * 1.14));
-  background-image: var(--shelf-grain-v), var(--shelf-band-v);
+  background-color: var(--shelf-wood-lit);
+  background-image: var(--shelf-shade), var(--shelf-grain-v), var(--shelf-band-v);
   background-size:
+    auto,
     56px 512px,
     auto;
 }
@@ -206,8 +219,9 @@
   position: relative;
   z-index: 7;
   margin: 0 calc(-1 * var(--shelf-stile-w));
-  background-image: var(--shelf-grain-h), var(--shelf-band-h);
+  background-image: var(--shelf-shade), var(--shelf-grain-h), var(--shelf-band-h);
   background-size:
+    auto,
     512px 56px,
     auto;
 }
@@ -255,6 +269,7 @@
      top where the overhang is closest and eases off toward the board, and the
      bottom picks up a little bounce back off the floor of the bay. */
   background-image:
+    var(--shelf-shade),
     linear-gradient(
       180deg,
       rgba(0, 0, 0, 0.8) 0%,
@@ -266,8 +281,8 @@
   background-size:
     auto,
     auto,
+    auto,
     384px 512px;
-  filter: brightness(var(--shelf-wood-dim));
 }
 .shelf-board {
   position: absolute;
@@ -275,8 +290,9 @@
   right: 0;
   bottom: 0;
   height: var(--shelf-board-h);
-  background-image: var(--shelf-grain-h), var(--shelf-band-h);
+  background-image: var(--shelf-shade), var(--shelf-grain-h), var(--shelf-band-h);
   background-size:
+    auto,
     512px 56px,
     auto;
   box-shadow:
@@ -310,8 +326,10 @@
   height: var(--shelf-floor);
   clip-path: polygon(0 100%, 100% 100%, calc(100% - var(--shelf-inset)) 0, var(--shelf-inset) 0);
   background-image:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.52), rgba(255, 240, 215, 0.1)), var(--shelf-grain-h);
+    var(--shelf-shade), linear-gradient(180deg, rgba(0, 0, 0, 0.52), rgba(255, 240, 215, 0.1)),
+    var(--shelf-grain-h);
   background-size:
+    auto,
     auto,
     512px 56px;
 }
@@ -322,8 +340,10 @@
   width: var(--shelf-inset);
   clip-path: polygon(0 var(--shelf-lift), 0 100%, 100% calc(100% - var(--shelf-floor)), 100% 0);
   background-image:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.66)), var(--shelf-grain-v);
+    var(--shelf-shade), linear-gradient(90deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.66)),
+    var(--shelf-grain-v);
   background-size:
+    auto,
     auto,
     56px 512px;
 }
@@ -334,8 +354,10 @@
   width: var(--shelf-inset);
   clip-path: polygon(100% var(--shelf-lift), 100% 100%, 0 calc(100% - var(--shelf-floor)), 0 0);
   background-image:
-    linear-gradient(270deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.66)), var(--shelf-grain-v);
+    var(--shelf-shade), linear-gradient(270deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.66)),
+    var(--shelf-grain-v);
   background-size:
+    auto,
     auto,
     56px 512px;
 }
