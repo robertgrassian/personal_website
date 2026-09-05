@@ -146,7 +146,7 @@ production uses Google. Full setup, resets and troubleshooting are in
 | `npm run dev` / `dev:api` / `dev:full`  | Next.js only / FastAPI only / both                                          |
 | `npm run build`                         | Production build (needs the API running: `/video-games` prerenders from it) |
 | `npm run lint`                          | ESLint                                                                      |
-| `npm run grain`                         | Re-bake the shelf wood-grain tiles from `scripts/wood-grain/*.svg`          |
+| `npm run grain`                         | Re-bake the shelf wood-grain tiles from `scripts/wood-grain/tiles/`         |
 | `cd api && uv run pytest`               | Python tests (DB tests skip without `DATABASE_URL`)                         |
 | `cd api && uv run ruff check .`         | Python lint                                                                 |
 | `cd api && uv run alembic upgrade head` | Apply migrations                                                            |

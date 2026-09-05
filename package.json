@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "next lint",
     "grain": "node scripts/generate-wood-grain.mjs",
-    "test": "node --experimental-strip-types --test \"src/**/*.test.ts\"",
+    "test": "node --experimental-strip-types --test \"src/**/*.test.ts\" \"scripts/**/*.test.mjs\"",
     "prepare": "husky"
   },
   "dependencies": {
