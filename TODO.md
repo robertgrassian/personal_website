@@ -43,9 +43,15 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       is missing is one that is not a personal inbox, and any link to it from the library.
       [Details](docs/todo/feedback-email-address.md)
 
-- [ ] Add "owned" as a field to wishlist games: a migration plus a checkbox in
-      `WishlistEditFields` (the detail card's wishlist form, not a modal). Decide first what it
-      means next to **promote**, which already moves a bought game into the library.
+- [ ] **Add "owned" as a field to wishlist games**: a boolean, or a general `labels` array built
+      for later uses. Decide it against **promote**, which today *moves* the game and deletes the
+      wishlist row. Wanted by **Show whether a wishlist game is on sale**.
+      [Details](docs/todo/wishlist-owned-flag.md)
+
+- [ ] **Show whether a wishlist game is on sale**, per entry's system, via a hardcoded system to
+      shop map, rechecked at most daily. Wants **Add "owned" as a field to wishlist games** first,
+      and `wishlist_games.system` is nullable free text, so many entries have no shop to check.
+      [Details](docs/todo/wishlist-sale-check.md)
 
 - [ ] **`AddGameModal` is the last dialog left. Decide whether adding a game moves onto the detail
       card too.** No longer a merge of two: the other dialogs were deleted 2026-08-20, and the add
