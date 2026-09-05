@@ -33,31 +33,31 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 
 ### Where things live
 
-| Task                                   | File                                                                                                                                                            |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Library read fetches, cache tags       | `src/lib/libraryApi.ts`                                                                                                                                         |
-| Stale/missing catalog data refresh     | `api/app/services/catalog_refresh.py`                                                                                                                           |
-| Owner writes (client-callable)         | `src/app/video-games/actions.ts` → `src/lib/meApi.ts`                                                                                                           |
-| Filter / group / sort logic            | `src/components/video_games/pipeline.ts`                                                                                                                        |
-| Filter/group/sort option lists         | `src/components/video_games/libraryConfig.ts`, `useFilterOptions.ts`                                                                                            |
-| Shared types, `RATINGS`, `systemLabel` | `src/lib/games.ts` (library), `wishlist.ts`, `profile.ts`, `follows.ts`                                                                                         |
-| Shelf UI                               | `GameShelves.tsx` → the active theme's group in `shelves/` → `GameCase.tsx`                                                                                     |
-| Which shelf design is worn             | `src/lib/shelfTheme.ts` (the switch), `shelves/index.ts` (name → component)                                                                                     |
-| Game detail card (click a case)        | `GameDetailCard.tsx`, which flies the case out and renders `GameCaseBackSurface.tsx` + `GameCaseSpine.tsx`                                                      |
-| Library page shell (both routes)       | `src/components/video_games/LibraryPage.tsx`                                                                                                                    |
-| Owner edit surfaces                    | On the detail card: `GameEditFields.tsx`, `WishlistEditFields.tsx`, `GamePlayHistory.tsx`. Two dialogs left: `AddGameModal.tsx` and `CurrentlyPlayingPanel.tsx` |
-| Dialog chrome                          | `ModalFrame.tsx` (backdrop, scroll lock, focus, Escape) → `ModalShell.tsx` (the conventional panel), `ModalBackdrop.tsx`                                        |
-| "Currently playing" CRT                | `src/components/crt/CrtTv.tsx` + `crt.css`, wrapped by `CurrentlyPlayingSection.tsx`, which owns the owner-only manage panel                                    |
-| Can this viewer edit?                  | `FollowControls.tsx` (two hooks), `useViewerRelationship.ts`, `ownedLibrary.ts`                                                                                 |
-| Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                                                                                                    |
-| Shelf wood grain (re-theming)          | `scripts/wood-grain/*.svg` (source) → `npm run grain` → `public/shelf/*.webp` (committed). Algorithm in `scripts/wood-grain/turbulence.mjs`                     |
-| Library styles                         | `video-games.css` (shared chrome), `shelf-themes.css` (per-theme surfaces), both in `src/app/video-games/`; site tokens in `src/app/globals.css`                |
-| Mobile keyboard / viewport behavior    | [`docs/mobile-viewport.md`](../docs/mobile-viewport.md); `keyboardBand.ts`, `useModalChrome.ts`                                                                 |
-| API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)                                                                                        |
-| API endpoint reference, runnable       | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)                                                                                    |
-| Migrations                             | `api/alembic/versions/`                                                                                                                                         |
-| Production deploys, migrations in CD   | [`docs/deployment.md`](../docs/deployment.md); `.github/workflows/deploy.yml`                                                                                   |
-| Tests                                  | `api/tests/` (pytest); `src/**/*.test.ts` (`npm test`, node --test, no runner installed)                                                                        |
+| Task                                   | File                                                                                                                                                                   |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Library read fetches, cache tags       | `src/lib/libraryApi.ts`                                                                                                                                                |
+| Stale/missing catalog data refresh     | `api/app/services/catalog_refresh.py`                                                                                                                                  |
+| Owner writes (client-callable)         | `src/app/video-games/actions.ts` → `src/lib/meApi.ts`                                                                                                                  |
+| Filter / group / sort logic            | `src/components/video_games/pipeline.ts`                                                                                                                               |
+| Filter/group/sort option lists         | `src/components/video_games/libraryConfig.ts`, `useFilterOptions.ts`                                                                                                   |
+| Shared types, `RATINGS`, `systemLabel` | `src/lib/games.ts` (library), `wishlist.ts`, `profile.ts`, `follows.ts`                                                                                                |
+| Shelf UI                               | `GameShelves.tsx` → the active theme's group in `shelves/` → `GameCase.tsx`                                                                                            |
+| Which shelf design is worn             | `src/lib/shelfTheme.ts` (the switch), `shelves/index.ts` (name → component)                                                                                            |
+| Game detail card (click a case)        | `GameDetailCard.tsx`, which flies the case out and renders `GameCaseBackSurface.tsx` + `GameCaseSpine.tsx`                                                             |
+| Library page shell (both routes)       | `src/components/video_games/LibraryPage.tsx`                                                                                                                           |
+| Owner edit surfaces                    | On the detail card: `GameEditFields.tsx`, `WishlistEditFields.tsx`, `GamePlayHistory.tsx`. Two dialogs left: `AddGameModal.tsx` and `CurrentlyPlayingPanel.tsx`        |
+| Dialog chrome                          | `ModalFrame.tsx` (backdrop, scroll lock, focus, Escape) → `ModalShell.tsx` (the conventional panel), `ModalBackdrop.tsx`                                               |
+| "Currently playing" CRT                | `src/components/crt/CrtTv.tsx` + `crt.css`, wrapped by `CurrentlyPlayingSection.tsx`, which owns the owner-only manage panel                                           |
+| Can this viewer edit?                  | `FollowControls.tsx` (two hooks), `useViewerRelationship.ts`, `ownedLibrary.ts`                                                                                        |
+| Auth (browser/server/middleware)       | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                                                                                                           |
+| Shelf wood grain (re-theming)          | `scripts/wood-grain/tiles/*.mjs` (source) → `npm run grain` → `public/shelf/*.webp` (committed). Noise in `wood-grain/turbulence.mjs`, rings in `wood-grain/rings.mjs` |
+| Library styles                         | `video-games.css` (shared chrome), `shelf-themes.css` (per-theme surfaces), both in `src/app/video-games/`; site tokens in `src/app/globals.css`                       |
+| Mobile keyboard / viewport behavior    | [`docs/mobile-viewport.md`](../docs/mobile-viewport.md); `keyboardBand.ts`, `useModalChrome.ts`                                                                        |
+| API endpoints                          | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)                                                                                               |
+| API endpoint reference, runnable       | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)                                                                                           |
+| Migrations                             | `api/alembic/versions/`                                                                                                                                                |
+| Production deploys, migrations in CD   | [`docs/deployment.md`](../docs/deployment.md); `.github/workflows/deploy.yml`                                                                                          |
+| Tests                                  | `api/tests/` (pytest); `src/**/*.test.ts` and `scripts/**/*.test.mjs` (`npm test`, node --test, no runner installed)                                                   |
 
 Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were deleted 2026-08-20 when the detail card absorbed them. Their bodies are the `*EditFields` components above, and the one-Save model they established is what any new owner form should adopt. `ShelfSection.tsx` became `shelves/PlainGroup.tsx` when the shelf themes landed, and `CurrentlyPlaying.tsx` (the old stylized CRT, imported by nothing) went with it, because the wood-grain CSS it depended on was deleted in the same change. The live CRT is `crt/CrtTv.tsx`.
 
@@ -93,15 +93,25 @@ Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were
   request and nothing else moves. **Adding a theme means all three: a name, a component, a
   token block.**
 - **The shelf's wood grain is baked, not inlined, and both halves of that are load-bearing.**
-  The SVGs in `scripts/wood-grain/` are the source of truth; `npm run grain` renders them to
-  `public/shelf/*.webp`, which are committed. **To tweak the grain, edit an SVG's `baseFrequency`,
-  `numOctaves`, `seed` or colour matrix and re-run it** — every parameter is read back out of the
-  SVG. Two things were tried and are wrong, so do not re-propose either. Putting the SVG back in
-  CSS as a data URI: `feTurbulence` generates its noise per pixel and the browser regenerates it
-  whenever the raster target size changes, which blanked the whole library for about a second on
-  every desktop zoom step. Rasterising the SVG with sharp/librsvg: librsvg ignores `stitchTiles`,
-  so its tiles do not wrap and show a hard line at every repeat. Hence the port of the spec's
-  `feTurbulence` in `turbulence.mjs`, which stitches and matches what Chrome draws.
+  The profiles in `scripts/wood-grain/tiles/` are the source of truth; `npm run grain` renders them
+  to `public/shelf/*.webp`, which are committed. **To tweak the grain, edit a profile and re-run it**
+  (`npm run grain -- grain-h` bakes one tile, since a full bake is ~40s). Every layer paints one
+  colour at `gain × field + offset` alpha; the validator rejects an unknown or missing field rather
+  than defaulting it, so a typo is loud. Three things were tried and are wrong, so do not re-propose
+  any of them. Putting the noise back in CSS as a data URI: it is generated per pixel and the browser
+  regenerates it whenever the raster target size changes, which blanked the whole library for about a
+  second on every desktop zoom step. Rasterising with sharp/librsvg: librsvg ignores `stitchTiles`,
+  so its tiles do not wrap and show a hard line at every repeat — hence the port of the spec's
+  `feTurbulence` in `turbulence.mjs`, which stitches and matches what Chrome draws. Drawing wood with
+  noise alone: wood is periodic and fractal noise is not, so it can only ever produce a smear, which
+  is why `rings.mjs` exists. **A ring layer's drift must come from a stitched turbulence**, or the
+  field stops being periodic and the seam comes back; `profiles.test.mjs` checks every shipped tile
+  for exactly that.
+- **The grain sources were SVG until 2026-09-05 and are not coming back.** They bought one thing:
+  a browser could preview them. The ring primitive is not a filter any browser implements, so that
+  stopped being true, and what was left was regex-parsed XML plus a 20-number `feColorMatrix` whose
+  alpha gain lived at index 15. Every layer only ever painted one colour at a varying alpha, so the
+  named fields lost no expressiveness.
 - **The accent color is a switch, not a literal.** `ACTIVE_ACCENT` in `src/lib/accent.ts` picks
   between the palettes defined on `[data-accent]` in `globals.css`; `layout.tsx` stamps the
   attribute. Use `--link` / `text-link` for accent color, `--accent-on-dark` for surfaces that are
@@ -146,9 +156,10 @@ Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were
   `/video-games` and its OG image prerender from it, and an unreachable origin fails the build by
   design rather than shipping an empty library
 - `npm run lint` — Run ESLint
-- `npm run grain` — Re-bake the shelf's wood-grain tiles after editing an SVG in
-  `scripts/wood-grain/`. Writes `public/shelf/*.webp`, which are committed; no build step
-  runs this. See the wood-grain convention above before changing how it works
+- `npm run grain` — Re-bake the shelf's wood-grain tiles after editing a profile in
+  `scripts/wood-grain/tiles/`. Writes `public/shelf/*.webp`, which are committed; no build step
+  runs this. Takes ~40s for all three; pass a name (`npm run grain -- grain-h`) to bake one.
+  See the wood-grain convention above before changing how it works
 - `npm test` — Frontend tests (`node --test`, runs TypeScript directly; no test runner dependency)
 - `cd api && uv run pytest` — Python test suite (DB tests skip without `DATABASE_URL`)
 - `cd api && uv run ruff check .` — Python lint

@@ -42,8 +42,8 @@
   --shelf-case-shadow:
     0 14px 22px -10px rgba(60, 44, 30, 0.5), 0 9px 32px -4px rgba(60, 44, 30, 0.26);
 
-  --shelf-wood: #6b4423;
-  --shelf-carcass: #4a2e17;
+  --shelf-wood: #5c3d24;
+  --shelf-carcass: #3d2716;
   /* The back panel is the same timber as the rest of the case, seen in the
      shadow the shelf above casts on it. A flat darker colour reads as a
      sheet of something else propped behind the games. */
@@ -51,8 +51,8 @@
   /* The uprights face the room squarely and catch more light than a shelf
      edge shadowed by the games on it, which is also what makes them read as
      separate boards rather than as a painted border. This is --shelf-wood
-     times 1.14, baked in rather than applied with brightness(): see below.  */
-  --shelf-wood-lit: #7a4d28;
+     times 1.16, baked in rather than applied with brightness(): see below.  */
+  --shelf-wood-lit: #6a472a;
 
   /* Wood in a dim room is darker, not featureless. This is a PAINT layer, not
      a filter: laid over the timber as the topmost background-image, black at
@@ -104,19 +104,21 @@
     rgba(255, 205, 145, 0.09) 92%
   );
 
-  /* Grain, from one feTurbulence per piece with its base frequency stretched
-     ~50:1 along the length of the board. Fractal noise has no period, so
-     nothing repeats; stacked repeating-gradients (what this site used to draw
-     wood with) can only ever read as stripes, because stripes are what a
-     repeating gradient is.
+  /* Grain, from four layers per piece: a broad colour drift, the growth rings,
+     fine fibre, and pores. The rings are what make this read as timber -- wood
+     is periodic (pale earlywood, then a narrow dark latewood band, repeating)
+     and fractal noise is not, so noise alone can only ever produce a smear.
+     That was the previous grain, and stacked repeating-gradients before it,
+     which could only read as stripes because stripes are what a repeating
+     gradient is.
 
-     These are BAKED to .webp by scripts/generate-wood-grain.mjs, from the SVGs
-     in scripts/wood-grain/, which stay the source of truth -- re-theme by
-     editing their colour matrices and re-running it. Inline the SVG again and
-     the desktop zoom bug comes straight back: noise is generated per pixel, and
-     the browser re-generates it whenever the raster target size changes, which
-     is precisely what a zoom step does. That blanked the library for most of a
-     second per step. A raster rescales with a cheap filter instead.
+     These are BAKED to .webp by scripts/generate-wood-grain.mjs, from the
+     profiles in scripts/wood-grain/tiles/, which stay the source of truth --
+     re-theme by editing a profile and re-running it. Do not move the noise
+     back inline: it is generated per pixel and a browser re-generates it
+     whenever the raster target size changes, which is precisely what a zoom
+     step does. That blanked the library for most of a second per step. A
+     raster rescales with a cheap filter instead.
 
      A board's grain runs along its length: horizontal for shelves, crown and
      plinth, vertical for the uprights and the back panel. */
