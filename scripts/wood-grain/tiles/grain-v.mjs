@@ -30,7 +30,7 @@ export default {
       offset: 0.06,
       along: "y",
       seed: 17,
-      ringFrequency: 0.3,
+      ringFrequency: 0.24,
       latewood: 0.3,
       pith: 17,
       drift: 22,

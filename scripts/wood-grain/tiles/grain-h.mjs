@@ -25,17 +25,29 @@ export default {
     },
     {
       // The growth rings. ringFrequency is the number that matters most and it
-      // is set from the board, not from a photo: at 0.3 the pitch is ~3.3px, so
-      // a 14px board carries four lines. The 15px pitch that looks right on a
-      // large swatch gives each board one fat wobble, and the case reads as a
-      // cartoon.
+      // is set from the board, not from a photo: at 0.24 the pitch is ~4.2px, so
+      // a 14px board carries about three lines.
+      //
+      // The usable window is narrow at this size. A 15px pitch gives each board
+      // one fat wobble and the case reads as a cartoon; past ~0.45 the lines
+      // land within a pixel or two of each other and degenerate into speckle
+      // that looks like dirt rather than grain. 0.30 shipped first and was
+      // busy; the low 0.2s read as a plank.
+      //
+      // Within that window the exact value still matters, for a reason that is
+      // not visual: it decides where a ring's steep trailing edge falls
+      // relative to the tile boundary. Land one on the edge and the tiny
+      // difference between the two sides is amplified into a seam -- 0.22 and
+      // 0.25 both trip the wrap test at ~1.3x a normal interior line, while
+      // 0.24 sits at 0.95x and looks identical. Re-run the tests after moving
+      // this, and pick a neighbouring value rather than relaxing them.
       type: "rings",
       color: "#26150a",
       gain: 0.6,
       offset: 0.06,
       along: "x",
       seed: 17,
-      ringFrequency: 0.3,
+      ringFrequency: 0.24,
       latewood: 0.3,
       // pith and drift are in the tile's own user units, and drift is what
       // makes the rings arch. What matters is the realised range of d, not
