@@ -95,7 +95,7 @@ Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were
 - **The shelf's wood grain is baked, not inlined, and both halves of that are load-bearing.**
   The profiles in `scripts/wood-grain/tiles/` are the source of truth; `npm run grain` renders them
   to `public/shelf/*.webp`, which are committed. **To tweak the grain, edit a profile and re-run it**
-  (`npm run grain -- grain-h` bakes one tile, since a full bake is ~40s). Every layer paints one
+  (~2s for all three; `npm run grain -- grain-h` bakes just one). Every layer paints one
   colour at `gain × field + offset` alpha; the validator rejects an unknown or missing field rather
   than defaulting it, so a typo is loud. Three things were tried and are wrong, so do not re-propose
   any of them. Putting the noise back in CSS as a data URI: it is generated per pixel and the browser
@@ -104,9 +104,13 @@ Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were
   so its tiles do not wrap and show a hard line at every repeat — hence the port of the spec's
   `feTurbulence` in `turbulence.mjs`, which stitches and matches what Chrome draws. Drawing wood with
   noise alone: wood is periodic and fractal noise is not, so it can only ever produce a smear, which
-  is why `rings.mjs` exists. **A ring layer's drift must come from a stitched turbulence**, or the
-  field stops being periodic and the seam comes back; `profiles.test.mjs` checks every shipped tile
-  for exactly that.
+  is why `rings.mjs` exists. A ring layer can break the tiling in two independent ways, and
+  `profiles.test.mjs` checks both axes of every shipped tile against the median interior gap:
+  **its drift and jitter must come from a stitched turbulence** (they run along the grain), and
+  **`across` must stay measured from the tile's mid-line** (it runs the other way and is a bare
+  linear ramp, saved only by entering squared and symmetric). `grain-back` shipped once measured
+  from 0.42 of its width and seamed 82x worse than an interior column, which is why there is no
+  `center` parameter any more.
 - **The grain sources were SVG until 2026-09-05 and are not coming back.** They bought one thing:
   a browser could preview them. The ring primitive is not a filter any browser implements, so that
   stopped being true, and what was left was regex-parsed XML plus a 20-number `feColorMatrix` whose
@@ -158,7 +162,7 @@ Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were
 - `npm run lint` — Run ESLint
 - `npm run grain` — Re-bake the shelf's wood-grain tiles after editing a profile in
   `scripts/wood-grain/tiles/`. Writes `public/shelf/*.webp`, which are committed; no build step
-  runs this. Takes ~40s for all three; pass a name (`npm run grain -- grain-h`) to bake one.
+  runs this. ~2s for all three; pass a name (`npm run grain -- grain-h`) to bake one.
   See the wood-grain convention above before changing how it works
 - `npm test` — Frontend tests (`node --test`, runs TypeScript directly; no test runner dependency)
 - `cd api && uv run pytest` — Python test suite (DB tests skip without `DATABASE_URL`)

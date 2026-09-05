@@ -37,10 +37,11 @@ export default {
       seed: 17,
       ringFrequency: 0.3,
       latewood: 0.3,
-      center: 0.5,
-      // pith and drift are in the tile's own user units. drift is what makes
-      // the rings arch; keep it below pith or d passes through zero and the
-      // arches close into rings around a knot.
+      // pith and drift are in the tile's own user units, and drift is what
+      // makes the rings arch. What matters is the realised range of d, not
+      // drift's nominal size: the noise is (sum+1)/2 and never reaches 0 or 1,
+      // so d here stays in 13.4-21.8 despite drift exceeding pith. Push it far
+      // enough that d approaches zero and the arches close into knots.
       pith: 17,
       drift: 22,
       driftFrequency: [0.006, 0.0006],

@@ -40,9 +40,6 @@ export default {
       seed: 23,
       ringFrequency: 0.105,
       latewood: 0.34,
-      // Off-centre, so the cathedral peak does not sit dead centre on a panel
-      // that is often only half visible behind the covers.
-      center: 0.42,
       pith: 44,
       drift: 110,
       driftFrequency: [0.0016, 0.004],

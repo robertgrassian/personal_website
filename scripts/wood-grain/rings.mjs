@@ -12,10 +12,19 @@
 // board's length and they splay into the arches that read as flatsawn.
 //
 // The drift MUST come from a stitched turbulence. Stitched noise is periodic
-// over the tile, so a d built from it is periodic too, and so is the whole
-// ring field -- which is the only reason the tile still wraps. Anything else
-// (a linear taper, an unstitched noise) puts a seam back at every repeat, the
-// exact failure turbulence.mjs exists to avoid.
+// over the tile, so a d built from it is periodic too. Anything else (a linear
+// taper, an unstitched noise) puts a seam back at every repeat, the exact
+// failure turbulence.mjs exists to avoid.
+//
+// That is NOT sufficient on its own, which cost a shipped tile to learn. R also
+// takes `across`, a bare linear ramp in the tile coordinate with no period at
+// all. It survives only because it enters SQUARED and is measured from the
+// middle of the tile: the pixel centres are then mirror-symmetric about that
+// line, so the first and last columns see the same across^2 and the field
+// wraps. Measure it from anywhere else and the ring phase restarts at random on
+// every repeat -- grain-back shipped at 0.42 of its width and seamed 82x worse
+// than an interior column. Hence no `center` parameter: the only value that
+// tiles is the one this hardcodes, so it is not offered.
 
 import { buildLattice, turbulence } from "./turbulence.mjs";
 
@@ -25,6 +34,28 @@ const smooth = (a, b, t) => {
   const u = clamp((t - a) / (b - a));
   return u * u * (3 - 2 * u);
 };
+
+/**
+ * One ring, as a function of position within it: 0 is earlywood, 1 the middle
+ * of the latewood band. Exported so it can be tested directly -- the banding is
+ * periodic in R, not in the tile coordinate (R is a square root, so rings are
+ * not evenly spaced on screen), which makes this shape impossible to assert
+ * from the rendered field without re-implementing the geometry.
+ *
+ * @param t position within one ring, in [0,1)
+ * @param late fraction of the ring that is latewood; must stay under 1/1.06
+ */
+export function bandProfile(t, late) {
+  // Fades in gradually and ends sharply. That asymmetry is what reads as a ring
+  // rather than as a stripe; a symmetric band looks printed.
+  //
+  // Both edges are smooth steps even so. A hard cut aliases into a staircase
+  // wherever R changes slowly across the board, which is most of it, and the
+  // staircase survives every later resample. The trailing edge finishes at
+  // late * 1.06, which is why late itself has to stay below 1/1.06: past that
+  // the fall never completes before t wraps and the hard edge comes back.
+  return smooth(0, late * 0.8, t) * (1 - smooth(late * 0.88, late * 1.06, t));
+}
 
 function noiseOpts(freq, octaves, tileWidth, tileHeight) {
   return {
@@ -66,21 +97,15 @@ export function ringField(layer, width, height, scale) {
     const uy = (py + 0.5) / scale;
     for (let px = 0; px < w; px++) {
       const ux = (px + 0.5) / scale;
-      const across = (alongX ? uy : ux) - acrossLength * layer.center;
+      // Measured from the mid-line, always: see the header. Moving it breaks
+      // the wrap on this axis.
+      const across = (alongX ? uy : ux) - acrossLength / 2;
       const d = layer.pith + layer.drift * (turbulence(warpCtx, 0, ux, uy, warpOpts) - 0.5);
       const R =
         Math.sqrt(across * across + d * d) +
         layer.jitter * (turbulence(jitterCtx, 0, ux, uy, jitterOpts) - 0.5);
 
-      // Latewood fades in and ends sharply. That asymmetry is what reads as a
-      // ring rather than as a stripe; a symmetric band looks printed.
-      //
-      // Both edges are smooth steps even so. A hard cut aliases into a
-      // staircase wherever R changes slowly across the board, which is most of
-      // it, and the staircase survives every later resample.
-      const t = frac(R * layer.ringFrequency);
-      const late = layer.latewood;
-      out[py * w + px] = smooth(0, late * 0.8, t) * (1 - smooth(late * 0.88, late * 1.06, t));
+      out[py * w + px] = bandProfile(frac(R * layer.ringFrequency), layer.latewood);
     }
   }
   return { data: out, w, h };

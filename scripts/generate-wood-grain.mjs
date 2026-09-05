@@ -47,7 +47,10 @@ const OUT = "public/shelf";
 // the file, and names the field.
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
-const isFreq = (v) => Array.isArray(v) && v.length === 2 && v.every(isNum);
+// Non-negative: turbulence.mjs snaps a frequency to a whole number of periods
+// across the tile, and a negative one snaps to a negative stitch width, which
+// makes the wrap logic quietly stop working rather than fail.
+const isFreq = (v) => Array.isArray(v) && v.length === 2 && v.every((n) => isNum(n) && n >= 0);
 const isInt = (v) => Number.isInteger(v);
 
 // [validator, description] per field, by layer type. Keys not listed here are
@@ -71,8 +74,10 @@ const LAYER_FIELDS = {
     along: [(v) => v === "x" || v === "y", '"x" or "y"'],
     seed: [isNum, "a number"],
     ringFrequency: [(v) => isNum(v) && v > 0, "a number above 0"],
-    latewood: [(v) => isNum(v) && v > 0 && v < 1, "a number between 0 and 1"],
-    center: [(v) => isNum(v) && v >= 0 && v <= 1, "a number from 0 to 1"],
+    // The band's outer edge sits at latewood * 1.06, so past 1/1.06 the
+    // trailing smoothstep no longer finishes before frac() wraps and the field
+    // steps at every ring -- the aliased staircase both edges exist to avoid.
+    latewood: [(v) => isNum(v) && v > 0 && v < 1 / 1.06, "a number between 0 and 0.943"],
     pith: [(v) => isNum(v) && v > 0, "a number above 0"],
     drift: [(v) => isNum(v) && v >= 0, "a number of 0 or more"],
     driftFrequency: [isFreq, "two numbers, [x, y]"],
@@ -86,7 +91,9 @@ function checkFields(value, fields, where) {
   // field 'octave'" points at the typo where "missing 'octaves'" sends you
   // looking for a field that is sitting right there.
   for (const key of Object.keys(value)) {
-    if (!(key in fields)) {
+    // hasOwn, not `in`: `in` walks the prototype chain, so 'toString' and
+    // friends passed as known fields and then skipped validation entirely.
+    if (!Object.hasOwn(fields, key)) {
       throw new Error(
         `${where} has an unknown field '${key}'. Known fields: ${Object.keys(fields).join(", ")}`
       );
@@ -107,24 +114,8 @@ export function parseProfile(profile, name = "profile") {
   if (profile === null || typeof profile !== "object") {
     throw new Error(`${name} must export an object as its default export`);
   }
-  const { tile, scale, quality, layers } = profile;
-  if (
-    tile === undefined ||
-    !isInt(tile.width) ||
-    !isInt(tile.height) ||
-    tile.width < 1 ||
-    tile.height < 1
-  ) {
-    throw new Error(`${name}: 'tile' needs whole-number width and height above 0`);
-  }
-  if (!isNum(scale) || scale <= 0) throw new Error(`${name}: 'scale' must be a number above 0`);
-  if (!isInt(quality) || quality < 1 || quality > 100) {
-    throw new Error(`${name}: 'quality' must be a whole number from 1 to 100`);
-  }
-  if (!Array.isArray(layers) || layers.length === 0) {
-    throw new Error(`${name}: 'layers' must be a non-empty array, painted bottom-most first`);
-  }
-  // Any key beyond the four above is a typo, not an extension point.
+  // Unknown keys first, for the same reason checkFields does it: a typo should
+  // read as a typo rather than as the field it displaced going missing.
   for (const key of Object.keys(profile)) {
     if (!["tile", "scale", "quality", "layers"].includes(key)) {
       throw new Error(
@@ -132,10 +123,37 @@ export function parseProfile(profile, name = "profile") {
       );
     }
   }
+  const { tile, scale, quality, layers } = profile;
+  if (tile === null || typeof tile !== "object" || Array.isArray(tile)) {
+    throw new Error(`${name}: 'tile' must be an object with width and height`);
+  }
+  checkFields(
+    tile,
+    {
+      width: [(v) => isInt(v) && v >= 1, "a whole number of 1 or more"],
+      height: [(v) => isInt(v) && v >= 1, "a whole number of 1 or more"],
+    },
+    `${name} 'tile'`
+  );
+  if (!isNum(scale) || scale <= 0) throw new Error(`${name}: 'scale' must be a number above 0`);
+  // A scale that rounds a side to nothing yields a 0x0 buffer, and sharp then
+  // fails at the encode with an error about anything but the real cause.
+  if (Math.round(tile.width * scale) < 1 || Math.round(tile.height * scale) < 1) {
+    throw new Error(
+      `${name}: 'scale' of ${scale} rounds ${tile.width}x${tile.height} away to nothing`
+    );
+  }
+  if (!isInt(quality) || quality < 1 || quality > 100) {
+    throw new Error(`${name}: 'quality' must be a whole number from 1 to 100`);
+  }
+  if (!Array.isArray(layers) || layers.length === 0) {
+    throw new Error(`${name}: 'layers' must be a non-empty array, painted bottom-most first`);
+  }
   layers.forEach((layer, i) => {
-    if (layer === null || typeof layer !== "object")
+    if (layer === null || typeof layer !== "object" || Array.isArray(layer)) {
       throw new Error(`${name} layer ${i} is not an object`);
-    const fields = LAYER_FIELDS[layer.type];
+    }
+    const fields = Object.hasOwn(LAYER_FIELDS, layer.type) ? LAYER_FIELDS[layer.type] : undefined;
     if (fields === undefined) {
       throw new Error(
         `${name} layer ${i} has type ${JSON.stringify(layer.type)}; expected "noise" or "rings"`
@@ -265,8 +283,15 @@ if (isCli) {
 
     // alphaQuality 100 is not optional: every layer paints one colour at a
     // varying alpha, so the alpha channel IS the grain.
+    //
+    // effort 4, not the 6 this used to pass. The grain is high-entropy noise in
+    // exactly the channel the encoder searches hardest, and effort 6 degenerates
+    // on it: 22s to encode grain-h and 30s for grain-back, against 128ms and
+    // 269ms at effort 4, for 2-4% more bytes. That is the whole difference
+    // between a 38s bake and a 1.5s one, and none of it was ever the noise --
+    // generating all three tiles takes 0.7s.
     const buf = await sharp(bytes, { raw: { width: w, height: h, channels: 4 } })
-      .webp({ quality: profiles.get(name).quality, alphaQuality: 100, effort: 6 })
+      .webp({ quality: profiles.get(name).quality, alphaQuality: 100, effort: 4 })
       .toBuffer();
 
     fs.writeFileSync(path.join(OUT, `${name}.webp`), buf);

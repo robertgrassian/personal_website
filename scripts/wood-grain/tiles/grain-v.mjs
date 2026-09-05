@@ -32,7 +32,6 @@ export default {
       seed: 17,
       ringFrequency: 0.3,
       latewood: 0.3,
-      center: 0.5,
       pith: 17,
       drift: 22,
       driftFrequency: [0.0006, 0.006],
