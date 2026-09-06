@@ -22,7 +22,7 @@ from app.schemas.me import (
     WishlistPromote,
     WishlistUpdate,
 )
-from app.schemas.users import GameRead, WishlistGameRead
+from app.schemas.users import GameRead, MyWishlistGameRead
 from app.services import follows as follows_service
 from app.services import me as me_service
 
@@ -132,7 +132,7 @@ def update_my_game(user: CurrentUser, db: DbSession, game_id: int, payload: Game
 )
 def create_my_wishlist_item(
     user: CurrentUser, db: DbSession, payload: WishlistCreate
-) -> WishlistGameRead:
+) -> MyWishlistGameRead:
     """Add a wishlist entry (only name required — system may stay undecided).
 
     Status mapping: 409 name already wishlisted / 403 not onboarded / 422
@@ -141,13 +141,24 @@ def create_my_wishlist_item(
     return me_service.create_my_wishlist_item(db, user, payload)
 
 
+@router.get("/me/wishlist/{item_id}")
+def read_my_wishlist_item(user: CurrentUser, db: DbSession, item_id: int) -> MyWishlistGameRead:
+    """One of the caller's own wishlist entries, WITH its notes.
+
+    The public read (GET /users/{username}/wishlist) omits notes, so the owner's
+    edit form fetches the entry it is editing from here. No WRITE_GUARDS: this
+    reads, and the preview lockout and write budget are for mutations.
+    404 = nonexistent or someone else's."""
+    return me_service.get_my_wishlist_item(db, user, item_id)
+
+
 @router.patch(
     "/me/wishlist/{item_id}",
     dependencies=WRITE_GUARDS,
 )
 def update_my_wishlist_item(
     user: CurrentUser, db: DbSession, item_id: int, payload: WishlistUpdate
-) -> WishlistGameRead:
+) -> MyWishlistGameRead:
     """Partially edit a wishlist entry (starred / notes / system; system ""
     clears to undecided). 404 = nonexistent or someone else's."""
     return me_service.update_my_wishlist_item(db, user, item_id, payload)

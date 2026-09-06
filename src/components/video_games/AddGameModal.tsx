@@ -23,10 +23,6 @@ type AddGameModalProps = {
   // Folded name → the systems that name is already on, for whichever collection
   // this dialog is adding to. Built in GameLibrary, which holds both lists.
   ownedNames: Map<string, string[]>;
-  // Called when the add also logged a playthrough, so the library's one copy of
-  // the play history can re-read. Without it the new game's dates are missing
-  // from the card and the stats panel until a reload.
-  onSessionLogged: () => void;
   onClose: () => void;
 };
 
@@ -40,13 +36,7 @@ type AddGameModalProps = {
 // Keeping them in one component meant seven search state slots stayed alive
 // and re-rendered on every keystroke typed into the confirm form. Each now
 // unmounts when the other is showing.
-export function AddGameModal({
-  target,
-  existingSystems,
-  ownedNames,
-  onSessionLogged,
-  onClose,
-}: AddGameModalProps) {
+export function AddGameModal({ target, existingSystems, ownedNames, onClose }: AddGameModalProps) {
   // null = search step; set = confirm step.
   const [draft, setDraft] = useState<Draft | null>(null);
   // Remembered at hand-off, not on every keystroke, so "Back to search" can
@@ -148,10 +138,7 @@ export function AddGameModal({
       return addWishlistItem(item);
     };
     run(submit, {
-      onSuccess: () => {
-        if (session) onSessionLogged();
-        onClose();
-      },
+      onSuccess: onClose,
     });
   };
 

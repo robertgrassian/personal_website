@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { WishlistGame } from "@/lib/wishlist";
-import { deleteWishlistItem, updateWishlistItem } from "@/app/video-games/actions";
+import {
+  deleteWishlistItem,
+  getWishlistNotes,
+  updateWishlistItem,
+} from "@/app/video-games/actions";
 import { ConfirmStep } from "./ConfirmStep";
 import { useServerAction } from "./useServerAction";
 import { SuggestInput } from "./SuggestInput";
@@ -42,11 +46,46 @@ export function WishlistEditFields({
   const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   const [starredDraft, setStarredDraft] = useState(item.starred);
-  const [notesDraft, setNotesDraft] = useState(item.notes);
   const [systemDraft, setSystemDraft] = useState(item.system);
 
+  // Notes are the one field not on `item`: they are private to the owner, so
+  // the public read this card is drawn from does not carry them (see
+  // WishlistGame in lib/wishlist.ts) and they are fetched per entry here.
+  //
+  // null means "not read yet", which is deliberately NOT the same as "". An
+  // empty note is something a Save may legitimately write; an unread one is
+  // not, and collapsing the two is how a Save would blank a note nobody had
+  // seen. Everything below therefore waits for a non-null value.
+  const [savedNotes, setSavedNotes] = useState<string | null>(null);
+  const [notesFailed, setNotesFailed] = useState(false);
+
+  // null while the owner has not touched the field, so the loaded value shows
+  // through when it lands. Seeding this from a prop instead would freeze it at
+  // whatever was there on mount, which for notes is nothing at all.
+  const [notesDraft, setNotesDraft] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Guards a card reopened on a different entry before this answers: without
+    // it, the first entry's notes would land in the second one's field, and a
+    // Save would write them there.
+    let cancelled = false;
+    setSavedNotes(null);
+    setNotesFailed(false);
+    setNotesDraft(null);
+    void getWishlistNotes(item.id).then((result) => {
+      if (cancelled) return;
+      if (result.ok) setSavedNotes(result.notes);
+      else setNotesFailed(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id]);
+
+  const notesValue = notesDraft ?? savedNotes ?? "";
+
   const starredDirty = starredDraft !== item.starred;
-  const notesDirty = notesDraft !== item.notes;
+  const notesDirty = savedNotes !== null && notesDraft !== null && notesDraft !== savedNotes;
   // Unlike a library game, a wishlist entry may legitimately have no system:
   // "undecided" is a real answer here, so an empty value is a change like any
   // other rather than a missing required field.
@@ -57,7 +96,7 @@ export function WishlistEditFields({
     run(() =>
       updateWishlistItem(item.id, {
         ...(starredDirty ? { starred: starredDraft } : {}),
-        ...(notesDirty ? { notes: notesDraft } : {}),
+        ...(notesDirty ? { notes: notesValue } : {}),
         ...(systemDirty ? { system: systemDraft.trim() } : {}),
       })
     );
@@ -112,15 +151,28 @@ export function WishlistEditFields({
         <label className={`mt-5 ${labelClass}`}>
           Notes
           <textarea
-            value={notesDraft}
+            value={notesValue}
             onChange={(e) => setNotesDraft(e.target.value)}
             rows={2}
             maxLength={1000}
-            placeholder="e.g. wait for a sale"
-            disabled={isPending}
+            placeholder={savedNotes === null ? "" : "e.g. wait for a sale"}
+            // Disabled until the real value is in hand, so nothing typed into
+            // an empty-looking box can be saved over a note still in flight.
+            disabled={isPending || savedNotes === null}
             className={`${inputClass} resize-y`}
           />
         </label>
+        {savedNotes === null && (
+          <p
+            className="mt-1.5 text-[11px] text-shelf-text-muted"
+            // The failure is worth announcing; the ordinary wait is not.
+            role={notesFailed ? "alert" : undefined}
+          >
+            {notesFailed
+              ? "Could not load your notes, so they cannot be edited right now."
+              : "Loading your notes..."}
+          </p>
+        )}
 
         {/* Always present, so there is one place to look for "did this save?".
           Disabled until something is actually pending. */}

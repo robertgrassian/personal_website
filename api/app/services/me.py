@@ -46,11 +46,15 @@ from app.schemas.me import (
     WishlistUpdate,
     clean_genres,
 )
-from app.schemas.users import GameRead, WishlistGameRead
+from app.schemas.users import GameRead, MyWishlistGameRead
 from app.services import genres as genre_service
 from app.services import igdb as igdb_service
 from app.services import rate_limit
-from app.services.users import derive_play_state, to_game_read, to_wishlist_read
+from app.services.users import (
+    derive_play_state,
+    to_game_read,
+    to_my_wishlist_read,
+)
 
 # Mirrors the DB CHECK on profiles.username (app/models/profile.py): starts
 # with a lowercase letter or digit, then [a-z0-9_-], 3-30 chars total. Kept in
@@ -777,7 +781,7 @@ def _game_read_with_fresh_state(db: Session, game, meta) -> GameRead:
 
 def create_my_wishlist_item(
     db: Session, user: AuthenticatedUser, payload: WishlistCreate
-) -> WishlistGameRead:
+) -> MyWishlistGameRead:
     """Add a wishlist entry. Same shape as create_my_game: profile first (FK),
     resolve the catalog row, then a friendly dedupe 409 with the unique
     constraint as the concurrency backstop."""
@@ -830,12 +834,12 @@ def create_my_wishlist_item(
     except IntegrityError as exc:
         db.rollback()
         raise WishlistItemExistsError(payload.name) from exc
-    return to_wishlist_read(item, meta)
+    return to_my_wishlist_read(item, meta)
 
 
 def update_my_wishlist_item(
     db: Session, user: AuthenticatedUser, item_id: int, payload: WishlistUpdate
-) -> WishlistGameRead:
+) -> MyWishlistGameRead:
     """Partial edit (starred / notes / system) with the same model_fields_set
     PATCH semantics as GameUpdate. system "" clears to undecided (NULL)."""
     found = me_repo.get_wishlist_item_for_owner(db, item_id, user.id)
@@ -850,7 +854,19 @@ def update_my_wishlist_item(
     if "system" in payload.model_fields_set and payload.system is not None:
         item.system = payload.system.strip() or None
     item = me_repo.update_wishlist_item(db, item)
-    return to_wishlist_read(item, meta)
+    return to_my_wishlist_read(item, meta)
+
+
+def get_my_wishlist_item(db: Session, user: AuthenticatedUser, item_id: int) -> MyWishlistGameRead:
+    """One of the caller's own wishlist entries, notes included.
+
+    Exists because ``notes`` is not on the public read: the owner's edit form
+    has to fetch the field it is about to edit. 404 rather than 403 for someone
+    else's row, like every other /me lookup here."""
+    found = me_repo.get_wishlist_item_for_owner(db, item_id, user.id)
+    if found is None:
+        raise WishlistItemNotFoundError(item_id)
+    return to_my_wishlist_read(*found)
 
 
 def delete_my_wishlist_item(db: Session, user: AuthenticatedUser, item_id: int) -> None:

@@ -61,6 +61,15 @@ reasoning behind the shape, which the models themselves don't record.
   canonical key, so treating two users' "Tetris" as one game would let one person's typo
   rewrite the other's shelf. `created_by_user_id` is `ON DELETE SET NULL`, not CASCADE, so
   a deleted account cannot take a catalog row out from under someone else.
+- **`wishlist_games.notes` is the one column that never leaves the `/me` path.** Every other
+  per-user field on `played_games` and `wishlist_games` is already rendered to any visitor (the
+  star overlay, the date-added sort, the rating, the play dates), so it costs nothing to serve
+  publicly. Notes are free text written by someone with no reason to expect a stranger reads it,
+  so `WishlistGameRead` omits it and `MyWishlistGameRead` (`GET /me/wishlist/{item_id}`, plus the
+  create/update responses) carries it. The public read is cached and shared across viewers, so
+  this is not a filter that could be applied per request: the field cannot be on that payload at
+  all.
+
 - **Genres are sourced from Wikipedia on the write path, not taken from the client.** When
   an add creates a catalog row, `create_my_game` / `create_my_wishlist_item` call
   `genre_service.lookup_one` and store what the game's Wikipedia infobox says, because
@@ -85,10 +94,10 @@ reasoning behind the shape, which the models themselves don't record.
   a complete one after a month; the column is NOT NULL and defaults like
   `created_at`, which is true for a new row because the add path sources it on
   the way in, while the migration backfills existing rows from `created_at`
-  rather than stamping them fresh. The stamp is written *before*
+  rather than stamping them fresh. The stamp is written _before_
   the lookups, so a failure counts as an attempt and a game with no announced
   date cannot be retried on every page view. Hand-entered rows (`igdb_id IS
-  NULL`) are skipped, and the game's **name** is never overwritten: IGDB's title
+NULL`) are skipped, and the game's **name** is never overwritten: IGDB's title
   is often not this library's (`scripts/backfill_titles.py`), and the stored
   name is what the Wikipedia genre lookup searches on. The backfill scripts
   remain the bulk repair tools; this is the trickle that keeps an active library

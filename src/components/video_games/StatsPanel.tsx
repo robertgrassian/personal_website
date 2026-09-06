@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import type { Game } from "@/lib/games";
+import type { WishlistGame } from "@/lib/wishlist";
 import { GameStats } from "./GameStats";
 import { SqlQueryPanel } from "./SqlQueryPanel";
 import { ArrowLeftIcon, CloseIcon } from "@/components/Icon";
@@ -9,21 +10,20 @@ import { useModalChrome } from "./useModalChrome";
 import { ModalBackdrop } from "./ModalBackdrop";
 import { sessionsInLibrary } from "@/lib/sessions";
 import { PlayHistoryList } from "./PlayHistoryList";
-import type { PlayHistoryState } from "./usePlayHistory";
+import type { PlaySession } from "@/lib/sessions";
 import { IconButton } from "@/components/ui/IconButton";
 import { TabBar } from "@/components/ui/TabBar";
 
 type StatsPanelProps = {
   games: Game[];
-  // In-progress games, forwarded to GameStats for the "Recently Played" list.
-  currentlyPlayingGames: Game[];
+  // Only the query tab reads this: the wishlist is a table people can join
+  // against, not something Overview counts.
+  wishlist: WishlistGame[];
   isOpen: boolean;
   onClose: () => void;
-  // The library's sessions, owned by GameLibrary. See usePlayHistory.
-  playHistory: PlayHistoryState;
-  // Triggers the fetch. Separate from the view state so a back-press does not
-  // undo it and a second visit does not refetch.
-  onRequestHistory: () => void;
+  // Every session in the library, fetched with the page. There is no loading
+  // state anywhere below because there is nothing left to wait for.
+  sessions: PlaySession[];
 };
 
 type PanelTab = "overview" | "query";
@@ -38,14 +38,7 @@ const STATS_TABS: readonly { value: PanelTab; label: string }[] = [
 // the panel keeps its size, scroll lock and focus handling.
 type PanelView = "stats" | "history";
 
-export function StatsPanel({
-  games,
-  currentlyPlayingGames,
-  isOpen,
-  onClose,
-  playHistory,
-  onRequestHistory,
-}: StatsPanelProps) {
+export function StatsPanel({ games, wishlist, isOpen, onClose, sessions }: StatsPanelProps) {
   const [activeTab, setActiveTab] = useState<PanelTab>("overview");
   const [view, setView] = useState<PanelView>("stats");
 
@@ -53,14 +46,11 @@ export function StatsPanel({
   // unmounts, so after a game is deleted its rows leave the list while the raw
   // length would go on counting them.
   const visibleSessions = useMemo(
-    () => sessionsInLibrary(playHistory.sessions, new Set(games.map((game) => game.id))),
-    [playHistory.sessions, games]
+    () => sessionsInLibrary(sessions, new Set(games.map((game) => game.id))),
+    [sessions, games]
   );
 
-  const openHistory = () => {
-    onRequestHistory();
-    setView("history");
-  };
+  const openHistory = () => setView("history");
 
   // Opening focus lands on the panel itself, not on the close button. A
   // programmatic focus() on a button paints the UA focus ring, and a touch has
@@ -168,28 +158,18 @@ export function StatsPanel({
               history. */}
           <div className={view === "history" ? "" : "hidden"}>
             <PlayHistoryList
-              sessions={playHistory.sessions}
+              sessions={sessions}
               games={games}
-              isLoading={playHistory.isLoading}
-              error={playHistory.error}
               emptyMessage="No games have been played yet."
             />
           </div>
           <div className={view === "stats" && activeTab === "overview" ? "" : "hidden"}>
-            <GameStats
-              games={games}
-              currentlyPlayingGames={currentlyPlayingGames}
-              onSeeAllPlayed={openHistory}
-            />
+            <GameStats games={games} sessions={visibleSessions} onSeeAllPlayed={openHistory} />
           </div>
           <div className={view === "stats" && activeTab === "query" ? "" : "hidden"}>
-            {/* `games` is the whole played library, so the SQL table no longer
-                needs the currently-playing rows merged in — and it is now
-                complete, where the old merge silently omitted any unrated game
-                you weren't currently playing. GameStats above still takes the
-                two lists separately, for dedup preference rather than ordering
-                (see its prop comment). */}
-            <SqlQueryPanel games={games} />
+            {/* The same session list the history view renders, so a count in
+                the query tab cannot disagree with the rows above it. */}
+            <SqlQueryPanel games={games} sessions={visibleSessions} wishlist={wishlist} />
           </div>
         </div>
       </aside>

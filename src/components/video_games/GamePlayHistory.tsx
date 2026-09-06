@@ -6,11 +6,9 @@ import type { PlayDraft } from "./usePlayDraft";
 import { StopPlayingControl } from "./StopPlayingControl";
 
 type GamePlayHistoryProps = {
-  // Newest first, narrowed by the caller out of the one whole-library fetch,
-  // so opening this view costs no extra request.
+  // Newest first, narrowed by the caller out of the library's sessions, which
+  // arrive with the page.
   sessions: PlaySession[];
-  isLoading: boolean;
-  error: string | null;
   play: PlayDraft;
   // Whether there is an open session for "Stop Playing" to close.
   hasOpenSession: boolean;
@@ -43,8 +41,6 @@ function SessionRow({ session }: { session: PlaySession }) {
 // promote.
 export function GamePlayHistory({
   sessions,
-  isLoading,
-  error,
   play,
   hasOpenSession,
   stopPending,
@@ -57,9 +53,7 @@ export function GamePlayHistory({
         Play History
       </p>
 
-      {isLoading && sessions.length === 0 ? (
-        <p className="mt-3 text-sm text-shelf-text-muted">Loading...</p>
-      ) : sessions.length === 0 ? (
+      {sessions.length === 0 ? (
         <p className="mt-3 text-sm text-shelf-text-muted italic">
           Nothing logged yet. Add the first one below.
         </p>
@@ -69,11 +63,6 @@ export function GamePlayHistory({
             <SessionRow key={session.id} session={session} />
           ))}
         </ol>
-      )}
-      {error !== null && (
-        <p role="alert" className="mt-2 text-xs text-shelf-danger">
-          {error}
-        </p>
       )}
 
       {hasOpenSession && (

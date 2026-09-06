@@ -24,7 +24,7 @@ import {
   groupWishlist,
   sortWishlist,
 } from "./pipeline";
-import type { PlayHistoryState } from "./usePlayHistory";
+import type { PlaySession } from "@/lib/sessions";
 import { useFilterOptions } from "./useFilterOptions";
 import { useKeepResultsInView } from "./useKeepResultsInView";
 import { useHideOnScrollDown } from "./useHideOnScrollDown";
@@ -52,9 +52,6 @@ const ShelfGroup = SHELF_GROUPS[ACTIVE_SHELF_THEME];
 type GameShelvesProps = {
   games: Game[];
   wishlist: WishlistGame[];
-  // In-progress games, a subset of `games`; forwarded to the stats panel so
-  // "Recently Played" can rank them first.
-  currentlyPlayingGames: Game[];
   // The same value as `urlState.view`, narrowed to GameView: this component
   // only mounts on a shelf tab, which is the whole point of the split, and the
   // filter/group/sort machinery no longer has to opt out of itself on a tab
@@ -87,11 +84,9 @@ type GameShelvesProps = {
   // strip up there, while the panel it opens belongs down here.
   statsOpen: boolean;
   onStatsClose: () => void;
-  // Both forwarded straight to the stats panel, which is the only thing down
-  // here that reads them. Owned by GameLibrary so one copy serves every
-  // surface that shows sessions.
-  playHistory: PlayHistoryState;
-  onRequestHistory: () => void;
+  // Forwarded straight to the stats panel, the only thing down here that reads
+  // it.
+  sessions: PlaySession[];
 };
 
 // The shelf half of the library: filter chrome, the filter/group/sort pipeline,
@@ -100,7 +95,6 @@ type GameShelvesProps = {
 export function GameShelves({
   games,
   wishlist,
-  currentlyPlayingGames,
   view,
   tabs,
   canEdit,
@@ -109,8 +103,7 @@ export function GameShelves({
   onAddGame,
   statsOpen,
   onStatsClose,
-  playHistory,
-  onRequestHistory,
+  sessions,
 }: GameShelvesProps) {
   const {
     groupBy,
@@ -477,11 +470,10 @@ export function GameShelves({
       {view === "played" && statsMounted && (
         <StatsPanel
           games={games}
-          currentlyPlayingGames={currentlyPlayingGames}
+          wishlist={wishlist}
           isOpen={statsVisible}
           onClose={onStatsClose}
-          playHistory={playHistory}
-          onRequestHistory={onRequestHistory}
+          sessions={sessions}
         />
       )}
     </>

@@ -1576,6 +1576,31 @@ def test_delete_wishlist_item(fresh_user_with_game) -> None:
 
 
 @requires_db
+def test_read_own_wishlist_item_carries_notes(fresh_user_with_game) -> None:
+    """The owner's read is where notes live, now that the public one omits
+    them. Without this endpoint the edit form has no way to show the field."""
+    user_id, _ = fresh_user_with_game
+    item = _add_wishlist(user_id, {"name": "Noted Wish", "notes": "buy it on sale"})
+
+    response = client_as(user_id).get(f"/api/library/me/wishlist/{item['id']}")
+    assert response.status_code == 200, response.text
+    assert response.json()["notes"] == "buy it on sale"
+
+
+@requires_db
+def test_reading_someone_elses_wishlist_item_is_404(fresh_user_with_game) -> None:
+    """The notes endpoint gets the same 404-over-403 treatment as the writes:
+    a stranger learns neither the notes nor whether the row exists."""
+    user_id, _ = fresh_user_with_game
+    item = _add_wishlist(user_id, {"name": "Private Wish", "notes": "nobody else's"})
+
+    other = client_as(ROBERT_PROFILE_ID).get(f"/api/library/me/wishlist/{item['id']}")
+    assert other.status_code == 404
+    assert "nobody else's" not in other.text
+    assert client_as(user_id).get("/api/library/me/wishlist/999999999").status_code == 404
+
+
+@requires_db
 def test_wishlist_foreign_and_nonexistent_are_404(fresh_user_with_game) -> None:
     user_id, _ = fresh_user_with_game
     item = _add_wishlist(user_id, {"name": "Foreign Wish"})

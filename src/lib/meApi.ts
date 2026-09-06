@@ -371,6 +371,24 @@ export function createMyWishlistItem(item: NewWishlistItem): Promise<MutateResul
   );
 }
 
+/** The notes on one of the caller's own wishlist entries.
+ *
+ *  A read on the /me path, unlike everything else here, because notes are the
+ *  one wishlist field the public read does not carry: only a request that
+ *  proves whose entry it is can be told what they say. Returns null when the
+ *  API refuses (not signed in, someone else's row, or unreachable) — the caller
+ *  renders that as "could not load", never as an empty note, because an empty
+ *  note is something the owner can then save OVER the real one. */
+export async function fetchMyWishlistNotes(itemId: number): Promise<string | null> {
+  const res = await callMeApi<{ notes: string }>(`${API_PREFIX}/me/wishlist/${itemId}`, {
+    what: "load your notes",
+    // A read cannot damage production, so it is allowed from a preview
+    // deployment pointed at the production API, unlike the writes below.
+    refuseOnForeignApi: false,
+  });
+  return res.ok ? res.data.notes : null;
+}
+
 /** Partially edit a wishlist entry — pass only the fields to change
  *  (PATCH semantics: absent = leave unchanged; system "" = undecided). */
 export function updateMyWishlistItem(

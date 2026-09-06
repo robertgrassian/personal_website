@@ -13,7 +13,7 @@ import type { CardOrigin } from "./LibraryCardContext";
 import { GameEditFields } from "./GameEditFields";
 import { WishlistEditFields } from "./WishlistEditFields";
 import { sessionsByGame } from "@/lib/sessions";
-import type { PlayHistoryState } from "./usePlayHistory";
+import type { PlaySession } from "@/lib/sessions";
 import { IconButton } from "@/components/ui/IconButton";
 
 /** Which of the three things the card is showing. A viewer's card is NOT a
@@ -51,11 +51,8 @@ type GameDetailCardProps = {
   // The source case, hidden while the card is out and re-measured on the way
   // back. null for a promote, which has no case.
   caseId: string | null;
-  // Owned by GameLibrary so one copy serves every surface; narrowed here to
-  // the game on screen.
-  playHistory: PlayHistoryState;
-  // Triggers the fetch. See usePlayHistory.
-  onRequestHistory: () => void;
+  // Every session in the library, narrowed here to the game on screen.
+  sessions: PlaySession[];
   onClose: () => void;
 };
 
@@ -89,8 +86,7 @@ export function GameDetailCard({
   isDark,
   origin,
   caseId,
-  playHistory,
-  onRequestHistory,
+  sessions,
   onClose,
 }: GameDetailCardProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -102,21 +98,15 @@ export function GameDetailCard({
   // opened it is no longer remembered here, because "Stop Playing" now stages
   // the close in the form that owns every other pending edit.
   const [historyOpen, setHistoryOpen] = useState(startWithSession && subject.kind === "game");
-  // A promote has no rows to fetch: its history face is a draft of the first
-  // playthrough, with nothing to list above it.
-  const openHistory = () => {
-    if (subject.kind === "game") onRequestHistory();
-    setHistoryOpen(true);
-  };
+  const openHistory = () => setHistoryOpen(true);
 
   // The initializer covers a card that MOUNTS on "Played?". This covers the
   // other way in: for a game already owned the subject swaps from wishlist to
   // game IN PLACE, so nothing remounts and no initializer re-runs.
   useEffect(() => {
     if (!startWithSession || subject.kind !== "game") return;
-    onRequestHistory();
     setHistoryOpen(true);
-  }, [startWithSession, subject.kind, onRequestHistory]);
+  }, [startWithSession, subject.kind]);
 
   // `close` runs the return flight and calls onClose when it lands, so every
   // way out of the card — the X, Escape, the backdrop, a delete — flies back
@@ -348,14 +338,11 @@ export function GameDetailCard({
                         // do with this list.
                         sessions={
                           historyOpen && subject.kind === "game"
-                            ? (sessionsByGame(playHistory.sessions).get(subject.game.id) ?? [])
+                            ? (sessionsByGame(sessions).get(subject.game.id) ?? [])
                             : []
                         }
-                        sessionsLoading={playHistory.isLoading}
-                        sessionsError={playHistory.error}
                         startWithSession={startWithSession}
                         wishlistItemId={wishlistItemId}
-                        onSessionLogged={playHistory.refresh}
                         onClose={close}
                       />
                     )}

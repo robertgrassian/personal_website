@@ -15,9 +15,13 @@ _What shipped, so it is not rebuilt:_
   which games. `endDate` is `null` while open, breaking the `""`-for-absent convention on purpose.
 - `sessionsTag` in `libraryApi.ts`, paired with `deleteGame`, `saveGameEdits` and `promoteAndSave`,
   the last two only when the Save actually touched a session.
-- `getPlayHistory` + `usePlayHistory` (**one copy, owned by `GameLibrary`** — the stats panel never
-  unmounts, so a second private copy would sit stale after a card logs a session).
-- Across games: a "See all" link on **Recently Played** swaps `StatsPanel` into a history view.
+- The sessions arrive **with the page**: `getSessions` sits in `LibraryPage`'s `Promise.all` beside
+  `getGames`, and every surface takes them as a prop. There is no client-side copy and no loading
+  state anywhere. `getPlayHistory` and `usePlayHistory` existed until 2026-09-06 and are gone: they
+  fetched the history lazily on first open, which cost a visible wait and left a copy that writes
+  from the CRT panel could not invalidate. A session write's `revalidateTag(sessionsTag)` now
+  reaches every consumer, so **anything this item adds needs no refresh plumbing** — only the tag.
+- Across games: a "See all" link on **Recently Started** swaps `StatsPanel` into a history view.
 - Per game, owner only: "View or add play history" in `GameEditFields` swaps `GameDetailCard`'s
   scrolling region for a second face. For a real game that face is `GamePlayHistory` (list, "Stop
   Playing", an add form and its own session-only Save), and `GameEditFields` unmounts behind it.

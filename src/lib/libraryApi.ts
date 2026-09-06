@@ -222,8 +222,17 @@ export function getGames(username: string): Promise<Game[]> {
   return fetchUserResource<Game[]>(username, "/games", "games", gamesTag);
 }
 
-// Every session across the library, newest first. Kept off getGames, which
-// backs the prerendered /video-games page: fetched only when a history opens.
+// Every session across the library, newest first.
+//
+// Fetched with the page, alongside getGames, rather than on demand from the
+// browser. It used to be lazy on the grounds that it would bloat the
+// prerendered /video-games payload; measured, it is the smallest read here (405
+// bytes against games' 54KB for this library, and still comparable to games at
+// 180x the session count), and on a prerendered route it costs a VISITOR
+// nothing at all because it runs at build time. What laziness did cost was a
+// visible wait when the stats panel opened, a loading state in every consumer,
+// and a client-side copy that writes elsewhere on the page could not
+// invalidate.
 export function getSessions(username: string): Promise<PlaySession[]> {
   return fetchUserResource<PlaySession[]>(username, "/sessions", "play history", sessionsTag);
 }

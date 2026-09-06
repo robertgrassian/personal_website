@@ -27,6 +27,12 @@ Personal website built with **Next.js 15, React 19, TypeScript, and Tailwind CSS
 - **Read** (public, cached): Server Component `LibraryPage.tsx` → `src/lib/libraryApi.ts` (this file imports `server-only` and is the server boundary; there is no `gamesServer.ts`) → `GET /api/library/users/{username}/*` → routers → services → repositories → Postgres.
 - **Write** (owner-only, BFF): browser → Server Action `src/app/video-games/actions.ts` → `src/lib/meApi.ts` (session cookie → Bearer JWT) → `/api/library/me/*` → same layers → on success `revalidateTag(libraryCacheTag(...))`.
 
+**Every library read happens in that one `Promise.all`** — games, wishlist, sessions, followers,
+following. Nothing the library shows is fetched from the browser afterwards, so no display
+component has a loading state and a write's `revalidateTag` reaches every surface at once. The play
+history was the last exception and stopped being one 2026-09-06: it was lazy on the theory that it
+would bloat the prerendered payload, which measured at 405 bytes against games' 54KB.
+
 Filter, group and sort are **client-side**, in `pipeline.ts` — pure functions over the fetched array, no React. The API returns a whole library; the browser narrows it.
 
 Docs ownership, so the same fact does not drift across four files: **`api/README.md`** owns the backend layer map and the data model, **`docs/architecture.md`** owns the request flow, **`README.md`** owns what the project is and how to run it, and this file owns conventions and the map below. Link, don't restate.
@@ -40,6 +46,7 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | Owner writes (client-callable)         | `src/app/video-games/actions.ts` → `src/lib/meApi.ts`                                                                                                                  |
 | Filter / group / sort logic            | `src/components/video_games/pipeline.ts`                                                                                                                               |
 | Filter/group/sort option lists         | `src/components/video_games/libraryConfig.ts`, `useFilterOptions.ts`                                                                                                   |
+| Stats panel: the ad hoc SQL tab        | `SqlQueryPanel.tsx` is the UI; the tables, columns and examples are `queryTables.ts`, which `queryTables.test.ts` executes                                             |
 | Shared types, `RATINGS`, `systemLabel` | `src/lib/games.ts` (library), `wishlist.ts`, `profile.ts`, `follows.ts`                                                                                                |
 | Shelf UI                               | `GameShelves.tsx` → the active theme's group in `shelves/` → `GameCase.tsx`                                                                                            |
 | Which shelf design is worn             | `src/lib/shelfTheme.ts` (the switch), `shelves/index.ts` (name → component)                                                                                            |
@@ -137,6 +144,16 @@ Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were
   latter includes a cached guess that can be wrong for one round trip, which is fine where the
   server can still refuse (`PATCH`/`DELETE` 404 on another user's row) and unsafe where it cannot
   (`POST /me/games` always writes to the caller's own library). Both live in `FollowControls.tsx`.
+- **A public read carries public fields only; an owner's private ones live on `/me`.** The
+  library reads are cached and SHARED between viewers (`libraryApi.ts`), so a field that means
+  something different depending on who is asking cannot go on them at all: whoever primes the
+  cache decides what everyone else gets. Today the only such field is `wishlist_games.notes`,
+  which is why `WishlistGameRead` omits it, `MyWishlistGameRead` adds it, and the owner's edit
+  form fetches it per entry from `GET /me/wishlist/{id}`. Two separate DTO builders in
+  `services/users.py` rather than one with a flag, so widening the public shape has to be a
+  deliberate edit. `test_public_wishlist_never_carries_notes` fails if it stops being true.
+  Every OTHER wishlist and library field is already on screen for any visitor, so this is a
+  short list on purpose: check before adding to it.
 - **Adding a read means adding its cache tag.** Tags are defined in `libraryApi.ts` and must be paired with every write that can change them, in `video-games/actions.ts`. Too narrow a tag serves a stale page.
 
 ## Repository

@@ -12,6 +12,7 @@ import {
   getFollowers,
   getFollowing,
   getGames,
+  getSessions,
   getProfile,
   getWishlist,
   targetsForeignEnvironmentApi,
@@ -120,15 +121,16 @@ export async function LibraryPage({
   // fetched when their tab is opened: they're public data on the same cache
   // tag, so they cost nothing after the first render and switching to the
   // Following tab needs no network at all.
-  const [games, wishlist, followers, following] = await Promise.all([
+  const [games, wishlist, sessions, followers, following] = await Promise.all([
     getGames(username),
     getWishlist(username),
+    getSessions(username),
     getFollowers(username),
     getFollowing(username),
   ]);
-  // All in-progress games — the CRT cycles through them like TV channels. Also
-  // forwarded to the stats panel, which needs them as their own list to break a
-  // "Recently Played" dedup tie, not to order anything (see GameStats).
+  // All in-progress games — the CRT cycles through them like TV channels. The
+  // stats panel used to take this list too; it now ranks by session start date
+  // and reads the sessions themselves (see GameStats).
   const currentlyPlayingGames = games.filter((g) => g.currentlyPlaying);
   // `games` goes to GameLibrary whole, rated and unrated alike. It used to be
   // split on `rating !== ""` here, which left the unrated half outside the
@@ -286,7 +288,7 @@ export async function LibraryPage({
             <GameLibrary
               games={games}
               wishlist={wishlist}
-              currentlyPlayingGames={currentlyPlayingGames}
+              sessions={sessions}
               followers={followers}
               following={following}
             />

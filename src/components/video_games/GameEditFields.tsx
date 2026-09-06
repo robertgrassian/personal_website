@@ -41,8 +41,6 @@ type GameEditFieldsProps = {
   // This game's logged sessions, narrowed by the card out of the one
   // whole-library fetch. Empty for a promote, which has no row to have any.
   sessions: PlaySession[];
-  sessionsLoading: boolean;
-  sessionsError: string | null;
   // Arrived by "Played?", so the play choice opens answered and dated today
   // rather than neutral.
   startWithSession: boolean;
@@ -51,10 +49,6 @@ type GameEditFieldsProps = {
   // the same button has always done via the promote. null in every other way
   // into this form, including opening the same game from its shelf case.
   wishlistItemId: number | null;
-  // Called when a promote's Save also logged a playthrough. Same reason as the
-  // add form: the library's one copy of the play history has no other way to
-  // learn that the row it holds is out of date.
-  onSessionLogged: () => void;
   onClose: () => void;
 };
 
@@ -73,11 +67,8 @@ export function GameEditFields({
   onOpenHistory,
   showingHistory,
   sessions,
-  sessionsLoading,
-  sessionsError,
   startWithSession,
   wishlistItemId,
-  onSessionLogged,
   onClose,
 }: GameEditFieldsProps) {
   const { isPending, error, run } = useServerAction();
@@ -151,10 +142,7 @@ export function GameEditFields({
             ...(session ? { session } : {}),
           }),
         {
-          onSuccess: () => {
-            if (session) onSessionLogged();
-            onClose();
-          },
+          onSuccess: onClose,
         }
       );
       return;
@@ -185,7 +173,6 @@ export function GameEditFields({
         onSuccess: () => {
           play.reset();
           setStopPending(false);
-          if (session || stopping) onSessionLogged();
         },
       }
     );
@@ -298,8 +285,6 @@ export function GameEditFields({
         ) : (
           <GamePlayHistory
             sessions={sessions}
-            isLoading={sessionsLoading}
-            error={sessionsError}
             play={play}
             hasOpenSession={openSessionId !== null}
             stopPending={stopPending}
