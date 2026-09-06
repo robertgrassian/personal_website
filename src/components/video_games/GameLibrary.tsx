@@ -26,7 +26,6 @@ type GameLibraryProps = {
   wishlist: WishlistGame[];
   // In-progress games, a subset of `games`; forwarded to the stats panel so
   // "Recently Played" can rank them first.
-  currentlyPlayingGames: Game[];
   // The owner's follow graph, backing the Following/Followers tabs. Public
   // data fetched server-side, so it is cached with the page like the games.
   followers: UserSummary[];
@@ -44,13 +43,7 @@ const headerActionClass =
   "flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 " +
   "whitespace-nowrap text-xs min-[375px]:text-sm";
 
-export function GameLibrary({
-  games,
-  wishlist,
-  currentlyPlayingGames,
-  followers,
-  following,
-}: GameLibraryProps) {
+export function GameLibrary({ games, wishlist, followers, following }: GameLibraryProps) {
   const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
@@ -392,7 +385,6 @@ export function GameLibrary({
           <GameShelves
             games={games}
             wishlist={wishlist}
-            currentlyPlayingGames={currentlyPlayingGames}
             view={view}
             tabs={tabs}
             canEdit={canEdit}

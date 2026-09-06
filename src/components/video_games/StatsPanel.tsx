@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import type { Game } from "@/lib/games";
+import type { WishlistGame } from "@/lib/wishlist";
 import { GameStats } from "./GameStats";
 import { SqlQueryPanel } from "./SqlQueryPanel";
 import { ArrowLeftIcon, CloseIcon } from "@/components/Icon";
@@ -15,8 +16,9 @@ import { TabBar } from "@/components/ui/TabBar";
 
 type StatsPanelProps = {
   games: Game[];
-  // In-progress games, forwarded to GameStats for the "Recently Played" list.
-  currentlyPlayingGames: Game[];
+  // Only the query tab reads this: the wishlist is a table people can join
+  // against, not something Overview counts.
+  wishlist: WishlistGame[];
   isOpen: boolean;
   onClose: () => void;
   // The library's sessions, owned by GameLibrary. See usePlayHistory.
@@ -40,7 +42,7 @@ type PanelView = "stats" | "history";
 
 export function StatsPanel({
   games,
-  currentlyPlayingGames,
+  wishlist,
   isOpen,
   onClose,
   playHistory,
@@ -56,6 +58,14 @@ export function StatsPanel({
     () => sessionsInLibrary(playHistory.sessions, new Set(games.map((game) => game.id))),
     [playHistory.sessions, games]
   );
+
+  // Both tabs need the sessions now, not just the drill-down: "Recently
+  // Started" ranks by session start date and the query tab exposes the sessions
+  // as a table. onRequestHistory is idempotent (usePlayHistory fetches once per
+  // library), so re-running this on every open costs nothing.
+  useEffect(() => {
+    if (isOpen) onRequestHistory();
+  }, [isOpen, onRequestHistory]);
 
   const openHistory = () => {
     onRequestHistory();
@@ -178,18 +188,22 @@ export function StatsPanel({
           <div className={view === "stats" && activeTab === "overview" ? "" : "hidden"}>
             <GameStats
               games={games}
-              currentlyPlayingGames={currentlyPlayingGames}
+              sessions={visibleSessions}
+              sessionsLoading={playHistory.isLoading}
+              sessionsError={playHistory.error}
               onSeeAllPlayed={openHistory}
             />
           </div>
           <div className={view === "stats" && activeTab === "query" ? "" : "hidden"}>
-            {/* `games` is the whole played library, so the SQL table no longer
-                needs the currently-playing rows merged in — and it is now
-                complete, where the old merge silently omitted any unrated game
-                you weren't currently playing. GameStats above still takes the
-                two lists separately, for dedup preference rather than ordering
-                (see its prop comment). */}
-            <SqlQueryPanel games={games} />
+            {/* The same session list the history view renders, so a count in
+                the query tab cannot disagree with the rows above it. */}
+            <SqlQueryPanel
+              games={games}
+              sessions={visibleSessions}
+              wishlist={wishlist}
+              sessionsLoading={playHistory.isLoading}
+              sessionsError={playHistory.error}
+            />
           </div>
         </div>
       </aside>

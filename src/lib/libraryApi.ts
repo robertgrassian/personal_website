@@ -223,7 +223,8 @@ export function getGames(username: string): Promise<Game[]> {
 }
 
 // Every session across the library, newest first. Kept off getGames, which
-// backs the prerendered /video-games page: fetched only when a history opens.
+// backs the prerendered /video-games page: fetched only once something asks for
+// play dates, which today is opening the stats panel or a card's history.
 export function getSessions(username: string): Promise<PlaySession[]> {
   return fetchUserResource<PlaySession[]>(username, "/sessions", "play history", sessionsTag);
 }

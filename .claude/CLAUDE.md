@@ -40,6 +40,7 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | Owner writes (client-callable)         | `src/app/video-games/actions.ts` → `src/lib/meApi.ts`                                                                                                                  |
 | Filter / group / sort logic            | `src/components/video_games/pipeline.ts`                                                                                                                               |
 | Filter/group/sort option lists         | `src/components/video_games/libraryConfig.ts`, `useFilterOptions.ts`                                                                                                   |
+| Stats panel: the ad hoc SQL tab        | `SqlQueryPanel.tsx` is the UI; the tables, columns and examples are `queryTables.ts`, which `queryTables.test.ts` executes                                             |
 | Shared types, `RATINGS`, `systemLabel` | `src/lib/games.ts` (library), `wishlist.ts`, `profile.ts`, `follows.ts`                                                                                                |
 | Shelf UI                               | `GameShelves.tsx` → the active theme's group in `shelves/` → `GameCase.tsx`                                                                                            |
 | Which shelf design is worn             | `src/lib/shelfTheme.ts` (the switch), `shelves/index.ts` (name → component)                                                                                            |

@@ -52,9 +52,6 @@ const ShelfGroup = SHELF_GROUPS[ACTIVE_SHELF_THEME];
 type GameShelvesProps = {
   games: Game[];
   wishlist: WishlistGame[];
-  // In-progress games, a subset of `games`; forwarded to the stats panel so
-  // "Recently Played" can rank them first.
-  currentlyPlayingGames: Game[];
   // The same value as `urlState.view`, narrowed to GameView: this component
   // only mounts on a shelf tab, which is the whole point of the split, and the
   // filter/group/sort machinery no longer has to opt out of itself on a tab
@@ -100,7 +97,6 @@ type GameShelvesProps = {
 export function GameShelves({
   games,
   wishlist,
-  currentlyPlayingGames,
   view,
   tabs,
   canEdit,
@@ -477,7 +473,7 @@ export function GameShelves({
       {view === "played" && statsMounted && (
         <StatsPanel
           games={games}
-          currentlyPlayingGames={currentlyPlayingGames}
+          wishlist={wishlist}
           isOpen={statsVisible}
           onClose={onStatsClose}
           playHistory={playHistory}

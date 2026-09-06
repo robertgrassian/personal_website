@@ -2,143 +2,22 @@
 
 import { useState, useCallback, useMemo } from "react";
 import type { Game } from "@/lib/games";
-import { RATINGS } from "@/lib/games";
-import { baseGameGenres } from "@/lib/baseGame";
+import type { WishlistGame } from "@/lib/wishlist";
+import type { PlaySession } from "@/lib/sessions";
 import { Button } from "@/components/ui/Button";
+import { ChevronDownIcon } from "@/components/Icon";
+import {
+  EXAMPLE_QUERIES,
+  QUERY_SCHEMA,
+  buildQueryTables,
+  distinctQuery,
+  type QueryTables,
+  type SchemaTable,
+} from "./queryTables";
 
-// --- Row types ---
-
-type GameRow = {
-  name: string;
-  system: string;
-  rating: string | null; // letter grade, e.g. "A"
-  genres: string; // comma-separated, e.g. "Platform, Fighting"
-  release_date: string | null; // "YYYY-MM-DD"
-  release_year: number | null;
-  last_played: string | null; // derived from sessions: newest end date, or NULL
-  currently_playing: boolean; // derived from sessions: has an open session
-  playing_since: string | null; // derived from sessions: open session start, or NULL
-};
-
-// Normalized join table: one row per game-genre pair.
-// Mirrors how the shelf grouping works in the library view.
-type GameGenreRow = {
-  name: string;
-  genre: string;
-};
-
-const RATING_LETTER = Object.fromEntries(RATINGS.map((r) => [r.name, r.letter]));
-
-function toGameRow(game: Game): GameRow {
-  const y = game.releaseDate ? parseInt(game.releaseDate.slice(0, 4), 10) : NaN;
-  return {
-    name: game.name,
-    system: game.system,
-    rating: game.rating ? (RATING_LETTER[game.rating] ?? null) : null,
-    genres: game.genres.join(", "),
-    release_date: game.releaseDate || null,
-    release_year: isNaN(y) ? null : y,
-    last_played: game.lastPlayed || null,
-    currently_playing: game.currentlyPlaying,
-    playing_since: game.playingSince || null,
-  };
-}
-
-function toGameGenreRows(game: Game): GameGenreRow[] {
-  return baseGameGenres(game).map((genre) => ({ name: game.name, genre }));
-}
-
-// --- Schema definition ---
-
-const GAMES_COLUMNS = [
-  { name: "name", desc: "Game title" },
-  { name: "system", desc: "Console or platform" },
-  { name: "rating", desc: "S / A / B / C / F, or NULL if unrated" },
-  { name: "genres", desc: 'Comma-separated; e.g. "Platform, Fighting"' },
-  { name: "release_date", desc: "ISO date (YYYY-MM-DD) or NULL" },
-  { name: "release_year", desc: "Year as integer, e.g. 2024" },
-  { name: "last_played", desc: "ISO date or NULL (derived from sessions)" },
-  { name: "currently_playing", desc: "true if the game has an open session" },
-  { name: "playing_since", desc: "ISO date the current session started, or NULL" },
-];
-
-// game_genres is the exploded version of games.genres — one row per game-genre pair.
-// Multi-genre games appear once per genre. Join to games on name.
-const GAME_GENRES_COLUMNS = [
-  { name: "name", desc: "Game title, joins to games.name" },
-  { name: "genre", desc: "Single genre value" },
-];
-
-// --- Example queries ---
-
-// AlaSQL reserves "count" and "total" as keywords — use aliases like "cnt" instead.
-const EXAMPLE_QUERIES = [
-  {
-    label: "By platform",
-    sql: `SELECT system, COUNT(*) AS cnt
-FROM games
-GROUP BY system
-ORDER BY cnt DESC`,
-  },
-  {
-    label: "By rating",
-    sql: `SELECT rating, COUNT(*) AS cnt
-FROM games
-WHERE rating IS NOT NULL
-GROUP BY rating
-ORDER BY cnt DESC`,
-  },
-  {
-    label: "S-tier games",
-    sql: `SELECT name, system
-FROM games
-WHERE rating = 'S'
-ORDER BY name`,
-  },
-  {
-    label: "By genre",
-    sql: `SELECT genre, COUNT(*) AS cnt
-FROM game_genres
-GROUP BY genre
-ORDER BY cnt DESC`,
-  },
-  {
-    label: "By decade",
-    sql: `SELECT FLOOR(release_year / 10) * 10 AS decade, COUNT(*) AS cnt
-FROM games
-WHERE release_year IS NOT NULL
-GROUP BY decade
-ORDER BY decade`,
-  },
-  {
-    label: "Top genres",
-    sql: `SELECT genre, ROUND(AVG(rating_value), 2) AS avg_rating, GROUP_CONCAT(name) AS games
-FROM (
-  SELECT name, genre,
-    CASE rating
-      WHEN 'S' THEN 4
-      WHEN 'A' THEN 3
-      WHEN 'B' THEN 2
-      WHEN 'C' THEN 1
-      WHEN 'F' THEN 0
-    END AS rating_value
-  FROM (
-    SELECT game_genres.name, genre, games.rating
-    FROM game_genres
-    INNER JOIN games ON games.name = game_genres.name
-    WHERE games.rating IS NOT NULL
-  ) t
-)
-GROUP BY genre
-ORDER BY avg_rating DESC`,
-  },
-  {
-    label: "Sample rows",
-    sql: `SELECT *
-FROM games
-LIMIT 10`,
-  },
-];
+// The tables, their columns and the example queries all live in
+// queryTables.ts, which `npm test` executes against a fixture library. This
+// file is the UI around them.
 
 // --- Query execution ---
 
@@ -163,13 +42,9 @@ type QueryResult = {
   truncated: boolean;
 };
 
-// AlaSQL runs entirely in the browser against in-memory data.
-// Both tables are created fresh for each query and dropped afterward.
-async function execQuery(
-  sql: string,
-  gameRows: GameRow[],
-  gameGenreRows: GameGenreRow[]
-): Promise<QueryResult> {
+// AlaSQL runs entirely in the browser against in-memory data. Every table is
+// created fresh for each query and dropped afterward.
+async function execQuery(sql: string, tables: QueryTables): Promise<QueryResult> {
   const validationError = validateQuery(sql);
   if (validationError) throw new Error(validationError);
 
@@ -177,12 +52,16 @@ async function execQuery(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const alasql = (mod as any).default ?? mod;
 
-  alasql("DROP TABLE IF EXISTS games");
-  alasql("DROP TABLE IF EXISTS game_genres");
-  alasql("CREATE TABLE games");
-  alasql("CREATE TABLE game_genres");
-  alasql.tables["games"].data = gameRows.map((r) => ({ ...r }));
-  alasql.tables["game_genres"].data = gameGenreRows.map((r) => ({ ...r }));
+  const names = Object.keys(tables) as (keyof QueryTables)[];
+  const drop = () => names.forEach((name) => alasql(`DROP TABLE IF EXISTS ${name}`));
+
+  drop();
+  for (const name of names) {
+    alasql(`CREATE TABLE ${name}`);
+    // Copied row by row: AlaSQL mutates the arrays it is handed, and these are
+    // the memoized ones the component re-renders from.
+    alasql.tables[name].data = tables[name].map((row) => ({ ...row }));
+  }
 
   try {
     const result = alasql(sql);
@@ -190,20 +69,84 @@ async function execQuery(
     const truncated = rows.length > ROW_LIMIT;
     return { rows: truncated ? rows.slice(0, ROW_LIMIT) : rows, truncated };
   } finally {
-    alasql("DROP TABLE IF EXISTS games");
-    alasql("DROP TABLE IF EXISTS game_genres");
+    drop();
   }
+}
+
+// --- Schema reference ---
+
+// One table, collapsed to a single row until it is opened. `<details>` rather
+// than useState: it keeps its own open/closed state in the DOM, which survives
+// a tab switch here because the panel is hidden with CSS rather than unmounted.
+function SchemaTableDetails({
+  table,
+  rowCount,
+  onPickColumn,
+}: {
+  table: SchemaTable;
+  rowCount: number;
+  onPickColumn: (table: string, column: string) => void;
+}) {
+  return (
+    // All five start closed. `games` alone is 17 columns, which is enough to
+    // push the query box itself below the fold on a laptop.
+    <details className="group rounded-lg border border-divider">
+      {/* list-none plus the webkit rule removes the UA disclosure triangle, so
+          the chevron below is the only marker. */}
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 hover:bg-link/5 [&::-webkit-details-marker]:hidden">
+        <ChevronDownIcon
+          className="w-4 h-4 shrink-0 text-subtle transition-transform group-open:rotate-180"
+          aria-hidden
+        />
+        <span className="font-mono text-xs text-link">{table.name}</span>
+        <span className="truncate text-xs text-subtle">{table.summary}</span>
+        <span className="ml-auto shrink-0 text-xs tabular-nums text-subtle">
+          {rowCount.toLocaleString()}
+        </span>
+      </summary>
+      <ul className="border-t border-divider px-3 py-2 space-y-1.5">
+        {table.columns.map((col) => (
+          <li key={col.name} className="flex items-baseline gap-2">
+            <button
+              type="button"
+              onClick={() => onPickColumn(table.name, col.name)}
+              className="shrink-0 rounded bg-divider/40 px-1.5 py-0.5 font-mono text-xs text-link hover:bg-link/10 transition-colors cursor-pointer"
+            >
+              {col.name}
+            </button>
+            <span className="text-xs text-muted">{col.desc}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 // --- Component ---
 
 type SqlQueryPanelProps = {
   games: Game[];
+  // Already narrowed to games still in the library, by the caller that also
+  // renders the history list from them.
+  sessions: PlaySession[];
+  wishlist: WishlistGame[];
+  // Sessions arrive from their own lazy fetch, so the two session-backed tables
+  // can be empty for reasons that are not "you have never played anything".
+  sessionsLoading: boolean;
+  sessionsError: string | null;
 };
 
-export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
-  const gameRows = useMemo(() => games.map(toGameRow), [games]);
-  const gameGenreRows = useMemo(() => games.flatMap(toGameGenreRows), [games]);
+export function SqlQueryPanel({
+  games,
+  sessions,
+  wishlist,
+  sessionsLoading,
+  sessionsError,
+}: SqlQueryPanelProps) {
+  const tables = useMemo(
+    () => buildQueryTables(games, sessions, wishlist),
+    [games, sessions, wishlist]
+  );
 
   const [sql, setSql] = useState(EXAMPLE_QUERIES[0].sql);
   const [results, setResults] = useState<Record<string, unknown>[] | null>(null);
@@ -220,7 +163,7 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
       setResults(null);
       setTruncated(false);
       try {
-        const { rows, truncated } = await execQuery(query, gameRows, gameGenreRows);
+        const { rows, truncated } = await execQuery(query, tables);
         setResults(rows);
         setTruncated(truncated);
       } catch (e) {
@@ -229,7 +172,12 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
         setIsRunning(false);
       }
     },
-    [gameRows, gameGenreRows]
+    [tables]
+  );
+
+  const pickColumn = useCallback(
+    (table: string, column: string) => runQuery(distinctQuery(table, column)),
+    [runQuery]
   );
 
   const handleClear = useCallback(() => {
@@ -245,48 +193,28 @@ export function SqlQueryPanel({ games }: SqlQueryPanelProps) {
       {/* Schema reference */}
       <section className="space-y-3">
         <h3 className="text-xs font-semibold uppercase tracking-widest text-subtle">Schema</h3>
+        <p className="text-xs text-muted">
+          Five read-only tables built from this library. Open one to see its columns, and click a
+          column to list its values.
+        </p>
 
-        <div>
-          <p className="text-xs font-mono text-muted mb-1.5">
-            <span className="text-link">games</span>
+        {sessionsError !== null ? (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {sessionsError} The sessions table is empty until it loads.
           </p>
-          <div className="flex flex-wrap gap-1.5">
-            {GAMES_COLUMNS.map((col) => (
-              <button
-                key={col.name}
-                type="button"
-                title={col.desc}
-                onClick={() =>
-                  runQuery(`SELECT DISTINCT ${col.name}\nFROM games\nORDER BY ${col.name}`)
-                }
-                className="px-2 py-1 rounded bg-divider/40 font-mono text-xs text-link hover:bg-link/10 transition-colors cursor-pointer"
-              >
-                {col.name}
-              </button>
-            ))}
-          </div>
-        </div>
+        ) : (
+          sessionsLoading && <p className="text-xs text-muted">Loading play sessions...</p>
+        )}
 
-        <div>
-          <p className="text-xs font-mono text-muted mb-1.5">
-            <span className="text-link">game_genres</span>
-            <span className="text-subtle ml-2">joins to games on name</span>
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {GAME_GENRES_COLUMNS.map((col) => (
-              <button
-                key={col.name}
-                type="button"
-                title={col.desc}
-                onClick={() =>
-                  runQuery(`SELECT DISTINCT ${col.name}\nFROM game_genres\nORDER BY ${col.name}`)
-                }
-                className="px-2 py-1 rounded bg-divider/40 font-mono text-xs text-link hover:bg-link/10 transition-colors cursor-pointer"
-              >
-                {col.name}
-              </button>
-            ))}
-          </div>
+        <div className="space-y-2">
+          {QUERY_SCHEMA.map((table) => (
+            <SchemaTableDetails
+              key={table.name}
+              table={table}
+              rowCount={tables[table.name].length}
+              onPickColumn={pickColumn}
+            />
+          ))}
         </div>
       </section>
 

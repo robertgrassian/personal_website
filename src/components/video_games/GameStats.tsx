@@ -3,16 +3,23 @@
 import { useMemo } from "react";
 import type { Game } from "@/lib/games";
 import { RATINGS, UNRATED_LABEL, systemLabel } from "@/lib/games";
+import { formatDayShort, type PlaySession } from "@/lib/sessions";
 import { compareIso } from "./pipeline";
+
+// How many rows "Recently Started" shows before deferring to the full history.
+const RECENT_LIMIT = 5;
 
 type GameStatsProps = {
   games: Game[];
-  // A subset of `games`, passed separately only so it can lead the "Recently
-  // Played" concat. That dedups by name, so the prepend is what decides which
-  // row wins when one title exists on two systems (rated on one, in progress on
-  // the other) — see the comment there. Sort order does NOT depend on this: the
-  // comparator ranks in-progress games first however they arrive.
-  currentlyPlayingGames: Game[];
+  // The library's play sessions, already narrowed to games still in `games`.
+  // "Recently Started" cannot be derived from `games` alone: a Game carries the
+  // newest session's END date and the OPEN session's start, so the date a
+  // FINISHED playthrough began exists only on the session rows.
+  sessions: PlaySession[];
+  // Sessions are a separate, lazy fetch (see usePlayHistory), so this section
+  // has load and error states the rest of the panel does not.
+  sessionsLoading: boolean;
+  sessionsError: string | null;
   // Undefined renders no link, for a surface with no history view.
   onSeeAllPlayed?: () => void;
 };
@@ -89,7 +96,13 @@ function StatsSection({
   );
 }
 
-export function GameStats({ games, currentlyPlayingGames, onSeeAllPlayed }: GameStatsProps) {
+export function GameStats({
+  games,
+  sessions,
+  sessionsLoading,
+  sessionsError,
+  onSeeAllPlayed,
+}: GameStatsProps) {
   const stats = useMemo(() => {
     const ratingMap = new Map<string, number>(RATINGS.map((r) => [r.name, 0]));
     ratingMap.set(UNRATED_LABEL, 0);
@@ -134,28 +147,6 @@ export function GameStats({ games, currentlyPlayingGames, onSeeAllPlayed }: Game
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
-    // Currently-playing games rank first (active right now), ordered by most
-    // recent start; finished games follow, ordered by newest play date.
-    // currentlyPlayingGames leads the concat so the dedup keeps that instance
-    // even when the same game (a rated replay) also appears in `games`.
-    // Only games that have actually been played qualify; dedup by name after
-    // that test so a non-qualifying entry never marks a name as seen and blocks
-    // a later qualifying one with the same name.
-    const seen = new Set<string>();
-    const recentlyPlayed = [...currentlyPlayingGames, ...games]
-      .filter((g) => {
-        if (!(g.currentlyPlaying || g.lastPlayed !== "")) return false;
-        if (seen.has(g.name)) return false;
-        seen.add(g.name);
-        return true;
-      })
-      .sort((a, b) => {
-        if (a.currentlyPlaying !== b.currentlyPlaying) return a.currentlyPlaying ? -1 : 1;
-        if (a.currentlyPlaying) return compareIso(b.playingSince, a.playingSince);
-        return compareIso(b.lastPlayed, a.lastPlayed);
-      })
-      .slice(0, 3);
-
     const decadeMap = new Map<string, number>();
     for (const game of games) {
       const y = parseInt(game.releaseDate?.slice(0, 4) ?? "");
@@ -178,10 +169,50 @@ export function GameStats({ games, currentlyPlayingGames, onSeeAllPlayed }: Game
       ratingRows,
       systems,
       genres,
-      recentlyPlayed,
       decades,
     };
-  }, [games, currentlyPlayingGames]);
+  }, [games]);
+
+  // Kept out of the memo above because it depends on the sessions fetch, which
+  // lands later than `games` and would otherwise rebuild every histogram with
+  // it.
+  //
+  // Ranked by the date a playthrough BEGAN, which is the whole point of the
+  // rename from "Recently Played": that list sorted in-progress games to the
+  // top and then went by end date, so a game finished in a day fell off the
+  // bottom while three long-running sessions held the slots.
+  const recentlyStarted = useMemo(() => {
+    const gamesById = new Map(games.map((game) => [game.id, game]));
+    // The API already returns sessions newest-start-first, but sorting here
+    // makes the ranking this list's own rather than a fetch-order coincidence.
+    // Newer id breaks a same-day tie, matching the API's own second key.
+    const newestFirst = [...sessions].sort(
+      (a, b) => compareIso(b.startDate, a.startDate) || b.id - a.id
+    );
+
+    const rows: { session: PlaySession; game: Game }[] = [];
+    const seen = new Set<number>();
+    for (const session of newestFirst) {
+      // One row per GAME, not per session: the first session a game reaches
+      // here is its most recent start, and the rest are history.
+      if (seen.has(session.gameId)) continue;
+      const game = gamesById.get(session.gameId);
+      if (game === undefined) continue;
+      seen.add(session.gameId);
+      rows.push({ session, game });
+      if (rows.length === RECENT_LIMIT) break;
+    }
+    return rows;
+  }, [games, sessions]);
+
+  // null under an error: the alert above already says why the list is empty,
+  // and "nothing has been played" would be a claim about the library that a
+  // failed fetch cannot support.
+  const recentEmptyMessage = sessionsLoading
+    ? "Loading play history..."
+    : sessionsError === null
+      ? "No games have been played yet."
+      : null;
 
   const maxSystemCount = stats.systems[0]?.count ?? 1;
   const maxGenreCount = stats.genres[0]?.count ?? 1;
@@ -199,9 +230,12 @@ export function GameStats({ games, currentlyPlayingGames, onSeeAllPlayed }: Game
         </div>
       </StatsSection>
 
-      {stats.recentlyPlayed.length > 0 && (
+      {/* Rendered while loading and on error too, not only when there are rows:
+          the sessions arrive after the panel does, and a section that appears
+          a beat later shifts everything under it. */}
+      {(recentlyStarted.length > 0 || sessionsLoading || sessionsError !== null) && (
         <StatsSection
-          title="Recently Played"
+          title="Recently Started"
           action={
             onSeeAllPlayed && (
               <button
@@ -214,19 +248,41 @@ export function GameStats({ games, currentlyPlayingGames, onSeeAllPlayed }: Game
             )
           }
         >
-          <ol className="space-y-2">
-            {stats.recentlyPlayed.map((game, i) => (
-              <li key={game.name} className="flex items-center gap-3">
-                <span className="w-5 shrink-0 text-sm font-bold tabular-nums text-muted text-right">
-                  {i + 1}.
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm text-emphasis truncate">{game.name}</p>
-                  <p className="text-xs text-muted">{systemLabel(game.system)}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
+          {sessionsError !== null && (
+            <p role="alert" className="mb-2 text-xs text-red-600 dark:text-red-400">
+              {sessionsError}
+            </p>
+          )}
+          {recentlyStarted.length === 0 ? (
+            recentEmptyMessage !== null && (
+              <p className="text-sm text-muted">{recentEmptyMessage}</p>
+            )
+          ) : (
+            <ol className="space-y-2">
+              {recentlyStarted.map(({ session, game }, i) => (
+                <li key={session.id} className="flex items-baseline gap-3">
+                  <span className="w-5 shrink-0 text-sm font-bold tabular-nums text-muted text-right">
+                    {i + 1}.
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-emphasis truncate">{game.name}</p>
+                    <p className="text-xs text-muted truncate">
+                      {systemLabel(game.system)}
+                      {session.endDate === null && (
+                        <span className="text-link"> · Playing now</span>
+                      )}
+                    </p>
+                  </div>
+                  {/* The date this playthrough started, which is what the list
+                      is ordered by: showing anything else would leave the order
+                      looking arbitrary. */}
+                  <span className="shrink-0 text-xs tabular-nums text-subtle">
+                    {formatDayShort(session.startDate)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
         </StatsSection>
       )}
 
