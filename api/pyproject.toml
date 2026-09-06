@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "FastAPI backend for the personal website (instanced game libraries)"
 requires-python = ">=3.12"
 dependencies = [
-    "alembic>=1.18.5",
     "fastapi>=0.116",
     "httpx>=0.28.1",
     "psycopg[binary]>=3.3.4",
@@ -13,10 +12,14 @@ dependencies = [
     "sqlalchemy>=2.0.51",
 ]
 
-# uvicorn is dev-only on purpose: Vercel's Python runtime provides the ASGI
-# server in production, so shipping uvicorn would only bloat the bundle.
+# Dev-only on purpose, to keep the deployed function small: Vercel's Python
+# runtime provides the ASGI server, so uvicorn would never be imported there,
+# and alembic runs migrations from a GitHub Actions checkout rather than from
+# the function. `uv sync` installs this group by default, so both stay available
+# locally and in CI.
 [dependency-groups]
 dev = [
+    "alembic>=1.18.5",
     "uvicorn>=0.35",
     "ruff>=0.12",
     "pytest>=8.4",
