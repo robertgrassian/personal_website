@@ -1,0 +1,37 @@
+# Files excluded from the deployment upload entirely, so they reach neither the
+# build nor the serverless function bundles.
+#
+# This exists for the Python function. api/index.py runs with the repo root as
+# its bundle root (/var/task), so anything shipped here is stored again for
+# every deployment Vercel retains, and function storage is billed on that total
+# rather than on traffic.
+#
+# The test is "does `next build` or a running function read this file", not "is
+# it useful". public/ is absent from this list on purpose: the OG image routes
+# read fonts and photos out of it with fs.readFileSync at build time.
+
+# Backend development surfaces. Migrations run in GitHub Actions from a fresh
+# checkout (.github/workflows/deploy.yml), never from the deployed function, so
+# alembic/ has no reader in production.
+api/alembic/
+api/alembic.ini
+api/tests/
+api/bruno/
+api/scripts/
+
+# Frontend tooling. npm run grain is manual and bakes to public/shelf/*.webp,
+# which are committed; check-dev-ports only runs under predev:full.
+scripts/
+
+# Local Supabase CLI config and the magic-link email template, both applied
+# from a developer machine.
+supabase/
+
+# Prose and agent config. .husky/ is deliberately NOT here: `npm install` runs
+# the package.json `prepare` script, and 8 KB is not worth finding out how husky
+# reacts to its own directory being gone.
+docs/
+.claude/
+.github/
+README.md
+TODO.md
