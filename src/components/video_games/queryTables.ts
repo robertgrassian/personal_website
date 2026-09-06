@@ -382,13 +382,6 @@ ORDER BY length_days DESC
 LIMIT 10`,
   },
   {
-    label: "Play by year",
-    sql: `SELECT SUBSTRING(start_date, 1, 4) AS yr, COUNT(*) AS cnt, SUM(length_days) AS days_played
-FROM sessions
-GROUP BY SUBSTRING(start_date, 1, 4)
-ORDER BY yr DESC`,
-  },
-  {
     label: "Never played",
     sql: `SELECT name, system, release_year
 FROM games
@@ -410,7 +403,7 @@ GROUP BY genre
 ORDER BY cnt DESC`,
   },
   {
-    label: "Sample rows",
+    label: "Sample game rows",
     sql: `SELECT *
 FROM games
 LIMIT 10`,
