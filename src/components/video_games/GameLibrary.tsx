@@ -24,8 +24,6 @@ type GameLibraryProps = {
   // Every played game, rated and unrated alike — one list through one pipeline.
   games: Game[];
   wishlist: WishlistGame[];
-  // In-progress games, a subset of `games`; forwarded to the stats panel so
-  // "Recently Played" can rank them first.
   // The owner's follow graph, backing the Following/Followers tabs. Public
   // data fetched server-side, so it is cached with the page like the games.
   followers: UserSummary[];

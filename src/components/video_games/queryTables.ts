@@ -71,7 +71,6 @@ export type WishlistRow = {
   igdb_id: number | null;
   starred: boolean;
   date_added: string | null;
-  notes: string;
 };
 
 // One row per entry-genre pair, so a multi-genre game can be counted once per
@@ -182,7 +181,9 @@ function toWishlistRow(item: WishlistGame): WishlistRow {
     igdb_id: item.igdbId,
     starred: item.starred,
     date_added: nullable(item.dateAdded),
-    notes: item.notes,
+    // No notes column, and not by omission: notes are private to their author
+    // and are not on the public read this table is built from, so a viewer's
+    // page never holds them. See WishlistGame in lib/wishlist.ts.
   };
 }
 
@@ -271,7 +272,10 @@ export const QUERY_SCHEMA: readonly SchemaTable[] = [
       { name: "system", desc: "The console that game was played on" },
       { name: "start_date", desc: "ISO date the session began; always set" },
       { name: "end_date", desc: "ISO date it ended, or NULL while the session is open" },
-      { name: "is_open", desc: "true for the one session that is still running" },
+      {
+        name: "is_open",
+        desc: "true while the session has no end date; several can be open at once",
+      },
       { name: "length_days", desc: "Days covered, counting both ends, or NULL while open" },
     ],
   },
@@ -298,7 +302,6 @@ export const QUERY_SCHEMA: readonly SchemaTable[] = [
       { name: "igdb_id", desc: "IGDB's id, or NULL for an entry added by hand" },
       { name: "starred", desc: "true for the priority sublist" },
       { name: "date_added", desc: "ISO date the entry was wishlisted" },
-      { name: "notes", desc: "Free text; empty string when there are none" },
     ],
   },
   {
@@ -394,7 +397,7 @@ ORDER BY name`,
   },
   {
     label: "Wishlist stars",
-    sql: `SELECT name, system, date_added, notes
+    sql: `SELECT name, system, release_year, date_added
 FROM wishlist
 WHERE starred = true
 ORDER BY date_added DESC`,

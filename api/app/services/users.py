@@ -28,7 +28,13 @@ from sqlalchemy.orm import Session
 from app.core.errors import DomainError
 from app.models import GameMetadata, PlayedGame, PlaySession, WishlistGame
 from app.repositories import users as users_repo
-from app.schemas.users import GameRead, PlaySessionRead, ProfileRead, WishlistGameRead
+from app.schemas.users import (
+    GameRead,
+    MyWishlistGameRead,
+    PlaySessionRead,
+    ProfileRead,
+    WishlistGameRead,
+)
 from app.services import catalog_refresh
 
 
@@ -113,8 +119,11 @@ def to_game_read(game: PlayedGame, meta: GameMetadata, play_state: PlayState) ->
 
 
 def to_wishlist_read(item: WishlistGame, meta: GameMetadata) -> WishlistGameRead:
-    """Wishlist entry + catalog row → wire DTO. Public because the /me wishlist
-    writes (services/me.py) return the same shape after a mutation."""
+    """Wishlist entry + catalog row → the PUBLIC wire DTO, without ``notes``.
+
+    Anything reachable without a token goes through here. The owner-facing
+    builder below is a separate function rather than a flag, so adding a field
+    to the public shape has to be a deliberate edit to this one."""
     return WishlistGameRead(
         id=item.id,
         name=meta.name,
@@ -126,6 +135,15 @@ def to_wishlist_read(item: WishlistGame, meta: GameMetadata) -> WishlistGameRead
         igdb_id=meta.igdb_id,
         starred=item.starred,
         date_added=_iso_or_empty(item.date_added),
+    )
+
+
+def to_my_wishlist_read(item: WishlistGame, meta: GameMetadata) -> MyWishlistGameRead:
+    """The same entry as its owner sees it: the public fields plus ``notes``.
+
+    Only reachable from a token-checked handler (services/me.py)."""
+    return MyWishlistGameRead(
+        **to_wishlist_read(item, meta).model_dump(),
         notes=item.notes,
     )
 

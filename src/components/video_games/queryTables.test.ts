@@ -13,10 +13,11 @@ import {
 } from "./queryTables.ts";
 
 // Run with `npm test`. This is the query tab's audit, and it exists because
-// AlaSQL fails QUIETLY: MAX() over a string column drops that column from the
-// result instead of erroring, so a shipped example can look plausible in review
-// and return nothing on screen. Every example and every column chip is executed
-// here against a fixture library.
+// AlaSQL fails QUIETLY: MAX() over a string column yields `undefined` for that
+// column in every row instead of erroring, so a shipped example can look
+// plausible in review and render a panel of italic NULLs. Every example and
+// every column chip is executed here against a fixture library, and checked
+// for a VALUE rather than a key -- see hasValue below.
 //
 // The other half is drift. QUERY_SCHEMA is what the panel TELLS people the
 // tables hold, and the row builders are what they actually hold; the two are
@@ -89,7 +90,6 @@ const wishlist: WishlistGame[] = [
     id: 7,
     starred: true,
     dateAdded: "2026-04-01",
-    notes: "wait for a sale",
   },
   {
     name: "Pikmin 4",
@@ -102,11 +102,22 @@ const wishlist: WishlistGame[] = [
     id: 8,
     starred: false,
     dateAdded: "2026-01-15",
-    notes: "",
   },
 ];
 
 const tables = buildQueryTables(games, sessions, wishlist);
+
+/** Whether AlaSQL actually produced a value for `column`.
+ *
+ *  `column in row` is NOT enough, and that is the entire subtlety this file
+ *  exists for: when AlaSQL cannot compute a column it still WRITES THE KEY,
+ *  with the value `undefined`. The key is present, `Object.keys` lists it, and
+ *  only the value gives the failure away. A column that is legitimately empty
+ *  is `null` in every row (SQL NULL survives the round trip), never
+ *  `undefined`, so this stays a sound test of "did the engine answer". */
+function hasValue(rows: Record<string, unknown>[], column: string): boolean {
+  return rows.some((row) => row[column] !== undefined);
+}
 
 /** Load the fixture into AlaSQL the way the panel does, then run `sql`. */
 function run(sql: string): Record<string, unknown>[] {
@@ -159,10 +170,9 @@ test("every example query runs and returns its selected columns", () => {
     const rows = run(example.sql);
     assert.ok(rows.length > 0, `example "${example.label}" returned no rows`);
 
-    // Aliases are what AlaSQL drops when it cannot compute them, so check that
-    // each one named in the SELECT survived into the first row.
+    // Aliases are what AlaSQL drops when it cannot compute them.
     for (const alias of [...example.sql.matchAll(/\bAS (\w+)/gi)].map((m) => m[1])) {
-      assert.ok(alias in rows[0], `example "${example.label}" lost the "${alias}" column`);
+      assert.ok(hasValue(rows, alias), `example "${example.label}" lost the "${alias}" column`);
     }
   }
 });

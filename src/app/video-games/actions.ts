@@ -17,6 +17,7 @@ import {
   deleteMyGame,
   deleteMyWishlistItem,
   fetchMyUsername,
+  fetchMyWishlistNotes,
   followUser,
   previewCatalogEntry,
   promoteMyWishlistItem,
@@ -280,6 +281,23 @@ export async function getPlayHistory(username: string): Promise<PlayHistoryResul
     console.error("Loading play history failed:", err);
     return { ok: false, message: "Could not load the play history. Try again." };
   }
+}
+
+/** The notes, or a message to put on screen. `null` notes never means "empty":
+ *  an unread note and a blank one are different, and only one of them is safe
+ *  to let a Save overwrite. */
+export type WishlistNotesResult = { ok: true; notes: string } | { ok: false; message: string };
+
+/** The notes on one of the VIEWER'S OWN wishlist entries.
+ *
+ *  A read, like getPlayHistory above, but on the authenticated path and taking
+ *  no username: the API answers for whoever's token this action attaches, so
+ *  there is no way to ask it for someone else's. That is the whole point, since
+ *  notes are the one wishlist field the public read withholds. */
+export async function getWishlistNotes(itemId: number): Promise<WishlistNotesResult> {
+  const notes = await fetchMyWishlistNotes(itemId);
+  if (notes === null) return { ok: false, message: "Could not load your notes. Try again." };
+  return { ok: true, notes };
 }
 
 /** Add a game to the library (from an IGDB pick or manual entry). */

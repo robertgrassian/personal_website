@@ -11,7 +11,11 @@ export interface WishlistGame extends BaseGame {
   id: number;
   starred: boolean; // priority sublist
   dateAdded: string; // ISO date ("" if unknown)
-  notes: string; // free text
+  // No `notes` here, deliberately. Notes are the owner's alone, so they are not
+  // on the public read this type mirrors (WishlistGameRead, api/app/schemas/
+  // users.py) and never reach a visitor's page. The owner's edit form fetches
+  // them per entry from GET /me/wishlist/{id}; see getWishlistNotes in
+  // video-games/actions.ts.
 }
 
 // Payload for POST /me/wishlist — mirrors the API's WishlistCreate schema.

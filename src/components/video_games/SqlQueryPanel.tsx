@@ -199,8 +199,12 @@ export function SqlQueryPanel({
         </p>
 
         {sessionsError !== null ? (
+          // Deliberately does not say the sessions table is empty: a failed
+          // RE-read keeps the rows it already had, so it may well be populated
+          // and merely out of date. Nor does it promise a retry, because
+          // nothing retries until the page is reloaded.
           <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-            {sessionsError} The sessions table is empty until it loads.
+            {sessionsError} The sessions and wishlist tables may be out of date until you reload.
           </p>
         ) : (
           sessionsLoading && <p className="text-xs text-muted">Loading play sessions...</p>

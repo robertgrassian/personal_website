@@ -63,9 +63,21 @@ export function StatsPanel({
   // Started" ranks by session start date and the query tab exposes the sessions
   // as a table. onRequestHistory is idempotent (usePlayHistory fetches once per
   // library), so re-running this on every open costs nothing.
+  //
+  // refresh() alongside it, because the sessions are now the panel's HEADLINE
+  // list rather than a drill-down. usePlayHistory's KNOWN GAP is that the CRT's
+  // manage panel is a sibling of GameLibrary and cannot reach this copy, so a
+  // game started or stopped there leaves it stale; before, that cost you a
+  // stale history list, and now it would put a "Playing now" badge on a game
+  // the shelf behind it shows as finished. Re-reading on every open closes it
+  // for everything except a write made while the panel is already open. It is
+  // a no-op until the first load has happened, so this is one fetch, not two.
+  const { refresh: refreshHistory } = playHistory;
   useEffect(() => {
-    if (isOpen) onRequestHistory();
-  }, [isOpen, onRequestHistory]);
+    if (!isOpen) return;
+    onRequestHistory();
+    refreshHistory();
+  }, [isOpen, onRequestHistory, refreshHistory]);
 
   const openHistory = () => {
     onRequestHistory();

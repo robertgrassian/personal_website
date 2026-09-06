@@ -138,6 +138,16 @@ Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were
   latter includes a cached guess that can be wrong for one round trip, which is fine where the
   server can still refuse (`PATCH`/`DELETE` 404 on another user's row) and unsafe where it cannot
   (`POST /me/games` always writes to the caller's own library). Both live in `FollowControls.tsx`.
+- **A public read carries public fields only; an owner's private ones live on `/me`.** The
+  library reads are cached and SHARED between viewers (`libraryApi.ts`), so a field that means
+  something different depending on who is asking cannot go on them at all: whoever primes the
+  cache decides what everyone else gets. Today the only such field is `wishlist_games.notes`,
+  which is why `WishlistGameRead` omits it, `MyWishlistGameRead` adds it, and the owner's edit
+  form fetches it per entry from `GET /me/wishlist/{id}`. Two separate DTO builders in
+  `services/users.py` rather than one with a flag, so widening the public shape has to be a
+  deliberate edit. `test_public_wishlist_never_carries_notes` fails if it stops being true.
+  Every OTHER wishlist and library field is already on screen for any visitor, so this is a
+  short list on purpose: check before adding to it.
 - **Adding a read means adding its cache tag.** Tags are defined in `libraryApi.ts` and must be paired with every write that can change them, in `video-games/actions.ts`. Too narrow a tag serves a stale page.
 
 ## Repository

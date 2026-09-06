@@ -230,61 +230,58 @@ export function GameStats({
         </div>
       </StatsSection>
 
-      {/* Rendered while loading and on error too, not only when there are rows:
-          the sessions arrive after the panel does, and a section that appears
-          a beat later shifts everything under it. */}
-      {(recentlyStarted.length > 0 || sessionsLoading || sessionsError !== null) && (
-        <StatsSection
-          title="Recently Started"
-          action={
-            onSeeAllPlayed && (
-              <button
-                type="button"
-                onClick={onSeeAllPlayed}
-                className="shrink-0 text-xs font-medium text-link hover:underline cursor-pointer"
-              >
-                See all
-              </button>
-            )
-          }
-        >
-          {sessionsError !== null && (
-            <p role="alert" className="mb-2 text-xs text-red-600 dark:text-red-400">
-              {sessionsError}
-            </p>
-          )}
-          {recentlyStarted.length === 0 ? (
-            recentEmptyMessage !== null && (
-              <p className="text-sm text-muted">{recentEmptyMessage}</p>
-            )
-          ) : (
-            <ol className="space-y-2">
-              {recentlyStarted.map(({ session, game }, i) => (
-                <li key={session.id} className="flex items-baseline gap-3">
-                  <span className="w-5 shrink-0 text-sm font-bold tabular-nums text-muted text-right">
-                    {i + 1}.
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-emphasis truncate">{game.name}</p>
-                    <p className="text-xs text-muted truncate">
-                      {systemLabel(game.system)}
-                      {session.endDate === null && (
-                        <span className="text-link"> · Playing now</span>
-                      )}
-                    </p>
-                  </div>
-                  {/* The date this playthrough started, which is what the list
+      {/* Unconditional, unlike every other section here. The sessions arrive
+          from their own fetch a beat after the panel does, so any condition
+          involving them is false on the first render and true on the next,
+          which pops the section in and shoves Ratings and everything below it
+          down the panel. `sessionsLoading` is no help: it is still false while
+          the effect chain that starts the fetch runs. */}
+      <StatsSection
+        title="Recently Started"
+        action={
+          onSeeAllPlayed && (
+            <button
+              type="button"
+              onClick={onSeeAllPlayed}
+              className="shrink-0 text-xs font-medium text-link hover:underline cursor-pointer"
+            >
+              See all
+            </button>
+          )
+        }
+      >
+        {sessionsError !== null && (
+          <p role="alert" className="mb-2 text-xs text-red-600 dark:text-red-400">
+            {sessionsError}
+          </p>
+        )}
+        {recentlyStarted.length === 0 ? (
+          recentEmptyMessage !== null && <p className="text-sm text-muted">{recentEmptyMessage}</p>
+        ) : (
+          <ol className="space-y-2">
+            {recentlyStarted.map(({ session, game }, i) => (
+              <li key={session.id} className="flex items-baseline gap-3">
+                <span className="w-5 shrink-0 text-sm font-bold tabular-nums text-muted text-right">
+                  {i + 1}.
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-emphasis truncate">{game.name}</p>
+                  <p className="text-xs text-muted truncate">
+                    {systemLabel(game.system)}
+                    {session.endDate === null && <span className="text-link"> · Playing now</span>}
+                  </p>
+                </div>
+                {/* The date this playthrough started, which is what the list
                       is ordered by: showing anything else would leave the order
                       looking arbitrary. */}
-                  <span className="shrink-0 text-xs tabular-nums text-subtle">
-                    {formatDayShort(session.startDate)}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </StatsSection>
-      )}
+                <span className="shrink-0 text-xs tabular-nums text-subtle">
+                  {formatDayShort(session.startDate)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </StatsSection>
 
       <StatsSection title="Ratings">
         <div className="space-y-2.5">
