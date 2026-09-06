@@ -16,10 +16,6 @@ type GameStatsProps = {
   // newest session's END date and the OPEN session's start, so the date a
   // FINISHED playthrough began exists only on the session rows.
   sessions: PlaySession[];
-  // Sessions are a separate, lazy fetch (see usePlayHistory), so this section
-  // has load and error states the rest of the panel does not.
-  sessionsLoading: boolean;
-  sessionsError: string | null;
   // Undefined renders no link, for a surface with no history view.
   onSeeAllPlayed?: () => void;
 };
@@ -96,13 +92,7 @@ function StatsSection({
   );
 }
 
-export function GameStats({
-  games,
-  sessions,
-  sessionsLoading,
-  sessionsError,
-  onSeeAllPlayed,
-}: GameStatsProps) {
+export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
   const stats = useMemo(() => {
     const ratingMap = new Map<string, number>(RATINGS.map((r) => [r.name, 0]));
     ratingMap.set(UNRATED_LABEL, 0);
@@ -205,15 +195,6 @@ export function GameStats({
     return rows;
   }, [games, sessions]);
 
-  // null under an error: the alert above already says why the list is empty,
-  // and "nothing has been played" would be a claim about the library that a
-  // failed fetch cannot support.
-  const recentEmptyMessage = sessionsLoading
-    ? "Loading play history..."
-    : sessionsError === null
-      ? "No games have been played yet."
-      : null;
-
   const maxSystemCount = stats.systems[0]?.count ?? 1;
   const maxGenreCount = stats.genres[0]?.count ?? 1;
   const maxRatingCount = Math.max(...stats.ratingRows.map((r) => r.count), 1);
@@ -230,12 +211,9 @@ export function GameStats({
         </div>
       </StatsSection>
 
-      {/* Unconditional, unlike every other section here. The sessions arrive
-          from their own fetch a beat after the panel does, so any condition
-          involving them is false on the first render and true on the next,
-          which pops the section in and shoves Ratings and everything below it
-          down the panel. `sessionsLoading` is no help: it is still false while
-          the effect chain that starts the fetch runs. */}
+      {/* Unconditional, unlike the two sections below that hide when empty: an
+          empty library should still say why this list is blank rather than
+          leaving a gap where a heading was. */}
       <StatsSection
         title="Recently Started"
         action={
@@ -250,13 +228,8 @@ export function GameStats({
           )
         }
       >
-        {sessionsError !== null && (
-          <p role="alert" className="mb-2 text-xs text-red-600 dark:text-red-400">
-            {sessionsError}
-          </p>
-        )}
         {recentlyStarted.length === 0 ? (
-          recentEmptyMessage !== null && <p className="text-sm text-muted">{recentEmptyMessage}</p>
+          <p className="text-sm text-muted">No games have been played yet.</p>
         ) : (
           <ol className="space-y-2">
             {recentlyStarted.map(({ session, game }, i) => (

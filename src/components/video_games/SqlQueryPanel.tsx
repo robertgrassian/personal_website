@@ -130,19 +130,9 @@ type SqlQueryPanelProps = {
   // renders the history list from them.
   sessions: PlaySession[];
   wishlist: WishlistGame[];
-  // Sessions arrive from their own lazy fetch, so the two session-backed tables
-  // can be empty for reasons that are not "you have never played anything".
-  sessionsLoading: boolean;
-  sessionsError: string | null;
 };
 
-export function SqlQueryPanel({
-  games,
-  sessions,
-  wishlist,
-  sessionsLoading,
-  sessionsError,
-}: SqlQueryPanelProps) {
+export function SqlQueryPanel({ games, sessions, wishlist }: SqlQueryPanelProps) {
   const tables = useMemo(
     () => buildQueryTables(games, sessions, wishlist),
     [games, sessions, wishlist]
@@ -197,18 +187,6 @@ export function SqlQueryPanel({
           Five read-only tables built from this library. Open one to see its columns, and click a
           column to list its values.
         </p>
-
-        {sessionsError !== null ? (
-          // Deliberately does not say the sessions table is empty: a failed
-          // RE-read keeps the rows it already had, so it may well be populated
-          // and merely out of date. Nor does it promise a retry, because
-          // nothing retries until the page is reloaded.
-          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-            {sessionsError} The sessions and wishlist tables may be out of date until you reload.
-          </p>
-        ) : (
-          sessionsLoading && <p className="text-xs text-muted">Loading play sessions...</p>
-        )}
 
         <div className="space-y-2">
           {QUERY_SCHEMA.map((table) => (

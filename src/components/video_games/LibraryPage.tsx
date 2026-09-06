@@ -12,6 +12,7 @@ import {
   getFollowers,
   getFollowing,
   getGames,
+  getSessions,
   getProfile,
   getWishlist,
   targetsForeignEnvironmentApi,
@@ -120,9 +121,10 @@ export async function LibraryPage({
   // fetched when their tab is opened: they're public data on the same cache
   // tag, so they cost nothing after the first render and switching to the
   // Following tab needs no network at all.
-  const [games, wishlist, followers, following] = await Promise.all([
+  const [games, wishlist, sessions, followers, following] = await Promise.all([
     getGames(username),
     getWishlist(username),
+    getSessions(username),
     getFollowers(username),
     getFollowing(username),
   ]);
@@ -286,6 +288,7 @@ export async function LibraryPage({
             <GameLibrary
               games={games}
               wishlist={wishlist}
+              sessions={sessions}
               followers={followers}
               following={following}
             />

@@ -27,6 +27,12 @@ Personal website built with **Next.js 15, React 19, TypeScript, and Tailwind CSS
 - **Read** (public, cached): Server Component `LibraryPage.tsx` → `src/lib/libraryApi.ts` (this file imports `server-only` and is the server boundary; there is no `gamesServer.ts`) → `GET /api/library/users/{username}/*` → routers → services → repositories → Postgres.
 - **Write** (owner-only, BFF): browser → Server Action `src/app/video-games/actions.ts` → `src/lib/meApi.ts` (session cookie → Bearer JWT) → `/api/library/me/*` → same layers → on success `revalidateTag(libraryCacheTag(...))`.
 
+**Every library read happens in that one `Promise.all`** — games, wishlist, sessions, followers,
+following. Nothing the library shows is fetched from the browser afterwards, so no display
+component has a loading state and a write's `revalidateTag` reaches every surface at once. The play
+history was the last exception and stopped being one 2026-09-06: it was lazy on the theory that it
+would bloat the prerendered payload, which measured at 405 bytes against games' 54KB.
+
 Filter, group and sort are **client-side**, in `pipeline.ts` — pure functions over the fetched array, no React. The API returns a whole library; the browser narrows it.
 
 Docs ownership, so the same fact does not drift across four files: **`api/README.md`** owns the backend layer map and the data model, **`docs/architecture.md`** owns the request flow, **`README.md`** owns what the project is and how to run it, and this file owns conventions and the map below. Link, don't restate.

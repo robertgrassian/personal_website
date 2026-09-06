@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import type { Game } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
+import type { PlaySession } from "@/lib/sessions";
 import { GameShelves } from "./GameShelves";
 import { ChartBarIcon } from "@/components/Icon";
 import { VIEW_LABEL, VALID_GAME_VIEW, isGameView } from "./libraryConfig";
@@ -10,7 +11,6 @@ import { PeopleList } from "./PeopleList";
 import type { UserSummary } from "@/lib/follows";
 import { useGameLibraryUrlState } from "./useGameLibraryUrlState";
 import { useIsConfirmedOwner, useIsLikelyOwner } from "./FollowControls";
-import { usePlayHistory } from "./usePlayHistory";
 import { AddGameModal } from "./AddGameModal";
 import { GameDetailCard, type CardSubject } from "./GameDetailCard";
 import { ownedKey } from "./GameSearchStep";
@@ -24,6 +24,10 @@ type GameLibraryProps = {
   // Every played game, rated and unrated alike — one list through one pipeline.
   games: Game[];
   wishlist: WishlistGame[];
+  // Every session in the library, newest first. Fetched with the page like the
+  // games, so nothing here has a loading state and a session write's
+  // revalidateTag reaches every consumer at once.
+  sessions: PlaySession[];
   // The owner's follow graph, backing the Following/Followers tabs. Public
   // data fetched server-side, so it is cached with the page like the games.
   followers: UserSummary[];
@@ -41,20 +45,9 @@ const headerActionClass =
   "flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 " +
   "whitespace-nowrap text-xs min-[375px]:text-sm";
 
-export function GameLibrary({ games, wishlist, followers, following }: GameLibraryProps) {
+export function GameLibrary({ games, wishlist, sessions, followers, following }: GameLibraryProps) {
   const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-
-  // The library's play history, fetched separately from the page and only once
-  // something asks to see it. Owned here rather than inside the panel that
-  // shows it because a session logged from a game card must refresh the same
-  // copy the stats panel is reading: the panel never unmounts (it slides), so a
-  // second, private copy would sit stale for the rest of the visit.
-  const [historyRequested, setHistoryRequested] = useState(false);
-  const playHistory = usePlayHistory(historyRequested);
-  // useCallback because GameDetailCard depends on it in an effect: a fresh
-  // arrow every render would re-run that effect on every render.
-  const requestHistory = useCallback(() => setHistoryRequested(true), []);
 
   // Owner check resolves client-side after hydration (the page HTML is static
   // and shared by all viewers). false until proven otherwise, so visitors never
@@ -391,8 +384,7 @@ export function GameLibrary({ games, wishlist, followers, following }: GameLibra
             onAddGame={handleAddGame}
             statsOpen={statsOpen}
             onStatsClose={handleStatsClose}
-            playHistory={playHistory}
-            onRequestHistory={requestHistory}
+            sessions={sessions}
           />
         ) : (
           <>
@@ -419,8 +411,7 @@ export function GameLibrary({ games, wishlist, followers, following }: GameLibra
             isDark={expanded.isDark}
             origin={expanded.origin}
             caseId={expanded.kind === "promote" ? null : `${expanded.kind}-${expanded.id}`}
-            playHistory={playHistory}
-            onRequestHistory={requestHistory}
+            sessions={sessions}
             onClose={closeCard}
           />
         )}
@@ -429,7 +420,6 @@ export function GameLibrary({ games, wishlist, followers, following }: GameLibra
             target={addTarget}
             existingSystems={existingSystems}
             ownedNames={ownedNames}
-            onSessionLogged={playHistory.refresh}
             onClose={() => setAddOpen(false)}
           />
         )}

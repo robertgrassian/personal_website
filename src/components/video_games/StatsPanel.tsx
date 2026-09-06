@@ -10,7 +10,7 @@ import { useModalChrome } from "./useModalChrome";
 import { ModalBackdrop } from "./ModalBackdrop";
 import { sessionsInLibrary } from "@/lib/sessions";
 import { PlayHistoryList } from "./PlayHistoryList";
-import type { PlayHistoryState } from "./usePlayHistory";
+import type { PlaySession } from "@/lib/sessions";
 import { IconButton } from "@/components/ui/IconButton";
 import { TabBar } from "@/components/ui/TabBar";
 
@@ -21,11 +21,9 @@ type StatsPanelProps = {
   wishlist: WishlistGame[];
   isOpen: boolean;
   onClose: () => void;
-  // The library's sessions, owned by GameLibrary. See usePlayHistory.
-  playHistory: PlayHistoryState;
-  // Triggers the fetch. Separate from the view state so a back-press does not
-  // undo it and a second visit does not refetch.
-  onRequestHistory: () => void;
+  // Every session in the library, fetched with the page. There is no loading
+  // state anywhere below because there is nothing left to wait for.
+  sessions: PlaySession[];
 };
 
 type PanelTab = "overview" | "query";
@@ -40,14 +38,7 @@ const STATS_TABS: readonly { value: PanelTab; label: string }[] = [
 // the panel keeps its size, scroll lock and focus handling.
 type PanelView = "stats" | "history";
 
-export function StatsPanel({
-  games,
-  wishlist,
-  isOpen,
-  onClose,
-  playHistory,
-  onRequestHistory,
-}: StatsPanelProps) {
+export function StatsPanel({ games, wishlist, isOpen, onClose, sessions }: StatsPanelProps) {
   const [activeTab, setActiveTab] = useState<PanelTab>("overview");
   const [view, setView] = useState<PanelView>("stats");
 
@@ -55,34 +46,11 @@ export function StatsPanel({
   // unmounts, so after a game is deleted its rows leave the list while the raw
   // length would go on counting them.
   const visibleSessions = useMemo(
-    () => sessionsInLibrary(playHistory.sessions, new Set(games.map((game) => game.id))),
-    [playHistory.sessions, games]
+    () => sessionsInLibrary(sessions, new Set(games.map((game) => game.id))),
+    [sessions, games]
   );
 
-  // Both tabs need the sessions now, not just the drill-down: "Recently
-  // Started" ranks by session start date and the query tab exposes the sessions
-  // as a table. onRequestHistory is idempotent (usePlayHistory fetches once per
-  // library), so re-running this on every open costs nothing.
-  //
-  // refresh() alongside it, because the sessions are now the panel's HEADLINE
-  // list rather than a drill-down. usePlayHistory's KNOWN GAP is that the CRT's
-  // manage panel is a sibling of GameLibrary and cannot reach this copy, so a
-  // game started or stopped there leaves it stale; before, that cost you a
-  // stale history list, and now it would put a "Playing now" badge on a game
-  // the shelf behind it shows as finished. Re-reading on every open closes it
-  // for everything except a write made while the panel is already open. It is
-  // a no-op until the first load has happened, so this is one fetch, not two.
-  const { refresh: refreshHistory } = playHistory;
-  useEffect(() => {
-    if (!isOpen) return;
-    onRequestHistory();
-    refreshHistory();
-  }, [isOpen, onRequestHistory, refreshHistory]);
-
-  const openHistory = () => {
-    onRequestHistory();
-    setView("history");
-  };
+  const openHistory = () => setView("history");
 
   // Opening focus lands on the panel itself, not on the close button. A
   // programmatic focus() on a button paints the UA focus ring, and a touch has
@@ -190,32 +158,18 @@ export function StatsPanel({
               history. */}
           <div className={view === "history" ? "" : "hidden"}>
             <PlayHistoryList
-              sessions={playHistory.sessions}
+              sessions={sessions}
               games={games}
-              isLoading={playHistory.isLoading}
-              error={playHistory.error}
               emptyMessage="No games have been played yet."
             />
           </div>
           <div className={view === "stats" && activeTab === "overview" ? "" : "hidden"}>
-            <GameStats
-              games={games}
-              sessions={visibleSessions}
-              sessionsLoading={playHistory.isLoading}
-              sessionsError={playHistory.error}
-              onSeeAllPlayed={openHistory}
-            />
+            <GameStats games={games} sessions={visibleSessions} onSeeAllPlayed={openHistory} />
           </div>
           <div className={view === "stats" && activeTab === "query" ? "" : "hidden"}>
             {/* The same session list the history view renders, so a count in
                 the query tab cannot disagree with the rows above it. */}
-            <SqlQueryPanel
-              games={games}
-              sessions={visibleSessions}
-              wishlist={wishlist}
-              sessionsLoading={playHistory.isLoading}
-              sessionsError={playHistory.error}
-            />
+            <SqlQueryPanel games={games} sessions={visibleSessions} wishlist={wishlist} />
           </div>
         </div>
       </aside>

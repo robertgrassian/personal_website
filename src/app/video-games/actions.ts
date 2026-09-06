@@ -34,14 +34,12 @@ import {
   gamesTag,
   getFollowers,
   getFollowing,
-  getSessions,
   libraryCacheTag,
   sessionsTag,
   wishlistTag,
 } from "@/lib/libraryApi";
 import { LIBRARY_OWNER_USERNAME, RATINGS, type NewGame, type Rating } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
-import type { PlaySession } from "@/lib/sessions";
 
 /** A cache-tag builder from src/lib/libraryApi: gamesTag, wishlistTag or
  *  followsTag. Writes name the resources they actually changed. */
@@ -256,33 +254,6 @@ export async function previewGameCatalog(
   });
 }
 
-/** The rows, or a message to put on screen. Not MutateResult, which carries no
- *  data. */
-export type PlayHistoryResult =
-  | { ok: true; sessions: PlaySession[] }
-  | { ok: false; message: string };
-
-/** Read a library's whole play history.
- *
- *  The one READ here, because libraryApi imports server-only and the browser
- *  cannot call it. It takes a username where every write above refuses to: this
- *  data is public, exactly as public as the endpoint behind it.
- *
- *  Errors return a message rather than throwing. getSessions throws loudly by
- *  design, but a panel that fails to load should say so in place instead of
- *  taking the transition down with it. */
-export async function getPlayHistory(username: string): Promise<PlayHistoryResult> {
-  if (username.trim() === "") return { ok: false, message: "Could not load the play history." };
-  try {
-    return { ok: true, sessions: await getSessions(username) };
-  } catch (err) {
-    // Logged server-side where the cause is readable; production replaces
-    // action errors with an opaque digest, so the viewer gets the instruction.
-    console.error("Loading play history failed:", err);
-    return { ok: false, message: "Could not load the play history. Try again." };
-  }
-}
-
 /** The notes, or a message to put on screen. `null` notes never means "empty":
  *  an unread note and a blank one are different, and only one of them is safe
  *  to let a Save overwrite. */
@@ -290,10 +261,10 @@ export type WishlistNotesResult = { ok: true; notes: string } | { ok: false; mes
 
 /** The notes on one of the VIEWER'S OWN wishlist entries.
  *
- *  A read, like getPlayHistory above, but on the authenticated path and taking
- *  no username: the API answers for whoever's token this action attaches, so
- *  there is no way to ask it for someone else's. That is the whole point, since
- *  notes are the one wishlist field the public read withholds. */
+ *  The only READ among these actions, now that the play history is fetched with
+ *  the page. It takes no username: the API answers for whoever's token this
+ *  attaches, so there is no way to ask it for someone else's. That is the whole
+ *  point, since notes are the one wishlist field the public read withholds. */
 export async function getWishlistNotes(itemId: number): Promise<WishlistNotesResult> {
   const notes = await fetchMyWishlistNotes(itemId);
   if (notes === null) return { ok: false, message: "Could not load your notes. Try again." };
