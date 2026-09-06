@@ -382,13 +382,6 @@ ORDER BY length_days DESC
 LIMIT 10`,
   },
   {
-    label: "Never played",
-    sql: `SELECT name, system, release_year
-FROM games
-WHERE session_count = 0
-ORDER BY name`,
-  },
-  {
     label: "Wishlist stars",
     sql: `SELECT name, system, release_year, date_added
 FROM wishlist
