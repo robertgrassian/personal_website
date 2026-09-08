@@ -19,6 +19,7 @@ import {
 } from "@/lib/libraryApi";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { CurrentlyPlayingSection } from "./CurrentlyPlayingSection";
+import { currentlyPlayingGames } from "./playingPicker";
 import { LibraryCount, LibraryCountFallback } from "@/components/video_games/LibraryCount";
 import { AuthButton } from "@/components/AuthButton";
 import {
@@ -128,10 +129,10 @@ export async function LibraryPage({
     getFollowers(username),
     getFollowing(username),
   ]);
-  // All in-progress games — the CRT cycles through them like TV channels. The
-  // stats panel used to take this list too; it now ranks by session start date
-  // and reads the sessions themselves (see GameStats).
-  const currentlyPlayingGames = games.filter((g) => g.currentlyPlaying);
+  // All in-progress games, newest session first — the CRT cycles through them
+  // like TV channels. The stats panel used to take this list too; it now ranks
+  // by session start date and reads the sessions themselves (see GameStats).
+  const playing = currentlyPlayingGames(games);
   // `games` goes to GameLibrary whole, rated and unrated alike. It used to be
   // split on `rating !== ""` here, which left the unrated half outside the
   // filter/group/sort pipeline entirely — invisible to search, and stuck on
@@ -281,7 +282,7 @@ export async function LibraryPage({
               about the viewer, which only a client component can answer.
               `games` is the SAME array GameLibrary gets below, so the two props
               share their rows in the Flight payload rather than doubling it. */}
-          <CurrentlyPlayingSection games={games} currentlyPlayingGames={currentlyPlayingGames} />
+          <CurrentlyPlayingSection games={games} currentlyPlayingGames={playing} />
 
           {/* Suspense is required because GameLibrary uses useSearchParams() */}
           <Suspense fallback={null}>
