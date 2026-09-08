@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Game } from "../../lib/games.ts";
-import { startableGames } from "./playingPicker.ts";
+import { currentlyPlayingGames, startableGames } from "./playingPicker.ts";
 
 // Run with `npm test`. No browser and no dependencies: node --test runs this
 // TypeScript directly.
@@ -110,4 +110,60 @@ test("applies the limit after ordering, so the newest survive", () => {
   ];
 
   assert.deepEqual(names(startableGames(games, "", 2)), ["Newest", "Middle"]);
+});
+
+// --- the currently-playing set ---------------------------------------------
+
+test("keeps only in-progress games", () => {
+  const games = [
+    game({
+      name: "Hades II",
+      currentlyPlaying: true,
+      playingSince: "2026-09-01",
+      openSessionId: 7,
+    }),
+    game({ name: "Tunic", lastPlayed: "2026-08-01" }),
+  ];
+
+  assert.deepEqual(names(currentlyPlayingGames(games)), ["Hades II"]);
+});
+
+test("newest start date first, whatever order the API returned", () => {
+  const games = [
+    game({ name: "Oldest", currentlyPlaying: true, playingSince: "2026-01-04", openSessionId: 1 }),
+    game({ name: "Newest", currentlyPlaying: true, playingSince: "2026-09-02", openSessionId: 2 }),
+    game({ name: "Middle", currentlyPlaying: true, playingSince: "2026-05-20", openSessionId: 3 }),
+  ];
+
+  assert.deepEqual(names(currentlyPlayingGames(games)), ["Newest", "Middle", "Oldest"]);
+});
+
+test("a same-day tie puts the later-opened session first", () => {
+  const games = [
+    game({
+      name: "Opened first",
+      currentlyPlaying: true,
+      playingSince: "2026-09-02",
+      openSessionId: 4,
+    }),
+    game({
+      name: "Opened second",
+      currentlyPlaying: true,
+      playingSince: "2026-09-02",
+      openSessionId: 9,
+    }),
+  ];
+
+  assert.deepEqual(names(currentlyPlayingGames(games)), ["Opened second", "Opened first"]);
+});
+
+test("does not reorder the caller's array", () => {
+  const games = [
+    game({ name: "Oldest", currentlyPlaying: true, playingSince: "2026-01-04", openSessionId: 1 }),
+    game({ name: "Newest", currentlyPlaying: true, playingSince: "2026-09-02", openSessionId: 2 }),
+  ];
+
+  currentlyPlayingGames(games);
+
+  assert.deepEqual(names(games), ["Oldest", "Newest"]);
 });

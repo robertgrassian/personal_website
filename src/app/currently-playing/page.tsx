@@ -1,6 +1,7 @@
 import { getGames } from "@/lib/libraryApi";
 import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 import { CrtTv } from "@/components/crt/CrtTv";
+import { currentlyPlayingGames } from "@/components/video_games/playingPicker";
 
 // Next.js convention: a `metadata` export sets the <title>/<meta> for this route.
 // (React would have no equivalent — this is App Router's replacement for
@@ -14,11 +15,12 @@ export const metadata = {
 // data to the client CRT. Async because getGames() may now fetch from the
 // library API — App Router server components can be async and await data.
 export default async function CurrentlyPlayingPage() {
-  // Same filter the game library uses (video-games/page.tsx): a game is
-  // "currently playing" when it has an open session (empty end_date).
+  // Same helper the library page uses, so both CRTs order their channels the
+  // same way: a game is "currently playing" when it has an open session (empty
+  // end_date), and the newest-started one is channel 01.
   // Robert's own page, so the owner is pinned — this route is not part of the
   // /video-games/u/[username] family.
-  const games = (await getGames(LIBRARY_OWNER_USERNAME)).filter((g) => g.currentlyPlaying);
+  const games = currentlyPlayingGames(await getGames(LIBRARY_OWNER_USERNAME));
 
   return (
     // Base site tokens (bg-background/text-foreground) keep the page chrome
