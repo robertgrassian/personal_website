@@ -88,6 +88,10 @@ export function GameEditFields({
   // being able to retire it: this drives the inert region below and disables
   // Save, which the sheet sits on top of.
   const [confirmingRemove, setConfirmingRemove] = useState(false);
+  // The sheet lives on the details face and does not report on unmount, so a
+  // face switch while it is up (Escape with a dirty note) would leave Save
+  // disabled and this form inert. Adjusted during render, not in an effect.
+  if (confirmingRemove && face !== "details") setConfirmingRemove(false);
 
   const promoting = subject.kind === "promote";
   const source = promoting ? subject.item : subject.game;

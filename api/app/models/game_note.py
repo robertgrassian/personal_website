@@ -62,9 +62,8 @@ class GameNote(Base):
         BigInteger, ForeignKey("played_games.id", ondelete="CASCADE")
     )
     body: Mapped[str] = mapped_column(Text, server_default=text("''"))
-    # Set by the service on every write, not by the DB: Postgres has no ON
-    # UPDATE trigger here, and the UI shows this value ("Edited Aug 24"), so a
-    # stale one would be a visible lie rather than a missing default.
+    # The default only fires on INSERT, so upsert_game_note's ON CONFLICT SET
+    # bumps it explicitly: there is no ON UPDATE trigger, and the UI shows it.
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (

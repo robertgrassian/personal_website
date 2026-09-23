@@ -68,6 +68,7 @@ type TagFor = (username: string) => string;
  *  inside an `if (result.ok)`. fetchMyUsername trusts an unverified cookie on
  *  a cache hit, and that succeeded write is what proves the session real. */
 async function revalidateMyLibrary(tags: TagFor[]): Promise<void> {
+  if (tags.length === 0) return;
   // fetchMyUsername, not fetchMyProfile: same answer, but memoized per user so
   // this doesn't add an API round trip to every single write.
   const username = await fetchMyUsername();
