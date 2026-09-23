@@ -12,15 +12,12 @@ before that happens.
 
 _Confirmed defects that are not urgent enough for Up Next. Roughly severity-ordered, worst first._
 
-- [ ] **Anyone can define a shared catalog row for everyone, because `igdb_id` is never checked
-      against IGDB.** [Details](docs/todo/unverified-igdb-id-catalog.md)
-
 - [ ] **A dropdown change mid-search can put back a character you already typed past.** **Not
       reproduced.** [Details](docs/todo/suggest-input-search-restore.md)
 
-- [ ] **The add form's info popover can promise genres the add then fails to store.** Re-decide
-      together with **Anyone can define a shared catalog row for everyone**.
-      [Details](docs/todo/info-popover-genre-promise.md)
+- [ ] **The add form's info popover can promise genres the add then fails to store.** Letting the
+      client send the previewed genres stays declined: since 2026-09-23 a new IGDB row trusts
+      nothing from the payload but the id. [Details](docs/todo/info-popover-genre-promise.md)
 
 - [ ] **Owner edit affordances still pop in, now at hydration rather than a round trip later.** The
       localStorage cache landed 2026-08-19; closing the last gap means reaching first paint, which is

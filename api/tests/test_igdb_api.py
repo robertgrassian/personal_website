@@ -8,7 +8,7 @@ Postgres tables.
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import httpx
 import pytest
@@ -113,6 +113,7 @@ def igdb_env(monkeypatch: pytest.MonkeyPatch):
     # first test's platforms (and its expiry) into every later test.
     monkeypatch.setattr(igdb_service, "_platform_aliases", None)
     monkeypatch.setattr(igdb_service, "_platform_aliases_expire_at", None)
+    monkeypatch.setattr(igdb_service, "_known_platform_names", frozenset())
 
     _delete_token_row()
     yield calls
@@ -556,3 +557,88 @@ def test_rate_limits_are_per_user(igdb_env, test_user) -> None:
         with sm() as session:
             session.execute(text("DELETE FROM rate_limits WHERE user_id = :id"), {"id": other_user})
             session.commit()
+
+
+# ---------------------------------------------------------------------------
+# fetch_catalog_game: what the add path builds a new shared row from
+# ---------------------------------------------------------------------------
+
+
+@requires_db
+def test_fetch_catalog_game_parses_igdbs_record(igdb_env) -> None:
+    with get_sessionmaker()() as session:
+        game = igdb_service.fetch_catalog_game(session, 1022)
+    assert game == igdb_service.IgdbCatalogGame(
+        name="The Legend of Zelda: A Link Between Worlds",
+        release_date=date(2013, 11, 22),
+        platforms=["Nintendo 3DS"],
+        genres=["Adventure", "Puzzle"],
+        cover_url="https://images.igdb.com/igdb/image/upload/t_cover_big/co3p0j.jpg",
+    )
+    assert "where id = 1022;" in igdb_env["last_body"]
+
+
+@requires_db
+def test_fetch_catalog_game_is_none_for_an_unknown_id(igdb_env) -> None:
+    igdb_env["igdb_responses"].append(httpx.Response(200, json=[]))
+    with get_sessionmaker()() as session:
+        assert igdb_service.fetch_catalog_game(session, 1022) is None
+
+
+@requires_db
+def test_fetch_catalog_game_raises_when_igdb_cannot_answer(igdb_env) -> None:
+    # Unlike the lookups that ride on a read, this must not swallow an outage:
+    # the caller refuses the add rather than trusting the payload instead.
+    igdb_env["igdb_responses"].append(httpx.Response(500))
+    with get_sessionmaker()() as session, pytest.raises(igdb_service.IgdbUpstreamError):
+        igdb_service.fetch_catalog_game(session, 1022)
+
+
+def test_fetch_catalog_game_raises_when_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "twitch_client_id", None)
+    with pytest.raises(igdb_service.IgdbNotConfiguredError):
+        igdb_service.fetch_catalog_game(None, 1022)
+
+
+@requires_db
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(200, text="<html>not json</html>"),
+        httpx.Response(200, json={"message": "not a list"}),
+        httpx.Response(200, json=[{"id": 1022, "name": "Zelda", "cover": "not an object"}]),
+    ],
+    ids=["non-json", "dict-body", "wrong-typed-field"],
+)
+def test_fetch_catalog_game_reports_an_unreadable_200_as_upstream(igdb_env, response) -> None:
+    """Otherwise a garbled 200 escapes as a bare 500 from the add."""
+    igdb_env["igdb_responses"].append(response)
+    with get_sessionmaker()() as session, pytest.raises(igdb_service.IgdbUpstreamError):
+        igdb_service.fetch_catalog_game(session, 1022)
+
+
+@requires_db
+def test_fetch_catalog_game_skips_nameless_platforms_and_genres(igdb_env) -> None:
+    row = {**FULL_IGDB_ROW, "platforms": [{"id": 1}], "genres": [{"id": 2}, {"name": "Puzzle"}]}
+    igdb_env["igdb_responses"].append(httpx.Response(200, json=[row]))
+    with get_sessionmaker()() as session:
+        game = igdb_service.fetch_catalog_game(session, 1022)
+    assert (game.platforms, game.genres) == ([], ["Puzzle"])
+
+
+@requires_db
+def test_is_platform_name_matches_igdbs_exact_names(igdb_env) -> None:
+    name = PLATFORM_ROWS[0]["name"]
+    with get_sessionmaker()() as session:
+        assert igdb_service.is_platform_name(session, name) is True
+        assert igdb_service.is_platform_name(session, "Bogus") is False
+    # One fetch, then the search path's cache.
+    assert igdb_env["platforms"] == 1
+
+
+@requires_db
+def test_is_platform_name_is_unknown_when_the_list_is_unavailable(igdb_env) -> None:
+    igdb_env["platform_status"] = 500
+    with get_sessionmaker()() as session:
+        assert igdb_service.is_platform_name(session, "Bogus") is None

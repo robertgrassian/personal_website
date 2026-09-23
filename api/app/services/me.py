@@ -28,7 +28,7 @@ from app.core.supabase_admin import (
     delete_auth_user,
     delete_auth_user_or_raise,
 )
-from app.models import Profile
+from app.models import GameMetadata, Profile
 from app.models.game import MAX_GENRE_LENGTH
 from app.repositories import me as me_repo
 from app.repositories import rate_limit as rate_limit_repo
@@ -287,6 +287,27 @@ class SessionAlreadyClosedError(DomainError):
         super().__init__(f"Session {session_id} is already closed.")
 
 
+class UnknownIgdbGameError(DomainError):
+    """The add named an igdb_id IGDB has never issued. No honest client can
+    send one, since the id comes from a search result."""
+
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    def __init__(self, igdb_id: int) -> None:
+        super().__init__(f"IGDB has no game with id {igdb_id}.")
+
+
+class CatalogUnverifiedError(DomainError):
+    """IGDB could not confirm a game that would create a new shared catalog
+    row. Refused rather than built from the payload, which is what this check
+    exists to stop."""
+
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
+    def __init__(self) -> None:
+        super().__init__("Couldn't confirm this game with IGDB right now. Try again in a moment.")
+
+
 class SessionDatesError(DomainError):
     """Close date precedes the session's start date — invalid input, not a
     conflict, so the router maps it to a 422."""
@@ -473,9 +494,13 @@ def delete_my_account(db: Session, user: AuthenticatedUser) -> None:
 
 
 class _NewCatalogFields(NamedTuple):
-    """What an add sources for itself, rather than trusting the payload for."""
+    """The catalog values an add stores if it creates a row, rather than
+    trusting the payload for them."""
 
+    name: str
     genres: list[str]
+    release_date: date | None
+    image_url: str | None
     platforms: list[str]
 
 
@@ -486,26 +511,35 @@ def _fields_for_new_catalog_row(
     igdb_id: int | None,
     name: str,
     system: str | None,
-    from_client: list[str],
-) -> _NewCatalogFields:
-    """The genres and platforms to store for a game being added.
+    genres: list[str],
+    release_date: date | None,
+    image_url: str | None,
+) -> _NewCatalogFields | None:
+    """The values to store for a game being added, if its row is new. None
+    when an existing SHARED row answers, which _catalog_row_for_add adopts.
+
+    A row with an igdb_id is SHARED, so everything on it comes from IGDB and
+    Wikipedia and nothing from the payload: otherwise whoever adds a game first
+    names it for everyone, and no UI path edits a shared row afterwards. The
+    id is the one thing taken on trust, and the IGDB fetch is what checks it.
+    That is the call that used to fetch only platforms, so verifying costs no
+    extra request. A hand-entered row is private and keeps what its owner sent.
 
     Genres come from Wikipedia: IGDB's genre field is too coarse to describe a
     library (Hades II with no roguelike anywhere), and Wikipedia's infoboxes
     are where the shelves' existing vocabulary came from. See services/genres.py.
-    Platforms come from IGDB, which is the only place that fact exists.
-    Sourcing both on the write path is what keeps the backfill scripts repair
-    tools rather than the only way either value ever lands.
 
-    Both are skipped when the catalog row already exists, which is one lookup
-    answering for both: find_or_create_metadata returns that row untouched, so
-    anything sourced here would be discarded. That is the common case, and it
-    costs nothing.
+    All skipped when the catalog row already exists: find_or_create_metadata
+    returns that row untouched, so anything sourced here would be discarded.
+    That is the common case, and it costs nothing.
     """
+    from_client = _NewCatalogFields(
+        name=name, genres=genres, release_date=release_date, image_url=image_url, platforms=[]
+    )
     if me_repo.find_metadata(db, user_id=user_id, igdb_id=igdb_id, name=name) is not None:
-        # platforms is ignored on an existing row; genres fall back to the
-        # payload, which is likewise discarded. Neither value is stored.
-        return _NewCatalogFields(genres=from_client, platforms=[])
+        # Not the payload for a shared row, even as values to be discarded: if
+        # the row vanished before the insert, they would be what got stored.
+        return None if igdb_id is not None else from_client
     # End the read transaction the queries above opened, before calls that can
     # block for seconds. SQLAlchemy autobegins on the first statement, so
     # "nothing has been written yet" does NOT mean "no transaction is open" —
@@ -513,40 +547,91 @@ def _fields_for_new_catalog_row(
     # connection idle-in-transaction for the whole round trip. The writes below
     # autobegin a fresh one.
     db.rollback()
+    if igdb_id is None:
+        return from_client._replace(
+            genres=_sourced_genres(igdb_id=None, name=name, from_client=genres)
+        )
+    game = _verified_igdb_game(db, igdb_id)
+    platforms = _platforms_for_new_catalog_row(db, game.platforms, system=system)
     # IGDB before Wikipedia, with a rollback between: the IGDB leg reads the
     # cached Twitch token out of Postgres, and rolling back after it keeps that
     # read from spanning the Wikipedia call as well.
-    platforms = _platforms_for_new_catalog_row(db, igdb_id=igdb_id, system=system)
     db.rollback()
     return _NewCatalogFields(
-        genres=_sourced_genres(igdb_id=igdb_id, name=name, from_client=from_client),
+        name=game.name,
+        # IGDB's genres, not the payload's, are the fallback when Wikipedia misses.
+        genres=_sourced_genres(igdb_id=igdb_id, name=game.name, from_client=game.genres),
+        release_date=game.release_date,
+        image_url=game.cover_url or None,
         platforms=platforms,
     )
 
 
+def _catalog_row_for_add(
+    db: Session,
+    *,
+    user_id: uuid.UUID,
+    igdb_id: int | None,
+    name: str,
+    sourced: _NewCatalogFields | None,
+) -> GameMetadata:
+    """The catalog row an add links to: the existing one, or one created from
+    `sourced`. `name` is the payload's, used only as a hand-entered row's key."""
+    if sourced is None:
+        meta = me_repo.find_metadata(db, user_id=user_id, igdb_id=igdb_id, name=name)
+        if meta is None:
+            # Deleted since _fields_for_new_catalog_row saw it. Nothing verified
+            # is in hand to rebuild it from; a retry fetches it from IGDB.
+            raise CatalogUnverifiedError()
+        return meta
+    return me_repo.find_or_create_metadata(
+        db,
+        user_id=user_id,
+        igdb_id=igdb_id,
+        name=sourced.name,
+        genres=sourced.genres,
+        release_date=sourced.release_date,
+        image_url=sourced.image_url,
+        platforms=sourced.platforms,
+    )
+
+
+def _verified_igdb_game(db: Session, igdb_id: int) -> igdb_service.IgdbCatalogGame:
+    """IGDB's record for the id, or the error that refuses the add."""
+    try:
+        game = igdb_service.fetch_catalog_game(db, igdb_id)
+    except (igdb_service.IgdbNotConfiguredError, igdb_service.IgdbUpstreamError) as exc:
+        logger.warning("Could not verify IGDB id %s for a new catalog row: %s", igdb_id, exc)
+        raise CatalogUnverifiedError() from exc
+    if game is None:
+        raise UnknownIgdbGameError(igdb_id)
+    return game
+
+
 def _platforms_for_new_catalog_row(
-    db: Session, *, igdb_id: int | None, system: str | None
+    db: Session, platforms: list[str], *, system: str | None
 ) -> list[str]:
-    """Every platform IGDB lists for the game, or [] where that is unanswerable.
+    """IGDB's platform list for the game, or [] where the caller's console
+    contradicts it.
 
-    Empty for a hand-entered game: platforms is IGDB's fact about a title, and
-    there is no canonical list for one IGDB has never heard of.
+    Both columns speak IGDB's platform vocabulary (migration d1a83f6c25e7), so
+    a console missing from the list means this igdb_id landed on a variant
+    rather than the base game — IGDB's "Dead Cells+" is Apple Arcade only. This
+    column answers "which consoles are valid for this game?", and an answer
+    omitting the owner's own console is worse than no answer: [] falls back to
+    the union of their existing systems at read time. Same rule
+    scripts/backfill_platforms.py applies when it skips such a row.
 
-    Empty too when IGDB's list does not contain the console the caller is
-    recording. Both columns speak IGDB's platform vocabulary (migration
-    d1a83f6c25e7), so that is a real contradiction and it means this igdb_id
-    landed on a variant rather than the base game — IGDB's "Dead Cells+" is
-    Apple Arcade only. This column answers "which consoles are valid for this
-    game?", and an answer omitting the owner's own console is worse than no
-    answer: [] falls back to the union of their existing systems at read time.
-    Same rule scripts/backfill_platforms.py applies when it skips such a row.
+    Only a real IGDB platform name can contradict the list, though. Free text
+    says nothing about which game the id is, and letting it blank the column
+    would be the payload shaping a shared row after all. Unknown (the platform
+    list is unavailable) keeps the cautious [].
     """
-    if igdb_id is None:
-        return []
-    platforms = igdb_service.lookup_platforms(db, igdb_id)
-    if system and system not in platforms:
-        return []
-    return platforms
+    if not system or system in platforms:
+        return platforms
+    if igdb_service.is_platform_name(db, system) is False:
+        return platforms
+    return []
 
 
 def _sourced_genres(*, igdb_id: int | None, name: str, from_client: list[str]) -> list[str]:
@@ -556,10 +641,11 @@ def _sourced_genres(*, igdb_id: int | None, name: str, from_client: list[str]) -
     Two cases skip the lookup, and neither is an error: a hand-entered game
     whose genres the caller typed (a private row is theirs to name, and
     overriding it would be the silent discard this path exists to avoid), and
-    a Wikipedia miss or outage, which falls back to what the client sent rather
-    than failing the add.
+    a Wikipedia miss or outage, which falls back to `from_client` rather than
+    failing the add. Despite the name, for an IGDB game the add passes IGDB's
+    genres there, never the payload's; only the preview passes the payload.
 
-    Both of those exits carry client genres, and both put them on the
+    Both of those exits carry fallback genres, and both put them on the
     pipeline's spelling first. Without that, the only rows in the catalog that
     skip normalize_genre are the hand-typed ones, and they diverge visibly:
     prod held "Beat 'em up" and "Shoot 'em Up" side by side, and six genres
@@ -587,11 +673,12 @@ def _sourced_genres(*, igdb_id: int | None, name: str, from_client: list[str]) -
 
 
 def _normalized_from_client(genres: list[str]) -> list[str]:
-    """Client-supplied genres put on the spelling the Wikipedia path produces.
+    """Fallback genres (typed, or IGDB's) put on the spelling the Wikipedia
+    path produces.
 
     Casing only. A value normalize_genre rejects outright -- a THEME_VALUES
-    entry -- is kept as typed rather than dropped, because not silently
-    discarding what the caller sent is the reason this fallback exists. So the
+    entry -- is kept rather than dropped, because not silently discarding what
+    the caller typed is the reason this fallback exists. So the
     theme block list still does not bite a hand-typed add; that is a separate
     decision, tracked in docs/todo/genre-vocabulary-audit.md.
     """
@@ -632,6 +719,11 @@ def preview_catalog_entry(
     row's genres and release date, so a preview showing a fresh Wikipedia
     answer would be showing something the add will not store. Nothing here
     writes, beyond the rate-limit counter charged below.
+
+    One place it does NOT follow the add: it never asks IGDB, so for a new IGDB
+    row it answers from the payload's name, genres and date where the add uses
+    IGDB's. The two agree because the form posts a search result verbatim; an
+    extra IGDB call per preview would buy nothing for that client.
     """
     rate_limit.enforce(
         db,
@@ -690,19 +782,14 @@ def create_my_game(db: Session, user: AuthenticatedUser, payload: GameCreate) ->
         igdb_id=payload.igdb_id,
         name=payload.name,
         system=payload.system,
-        from_client=payload.genres,
+        genres=payload.genres,
+        release_date=payload.release_date,
+        image_url=payload.image_url or None,
     )
 
     try:
-        meta = me_repo.find_or_create_metadata(
-            db,
-            user_id=user.id,
-            igdb_id=payload.igdb_id,
-            name=payload.name,
-            genres=sourced.genres,
-            release_date=payload.release_date,
-            image_url=payload.image_url or None,
-            platforms=sourced.platforms,
+        meta = _catalog_row_for_add(
+            db, user_id=user.id, igdb_id=payload.igdb_id, name=payload.name, sourced=sourced
         )
         # Two checks, not one. The first is the constraint-backed "same game",
         # which for an IGDB game is the whole rule — identity is the igdb_id,
@@ -714,7 +801,8 @@ def create_my_game(db: Session, user: AuthenticatedUser, payload: GameCreate) ->
         if me_repo.find_game_by_metadata(db, user.id, meta.id) or me_repo.find_game_by_name(
             db, user.id, meta.name, igdb_id=meta.igdb_id
         ):
-            raise GameExistsError(payload.name)
+            # The catalog's name, not the payload's, which a new IGDB row ignores.
+            raise GameExistsError(meta.name)
         game = me_repo.create_game(
             db,
             user_id=user.id,
@@ -800,25 +888,20 @@ def create_my_wishlist_item(
         # Optional here, unlike the library path: a wishlist entry need not
         # name a console, and no system means nothing to contradict.
         system=payload.system or None,
-        from_client=payload.genres,
+        genres=payload.genres,
+        release_date=payload.release_date,
+        image_url=payload.image_url or None,
     )
 
     try:
-        meta = me_repo.find_or_create_metadata(
-            db,
-            user_id=user.id,
-            igdb_id=payload.igdb_id,
-            name=payload.name,
-            genres=sourced.genres,
-            release_date=payload.release_date,
-            image_url=payload.image_url or None,
-            platforms=sourced.platforms,
+        meta = _catalog_row_for_add(
+            db, user_id=user.id, igdb_id=payload.igdb_id, name=payload.name, sourced=sourced
         )
         # Same two-check shape as create_my_game: metadata id, then title.
         if me_repo.find_wishlist_item_by_metadata(
             db, user.id, meta.id
         ) or me_repo.find_wishlist_item_by_name(db, user.id, meta.name, igdb_id=meta.igdb_id):
-            raise WishlistItemExistsError(payload.name)
+            raise WishlistItemExistsError(meta.name)
         item = me_repo.create_wishlist_item(
             db,
             user_id=user.id,

@@ -35,9 +35,10 @@ docs {
   shares its genre-resolution helpers with the add path deliberately, so the
   preview and the write cannot disagree about the rule.
 
-  Pass the `genres` and `releaseDate` the client already has from IGDB. They are
-  the same fallbacks the write path would use, so passing them makes this answer
-  with exactly what an add would store rather than with a second opinion.
+  Pass the `name`, `genres` and `releaseDate` the client already has from IGDB.
+  For a new IGDB row the add re-fetches all three from IGDB rather than trusting
+  them, and this preview does not, so it matches the add only when they are passed
+  through from a search result unedited, as the form does.
 
   Watch the query parameter names. CamelModel's camelCase convention covers SCHEMA
   fields, not bare query params, so `igdbId` and `releaseDate` only work because

@@ -1,5 +1,5 @@
 """Unit tests for the pure parts of the /me service: onboarding username
-validation, and which genres and platforms an add stores (both no DB, no
+validation, and what an add stores for a new catalog row (both no DB, no
 network)."""
 
 import uuid
@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.models.game import MAX_GENRE_LENGTH, MAX_GENRES
+from app.services import igdb as igdb_service
 from app.services import me as me_service
 from app.services.me import RESERVED_USERNAMES, UsernameError, _validate_username
 
@@ -96,7 +97,7 @@ def fake_db():
 
 
 class TestFieldsForNewCatalogRow:
-    """Which genres and platforms an add stores, and when it pays for a lookup.
+    """What an add stores for a new catalog row, and when it pays for a lookup.
 
     No DB and no network: the repository lookup, the genre service and the IGDB
     service are all stubbed, since what is under test is the decision between
@@ -108,16 +109,21 @@ class TestFieldsForNewCatalogRow:
         return []
 
     @pytest.fixture
-    def platform_calls(self):
+    def igdb_calls(self):
         return []
 
     @pytest.fixture
-    def stub(self, monkeypatch, calls, platform_calls):
+    def stub(self, monkeypatch, calls, igdb_calls):
         """Wire all three seams. `existing` is what the catalog lookup returns,
-        `found` what Wikipedia answers, `platforms` what IGDB answers."""
+        `found` what Wikipedia answers, `platforms` the platforms on IGDB's
+        record, and `igdb` replaces that record outright (None is a miss)."""
 
-        def wire(*, existing=None, found=None, platforms=None):
+        def wire(*, existing=None, found=None, platforms=None, igdb=..., platform_name=True):
             monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: existing)
+            # Whether a console missing from IGDB's list is a real IGDB platform.
+            monkeypatch.setattr(
+                me_service.igdb_service, "is_platform_name", lambda db, name: platform_name
+            )
 
             def fake_lookup(name):
                 calls.append(name)
@@ -125,27 +131,87 @@ class TestFieldsForNewCatalogRow:
 
             monkeypatch.setattr(me_service.genre_service, "lookup_one", fake_lookup)
 
-            def fake_platforms(db, igdb_id):
-                platform_calls.append(igdb_id)
-                return list(platforms or [])
+            record = (
+                igdb_service.IgdbCatalogGame(
+                    name="Chrono Trigger",
+                    release_date=date(1995, 3, 11),
+                    platforms=list(platforms or []),
+                    genres=["Role-playing (RPG)"],
+                    cover_url="https://images.igdb.com/igdb/image/upload/t_cover_big/co2mkh.jpg",
+                )
+                if igdb is ...
+                else igdb
+            )
 
-            monkeypatch.setattr(me_service.igdb_service, "lookup_platforms", fake_platforms)
+            def fake_fetch(db, igdb_id):
+                igdb_calls.append(igdb_id)
+                if isinstance(record, Exception):
+                    raise record
+                return record
+
+            monkeypatch.setattr(me_service.igdb_service, "fetch_catalog_game", fake_fetch)
 
         return wire
 
-    def fields(self, *, igdb_id=1051, name="Chrono Trigger", system=None, from_client=None):
+    def fields(self, *, igdb_id=1051, name="Chrono Trigger", system=None, from_client=None, **kw):
         return me_service._fields_for_new_catalog_row(
             fake_db(),
             user_id=uuid.uuid4(),
             igdb_id=igdb_id,
             name=name,
             system=system,
-            from_client=from_client if from_client is not None else ["Role-playing (RPG)"],
+            genres=from_client if from_client is not None else ["Role-playing (RPG)"],
+            release_date=kw.get("release_date"),
+            image_url=kw.get("image_url"),
         )
 
     def source(self, **kw):
         """Just the genres, since most of the cases below are about those."""
         return self.fields(**kw).genres
+
+    # --- what is trusted ---------------------------------------------------
+    # The bug these exist for: a new SHARED row used to be built from the
+    # payload, so the first adder of an IGDB game named it for everyone.
+
+    def test_a_new_igdb_row_is_built_from_igdb_not_the_payload(self, stub, calls):
+        stub(found=[])
+        out = self.fields(
+            name="anything",
+            from_client=["Nonsense"],
+            release_date=date(2001, 1, 1),
+            image_url="https://images.igdb.com/igdb/image/upload/t_cover_big/co0000.jpg",
+        )
+        assert out.name == "Chrono Trigger"
+        assert out.genres == ["Role-Playing"]
+        assert out.release_date == date(1995, 3, 11)
+        assert out.image_url.endswith("co2mkh.jpg")
+        # And Wikipedia is asked about IGDB's title, not the payload's.
+        assert calls == ["Chrono Trigger"]
+
+    def test_an_id_igdb_does_not_know_is_refused(self, stub):
+        stub(igdb=None)
+        with pytest.raises(me_service.UnknownIgdbGameError):
+            self.fields()
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            igdb_service.IgdbUpstreamError("IGDB answered 500"),
+            igdb_service.IgdbNotConfiguredError(),
+        ],
+    )
+    def test_an_igdb_that_cannot_answer_refuses_the_add(self, stub, error):
+        """Falling back to the payload would reopen the hole whenever IGDB is down."""
+        stub(igdb=error)
+        with pytest.raises(me_service.CatalogUnverifiedError):
+            self.fields()
+
+    def test_a_hand_entered_game_keeps_what_its_owner_sent(self, stub, igdb_calls):
+        # A private row, so nobody else inherits it and there is nothing to verify.
+        stub()
+        out = self.fields(igdb_id=None, name="Homebrew", release_date=date(2020, 1, 1))
+        assert (out.name, out.release_date) == ("Homebrew", date(2020, 1, 1))
+        assert igdb_calls == []
 
     def test_a_new_igdb_row_stores_wikipedias_genres(self, stub, calls):
         # The whole point: IGDB's coarse "Role-playing (RPG)" is replaced by the
@@ -154,20 +220,27 @@ class TestFieldsForNewCatalogRow:
         assert self.source() == ["Role-Playing", "Time Travel"]
         assert calls == ["Chrono Trigger"]
 
-    def test_an_existing_catalog_row_skips_the_lookup(self, stub, calls, platform_calls):
-        # find_or_create_metadata returns the existing row untouched, so
-        # sourcing anything for it would be requests thrown away.
+    def test_an_existing_catalog_row_skips_the_lookup(self, stub, calls, igdb_calls):
+        # The existing row is used untouched, so sourcing anything for it would
+        # be requests thrown away. That is also why it needs no verifying: the
+        # row was checked when it was created.
         stub(existing=object(), found=["Role-Playing"], platforms=["Super Nintendo"])
-        assert self.source() == ["Role-playing (RPG)"]
+        assert self.fields() is None
         assert calls == []
-        assert platform_calls == []
+        assert igdb_calls == []
 
-    def test_a_wikipedia_miss_falls_back_to_the_clients_genres(self, stub):
-        """Normalized on the way through, which is why this is not the client's
-        literal string: IGDB sends "Role-playing (RPG)" and the catalog stores
-        the same spelling every Wikipedia-sourced row uses."""
+    def test_an_existing_private_row_keeps_the_payload(self, stub, calls):
+        # Private, so the payload is safe to hand on even if the row vanished.
+        stub(existing=object(), found=["Role-Playing"])
+        assert self.source(igdb_id=None, from_client=["Farm Life Sim"]) == ["Farm Life Sim"]
+        assert calls == []
+
+    def test_a_wikipedia_miss_falls_back_to_igdbs_genres(self, stub):
+        """IGDB's, not the payload's, and normalized on the way through: IGDB
+        says "Role-playing (RPG)" and the catalog stores the same spelling
+        every Wikipedia-sourced row uses."""
         stub(found=[])
-        assert self.source() == ["Role-Playing"]
+        assert self.source(from_client=["Nonsense"]) == ["Role-Playing"]
 
     def test_a_hand_entered_game_keeps_the_typed_genres(self, stub, calls):
         # A private catalog row is the caller's to name; overriding it would be
@@ -216,22 +289,22 @@ class TestFieldsForNewCatalogRow:
     # floor, so every catalog row they created stored [] and only
     # scripts/backfill_platforms.py ever filled one in.
 
-    def test_a_new_igdb_row_stores_igdbs_platforms(self, stub, platform_calls):
+    def test_a_new_igdb_row_stores_igdbs_platforms(self, stub, igdb_calls):
         stub(platforms=["Nintendo Switch", "Super Nintendo Entertainment System"])
         assert self.fields(system="Nintendo Switch").platforms == [
             "Nintendo Switch",
             "Super Nintendo Entertainment System",
         ]
-        assert platform_calls == [1051]
+        assert igdb_calls == [1051]
 
-    def test_a_hand_entered_game_stores_no_platforms(self, stub, platform_calls):
+    def test_a_hand_entered_game_stores_no_platforms(self, stub, igdb_calls):
         # There is no canonical platform list for a game IGDB has never heard
         # of, so this is the right answer rather than a gap.
         stub(platforms=["Nintendo Switch"])
         assert self.fields(igdb_id=None, from_client=["Farm Life Sim"]).platforms == []
-        assert platform_calls == []
+        assert igdb_calls == []
 
-    def test_an_igdb_miss_stores_no_platforms(self, stub):
+    def test_a_game_igdb_lists_no_platforms_for_stores_none(self, stub):
         stub(platforms=[])
         assert self.fields().platforms == []
 
@@ -242,10 +315,42 @@ class TestFieldsForNewCatalogRow:
         stub(platforms=["iOS", "Mac"])
         assert self.fields(system="Nintendo Switch").platforms == []
 
+    def test_free_text_cannot_blank_a_shared_rows_platforms(self, stub):
+        """Not an IGDB platform, so it says nothing about which game the id is.
+        Otherwise any adder could empty the column for every later one."""
+        stub(platforms=["iOS", "Mac"], platform_name=False)
+        assert self.fields(system="Bogus").platforms == ["iOS", "Mac"]
+
+    def test_an_unavailable_platform_list_keeps_the_cautious_answer(self, stub):
+        stub(platforms=["iOS", "Mac"], platform_name=None)
+        assert self.fields(system="Nintendo Switch").platforms == []
+
     def test_no_recorded_console_has_nothing_to_contradict(self, stub):
         # The wishlist path, where naming a system is optional.
         stub(platforms=["iOS", "Mac"])
         assert self.fields(system=None).platforms == ["iOS", "Mac"]
+
+
+class TestCatalogRowForAdd:
+    def test_an_existing_shared_row_is_adopted_without_creating(self, monkeypatch):
+        row = object()
+        monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: row)
+
+        def create(*a, **kw):
+            raise AssertionError("an existing row must not reach find_or_create_metadata")
+
+        monkeypatch.setattr(me_service.me_repo, "find_or_create_metadata", create)
+        out = me_service._catalog_row_for_add(
+            fake_db(), user_id=uuid.uuid4(), igdb_id=1051, name="anything", sourced=None
+        )
+        assert out is row
+
+    def test_a_shared_row_deleted_mid_add_is_not_rebuilt_from_the_payload(self, monkeypatch):
+        monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: None)
+        with pytest.raises(me_service.CatalogUnverifiedError):
+            me_service._catalog_row_for_add(
+                fake_db(), user_id=uuid.uuid4(), igdb_id=1051, name="anything", sourced=None
+            )
 
 
 class TestPreviewCatalogEntry:
@@ -293,8 +398,18 @@ class TestPreviewCatalogEntry:
         to both."""
         monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: None)
         monkeypatch.setattr(me_service.genre_service, "lookup_one", lambda name: ["Roguelike"])
+        # IGDB's record matches what the preview was sent, as it does for the
+        # add form, which posts a search result verbatim.
         monkeypatch.setattr(
-            me_service.igdb_service, "lookup_platforms", lambda db, igdb_id: ["Windows"]
+            me_service.igdb_service,
+            "fetch_catalog_game",
+            lambda db, igdb_id: igdb_service.IgdbCatalogGame(
+                name="Chrono Trigger",
+                release_date=date(1995, 3, 11),
+                platforms=["Windows"],
+                genres=["Role-playing (RPG)"],
+                cover_url="",
+            ),
         )
         stored = me_service._fields_for_new_catalog_row(
             fake_db(),
@@ -302,6 +417,8 @@ class TestPreviewCatalogEntry:
             igdb_id=1051,
             name="Chrono Trigger",
             system=None,
-            from_client=["Role-playing (RPG)"],
+            genres=["Role-playing (RPG)"],
+            release_date=date(1995, 3, 11),
+            image_url=None,
         )
         assert self.preview().genres == stored.genres

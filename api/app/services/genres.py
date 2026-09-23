@@ -615,11 +615,12 @@ def lookup_one(title: str, *, timeout: float | None = None) -> list[str]:
         shared public endpoint) and the least accurate one -- P136 calls The
         Minish Cap a role-playing game. Skipping it bounds this at two requests.
       * Never raises. A third-party miss must not fail an add, so the caller
-        gets [] and falls back to what the client sent.
+        gets [] and falls back: to IGDB's genres for an IGDB game, to the typed
+        ones for a hand-entered game.
       * A confidence floor. lookup_many returns its best candidate however bad
         it is, fine for a backfill a human reviews and not fine for a write to
         the SHARED catalog row. Rejecting a weak match costs nothing (the
-        client's genres stand in); accepting one is invisible and sticky.
+        fallback genres stand in); accepting one is invisible and sticky.
     """
     try:
         result = lookup_many([title], wikidata_fallback=False, timeout=timeout)[title]

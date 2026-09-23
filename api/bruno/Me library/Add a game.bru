@@ -35,20 +35,26 @@ docs {
   the row is private to its creator, because a hand-typed name is not a canonical
   key and one person's typo must not rewrite someone else's shelf.
 
+  With an `igdbId`, the id is the only catalog field read from this body. A new
+  shared row takes its name, release date, cover and platforms from IGDB, so the
+  first adder cannot define the game for everyone; an existing row is used as is.
+
   `imageUrl` accepts only `https://images.igdb.com/` URLs or `""`. Covers are
   hotlinked, so an open URL field would make any library free image hosting.
 
-  Genres sent here are only a FALLBACK. When the add creates a new catalog row the
-  server looks the genres up from Wikipedia, because IGDB's are too coarse for a
-  library. Ask `Catalog and search / Preview a catalog entry` what it will actually
-  store.
+  Genres sent here are only a FALLBACK, and only for a hand-entered game. When the
+  add creates a new catalog row the server looks the genres up from Wikipedia,
+  because IGDB's are too coarse for a library; an IGDB game falls back to IGDB's.
+  Ask `Catalog and search / Preview a catalog entry` what it will actually store.
 
   Returns the created game in the same wire shape as the public read.
 
   - 201 created
   - 403 not onboarded, or library at MAX_GAMES
   - 409 that game is already in the library
-  - 422 blank name or system, unknown rating, non-IGDB imageUrl
+  - 422 blank name or system, unknown rating, non-IGDB imageUrl, an igdbId IGDB
+    has never issued
   - 429 over the shared 60-writes-per-minute budget
-  - 503 writes disabled (preview deploys hold a read-only Postgres role)
+  - 503 writes disabled (preview deploys hold a read-only Postgres role), or IGDB
+    could not confirm the igdbId of a game nobody has added yet
 }
