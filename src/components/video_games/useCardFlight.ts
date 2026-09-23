@@ -102,10 +102,9 @@ function invertTo(rect: CardOrigin, card: DOMRect): string {
  *  rendered above 1x, so text is never a scaled-up blur, and there is only one
  *  content layout rather than a cross-fade between a small one and a big one.
  *
- *  Web Animations rather than CSS transitions, for three things transitions
+ *  Web Animations rather than CSS transitions, for two things transitions
  *  make awkward: two elements starting on the same frame with one shared curve,
- *  a callback at the end to drop out of 3D, and reversing a close from wherever
- *  the open had got to. */
+ *  and a callback at the end to drop out of 3D. */
 export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
   const flightRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -120,10 +119,10 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
   const onClosedRef = useRef(onClosed);
   onClosedRef.current = onClosed;
 
-  // Read by the outbound completion below, which is mount-only and so cannot
-  // see `closing` through its own closure.
-  const closingRef = useRef(false);
-  closingRef.current = closing;
+  // Read by `close`, which is stable and so cannot see `settled` through its
+  // own closure.
+  const settledRef = useRef(false);
+  settledRef.current = settled;
 
   // Outbound. Runs once: the card mounts, gets inverted onto the case before
   // paint, then animates to where it already is.
@@ -167,12 +166,6 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
     Promise.all([travel.finished, flip.finished])
       .then(() => {
         stopKeepAlive();
-        // A close that began before this finished already owns these elements:
-        // it has its own animations running on them and clears the inline
-        // transforms when it lands. Settling here would stomp the underlying
-        // value its animation reverts to when cancelled, which is the settle
-        // flash all over again on a fast open-then-close.
-        if (closingRef.current) return;
         // Commit the rest phase BEFORE releasing the fill, so the filled value
         // hands straight over to the CSS that replaces it with no frame in
         // between. At rest the inner drops its rotateY and so does the back
@@ -188,7 +181,7 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
         card.style.willChange = "";
       })
       .catch(() => {
-        // Cancelled by a close that arrived mid-flight; that path takes over.
+        // Cancelled by the cleanup below.
       });
 
     return () => {
@@ -339,7 +332,12 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
     };
   }, [closing, caseId]);
 
-  const close = useCallback(() => setClosing(true), []);
+  // Ignored until the opening flight lands. The flying card takes no taps, so
+  // a double tap's second tap hits the backdrop, and a close begun mid-turn
+  // snapped the half-turned case face-on before flying it home.
+  const close = useCallback(() => {
+    if (settledRef.current) setClosing(true);
+  }, []);
 
   return { flightRef, innerRef, phase, close, closing };
 }

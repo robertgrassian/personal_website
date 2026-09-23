@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
-import { RATINGS, systemLabel, type Game } from "@/lib/games";
+import { RATINGS, localToday, systemLabel, type Game } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
 import { ArrowLeftIcon, CloseIcon } from "@/components/Icon";
 import { ModalFrame } from "./ModalFrame";
@@ -12,7 +12,7 @@ import { DURATION_MS, useCardFlight } from "./useCardFlight";
 import type { CardOrigin } from "./LibraryCardContext";
 import { GameEditFields } from "./GameEditFields";
 import { WishlistEditFields } from "./WishlistEditFields";
-import { sessionsByGame } from "@/lib/sessions";
+import { formatDayShort, sessionsByGame } from "@/lib/sessions";
 import type { PlaySession } from "@/lib/sessions";
 import { IconButton } from "@/components/ui/IconButton";
 
@@ -56,11 +56,19 @@ type GameDetailCardProps = {
   onClose: () => void;
 };
 
-// "2023-05-12" → "May 2023"
-function formatDate(iso: string): string {
-  if (!iso) return "—";
+// "Released May 2023", or "Releases Mar 5, 2027" for a date still ahead: the
+// day matters most before it arrives. Compared against the viewer's local date,
+// since that is whose "not out yet" it is.
+function releaseLabel(iso: string): string {
+  if (!iso) return "Released —";
+  if (iso > localToday()) return `Releases ${formatDayShort(iso)}`;
   const date = new Date(iso + "T00:00:00Z"); // Z = UTC, avoids local-timezone shift
-  return date.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+  const month = date.toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  return `Released ${month}`;
 }
 
 // The back of the game case, at reading size: what used to be a 96px text
@@ -280,9 +288,7 @@ export function GameDetailCard({
                     away an unsaved rating. */}
                 <div className="px-5 pb-4 pt-2" hidden={historyOpen}>
                   <p className="text-sm font-medium text-gray-100">{systemLabel(source.system)}</p>
-                  <p className="mt-0.5 text-xs text-gray-300">
-                    Released {formatDate(source.releaseDate)}
-                  </p>
+                  <p className="mt-0.5 text-xs text-gray-300">{releaseLabel(source.releaseDate)}</p>
                   {ratingEntry && (
                     <p className="mt-2 text-sm font-semibold text-gray-100">★ {ratingEntry.name}</p>
                   )}
