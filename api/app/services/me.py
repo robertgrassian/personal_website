@@ -805,9 +805,7 @@ def set_my_game_note(
 
     body = payload.body.strip()
     if body == "":
-        existing = me_repo.get_game_note(db, game_id)
-        if existing is not None:
-            me_repo.delete_game_note(db, existing)
+        me_repo.delete_game_note(db, game_id)
         return _to_note_read(None)
 
     return _to_note_read(me_repo.upsert_game_note(db, game_id, body))

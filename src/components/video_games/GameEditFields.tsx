@@ -134,9 +134,9 @@ export function GameEditFields({
   // Compared trimmed, so trailing whitespace alone is not a change. Empty is
   // never a change: a game must be filed under something.
   const systemDirty = systemDraft.trim() !== savedSystem && systemDraft.trim() !== "";
+  const noteDirty = note?.dirty ?? false;
   // A promote is itself the change, so Save is live from the moment the form
   // opens — it just needs a system, which played_games requires.
-  const noteDirty = note?.dirty ?? false;
   const hasChanges = promoting
     ? systemDraft.trim() !== ""
     : clearingWishlist ||
@@ -165,9 +165,9 @@ export function GameEditFields({
       return;
     }
 
-    // One press covers both faces, so a rating changed here and a playthrough
-    // entered there commit together. editCalls orders them: rating and system
-    // first, then the stop, then the new session.
+    // One press covers every face, so a rating changed here and a playthrough
+    // or note entered there commit together. editCalls orders them: rating and
+    // system first, then the stop, then the new session, then the note.
     const session = sessionDraft.value;
     const stopping = stopPending && openSessionId !== null;
     const edits = {
@@ -382,7 +382,11 @@ export function GameEditFields({
           <Button onClick={onOpenHistory} disabled={isPending}>
             View or add play history
           </Button>
-          {note && <Button onClick={onOpenNotes}>Notes</Button>}
+          {note && (
+            <Button onClick={onOpenNotes} disabled={isPending}>
+              Notes
+            </Button>
+          )}
           {playing && (
             <StopPlayingControl
               stopPending={stopPending}

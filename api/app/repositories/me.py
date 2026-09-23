@@ -3,9 +3,10 @@ business rules, no HTTP (same layering as repositories/users.py).
 """
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import date
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -472,53 +473,30 @@ def get_game_note(db: Session, game_id: int) -> GameNote | None:
 def upsert_game_note(db: Session, game_id: int, body: str) -> GameNote:
     """Write the note, creating the row on first save.
 
-    updated_at is stamped here rather than left to the column default, which
-    only applies on INSERT — an UPDATE would keep the original timestamp, and
-    the UI displays this value.
+    One INSERT ... ON CONFLICT rather than read-then-write: two devices saving at
+    once, or a blank save deleting the row between another save's read and
+    write, would otherwise surface as an IntegrityError or a stale UPDATE. Last
+    write wins, which is what one Save button already means. updated_at is set
+    explicitly because the column default only applies on INSERT.
     """
-    note = get_game_note(db, game_id)
-    if note is not None:
-        note.body = body
-        note.updated_at = datetime.now(UTC)
-        db.commit()
-        db.refresh(note)
-        return note
-
-    try:
-        # SAVEPOINT rather than a bare flush, same race and same reasoning as
-        # create_metadata above: two clients saving a game's FIRST note at once
-        # both miss the SELECT, and the loser violates uq_game_notes_game_id.
-        # Unlike that one this is the caller's own row either way, so the loser
-        # simply re-reads and applies its body over the winner's — last write
-        # wins, which is what a single Save button already means.
-        #
-        # Not hypothetical: meApi's timeout message tells the user a save may
-        # have landed and to retry, and the same note can be open on a phone
-        # and a laptop.
-        with db.begin_nested():
-            note = GameNote(game_id=game_id, body=body)
-            db.add(note)
-            db.flush()
-    except IntegrityError:
-        # Rolling back to the savepoint usually evicts the failed instance
-        # already; the check keeps this from raising "not present in session"
-        # on top of the error it is handling.
-        if note in db:
-            db.expunge(note)
-        winner = get_game_note(db, game_id)
-        if winner is None:
-            # Not the race we expected — some other constraint fired, and
-            # swallowing it would hide a real bug.
-            raise
-        note = winner
-        note.body = body
-        note.updated_at = datetime.now(UTC)
-
+    stmt = (
+        pg_insert(GameNote)
+        .values(game_id=game_id, body=body)
+        .on_conflict_do_update(
+            index_elements=[GameNote.game_id],
+            set_={"body": body, "updated_at": func.now()},
+        )
+        .returning(GameNote)
+    )
+    # populate_existing: a note already in this session's identity map would
+    # otherwise come back holding its pre-write values.
+    note = db.execute(stmt, execution_options={"populate_existing": True}).scalar_one()
     db.commit()
-    db.refresh(note)
     return note
 
 
-def delete_game_note(db: Session, note: GameNote) -> None:
-    db.delete(note)
+def delete_game_note(db: Session, game_id: int) -> None:
+    """Clear the note. A statement rather than a loaded row, so a note already
+    gone (another device cleared it first) is a no-op, not an error."""
+    db.execute(delete(GameNote).where(GameNote.game_id == game_id))
     db.commit()

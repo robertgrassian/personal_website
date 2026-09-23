@@ -118,6 +118,10 @@ export function GameDetailCard({
   // Set when a close was refused because the note draft is unsaved. A rating
   // draft is cheap to redo and is not guarded; a page of notes is not.
   const [closeBlocked, setCloseBlocked] = useState(false);
+  // A Save answers the prompt, so it must not come back on the next keystroke.
+  // Adjusted during render rather than in an effect, which would paint once
+  // with the stale value first.
+  if (closeBlocked && !note.dirty) setCloseBlocked(false);
 
   // The initializer covers a card that MOUNTS on "Played?". This covers the
   // other way in: for a game already owned the subject swaps from wishlist to

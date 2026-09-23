@@ -282,11 +282,11 @@ class SessionClose(CamelModel):
 class GameNoteRead(CamelModel):
     """The caller's notes on one of their games (src/lib/notes.ts).
 
-    Never public: unlike wishlist notes, which ride the cached /users/* payload,
-    this shape is only ever served from /me. A game with no note row yet answers
-    with an empty body rather than a 404, so "you have not written one" is a
-    value the client renders instead of an error it has to special-case; 404
-    stays reserved for "not your game", as everywhere under /me.
+    Never public: only ever served from /me, with no public route at all. A
+    game with no note row yet answers with an empty body rather than a 404, so
+    "you have not written one" is a value the client renders instead of an
+    error it has to special-case; 404 stays reserved for "not your game", as
+    everywhere under /me.
     """
 
     body: str

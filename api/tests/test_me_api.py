@@ -2013,15 +2013,13 @@ def test_put_note_unknown_field_is_422(fresh_user_with_game) -> None:
 def test_put_note_survives_losing_the_first_write_race(
     fresh_user_with_game, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Two clients saving a game's FIRST note at once both miss the SELECT, and
-    the loser violates uq_game_notes_game_id.
+    """Two clients saving a game's FIRST note at once: the loser's INSERT meets
+    the winner's row.
 
-    The race is forced rather than threaded: the real interleaving needs two
-    connections hitting one instant, which is flaky in a test. Making the first
-    lookup lie reproduces exactly the state the loser is in — a row exists, this
-    request believes none does — and that is the branch worth pinning. Before
-    the savepoint went in, this raised IntegrityError out of the handler and the
-    caller got a 500.
+    Forced rather than threaded, by making every lookup of the note say there is
+    none, which is the loser's view. The write is one INSERT ... ON CONFLICT and
+    reads nothing first; an upsert that went back to read-then-insert would
+    raise IntegrityError here and the caller would get a 500.
     """
     user_id, game_id = fresh_user_with_game
     client = client_as(user_id)
@@ -2030,14 +2028,7 @@ def test_put_note_survives_losing_the_first_write_race(
         == 200
     )
 
-    real = me_repo.get_game_note
-    calls = {"n": 0}
-
-    def blind_once(db, gid):
-        calls["n"] += 1
-        return None if calls["n"] == 1 else real(db, gid)
-
-    monkeypatch.setattr(me_repo, "get_game_note", blind_once)
+    monkeypatch.setattr(me_repo, "get_game_note", lambda db, gid: None)
     response = client.put(f"/api/library/me/games/{game_id}/note", json={"body": "loser"})
 
     # Recovered rather than 500'd, and last write wins, which is what one Save

@@ -264,8 +264,8 @@ export type WishlistNotesResult = { ok: true; notes: string } | { ok: false; mes
 
 /** The notes on one of the VIEWER'S OWN wishlist entries.
  *
- *  The only READ among these actions, now that the play history is fetched with
- *  the page. It takes no username: the API answers for whoever's token this
+ *  One of the two READS among these actions, with getGameNote below; the rest
+ *  of the library is fetched with the page. It takes no username: the API answers for whoever's token this
  *  attaches, so there is no way to ask it for someone else's. That is the whole
  *  point, since notes are the one wishlist field the public read withholds. */
 export async function getWishlistNotes(itemId: number): Promise<WishlistNotesResult> {
@@ -326,7 +326,7 @@ export async function addGame(
     return result.ok
       ? { result: { ok: true }, applied: true }
       : partial(`the play dates were not saved. ${result.message}`);
-  }, editTags(edits));
+  }, sessionEditTags(edits));
 }
 
 /** Remove a game from the library; its play sessions cascade away with it. */
@@ -388,13 +388,11 @@ export type GameEdits = {
   note?: string;
 };
 
-/** Which cached reads one Save invalidates: games for anything on the row,
- *  sessions only when one was logged or closed. The note is on neither, since
- *  no cached read carries it, so a notes-only Save revalidates nothing. */
-function editTags(edits: GameEdits): TagFor[] {
+/** Which cached reads one Save invalidates. Always games; the history only
+ *  when a session was logged or closed, so a rating-only Save does not purge a
+ *  list it cannot have changed. */
+function sessionEditTags(edits: GameEdits): TagFor[] {
   const touchesSessions = edits.session !== undefined || edits.stopSessionId !== undefined;
-  const touchesGame = touchesSessions || edits.rating !== undefined || edits.system !== undefined;
-  if (!touchesGame) return [];
   return touchesSessions ? [gamesTag, sessionsTag] : [gamesTag];
 }
 
@@ -476,7 +474,10 @@ export async function saveGameEdits(gameId: number, edits: GameEdits): Promise<M
   const calls = editCalls(gameId, edits);
   if (calls === null) return { ok: false, message: "Invalid edit." };
   if (calls.length === 0) return { ok: true };
-  return writeApplied(() => runInOrder(calls), editTags(edits));
+  // A notes-only Save changes nothing any cached read carries, so it purges
+  // nothing. Only here: the other callers create or move a row as well.
+  const noteOnly = Object.keys(edits).every((key) => key === "note");
+  return writeApplied(() => runInOrder(calls), noteOnly ? [] : sessionEditTags(edits));
 }
 
 /** One press of Save on a library game reached by answering "Played?" on a
@@ -521,7 +522,7 @@ export async function saveGameEditsAndClearWishlist(
         };
     // wishlistTag on top of a normal Save, for the same reason promoteAndSave
     // needs it: the wishlist lost an entry.
-  }, [...editTags(edits), wishlistTag]);
+  }, [...sessionEditTags(edits), wishlistTag]);
 }
 
 /** One press of Save on a wishlist entry being promoted: the move itself, plus
@@ -571,7 +572,7 @@ export async function promoteAndSave(
     return { result: (await runInOrder(calls)).result, applied: true };
     // wishlistTag on top of a normal Save: a promote MOVES a row, so the
     // wishlist loses an entry as the library gains one.
-  }, [...editTags(edits), wishlistTag]);
+  }, [...sessionEditTags(edits), wishlistTag]);
 }
 
 /** Follow a user. Revalidates BOTH libraries: the caller's following list grew
