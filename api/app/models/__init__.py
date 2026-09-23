@@ -9,6 +9,7 @@ from app.models.base import Base
 from app.models.follow import Follow
 from app.models.game import PlayedGame, PlaySession
 from app.models.game_metadata import GameMetadata
+from app.models.game_note import GameNote
 from app.models.igdb import IgdbToken, RateLimit
 from app.models.profile import Profile
 from app.models.wishlist_game import WishlistGame
@@ -17,6 +18,7 @@ __all__ = [
     "Base",
     "Follow",
     "GameMetadata",
+    "GameNote",
     "IgdbToken",
     "PlaySession",
     "PlayedGame",

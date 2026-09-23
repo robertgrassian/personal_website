@@ -17,6 +17,7 @@ import { API_PREFIX } from "./apiPrefix";
 import { requireLibraryApiOrigin, targetsForeignEnvironmentApi } from "@/lib/libraryApi";
 import type { CatalogPreview, IgdbSearchResult, NewGame } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
+import type { GameNote } from "@/lib/notes";
 
 export type MyProfile = {
   username: string;
@@ -505,6 +506,23 @@ export function updateMyGame(
   if (fields.rating !== undefined) body.rating = fields.rating;
   if (fields.system !== undefined) body.system = fields.system;
   return mutate(`${API_PREFIX}/me/games/${gameId}`, "PATCH", body, "save your changes");
+}
+
+/** The caller's notes on one of their games. Null when the API refuses (not
+ *  signed in, someone else's game, or unreachable), which the card renders as
+ *  "could not load" rather than as an empty note, for the reason
+ *  fetchMyWishlistNotes gives. */
+export async function fetchMyGameNote(gameId: number): Promise<GameNote | null> {
+  const res = await callMeApi<GameNote>(`${API_PREFIX}/me/games/${gameId}/note`, {
+    what: "load your notes",
+    refuseOnForeignApi: false,
+  });
+  return res.ok && typeof res.data?.body === "string" ? res.data : null;
+}
+
+/** Replace the notes on one of the caller's games; a blank body clears them. */
+export function updateMyGameNote(gameId: number, body: string): Promise<MutateResult> {
+  return mutate(`${API_PREFIX}/me/games/${gameId}/note`, "PUT", { body }, "save your notes");
 }
 
 /** Start playing (endDate null → open session) or log a past playthrough

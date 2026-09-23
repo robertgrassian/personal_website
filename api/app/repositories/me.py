@@ -5,11 +5,20 @@ business rules, no HTTP (same layering as repositories/users.py).
 import uuid
 from datetime import date
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Follow, GameMetadata, PlayedGame, PlaySession, Profile, WishlistGame
+from app.models import (
+    Follow,
+    GameMetadata,
+    GameNote,
+    PlayedGame,
+    PlaySession,
+    Profile,
+    WishlistGame,
+)
 
 
 def get_profile_by_id(db: Session, user_id: uuid.UUID) -> Profile | None:
@@ -450,3 +459,44 @@ def create_profile_with_follows(
     db.commit()
     db.refresh(profile)
     return profile
+
+
+def get_game_note(db: Session, game_id: int) -> GameNote | None:
+    """The note on one game, or None when nothing has been written.
+
+    Takes a game id rather than a user id: the caller has already resolved the
+    game through get_game_for_owner, so ownership is settled before this runs.
+    """
+    return db.execute(select(GameNote).where(GameNote.game_id == game_id)).scalar_one_or_none()
+
+
+def upsert_game_note(db: Session, game_id: int, body: str) -> GameNote:
+    """Write the note, creating the row on first save.
+
+    One INSERT ... ON CONFLICT rather than read-then-write: two devices saving at
+    once, or a blank save deleting the row between another save's read and
+    write, would otherwise surface as an IntegrityError or a stale UPDATE. Last
+    write wins, which is what one Save button already means. updated_at is set
+    explicitly because the column default only applies on INSERT.
+    """
+    stmt = (
+        pg_insert(GameNote)
+        .values(game_id=game_id, body=body)
+        .on_conflict_do_update(
+            index_elements=[GameNote.game_id],
+            set_={"body": body, "updated_at": func.now()},
+        )
+        .returning(GameNote)
+    )
+    # populate_existing: a note already in this session's identity map would
+    # otherwise come back holding its pre-write values.
+    note = db.execute(stmt, execution_options={"populate_existing": True}).scalar_one()
+    db.commit()
+    return note
+
+
+def delete_game_note(db: Session, game_id: int) -> None:
+    """Clear the note. A statement rather than a loaded row, so a note already
+    gone (another device cleared it first) is a no-op, not an error."""
+    db.execute(delete(GameNote).where(GameNote.game_id == game_id))
+    db.commit()

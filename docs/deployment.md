@@ -14,7 +14,7 @@ Five jobs run on a push to `main`:
 | --------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `changes` | Diffs the push for anything under `api/alembic/versions/`. Decides only whether an approval is needed.                 |
 | `migrate` | Runs when that diff is non-empty, in the `Production` environment, whose required reviewer pauses the run for a click. |
-| `notify`  | Comments the run's URL on the merged PR so the pending approval is visible. Runs beside `migrate`; blocks nothing.      |
+| `notify`  | Comments the run's URL on the merged PR so the pending approval is visible. Runs beside `migrate`; blocks nothing.     |
 | `verify`  | Asks the database whether it is at this commit's head revision. **This is the gate.**                                  |
 | `deploy`  | `vercel deploy --prod`, gated on `needs.verify.result == 'success'`.                                                   |
 

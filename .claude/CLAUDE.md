@@ -47,7 +47,7 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | Filter / group / sort logic            | `src/components/video_games/pipeline.ts`                                                                                                                               |
 | Filter/group/sort option lists         | `src/components/video_games/libraryConfig.ts`, `useFilterOptions.ts`                                                                                                   |
 | Stats panel: the ad hoc SQL tab        | `SqlQueryPanel.tsx` is the UI; the tables, columns and examples are `queryTables.ts`, which `queryTables.test.ts` executes                                             |
-| Shared types, `RATINGS`, `systemLabel` | `src/lib/games.ts` (library), `wishlist.ts`, `profile.ts`, `follows.ts`                                                                                                |
+| Shared types, `RATINGS`, `systemLabel` | `src/lib/games.ts` (library), `wishlist.ts`, `profile.ts`, `follows.ts`, `notes.ts`                                                                                    |
 | Shelf UI                               | `GameShelves.tsx` → the active theme's group in `shelves/` → `GameCase.tsx`                                                                                            |
 | Which shelf design is worn             | `src/lib/shelfTheme.ts` (the switch), `shelves/index.ts` (name → component)                                                                                            |
 | Game detail card (click a case)        | `GameDetailCard.tsx`, which flies the case out and renders `GameCaseBackSurface.tsx` + `GameCaseSpine.tsx`                                                             |
@@ -147,14 +147,15 @@ Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were
 - **A public read carries public fields only; an owner's private ones live on `/me`.** The
   library reads are cached and SHARED between viewers (`libraryApi.ts`), so a field that means
   something different depending on who is asking cannot go on them at all: whoever primes the
-  cache decides what everyone else gets. Today the only such field is `wishlist_games.notes`,
-  which is why `WishlistGameRead` omits it, `MyWishlistGameRead` adds it, and the owner's edit
-  form fetches it per entry from `GET /me/wishlist/{id}`. Two separate DTO builders in
+  cache decides what everyone else gets. Today there are two such fields, both notes.
+  `wishlist_games.notes` is why `WishlistGameRead` omits it, `MyWishlistGameRead` adds it, and the
+  owner's edit form fetches it per entry from `GET /me/wishlist/{id}`. Two separate DTO builders in
   `services/users.py` rather than one with a flag, so widening the public shape has to be a
-  deliberate edit. `test_public_wishlist_never_carries_notes` fails if it stops being true.
-  Every OTHER wishlist and library field is already on screen for any visitor, so this is a
-  short list on purpose: check before adding to it.
-- **Adding a read means adding its cache tag.** Tags are defined in `libraryApi.ts` and must be paired with every write that can change them, in `video-games/actions.ts`. Too narrow a tag serves a stale page.
+  deliberate edit. `test_public_wishlist_never_carries_notes` fails if it stops being true. A
+  library game's notes go further: their own `game_notes` table with no public route at all, read
+  per game from `GET /me/games/{id}/note`. Every OTHER wishlist and library field is already on
+  screen for any visitor, so this is a short list on purpose: check before adding to it.
+- **Adding a read means adding its cache tag.** Tags are defined in `libraryApi.ts` and must be paired with every write that can change them, in `video-games/actions.ts`. Too narrow a tag serves a stale page. The owner-only `/me` reads above are the exception: they are never cached, so they have no tag, and a notes-only Save revalidates nothing.
 
 ## Repository
 

@@ -17,7 +17,7 @@ of writing.
 
 **The unit is the album.** One sleeve on the wall is one album. A singles tab was wanted in the
 original notes and is deferred, not dropped: shape the schema and the route so it slots in as a
-sibling later. Note that singles cannot use the same canon source, since critic year-end *song*
+sibling later. Note that singles cannot use the same canon source, since critic year-end _song_
 lists are thin before ~2005, so that tab would end up Billboard-flavored.
 
 **Selection is a quota per genre, not a top N per year.** This is a correction to the first
@@ -80,7 +80,7 @@ _In-page playback has a hard 25-user ceiling._ The Web Playback SDK requires eve
 Spotify **Premium**, and a new app stays in development mode, capped at 25 users added by email in
 the dashboard. Extended quota is granted case by case and aimed at organizations, not personal
 sites. This collides directly with the Up Next organizing goal of **sharing the site with people**,
-and the resolution is that the *site* is public and *playback* is the private layer: everyone gets
+and the resolution is that the _site_ is public and _playback_ is the private layer: everyone gets
 the full wall, the decades, the genre path and the art; pressing play prompts a Spotify login and
 only works in-page for whitelisted Premium accounts. Everyone else gets an "open in Spotify" deep
 link, which needs no auth and works for 100% of visitors.
@@ -103,7 +103,7 @@ images carry their own terms and are a second option.
 half-settled toward per-app route prefixes on one domain (option a) on the strength of a single app.
 A second app is exactly the case that entry says is still open, so settling it is a prerequisite,
 not a side effect. Auth stays top-level either way. Note the music app needs no site auth at all,
-which is a data point *for* option (a): the cross-app SSO argument that makes subdomains expensive
+which is a data point _for_ option (a): the cross-app SSO argument that makes subdomains expensive
 does not apply here.
 
 Storage is Postgres in the existing FastAPI app, ingested by a **standalone script writing straight

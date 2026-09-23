@@ -107,6 +107,11 @@ The browser never holds an API token of its own. Adding a read means adding its
 tag in `libraryApi.ts` **and** pairing it with every write that can change it in
 `actions.ts`; too narrow a tag serves a stale page.
 
+The exception is an owner's private fields, which are read through a Server
+Action from `/me` (`getWishlistNotes`, `getGameNote`) rather than from the
+cached library read. They are never cached, so there is no tag to pair, and a
+Save that only changes a game's notes revalidates nothing.
+
 ## Cross-cutting notes
 
 - **Play state is derived, never stored.** An open `play_sessions` row (NULL

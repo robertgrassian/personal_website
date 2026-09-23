@@ -16,6 +16,8 @@ import { PlayedFields } from "./PlayedFields";
 import { GamePlayHistory } from "./GamePlayHistory";
 import { StopPlayingControl } from "./StopPlayingControl";
 import { usePlayDraft } from "./usePlayDraft";
+import { GameNotesFace } from "./GameNotes";
+import type { NoteDraft } from "./useGameNote";
 import type { PlaySession } from "@/lib/sessions";
 import { Button } from "@/components/ui/Button";
 import { SuggestInput } from "./SuggestInput";
@@ -28,16 +30,23 @@ import { RequiredField } from "./RequiredField";
  *  to list, and one Save that has to carry the move as well. */
 export type EditSubject = { kind: "game"; game: Game } | { kind: "promote"; item: WishlistGame };
 
+/** Which face of the card is up. All three are rendered from this form, which
+ *  is what lets one Save commit the drafts on any of them. */
+export type CardFace = "details" | "history" | "notes";
+
 type GameEditFieldsProps = {
   subject: EditSubject;
   // Every system already on a shelf, for the suggestions below.
   existingSystems: string[];
-  // Swap the card to the play history face.
   onOpenHistory: () => void;
-  // Whether that swap has happened. BOTH faces are rendered from here, because
-  // staying mounted is the only thing that keeps the rating, system and date
-  // drafts alive across the switch, and one Save commits all of them.
-  showingHistory: boolean;
+  onOpenNotes: () => void;
+  // Every face is rendered from here, because staying mounted is the only thing
+  // that keeps the rating, system, date and note drafts alive across the
+  // switch, and one Save commits all of them.
+  face: CardFace;
+  // The game's notes, held by the card so it can refuse a close that would lose
+  // them. null on a promote, which has no row to hang a note on yet.
+  note: NoteDraft | null;
   // This game's logged sessions, narrowed by the card out of the one
   // whole-library fetch. Empty for a promote, which has no row to have any.
   sessions: PlaySession[];
@@ -65,7 +74,9 @@ export function GameEditFields({
   subject,
   existingSystems,
   onOpenHistory,
-  showingHistory,
+  onOpenNotes,
+  face,
+  note,
   sessions,
   startWithSession,
   wishlistItemId,
@@ -77,6 +88,10 @@ export function GameEditFields({
   // being able to retire it: this drives the inert region below and disables
   // Save, which the sheet sits on top of.
   const [confirmingRemove, setConfirmingRemove] = useState(false);
+  // The sheet lives on the details face and does not report on unmount, so a
+  // face switch while it is up (Escape with a dirty note) would leave Save
+  // disabled and this form inert. Adjusted during render, not in an effect.
+  if (confirmingRemove && face !== "details") setConfirmingRemove(false);
 
   const promoting = subject.kind === "promote";
   const source = promoting ? subject.item : subject.game;
@@ -123,11 +138,17 @@ export function GameEditFields({
   // Compared trimmed, so trailing whitespace alone is not a change. Empty is
   // never a change: a game must be filed under something.
   const systemDirty = systemDraft.trim() !== savedSystem && systemDraft.trim() !== "";
+  const noteDirty = note?.dirty ?? false;
   // A promote is itself the change, so Save is live from the moment the form
   // opens — it just needs a system, which played_games requires.
   const hasChanges = promoting
     ? systemDraft.trim() !== ""
-    : clearingWishlist || ratingDirty || systemDirty || sessionDraft.dirty || stopPending;
+    : clearingWishlist ||
+      ratingDirty ||
+      systemDirty ||
+      sessionDraft.dirty ||
+      stopPending ||
+      noteDirty;
   const canSave = hasChanges && !systemMissing && sessionDraft.problem === null && !isPending;
 
   const save = () => {
@@ -148,9 +169,9 @@ export function GameEditFields({
       return;
     }
 
-    // One press covers both faces, so a rating changed here and a playthrough
-    // entered there commit together. editCalls orders them: rating and system
-    // first, then the stop, then the new session.
+    // One press covers every face, so a rating changed here and a playthrough
+    // or note entered there commit together. editCalls orders them: rating and
+    // system first, then the stop, then the new session, then the note.
     const session = sessionDraft.value;
     const stopping = stopPending && openSessionId !== null;
     const edits = {
@@ -158,6 +179,7 @@ export function GameEditFields({
       ...(systemDirty ? { system: systemDraft } : {}),
       ...(session ? { session } : {}),
       ...(stopping ? { stopSessionId: openSessionId, stopDate: localToday() } : {}),
+      ...(note && noteDirty ? { note: note.value } : {}),
     };
     run(
       () =>
@@ -173,6 +195,7 @@ export function GameEditFields({
         onSuccess: () => {
           play.reset();
           setStopPending(false);
+          if (noteDirty) note?.markSaved();
         },
       }
     );
@@ -264,7 +287,16 @@ export function GameEditFields({
     </div>
   );
 
-  if (showingHistory) {
+  if (face === "notes" && note) {
+    return (
+      <>
+        <GameNotesFace note={note} disabled={isPending} />
+        {renderSaveFooter(false)}
+      </>
+    );
+  }
+
+  if (face === "history") {
     return (
       <>
         {promoting ? (
@@ -348,11 +380,17 @@ export function GameEditFields({
             game with nothing logged shows it too, so "view or add" is already
             what it says on an empty history. Stop Playing stages the close and
             opens the face that shows it staged. Neither writes on the press, so
-            Save still owns every write. */}
+            Save still owns every write. Notes share this row rather than taking
+            one of their own, so they cost this face no height. */}
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <Button onClick={onOpenHistory} disabled={isPending}>
             View or add play history
           </Button>
+          {note && (
+            <Button onClick={onOpenNotes} disabled={isPending}>
+              Notes
+            </Button>
+          )}
           {playing && (
             <StopPlayingControl
               stopPending={stopPending}

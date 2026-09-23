@@ -10,11 +10,13 @@ import { GameCaseBackSurface } from "./GameCaseBackSurface";
 import { GameCaseSpine } from "./GameCaseSpine";
 import { DURATION_MS, useCardFlight } from "./useCardFlight";
 import type { CardOrigin } from "./LibraryCardContext";
-import { GameEditFields } from "./GameEditFields";
+import { GameEditFields, type CardFace } from "./GameEditFields";
+import { useGameNote } from "./useGameNote";
 import { WishlistEditFields } from "./WishlistEditFields";
 import { formatDayShort, sessionsByGame } from "@/lib/sessions";
 import type { PlaySession } from "@/lib/sessions";
 import { IconButton } from "@/components/ui/IconButton";
+import { Button } from "@/components/ui/Button";
 
 /** Which of the three things the card is showing. A viewer's card is NOT a
  *  fourth kind: it is `game` with the edit region simply not rendered, so
@@ -80,9 +82,9 @@ function releaseLabel(iso: string): string {
 // both color schemes, and the shelf tokens the controls are built from are
 // re-pointed to match, in .game-card-surface.
 //
-// Two faces, not two dialogs: the play history swaps this card's scrolling
-// region for a session list plus an add form. A second ModalFrame would mean
-// two focus traps, two Escape handlers and a backdrop over a backdrop.
+// Faces, not dialogs: the play history and the notes each swap this card's
+// scrolling region for their own view. A second ModalFrame would mean two
+// focus traps, two Escape handlers and a backdrop over a backdrop.
 export function GameDetailCard({
   subject,
   canEdit,
@@ -101,19 +103,32 @@ export function GameDetailCard({
   const titleId = useId();
   const source = subject.kind === "game" ? subject.game : subject.item;
 
-  // Which of the card's two faces is up. Answering "Played?" on a game already
-  // owned opens straight into the history: that IS a playthrough. Which button
-  // opened it is no longer remembered here, because "Stop Playing" now stages
-  // the close in the form that owns every other pending edit.
-  const [historyOpen, setHistoryOpen] = useState(startWithSession && subject.kind === "game");
-  const openHistory = () => setHistoryOpen(true);
+  // Which face is up. Answering "Played?" on a game already owned opens
+  // straight into the history: that IS a playthrough.
+  const [face, setFace] = useState<CardFace>(
+    startWithSession && subject.kind === "game" ? "history" : "details"
+  );
+  const historyOpen = face === "history";
+
+  // Owner-only and library-only: a wishlist entry keeps its own short notes
+  // field, and a promote has no game row to hang one off yet.
+  const notesEnabled = subject.kind === "game" && canEdit;
+  const note = useGameNote(subject.kind === "game" ? subject.game.id : 0, notesEnabled);
+
+  // Set when a close was refused because the note draft is unsaved. A rating
+  // draft is cheap to redo and is not guarded; a page of notes is not.
+  const [closeBlocked, setCloseBlocked] = useState(false);
+  // A Save answers the prompt, so it must not come back on the next keystroke.
+  // Adjusted during render rather than in an effect, which would paint once
+  // with the stale value first.
+  if (closeBlocked && !note.dirty) setCloseBlocked(false);
 
   // The initializer covers a card that MOUNTS on "Played?". This covers the
   // other way in: for a game already owned the subject swaps from wishlist to
   // game IN PLACE, so nothing remounts and no initializer re-runs.
   useEffect(() => {
     if (!startWithSession || subject.kind !== "game") return;
-    setHistoryOpen(true);
+    setFace("history");
   }, [startWithSession, subject.kind]);
 
   // `close` runs the return flight and calls onClose when it lands, so every
@@ -124,6 +139,18 @@ export function GameDetailCard({
     caseId,
     onClosed: onClose,
   });
+
+  // Every way out (the X, Escape, the backdrop) funnels through here. Moving
+  // between faces needs no guard: the draft lives in the card, which outlives
+  // them.
+  const requestClose = () => {
+    if (notesEnabled && note.dirty) {
+      setFace("notes");
+      setCloseBlocked(true);
+      return;
+    }
+    close();
+  };
   const ratingEntry =
     subject.kind === "game" && subject.game.rating
       ? RATINGS.find((r) => r.name === subject.game.rating)
@@ -135,7 +162,7 @@ export function GameDetailCard({
 
   return (
     <ModalFrame
-      onClose={close}
+      onClose={requestClose}
       // The dialog itself, not the close button. Focusing a control
       // programmatically leaves :focus-visible up to each engine's heuristics,
       // and WebKit resolves it as keyboard focus, so the X opened with a ring
@@ -245,11 +272,14 @@ export function GameDetailCard({
                   without growing the header row. */}
               <div className="flex shrink-0 items-start gap-2 px-5 pt-4">
                 <div className="-my-2 -ml-2 flex h-11 w-11 shrink-0 items-center justify-center sm:-my-1 sm:-ml-1 sm:h-9 sm:w-9">
-                  {historyOpen && (
+                  {face !== "details" && (
                     <IconButton
                       label="Back to game details"
                       size="none"
-                      onClick={() => setHistoryOpen(false)}
+                      onClick={() => {
+                        setFace("details");
+                        setCloseBlocked(false);
+                      }}
                       className="flex h-full w-full items-center justify-center"
                     >
                       <ArrowLeftIcon className="h-6 w-6 sm:h-5 sm:w-5" aria-hidden />
@@ -269,16 +299,37 @@ export function GameDetailCard({
                 <IconButton
                   label="Close"
                   size="touch"
-                  onClick={close}
+                  onClick={requestClose}
                   className="-mr-2 -mb-2 -mt-2 sm:-mr-1 sm:-mb-1 sm:-mt-1"
                 >
                   <CloseIcon className="h-6 w-6 sm:h-5 sm:w-5" aria-hidden />
                 </IconButton>
               </div>
 
+              {/* Outside the scroller so it cannot be scrolled away from. Only
+                  while the draft is still unsaved: a Save pressed with this up
+                  answers it. */}
+              {closeBlocked && note.dirty && (
+                <div className="mx-5 mt-3 shrink-0 rounded-md border border-shelf-border bg-shelf-input px-3 py-2.5">
+                  <p role="alert" className="text-sm text-shelf-text">
+                    Your notes are not saved. Close anyway?
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button onClick={() => setCloseBlocked(false)}>Keep editing</Button>
+                    <Button variant="danger" onClick={close}>
+                      Discard and close
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* The card's one scrolling part. overscroll-contain keeps a flick
-                at the end of the form off the library behind it. */}
-              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+                at the end of the form off the library behind it. On the notes
+                face it is also a flex column, so the textarea can take the
+                height the card already has instead of growing it. */}
+              <div
+                className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain${face === "notes" ? " flex flex-col" : ""}`}
+              >
                 {/* Hidden rather than unmounted while the history face is up,
                     for both kinds: the edit form below has to survive the
                     switch, since the drafts it holds are what either face's
@@ -286,7 +337,7 @@ export function GameDetailCard({
                     `false`, is what stops React re-mounting the form. Before
                     that applied to a real game too, opening the history threw
                     away an unsaved rating. */}
-                <div className="px-5 pb-4 pt-2" hidden={historyOpen}>
+                <div className="px-5 pb-4 pt-2" hidden={face !== "details"}>
                   <p className="text-sm font-medium text-gray-100">{systemLabel(source.system)}</p>
                   <p className="mt-0.5 text-xs text-gray-300">{releaseLabel(source.releaseDate)}</p>
                   {ratingEntry && (
@@ -320,10 +371,10 @@ export function GameDetailCard({
                   // a bright cover ever costs the labels their contrast,
                   // --back-overlay is the lever, not another layer.
                   //
-                  // No divider on the history face: there is nothing above it
+                  // No divider on the other faces: there is nothing above them
                   // to divide from.
                   <div
-                    className={`px-5 pb-4 pt-1${historyOpen ? "" : " border-t border-white/15"}`}
+                    className={`px-5 pb-4 pt-1${face === "details" ? " border-t border-white/15" : ""}${face === "notes" ? " flex flex-1 flex-col" : ""}`}
                   >
                     {subject.kind === "wishlist" ? (
                       <WishlistEditFields
@@ -336,8 +387,10 @@ export function GameDetailCard({
                       <GameEditFields
                         subject={subject}
                         existingSystems={existingSystems}
-                        onOpenHistory={openHistory}
-                        showingHistory={historyOpen}
+                        onOpenHistory={() => setFace("history")}
+                        onOpenNotes={() => setFace("notes")}
+                        face={face}
+                        note={notesEnabled ? note : null}
                         // Narrowed only while the face that shows them is up:
                         // sessionsByGame walks the whole library's sessions, and
                         // the card re-renders for reasons that have nothing to

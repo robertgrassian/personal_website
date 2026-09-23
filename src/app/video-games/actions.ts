@@ -17,12 +17,14 @@ import {
   deleteMyGame,
   deleteMyWishlistItem,
   fetchMyUsername,
+  fetchMyGameNote,
   fetchMyWishlistNotes,
   followUser,
   previewCatalogEntry,
   promoteMyWishlistItem,
   searchIgdb,
   updateMyGame,
+  updateMyGameNote,
   unfollowUser,
   updateMyWishlistItem,
   type CatalogPreviewResult,
@@ -40,6 +42,7 @@ import {
 } from "@/lib/libraryApi";
 import { LIBRARY_OWNER_USERNAME, RATINGS, type NewGame, type Rating } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
+import type { GameNote } from "@/lib/notes";
 
 /** A cache-tag builder from src/lib/libraryApi: gamesTag, wishlistTag or
  *  followsTag. Writes name the resources they actually changed. */
@@ -65,6 +68,7 @@ type TagFor = (username: string) => string;
  *  inside an `if (result.ok)`. fetchMyUsername trusts an unverified cookie on
  *  a cache hit, and that succeeded write is what proves the session real. */
 async function revalidateMyLibrary(tags: TagFor[]): Promise<void> {
+  if (tags.length === 0) return;
   // fetchMyUsername, not fetchMyProfile: same answer, but memoized per user so
   // this doesn't add an API round trip to every single write.
   const username = await fetchMyUsername();
@@ -261,14 +265,25 @@ export type WishlistNotesResult = { ok: true; notes: string } | { ok: false; mes
 
 /** The notes on one of the VIEWER'S OWN wishlist entries.
  *
- *  The only READ among these actions, now that the play history is fetched with
- *  the page. It takes no username: the API answers for whoever's token this
+ *  One of the two READS among these actions, with getGameNote below; the rest
+ *  of the library is fetched with the page. It takes no username: the API answers for whoever's token this
  *  attaches, so there is no way to ask it for someone else's. That is the whole
  *  point, since notes are the one wishlist field the public read withholds. */
 export async function getWishlistNotes(itemId: number): Promise<WishlistNotesResult> {
   const notes = await fetchMyWishlistNotes(itemId);
   if (notes === null) return { ok: false, message: "Could not load your notes. Try again." };
   return { ok: true, notes };
+}
+
+export type GameNoteResult = { ok: true; note: GameNote } | { ok: false; message: string };
+
+/** The notes on one of the viewer's own library games. Same shape and the same
+ *  reasoning as getWishlistNotes, except that these have no public read at all. */
+export async function getGameNote(gameId: number): Promise<GameNoteResult> {
+  if (!Number.isInteger(gameId)) return { ok: false, message: "Could not load your notes." };
+  const note = await fetchMyGameNote(gameId);
+  if (note === null) return { ok: false, message: "Could not load your notes. Try again." };
+  return { ok: true, note };
 }
 
 /** Add a game to the library (from an IGDB pick or manual entry). */
@@ -363,13 +378,15 @@ export async function deleteWishlistItem(itemId: number): Promise<MutateResult> 
 /** Everything one press of Save can change about a library entry. Every field
  *  is optional and only the present ones are written, so a Save that touched
  *  only the rating still costs one API call. `session` logs a playthrough;
- *  `stopSessionId` closes the open one. */
+ *  `stopSessionId` closes the open one; `note` replaces the notes, "" clearing
+ *  them. */
 export type GameEdits = {
   rating?: Rating | "";
   system?: string;
   session?: { startDate: string; endDate: string | null };
   stopSessionId?: number;
   stopDate?: string;
+  note?: string;
 };
 
 /** Which cached reads one Save invalidates. Always games; the history only
@@ -417,6 +434,13 @@ function editCalls(gameId: number, edits: GameEdits): Array<() => Promise<Mutate
     if (endDate !== null && endDate < startDate) return null;
     calls.push(() => createMySession(gameId, startDate, endDate));
   }
+  // Last: the only edit here that no cached read shows, so a failure before it
+  // leaves nothing half-written that the page displays. The API's max_length is
+  // the real bound; the textarea already caps typing.
+  if (edits.note !== undefined) {
+    const note = edits.note;
+    calls.push(() => updateMyGameNote(gameId, note));
+  }
   return calls;
 }
 
@@ -451,7 +475,10 @@ export async function saveGameEdits(gameId: number, edits: GameEdits): Promise<M
   const calls = editCalls(gameId, edits);
   if (calls === null) return { ok: false, message: "Invalid edit." };
   if (calls.length === 0) return { ok: true };
-  return writeApplied(() => runInOrder(calls), sessionEditTags(edits));
+  // A notes-only Save changes nothing any cached read carries, so it purges
+  // nothing. Only here: the other callers create or move a row as well.
+  const noteOnly = Object.keys(edits).every((key) => key === "note");
+  return writeApplied(() => runInOrder(calls), noteOnly ? [] : sessionEditTags(edits));
 }
 
 /** One press of Save on a library game reached by answering "Played?" on a
@@ -511,7 +538,7 @@ export async function saveGameEditsAndClearWishlist(
 export async function promoteAndSave(
   itemId: number,
   system: string,
-  edits: Omit<GameEdits, "system" | "stopSessionId" | "stopDate">
+  edits: Omit<GameEdits, "system" | "stopSessionId" | "stopDate" | "note">
 ): Promise<MutateResult> {
   const bad = rejectBadId(itemId, "promote");
   if (bad) return bad;

@@ -1,0 +1,27 @@
+meta {
+  name: Read game notes
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}{{apiPrefix}}/me/games/{{gameId}}/note
+  body: none
+  auth: inherit
+}
+
+docs {
+  Free-text notes on one game in the caller's library: where you left off, what to
+  do next, the things a notes-app file would hold.
+
+  Owner-only, and deliberately with no public mirror under /users/{username}. That
+  is also what keeps notes out of the cached library payload: they are long (20,000
+  characters, vs 1,000 for a wishlist note) and the public read is prerendered.
+
+  A game with no note yet answers 200 with `{"body": "", "updatedAt": null}` rather
+  than 404. "You have not written one" is a value, not an error; 404 stays reserved
+  for "not your game", as everywhere under /me.
+
+  - 200 `{ body, updatedAt }` — updatedAt is ISO-8601 UTC, or null when unwritten
+  - 404 no such game in the caller's library
+}

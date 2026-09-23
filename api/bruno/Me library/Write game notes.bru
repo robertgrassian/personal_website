@@ -1,0 +1,39 @@
+meta {
+  name: Write game notes
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}{{apiPrefix}}/me/games/{{gameId}}/note
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "body": "Left off in the Fire Temple, need the second key.\n\nTodo: sword upgrade before Ganon."
+  }
+}
+
+docs {
+  Replace the notes on one of the caller's games.
+
+  PUT rather than PATCH because there is one field and it replaces outright: no
+  "leave unchanged" state exists for omission to express. Separate from
+  PATCH /me/games/{id} because that route answers with a whole GameRead, which
+  notes stay off by design.
+
+  A blank (or whitespace-only) body DELETES the note row rather than storing an
+  empty string, so "no note" has a single representation and a cleared note cannot
+  come back carrying a timestamp implying something was written.
+
+  - 200 the saved note `{ body, updatedAt }`
+  - 404 no such game in the caller's library
+  - 422 over 20,000 characters, or an unknown key
+  - 429 over the write budget
+}

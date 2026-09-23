@@ -23,6 +23,11 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       localStorage cache landed 2026-08-19; closing the last gap means reaching first paint, which is
       a decision, not a tweak. [Details](docs/todo/owner-affordance-hydration-pop.md)
 
+- [ ] **Intermittent hydration mismatch in the sticky library header at very short viewports.** The
+      server sends the Stats button where the client renders "+ Add game", so React discards the
+      subtree. Reproduced only under `?debug`; logged out is clean. Distinct from the item above.
+      [Details](docs/todo/header-hydration-mismatch.md)
+
 ## Backlog / Ideas
 
 - [ ] **A music app at `/music`: a decade's albums as a wall of sleeves, walked genre by genre
@@ -46,7 +51,7 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       [Details](docs/todo/feedback-email-address.md)
 
 - [ ] **Add "owned" as a field to wishlist games**: a boolean, or a general `labels` array built
-      for later uses. Decide it against **promote**, which today *moves* the game and deletes the
+      for later uses. Decide it against **promote**, which today _moves_ the game and deletes the
       wishlist row. Wanted by **Show whether a wishlist game is on sale**.
       [Details](docs/todo/wishlist-owned-flag.md)
 
@@ -106,8 +111,10 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 - [ ] **User search, so you can find people to follow without knowing their username.**
       [Details](docs/todo/user-search.md)
 
-- [ ] **Give library games a "notes" field, like wishlist entries already have, then grow it into a
-      real play journal.** [Details](docs/todo/game-notes-play-journal.md)
+- [ ] **Give WISHLIST notes the editor library games now have, and render notes as Markdown.**
+      Library notes shipped as a third face of the detail card, plain text. Journal entries were
+      decided against; Markdown is gated on the writing experience, not the rendering.
+      [Details](docs/todo/game-notes-notes-markdown.md)
 
 - [ ] **Make library and wishlist entries fully editable.** Now just the shared `game_metadata`
       question: name, genres, release date, cover art. The per-entry fields all landed by

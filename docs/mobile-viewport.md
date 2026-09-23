@@ -169,6 +169,38 @@ Three things that took a device to learn, all now in `hideOnScroll.ts`:
   Reached by a stray one-pixel resize during a scroll down, it restarted the
   hide every time it fired, which reads as the bar refusing to leave.
 
+## Sizing content inside a clamped dialog
+
+A keyboard does not make a dialog scroll by growing it: the dialog is already
+clamped to what fits above the keyboard. It makes the dialog's _content_ longer
+than the box, and the cost lands on whatever sits lowest, which is usually Save.
+
+The game detail card's owner form has no height to spare on a phone, which is
+what decided where notes went. Measured 2026-09-23 on its details face, with a
+game in progress (the tallest case):
+
+| viewport | card | Stop Playing wraps | must scroll |
+| -------- | ---- | ------------------ | ----------- |
+| 320x568  | 544  | yes                | 72          |
+| 375x667  | 568  | yes                | 0           |
+| 390x844  | 568  | yes (no on main)   | 0           |
+| 844x390  | 358  | yes                | 168         |
+
+- **Anything added to that face is paid for on a small phone.** The notes
+  preview first built here cost ~100px, of which its three lines of text were
+  ~40px; the rest was padding, a label row and a divider. That needed a
+  `max-height` media query to hide it on short viewports.
+- **A face costs nothing.** Notes became a third face, reached by a button in
+  the row that already holds "View or add play history". At 375px and below
+  Stop Playing already wrapped to a second row, so the button is free; at 390px
+  it pushes Stop Playing down one 42px row, inside the card's slack. The 320px
+  and landscape overflow is the same with or without it.
+- **The notes face sizes to the card, never the reverse.** The textarea is
+  `flex-1` down a `min-h-0` chain from the scroller, so it fills the case's 2:3
+  minimum rather than growing it, and floors at `min-h-28` under a keyboard,
+  where the scroller takes over. At 390x430 the face and the unsaved-changes
+  prompt together still fit without scrolling.
+
 ## Not everything is fixable
 
 Firefox visibly slides the whole page as the keyboard opens, and **nothing in
