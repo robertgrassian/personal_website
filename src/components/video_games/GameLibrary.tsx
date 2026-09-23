@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import type { Game } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
+import type { PlaySession } from "@/lib/sessions";
 import { GameShelves } from "./GameShelves";
 import { ChartBarIcon } from "@/components/Icon";
 import { VIEW_LABEL, VALID_GAME_VIEW, isGameView } from "./libraryConfig";
@@ -10,21 +11,23 @@ import { PeopleList } from "./PeopleList";
 import type { UserSummary } from "@/lib/follows";
 import { useGameLibraryUrlState } from "./useGameLibraryUrlState";
 import { useIsConfirmedOwner, useIsLikelyOwner } from "./FollowControls";
-import { usePlayHistory } from "./usePlayHistory";
 import { AddGameModal } from "./AddGameModal";
 import { GameDetailCard, type CardSubject } from "./GameDetailCard";
 import { ownedKey } from "./GameSearchStep";
 import { foldForSearch } from "./pipeline";
 import type { GameCaseInput } from "./GameCase";
 import { LibraryCardProvider, type CardLaunch, type CardOrigin } from "./LibraryCardContext";
+import { Button } from "@/components/ui/Button";
+import { TabBar } from "@/components/ui/TabBar";
 
 type GameLibraryProps = {
   // Every played game, rated and unrated alike — one list through one pipeline.
   games: Game[];
   wishlist: WishlistGame[];
-  // In-progress games, a subset of `games`; forwarded to the stats panel so
-  // "Recently Played" can rank them first.
-  currentlyPlayingGames: Game[];
+  // Every session in the library, newest first. Fetched with the page like the
+  // games, so nothing here has a loading state and a session write's
+  // revalidateTag reaches every consumer at once.
+  sessions: PlaySession[];
   // The owner's follow graph, backing the Following/Followers tabs. Public
   // data fetched server-side, so it is cached with the page like the games.
   followers: UserSummary[];
@@ -36,26 +39,15 @@ type GameLibraryProps = {
 // lives in GameShelves — this component used to hold both, which meant the
 // whole filter/group/sort pipeline was declared on a component that also
 // renders a list of usernames.
-export function GameLibrary({
-  games,
-  wishlist,
-  currentlyPlayingGames,
-  followers,
-  following,
-}: GameLibraryProps) {
+// Layout only, so it lives here rather than in the button recipes: both
+// actions have to survive a 320px phone beside the two view tabs.
+const headerActionClass =
+  "flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 " +
+  "whitespace-nowrap text-xs min-[375px]:text-sm";
+
+export function GameLibrary({ games, wishlist, sessions, followers, following }: GameLibraryProps) {
   const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-
-  // The library's play history, fetched separately from the page and only once
-  // something asks to see it. Owned here rather than inside the panel that
-  // shows it because a session logged from a game card must refresh the same
-  // copy the stats panel is reading: the panel never unmounts (it slides), so a
-  // second, private copy would sit stale for the rest of the visit.
-  const [historyRequested, setHistoryRequested] = useState(false);
-  const playHistory = usePlayHistory(historyRequested);
-  // useCallback because GameDetailCard depends on it in an effect: a fresh
-  // arrow every render would re-run that effect on every render.
-  const requestHistory = useCallback(() => setHistoryRequested(true), []);
 
   // Owner check resolves client-side after hydration (the page HTML is static
   // and shared by all viewers). false until proven otherwise, so visitors never
@@ -90,9 +82,14 @@ export function GameLibrary({
     origin: CardOrigin | null;
     dominantColor: string | null;
     isDark: boolean;
-    // Arrived by answering "Played?", which pre-stages a session. Clicking a
-    // case does not.
+    // Arrived by answering "Played?" on a game already in the library, which
+    // opens its play history. A promote collects no session: it opens the
+    // ordinary edit form, and the playthrough is logged after the move.
     startWithSession: boolean;
+    // The wishlist entry that "Played?" was pressed on, kept only for the
+    // branch that swaps to an owned game: that swap otherwise throws the id
+    // away, and Save needs it to clear the entry.
+    wishlistItemId: number | null;
   };
   const [expanded, setExpanded] = useState<Expanded | null>(null);
 
@@ -161,7 +158,13 @@ export function GameLibrary({
   // what lets the React.memo on GameCase actually bite.
   const handleOpenCard = useCallback(
     (game: GameCaseInput, launch: CardLaunch) => {
-      setExpanded({ kind: cardKind, id: game.id, ...launch, startWithSession: false });
+      setExpanded({
+        kind: cardKind,
+        id: game.id,
+        ...launch,
+        startWithSession: false,
+        wishlistItemId: null,
+      });
     },
     [cardKind]
   );
@@ -178,7 +181,9 @@ export function GameLibrary({
       current === null
         ? null
         : owned === undefined
-          ? { ...current, kind: "promote", origin: null, startWithSession: true }
+          ? // The promote clears the wishlist row by moving it, so it needs no
+            // id of its own kept here.
+            { ...current, kind: "promote", origin: null, startWithSession: false }
           : {
               kind: "game",
               id: owned.id,
@@ -186,6 +191,10 @@ export function GameLibrary({
               dominantColor: current.dominantColor,
               isDark: current.isDark,
               startWithSession: true,
+              // The only thing that survives the swap to say where this came
+              // from: `expandedWishlistItem` goes undefined the moment the kind
+              // is "game".
+              wishlistItemId: expandedWishlistItem.id,
             }
     );
   }, [expandedWishlistItem, ownedInLibrary]);
@@ -230,6 +239,16 @@ export function GameLibrary({
     }
     return { kind: "wishlist", item: expandedWishlistItem };
   }, [expanded, expandedGame, expandedWishlistItem, canEdit]);
+
+  // Resolved from the id every render rather than cleared by a callback, the
+  // same way expandedGame and expandedWishlistItem are: once Save has deleted
+  // the row, the revalidated wishlist no longer lists it and this goes null on
+  // its own. A stale id degrades to "nothing to remove", never to a button
+  // offering to delete a row that is already gone.
+  const clearsWishlistItemId = useMemo(() => {
+    const id = expanded?.wishlistItemId ?? null;
+    return id !== null && wishlist.some((item) => item.id === id) ? id : null;
+  }, [expanded, wishlist]);
 
   const existingSystems = useMemo(() => [...new Set(games.map((g) => g.system))].sort(), [games]);
 
@@ -297,51 +316,46 @@ export function GameLibrary({
     // 375px up and the smallest phones get 8px instead of a wrapped row. The
     // right pad is 16px MINUS the trailing button's own px, so the Stats label
     // (not its padding box) lands on the same 16px margin.
-    <div className="flex items-center justify-between border-b border-shelf-plank pl-2 min-[375px]:pl-4 min-[375px]:pr-2.5 sm:pr-1.5">
+    <div className="flex items-center justify-between border-b border-shelf-border pl-2 min-[375px]:pl-4 min-[375px]:pr-2.5 sm:pr-1.5">
       {/* gap, not a margin per tab: a trailing mr on the last tab spent 8px of
           the width this inset needed. */}
-      <div className="flex gap-2 sm:gap-4">
-        {VALID_GAME_VIEW.map((v) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => setView(v)}
-            // Measured: text-sm with this spacing needs 375px to fit the two
-            // tabs plus both buttons on one row, so text-xs takes over below
-            // that. Desktop keeps text-sm.
-            className={`py-2.5 whitespace-nowrap text-xs min-[375px]:text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
-              view === v
-                ? "border-link text-link"
-                : "border-transparent text-shelf-text-muted hover:text-link hover:border-shelf-plank"
-            }`}
-          >
-            {VIEW_LABEL[v]}
-          </button>
-        ))}
-      </div>
+      {/* Measured: text-sm with this spacing needs 375px to fit the two tabs
+          plus both buttons on one row, so text-xs takes over below that.
+          Desktop keeps text-sm. */}
+      {/* 6px under 375px, buying back the couple of pixels TabBar reserves for
+          the selected tab's bolder label. Wider screens have the slack. */}
+      <TabBar
+        tabs={VALID_GAME_VIEW.map((v) => ({ value: v, label: VIEW_LABEL[v] }))}
+        value={view}
+        onChange={setView}
+        className="gap-1.5 min-[375px]:gap-2 sm:gap-4"
+        tabClassName="text-xs min-[375px]:text-sm"
+      />
       <div className="flex items-center gap-0 sm:gap-1">
         {canAdd && isGameView(view) && (
-          <button
-            type="button"
+          <Button
+            variant="subtle"
+            size="none"
             onClick={handleAddGame}
-            className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 rounded-md text-shelf-text-muted text-xs min-[375px]:text-sm whitespace-nowrap hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
+            className={headerActionClass}
           >
             <span aria-hidden="true" className="text-base leading-none">
               +
             </span>
             <span>{view === "played" ? "Add game" : "Add to wishlist"}</span>
-          </button>
+          </Button>
         )}
         {view === "played" && (
-          <button
-            type="button"
+          <Button
+            variant="subtle"
+            size="none"
             onClick={handleStatsOpen}
             aria-label="Open library stats"
-            className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 rounded-md text-shelf-text-muted text-xs min-[375px]:text-sm whitespace-nowrap hover:text-link hover:bg-shelf-input transition-colors cursor-pointer"
+            className={headerActionClass}
           >
             <ChartBarIcon className="w-4 h-4 shrink-0" aria-hidden />
             <span>Stats</span>
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -362,7 +376,6 @@ export function GameLibrary({
           <GameShelves
             games={games}
             wishlist={wishlist}
-            currentlyPlayingGames={currentlyPlayingGames}
             view={view}
             tabs={tabs}
             canEdit={canEdit}
@@ -371,8 +384,7 @@ export function GameLibrary({
             onAddGame={handleAddGame}
             statsOpen={statsOpen}
             onStatsClose={handleStatsClose}
-            playHistory={playHistory}
-            onRequestHistory={requestHistory}
+            sessions={sessions}
           />
         ) : (
           <>
@@ -393,13 +405,13 @@ export function GameLibrary({
             canEdit={canEdit}
             existingSystems={existingSystems}
             startWithSession={expanded.startWithSession}
+            wishlistItemId={clearsWishlistItemId}
             onPlayed={handlePlayed}
             dominantColor={expanded.dominantColor}
             isDark={expanded.isDark}
             origin={expanded.origin}
             caseId={expanded.kind === "promote" ? null : `${expanded.kind}-${expanded.id}`}
-            playHistory={playHistory}
-            onRequestHistory={requestHistory}
+            sessions={sessions}
             onClose={closeCard}
           />
         )}

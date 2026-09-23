@@ -61,7 +61,6 @@ WISHLIST_KEYS = {
     "igdbId",
     "starred",
     "dateAdded",
-    "notes",
 }
 
 
@@ -259,15 +258,32 @@ def test_wishlist_returns_all_items_with_camel_case_keys(client: TestClient) -> 
 
     first = items[0]
     stored = _rows(
-        """SELECT w.starred, w.date_added, w.notes
+        """SELECT w.starred, w.date_added
              FROM wishlist_games w
              JOIN profiles pr ON pr.id = w.user_id
             WHERE pr.username = 'rgrassian' ORDER BY w.id LIMIT 1"""
     )[0]
-    starred, date_added, notes = stored
+    starred, date_added = stored
     assert first["starred"] is starred
     assert first["dateAdded"] == date_added.isoformat()
-    assert first["notes"] == notes
+
+
+@requires_db
+def test_public_wishlist_never_carries_notes(client: TestClient) -> None:
+    """Notes are the owner's alone; this endpoint takes no token, so it cannot
+    tell whose they are. Asserted against a row that HAS notes, so the check
+    cannot pass just because the fixture left the column empty."""
+    with_notes = _rows(
+        """SELECT w.notes FROM wishlist_games w
+             JOIN profiles pr ON pr.id = w.user_id
+            WHERE pr.username = 'rgrassian' AND w.notes <> '' LIMIT 1"""
+    )
+    assert with_notes, "no seeded wishlist row has notes; this test would be vacuous"
+
+    items = client.get("/api/library/users/rgrassian/wishlist").json()
+    assert all("notes" not in item for item in items)
+    # Belt and braces: the value itself must not appear under some other key.
+    assert with_notes[0][0] not in client.get("/api/library/users/rgrassian/wishlist").text
 
 
 @requires_db

@@ -82,11 +82,31 @@ class GameRead(BaseGameRead):
 class WishlistGameRead(BaseGameRead):
     """Mirrors ``WishlistGame`` (src/lib/wishlist.ts) — plus the row ``id``
     the owner write path targets (PATCH/DELETE /me/wishlist/{id}, promote).
-    Same accepted enumeration trade-off as GameRead.id."""
+    Same accepted enumeration trade-off as GameRead.id.
+
+    Deliberately WITHOUT ``notes``: see ``MyWishlistGameRead`` below."""
 
     id: int
     starred: bool
     date_added: str  # ISO date ("" if unknown; NOT NULL in the DB, so always set)
+
+
+class MyWishlistGameRead(WishlistGameRead):
+    """A wishlist entry as its OWNER sees it: the public shape plus ``notes``.
+
+    ``notes`` is the one per-user field on this table that is nobody else's
+    business — it is where "a gift for someone" or "buy it on the cheap key
+    site" gets written, by a person who has no reason to expect a stranger can
+    read it. Every other wishlist field is already on screen for any visitor
+    (the star overlay, the date-added sort, the system on the case).
+
+    So it rides ONLY on responses that required a token: ``GET
+    /me/wishlist/{item_id}`` and the create/update responses. It must never be
+    added to ``WishlistGameRead``, whose payload is public, cacheable and shared
+    across viewers — a per-viewer field there would be served to whoever primed
+    the cache next.
+    """
+
     notes: str
 
 

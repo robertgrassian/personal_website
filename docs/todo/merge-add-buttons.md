@@ -11,5 +11,8 @@ _Watch:_ `target` currently changes which fields are required, so the switcher h
 rather than just re-label. Flipping from wishlist to library with an empty system must block submit,
 not silently post.
 
-Collides directly with **When adding a game, let me say I'm playing it now**, whose play-history
-section must disappear when the target is `wishlist`. Sequence the two deliberately.
+_The collision is now real code, not a plan_ (2026-09-01): the confirm step renders a "Have you
+played it?" section behind `target === "library"`, because a wishlist entry has no library row to
+hang a playthrough off. The switcher has to hide it, and decide what happens to dates already
+entered when you flip to wishlist. Discarding them silently is the thing to avoid; `usePlayDraft`
+holds the choice and the dates together, so resetting both on a flip to wishlist is one call.

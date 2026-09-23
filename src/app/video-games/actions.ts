@@ -17,6 +17,8 @@ import {
   deleteMyGame,
   deleteMyWishlistItem,
   fetchMyUsername,
+  fetchMyGameNote,
+  fetchMyWishlistNotes,
   followUser,
   previewCatalogEntry,
   promoteMyWishlistItem,
@@ -27,7 +29,6 @@ import {
   updateMyWishlistItem,
   type CatalogPreviewResult,
   type MutateResult,
-  type SaveNoteResult,
   type SearchIgdbResult,
 } from "@/lib/meApi";
 import {
@@ -35,14 +36,13 @@ import {
   gamesTag,
   getFollowers,
   getFollowing,
-  getSessions,
   libraryCacheTag,
   sessionsTag,
   wishlistTag,
 } from "@/lib/libraryApi";
 import { LIBRARY_OWNER_USERNAME, RATINGS, type NewGame, type Rating } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
-import type { PlaySession } from "@/lib/sessions";
+import type { GameNote } from "@/lib/notes";
 
 /** A cache-tag builder from src/lib/libraryApi: gamesTag, wishlistTag or
  *  followsTag. Writes name the resources they actually changed. */
@@ -257,58 +257,41 @@ export async function previewGameCatalog(
   });
 }
 
-/** The rows, or a message to put on screen. Not MutateResult, which carries no
- *  data. */
-export type PlayHistoryResult =
-  | { ok: true; sessions: PlaySession[] }
-  | { ok: false; message: string };
+/** The notes, or a message to put on screen. `null` notes never means "empty":
+ *  an unread note and a blank one are different, and only one of them is safe
+ *  to let a Save overwrite. */
+export type WishlistNotesResult = { ok: true; notes: string } | { ok: false; message: string };
 
-/** Read a library's whole play history.
+/** The notes on one of the VIEWER'S OWN wishlist entries.
  *
- *  The one READ here, because libraryApi imports server-only and the browser
- *  cannot call it. It takes a username where every write above refuses to: this
- *  data is public, exactly as public as the endpoint behind it.
- *
- *  Errors return a message rather than throwing. getSessions throws loudly by
- *  design, but a panel that fails to load should say so in place instead of
- *  taking the transition down with it. */
-export async function getPlayHistory(username: string): Promise<PlayHistoryResult> {
-  if (username.trim() === "") return { ok: false, message: "Could not load the play history." };
-  try {
-    return { ok: true, sessions: await getSessions(username) };
-  } catch (err) {
-    // Logged server-side where the cause is readable; production replaces
-    // action errors with an opaque digest, so the viewer gets the instruction.
-    console.error("Loading play history failed:", err);
-    return { ok: false, message: "Could not load the play history. Try again." };
-  }
+ *  The only READ among these actions, now that the play history is fetched with
+ *  the page. It takes no username: the API answers for whoever's token this
+ *  attaches, so there is no way to ask it for someone else's. That is the whole
+ *  point, since notes are the one wishlist field the public read withholds. */
+export async function getWishlistNotes(itemId: number): Promise<WishlistNotesResult> {
+  const notes = await fetchMyWishlistNotes(itemId);
+  if (notes === null) return { ok: false, message: "Could not load your notes. Try again." };
+  return { ok: true, notes };
 }
 
-/** Save the notes on one of the caller's games; a blank body clears them.
- *
- *  The one write in this file that revalidates NOTHING, and deliberately so.
- *  Every cache tag here exists for a read in libraryApi.ts, and notes have no
- *  read there: they are owner-only, so they never enter the shared, prerendered
- *  payload that the tags invalidate. There is no stale page for this write to
- *  purge. (If notes ever become publishable, they gain a tagged read at the same
- *  moment, and this line becomes the bug.)
- *
- *  It still routes through a Server Action rather than being called from the
- *  browser: writes go through the BFF, full stop (see meApi.ts). The rate limit
- *  and preview guard are on the API side either way.
- *
- *  No length check here. The API's max_length is the real bound and the textarea
- *  already caps typing, so a duplicate constant would be a third number to keep
- *  in step for no gain. */
-export async function saveGameNote(gameId: number, body: string): Promise<SaveNoteResult> {
-  // Inlined rather than rejectBadId, whose MutateResult return type does not
-  // narrow to this result's failure arm.
-  if (!Number.isInteger(gameId)) return { ok: false, message: "Invalid save request." };
-  return updateMyGameNote(gameId, body);
+export type GameNoteResult = { ok: true; note: GameNote } | { ok: false; message: string };
+
+/** The notes on one of the viewer's own library games. Same shape and the same
+ *  reasoning as getWishlistNotes, except that these have no public read at all. */
+export async function getGameNote(gameId: number): Promise<GameNoteResult> {
+  if (!Number.isInteger(gameId)) return { ok: false, message: "Could not load your notes." };
+  const note = await fetchMyGameNote(gameId);
+  if (note === null) return { ok: false, message: "Could not load your notes. Try again." };
+  return { ok: true, note };
 }
 
 /** Add a game to the library (from an IGDB pick or manual entry). */
-export async function addGame(game: NewGame): Promise<MutateResult> {
+export async function addGame(
+  game: NewGame,
+  // Optional, and only ever a session: the add form can say "I'm playing this
+  // now" or give past dates. Rating and system are part of the POST itself.
+  edits: Pick<GameEdits, "session"> = {}
+): Promise<MutateResult> {
   const normalized = normalizeSharedFields(game);
   // A game needs a system and a valid rating on top of the shared fields; a
   // wishlist entry does not, which is why these two stay here.
@@ -316,7 +299,34 @@ export async function addGame(game: NewGame): Promise<MutateResult> {
     return { ok: false, message: "Invalid add request." };
   }
 
-  return write(() => createMyGame(normalized), [gamesTag]);
+  // The same two-step shape as promoteAndSave: a create whose 201 carries the
+  // id the session needs, since a session is a row in another table and cannot
+  // ride along in the POST. A failure after the game landed is reported as a
+  // partial application, never as a plain failure — the game really is in the
+  // library, and one with no dates is a normal state to leave it in.
+  return writeApplied(async () => {
+    const created = await createMyGame(normalized);
+    if (!created.ok) return { result: { ok: false, message: created.message }, applied: false };
+    if (edits.session === undefined) return { result: { ok: true }, applied: true };
+
+    // Every message says to finish from the library rather than inviting a
+    // retry: the add form is still open, and pressing Add again would attempt
+    // a duplicate the API refuses with a 409 on (name, system).
+    const partial = (rest: string): WriteOutcome => ({
+      result: { ok: false, message: `Added to your library, but ${rest}` },
+      applied: true,
+    });
+    const finishThere = "Open it from your library to add them.";
+    // Nothing can be logged without the new row id, which only the 201 carries.
+    if (created.gameId === null) return partial(`the play dates were not saved. ${finishThere}`);
+    const calls = editCalls(created.gameId, edits);
+    if (calls === null) return partial(`the play dates were invalid. ${finishThere}`);
+
+    const { result } = await runInOrder(calls);
+    return result.ok
+      ? { result: { ok: true }, applied: true }
+      : partial(`the play dates were not saved. ${result.message}`);
+  }, editTags(edits));
 }
 
 /** Remove a game from the library; its play sessions cascade away with it. */
@@ -367,20 +377,24 @@ export async function deleteWishlistItem(itemId: number): Promise<MutateResult> 
 /** Everything one press of Save can change about a library entry. Every field
  *  is optional and only the present ones are written, so a Save that touched
  *  only the rating still costs one API call. `session` logs a playthrough;
- *  `stopSessionId` closes the open one. */
+ *  `stopSessionId` closes the open one; `note` replaces the notes, "" clearing
+ *  them. */
 export type GameEdits = {
   rating?: Rating | "";
   system?: string;
   session?: { startDate: string; endDate: string | null };
   stopSessionId?: number;
   stopDate?: string;
+  note?: string;
 };
 
-/** Which cached reads one Save invalidates. Always games; the history only
- *  when a session was logged or closed, so a rating-only Save does not purge a
- *  list it cannot have changed. */
-function sessionEditTags(edits: GameEdits): TagFor[] {
+/** Which cached reads one Save invalidates: games for anything on the row,
+ *  sessions only when one was logged or closed. The note is on neither, since
+ *  no cached read carries it, so a notes-only Save revalidates nothing. */
+function editTags(edits: GameEdits): TagFor[] {
   const touchesSessions = edits.session !== undefined || edits.stopSessionId !== undefined;
+  const touchesGame = touchesSessions || edits.rating !== undefined || edits.system !== undefined;
+  if (!touchesGame) return [];
   return touchesSessions ? [gamesTag, sessionsTag] : [gamesTag];
 }
 
@@ -421,6 +435,13 @@ function editCalls(gameId: number, edits: GameEdits): Array<() => Promise<Mutate
     if (endDate !== null && endDate < startDate) return null;
     calls.push(() => createMySession(gameId, startDate, endDate));
   }
+  // Last: the only edit here that no cached read shows, so a failure before it
+  // leaves nothing half-written that the page displays. The API's max_length is
+  // the real bound; the textarea already caps typing.
+  if (edits.note !== undefined) {
+    const note = edits.note;
+    calls.push(() => updateMyGameNote(gameId, note));
+  }
   return calls;
 }
 
@@ -455,17 +476,67 @@ export async function saveGameEdits(gameId: number, edits: GameEdits): Promise<M
   const calls = editCalls(gameId, edits);
   if (calls === null) return { ok: false, message: "Invalid edit." };
   if (calls.length === 0) return { ok: true };
-  return writeApplied(() => runInOrder(calls), sessionEditTags(edits));
+  return writeApplied(() => runInOrder(calls), editTags(edits));
+}
+
+/** One press of Save on a library game reached by answering "Played?" on a
+ *  wishlist entry for a game you already own. The same edits as above, plus
+ *  the wishlist row that sent you here.
+ *
+ *  This is the owned half of what promoteAndSave is for the unowned half: both
+ *  answers to "Played?" now clear the wishlist entry, so the same button stops
+ *  meaning two different things depending on something the caller cannot see.
+ *
+ *  Validation runs before the delete rather than after, which promoteAndSave
+ *  cannot do (its edits need an id only the promote's 201 carries). That buys
+ *  one fewer partial: bad dates are refused with the wishlist row still there.
+ */
+export async function saveGameEditsAndClearWishlist(
+  gameId: number,
+  wishlistItemId: number,
+  edits: GameEdits
+): Promise<MutateResult> {
+  const bad = rejectBadId(gameId, "save") ?? rejectBadId(wishlistItemId, "wishlist");
+  if (bad) return bad;
+  const calls = editCalls(gameId, edits);
+  if (calls === null) return { ok: false, message: "Invalid edit." };
+
+  return writeApplied(async () => {
+    // The removal first: it is what the press is named after, and the edits are
+    // the extras riding along with it.
+    const removed = await deleteMyWishlistItem(wishlistItemId);
+    if (!removed.ok) return { result: removed, applied: false };
+
+    const { result } = await runInOrder(calls);
+    return result.ok
+      ? { result: { ok: true }, applied: true }
+      : {
+          // Not "that failed": the entry really is gone, and the card is still
+          // open on a game whose wishlist row no longer exists to remove twice.
+          result: {
+            ok: false,
+            message: `Removed from your wishlist, but the rest was not saved. ${result.message}`,
+          },
+          applied: true,
+        };
+    // wishlistTag on top of a normal Save, for the same reason promoteAndSave
+    // needs it: the wishlist lost an entry.
+  }, [...editTags(edits), wishlistTag]);
 }
 
 /** One press of Save on a wishlist entry being promoted: the move itself, plus
  *  whatever else the dialog collected on the way through. The system is
  *  required rather than optional because played_games.system is NOT NULL and
- *  the promote is what creates the row. */
+ *  the promote is what creates the row.
+ *
+ *  `session` is optional here, unlike the stop fields: the new row can have a
+ *  playthrough logged against it in the same press, but it cannot have an open
+ *  one to close. `editCalls` runs it after the row exists, using the id the
+ *  promote's 201 returns. */
 export async function promoteAndSave(
   itemId: number,
   system: string,
-  edits: Omit<GameEdits, "system" | "stopSessionId" | "stopDate">
+  edits: Omit<GameEdits, "system" | "stopSessionId" | "stopDate" | "note">
 ): Promise<MutateResult> {
   const bad = rejectBadId(itemId, "promote");
   if (bad) return bad;
@@ -500,7 +571,7 @@ export async function promoteAndSave(
     return { result: (await runInOrder(calls)).result, applied: true };
     // wishlistTag on top of a normal Save: a promote MOVES a row, so the
     // wishlist loses an entry as the library gains one.
-  }, [...sessionEditTags(edits), wishlistTag]);
+  }, [...editTags(edits), wishlistTag]);
 }
 
 /** Follow a user. Revalidates BOTH libraries: the caller's following list grew

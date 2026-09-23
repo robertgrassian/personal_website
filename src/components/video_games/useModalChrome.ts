@@ -40,6 +40,16 @@ const NO_KEYBOARD_INPUT_TYPES = new Set([
 ]);
 
 function wantsKeyboard(target: EventTarget | null): boolean {
+  // No element raises one where the device has no software keyboard to raise,
+  // and both halves of stage two answer to a keyboard: WebKit's reveal scroll
+  // of a field inside a fixed dialog, and Safari's URL bar. Escalating on a
+  // mouse-driven pointer takes the document out of flow for nothing, and a
+  // document out of flow has no scroll range -- a real change to a page whose
+  // library header is `position: sticky`.
+  //
+  // Both conditions, so only an unambiguous mouse-driven desktop opts out and a
+  // touchscreen laptop keeps today's behavior.
+  if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) return false;
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
   if (target instanceof HTMLTextAreaElement) return true;

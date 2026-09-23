@@ -1,0 +1,24 @@
+meta {
+  name: Read one of my wishlist entries
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}{{apiPrefix}}/me/wishlist/{{wishlistItemId}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  The owner's view of one wishlist entry. Identical to a row from the public
+  `GET /users/{username}/wishlist` except that it also carries `notes`, which
+  the public read deliberately omits: notes are the one per-user wishlist field
+  nobody but their author should see, so they are only served to a request that
+  proved whose they are.
+
+  This is what the owner's edit form calls before it can show the notes field.
+
+  - 200 the entry, with notes
+  - 404 nonexistent or someone else's
+}

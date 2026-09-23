@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import type { Game } from "@/lib/games";
+import type { WishlistGame } from "@/lib/wishlist";
 import { GameStats } from "./GameStats";
 import { SqlQueryPanel } from "./SqlQueryPanel";
 import { ArrowLeftIcon, CloseIcon } from "@/components/Icon";
@@ -9,36 +10,35 @@ import { useModalChrome } from "./useModalChrome";
 import { ModalBackdrop } from "./ModalBackdrop";
 import { sessionsInLibrary } from "@/lib/sessions";
 import { PlayHistoryList } from "./PlayHistoryList";
-import type { PlayHistoryState } from "./usePlayHistory";
+import type { PlaySession } from "@/lib/sessions";
+import { IconButton } from "@/components/ui/IconButton";
+import { TabBar } from "@/components/ui/TabBar";
 
 type StatsPanelProps = {
   games: Game[];
-  // In-progress games, forwarded to GameStats for the "Recently Played" list.
-  currentlyPlayingGames: Game[];
+  // Only the query tab reads this: the wishlist is a table people can join
+  // against, not something Overview counts.
+  wishlist: WishlistGame[];
   isOpen: boolean;
   onClose: () => void;
-  // The library's sessions, owned by GameLibrary. See usePlayHistory.
-  playHistory: PlayHistoryState;
-  // Triggers the fetch. Separate from the view state so a back-press does not
-  // undo it and a second visit does not refetch.
-  onRequestHistory: () => void;
+  // Every session in the library, fetched with the page. There is no loading
+  // state anywhere below because there is nothing left to wait for.
+  sessions: PlaySession[];
 };
 
 type PanelTab = "overview" | "query";
+
+const STATS_TABS: readonly { value: PanelTab; label: string }[] = [
+  { value: "overview", label: "overview" },
+  { value: "query", label: "query" },
+];
 
 // The history REPLACES the tabs rather than becoming a third one: it is a
 // drill-down from one list inside Overview, not a peer of them. Same shell, so
 // the panel keeps its size, scroll lock and focus handling.
 type PanelView = "stats" | "history";
 
-export function StatsPanel({
-  games,
-  currentlyPlayingGames,
-  isOpen,
-  onClose,
-  playHistory,
-  onRequestHistory,
-}: StatsPanelProps) {
+export function StatsPanel({ games, wishlist, isOpen, onClose, sessions }: StatsPanelProps) {
   const [activeTab, setActiveTab] = useState<PanelTab>("overview");
   const [view, setView] = useState<PanelView>("stats");
 
@@ -46,16 +46,19 @@ export function StatsPanel({
   // unmounts, so after a game is deleted its rows leave the list while the raw
   // length would go on counting them.
   const visibleSessions = useMemo(
-    () => sessionsInLibrary(playHistory.sessions, new Set(games.map((game) => game.id))),
-    [playHistory.sessions, games]
+    () => sessionsInLibrary(sessions, new Set(games.map((game) => game.id))),
+    [sessions, games]
   );
 
-  const openHistory = () => {
-    onRequestHistory();
-    setView("history");
-  };
+  const openHistory = () => setView("history");
 
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  // Opening focus lands on the panel itself, not on the close button. A
+  // programmatic focus() on a button paints the UA focus ring, and a touch has
+  // no later keystroke to clear it, so the X read as pressed until the next tap
+  // landed somewhere else. Focusing the dialog container is the ARIA pattern
+  // anyway: screen readers announce the aria-label, and Tab still walks the
+  // panel's controls in order from here.
+  const panelRef = useRef<HTMLElement>(null);
 
   // Re-opening starts on Overview rather than where the last visit ended.
   useEffect(() => {
@@ -69,7 +72,7 @@ export function StatsPanel({
   // back to the opener on close), shared with the three owner dialogs. This
   // panel stays mounted while closed — it slides in via a transform rather than
   // mounting — so it passes isOpen as `enabled` where those pass nothing.
-  useModalChrome(onClose, closeButtonRef, isOpen);
+  useModalChrome(onClose, panelRef, isOpen);
 
   return (
     <>
@@ -83,12 +86,16 @@ export function StatsPanel({
 
       {/* Slide-over panel */}
       <aside
+        ref={panelRef}
+        // -1 makes the container programmatically focusable without adding it
+        // to the tab order; outline-none keeps that focus invisible.
+        tabIndex={-1}
         aria-label={view === "history" ? "Play history" : "Library stats"}
         aria-modal="true"
         aria-hidden={!isOpen}
         inert={!isOpen}
         role="dialog"
-        className={`fixed top-[var(--nav-offset)] right-0 z-40 h-[calc(100%-var(--nav-offset))] flex flex-col pb-[var(--safe-bottom)] pl-[var(--safe-left)] pr-[var(--safe-right)] bg-background border-l border-divider shadow-2xl transition-[transform,width] duration-300 ease-in-out ${
+        className={`fixed top-[var(--nav-offset)] right-0 z-40 outline-none h-[calc(100%-var(--nav-offset))] flex flex-col pb-[var(--safe-bottom)] pl-[var(--safe-left)] pr-[var(--safe-right)] bg-background border-l border-divider shadow-2xl transition-[transform,width] duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         } ${
           // The wide width is the query tab's alone, so the history keeps the
@@ -104,14 +111,14 @@ export function StatsPanel({
             {view === "history" && (
               // -ml-2 eats into the header padding so the touch target does not
               // shift the title.
-              <button
-                type="button"
+              <IconButton
+                label="Back to library stats"
+                tone="page"
                 onClick={() => setView("stats")}
-                aria-label="Back to library stats"
-                className="-ml-2 shrink-0 rounded-md p-1.5 text-muted hover:bg-divider hover:text-foreground transition-colors cursor-pointer"
+                className="-ml-2"
               >
                 <ArrowLeftIcon className="w-5 h-5" aria-hidden />
-              </button>
+              </IconButton>
             )}
             <div className="min-w-0">
               <h2 className="text-base font-bold text-emphasis">
@@ -126,35 +133,23 @@ export function StatsPanel({
               </p>
             </div>
           </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={onClose}
-            aria-label="Close stats panel"
-            className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-divider transition-colors"
-          >
-            <CloseIcon className="w-5 h-5 cursor-pointer" aria-hidden />
-          </button>
+          <IconButton label="Close stats panel" tone="page" onClick={onClose}>
+            <CloseIcon className="w-5 h-5" aria-hidden />
+          </IconButton>
         </div>
 
         {/* Tab strip, hidden in the history view. */}
         <div
           className={`flex border-b border-divider px-6 shrink-0 ${view === "history" ? "hidden" : ""}`}
         >
-          {(["overview", "query"] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`py-2.5 mr-4 text-sm font-medium border-b-2 -mb-px capitalize transition-colors cursor-pointer ${
-                activeTab === tab
-                  ? "border-link text-link"
-                  : "border-transparent text-muted hover:text-foreground hover:border-divider"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+          <TabBar
+            tabs={STATS_TABS}
+            value={activeTab}
+            onChange={setActiveTab}
+            tone="page"
+            className="gap-4"
+            tabClassName="text-sm capitalize"
+          />
         </div>
 
         {/* Scrollable content — both panels stay mounted to preserve query state across tab switches */}
@@ -163,28 +158,18 @@ export function StatsPanel({
               history. */}
           <div className={view === "history" ? "" : "hidden"}>
             <PlayHistoryList
-              sessions={playHistory.sessions}
+              sessions={sessions}
               games={games}
-              isLoading={playHistory.isLoading}
-              error={playHistory.error}
               emptyMessage="No games have been played yet."
             />
           </div>
           <div className={view === "stats" && activeTab === "overview" ? "" : "hidden"}>
-            <GameStats
-              games={games}
-              currentlyPlayingGames={currentlyPlayingGames}
-              onSeeAllPlayed={openHistory}
-            />
+            <GameStats games={games} sessions={visibleSessions} onSeeAllPlayed={openHistory} />
           </div>
           <div className={view === "stats" && activeTab === "query" ? "" : "hidden"}>
-            {/* `games` is the whole played library, so the SQL table no longer
-                needs the currently-playing rows merged in — and it is now
-                complete, where the old merge silently omitted any unrated game
-                you weren't currently playing. GameStats above still takes the
-                two lists separately, for dedup preference rather than ordering
-                (see its prop comment). */}
-            <SqlQueryPanel games={games} />
+            {/* The same session list the history view renders, so a count in
+                the query tab cannot disagree with the rows above it. */}
+            <SqlQueryPanel games={games} sessions={visibleSessions} wishlist={wishlist} />
           </div>
         </div>
       </aside>

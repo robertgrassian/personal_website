@@ -51,7 +51,7 @@ export function Nav() {
           <span className="block">Grassian</span>
         </Link>
 
-        {/* Page links — active route gets the amber accent color */}
+        {/* Page links — active route gets the accent color */}
         <ul className="flex items-center gap-3 sm:gap-6 list-none">
           {links.map(({ href, label, activePaths }) => (
             <li key={href}>
@@ -60,7 +60,7 @@ export function Nav() {
                 // startsWith handles nested routes (e.g. /video-games/start)
                 className={`text-xs sm:text-sm whitespace-nowrap transition-colors duration-150 ${
                   (activePaths ?? [href]).some((p) => pathname.startsWith(p))
-                    ? "text-link font-medium"
+                    ? "text-link font-semibold"
                     : "text-subtle hover:text-link"
                 }`}
               >

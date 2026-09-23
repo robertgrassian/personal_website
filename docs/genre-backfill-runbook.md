@@ -42,6 +42,28 @@ re-think first if it stops being.
 Neither script needs credentials. The title map is hardcoded (no IGDB calls) and
 the genre lookup uses Wikipedia, which needs no key. Only `DATABASE_URL`.
 
+## Re-measuring the lookup after a change to it
+
+`app/services/genres.py` picks one Wikipedia article per title out of several
+candidates, by a rank key whose components were ordered against a measured run:
+**154 of the 155 titles in `api/scripts/fixtures/games.csv` resolved at a
+confidence of exactly 1.0 on 2026-08-14.** Unit tests pin the individual rules,
+but nothing offline can tell you a rule change moved forty other titles, because
+the candidate lists come from live Wikipedia search.
+
+So any change to candidate selection or ranking wants a plan run before it is
+trusted to write:
+
+```bash
+cd api && uv run python scripts/backfill_genres.py --plan --user rgrassian
+```
+
+That looks everything up and writes the plan without touching the database.
+Diff the chosen article per title against the previous run and expect a reason
+for every move. Recording the candidate lists as well as the picks is worth the
+extra column: it lets a further ranking rule be re-scored offline against the
+same data, which is far quicker than another network run.
+
 ## Procedure
 
 Run from `api/`. Pass the connection string inline rather than editing `.env`, so

@@ -330,18 +330,30 @@ async function mutate(
   method: "POST" | "PUT" | "PATCH" | "DELETE",
   body: Record<string, unknown> | null,
   what: string,
-  // Only the two create paths pass this. Everything else is a plain database
-  // write and has no business taking longer than the default.
+  // Only the wishlist create passes this. Everything else here is a plain
+  // database write and has no business taking longer than the default.
   timeoutMs?: number
 ): Promise<MutateResult> {
   const res = await callMeApi<void>(path, { method, body, what, timeoutMs });
   return res.ok ? { ok: true } : { ok: false, message: res.message };
 }
 
-/** Add a game to the caller's library. `rating: ""` and `igdbId: null` etc.
- *  are sent as-is — the API treats ""/null as absent for optional fields. */
-export function createMyGame(game: NewGame): Promise<MutateResult> {
-  return mutate(`${API_PREFIX}/me/games`, "POST", { ...game }, "add the game", TIMEOUT_MS.add);
+/** Add a game to the caller's library, returning the id of the row it created.
+ *  `rating: ""` and `igdbId: null` etc. are sent as-is — the API treats
+ *  ""/null as absent for optional fields.
+ *
+ *  Like the promote below, this does not go through `mutate`: the add form can
+ *  log a playthrough in the same press, and that needs a game id that does not
+ *  exist until this call answers. */
+export async function createMyGame(game: NewGame): Promise<CreatedGameResult> {
+  const res = await callMeApi<{ id: number }>(`${API_PREFIX}/me/games`, {
+    method: "POST",
+    body: { ...game },
+    what: "add the game",
+    timeoutMs: TIMEOUT_MS.add,
+  });
+  if (!res.ok) return { ok: false, message: res.message };
+  return { ok: true, gameId: typeof res.data?.id === "number" ? res.data.id : null };
 }
 
 /** Remove a game (and, server-side via cascade, its play sessions). */
@@ -358,6 +370,24 @@ export function createMyWishlistItem(item: NewWishlistItem): Promise<MutateResul
     "add to the wishlist",
     TIMEOUT_MS.add
   );
+}
+
+/** The notes on one of the caller's own wishlist entries.
+ *
+ *  A read on the /me path, unlike everything else here, because notes are the
+ *  one wishlist field the public read does not carry: only a request that
+ *  proves whose entry it is can be told what they say. Returns null when the
+ *  API refuses (not signed in, someone else's row, or unreachable) — the caller
+ *  renders that as "could not load", never as an empty note, because an empty
+ *  note is something the owner can then save OVER the real one. */
+export async function fetchMyWishlistNotes(itemId: number): Promise<string | null> {
+  const res = await callMeApi<{ notes: string }>(`${API_PREFIX}/me/wishlist/${itemId}`, {
+    what: "load your notes",
+    // A read cannot damage production, so it is allowed from a preview
+    // deployment pointed at the production API, unlike the writes below.
+    refuseOnForeignApi: false,
+  });
+  return res.ok ? res.data.notes : null;
 }
 
 /** Partially edit a wishlist entry — pass only the fields to change
@@ -383,7 +413,7 @@ export function deleteMyWishlistItem(itemId: number): Promise<MutateResult> {
 export async function promoteMyWishlistItem(
   itemId: number,
   system: string
-): Promise<PromoteResult> {
+): Promise<CreatedGameResult> {
   const res = await callMeApi<{ id: number }>(`${API_PREFIX}/me/wishlist/${itemId}/promote`, {
     method: "POST",
     body: { system },
@@ -397,7 +427,12 @@ export async function promoteMyWishlistItem(
   return { ok: true, gameId: res.data.id };
 }
 
-export type PromoteResult = { ok: true; gameId: number | null } | { ok: false; message: string };
+/** A write that CREATES a library row, answering with its id so the caller can
+ *  write against it in the same press. `gameId: null` is a 201 whose body did
+ *  not parse: the row really exists, but nothing can be hung off it. */
+export type CreatedGameResult =
+  | { ok: true; gameId: number | null }
+  | { ok: false; message: string };
 
 // Search results ride in the ok branch; failures reuse the message shape so
 // the modal can render either with one code path.
@@ -473,32 +508,21 @@ export function updateMyGame(
   return mutate(`${API_PREFIX}/me/games/${gameId}`, "PATCH", body, "save your changes");
 }
 
-export type SaveNoteResult = { ok: true; note: GameNote } | { ok: false; message: string };
-
-/** Replace the notes on one of the caller's games; a blank body clears them.
- *
- *  Returns the saved note rather than going through `mutate`, for the same
- *  reason promoteMyWishlistItem does: the response carries the authoritative
- *  `updatedAt`, and the editor displays it. Without it the UI would either
- *  guess the timestamp or pay a second round trip to read back what it just
- *  wrote.
- *
- *  There is no matching READ here. Notes are owner-only, so the client fetches
- *  them straight from /me with the browser token (useGameNote) — the sanctioned
- *  per-viewer read path described at the top of this file. */
-export async function updateMyGameNote(gameId: number, body: string): Promise<SaveNoteResult> {
+/** The caller's notes on one of their games. Null when the API refuses (not
+ *  signed in, someone else's game, or unreachable), which the card renders as
+ *  "could not load" rather than as an empty note, for the reason
+ *  fetchMyWishlistNotes gives. */
+export async function fetchMyGameNote(gameId: number): Promise<GameNote | null> {
   const res = await callMeApi<GameNote>(`${API_PREFIX}/me/games/${gameId}/note`, {
-    method: "PUT",
-    body: { body },
-    what: "save your notes",
+    what: "load your notes",
+    refuseOnForeignApi: false,
   });
-  if (!res.ok) return { ok: false, message: res.message };
-  // A 200 with no parseable body: the write landed, so reporting failure would
-  // be a lie. Fall back to what was sent, with no timestamp to show.
-  if (typeof res.data?.body !== "string") {
-    return { ok: true, note: { body: body.trim(), updatedAt: null } };
-  }
-  return { ok: true, note: res.data };
+  return res.ok && typeof res.data?.body === "string" ? res.data : null;
+}
+
+/** Replace the notes on one of the caller's games; a blank body clears them. */
+export function updateMyGameNote(gameId: number, body: string): Promise<MutateResult> {
+  return mutate(`${API_PREFIX}/me/games/${gameId}/note`, "PUT", { body }, "save your notes");
 }
 
 /** Start playing (endDate null → open session) or log a past playthrough

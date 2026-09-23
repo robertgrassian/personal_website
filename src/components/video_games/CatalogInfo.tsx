@@ -98,7 +98,7 @@ export function CatalogInfo({ game }: CatalogInfoProps) {
           // that token is a translucent fill (4% white in dark mode) meant to
           // sit on an opaque surface, so the System field underneath showed
           // straight through this text.
-          className="absolute left-0 top-full z-10 mt-1 w-full rounded-md border border-shelf-plank bg-shelf-bg p-3 text-xs text-shelf-text shadow-lg"
+          className="absolute left-0 top-full z-10 mt-1 w-full rounded-md border border-shelf-border bg-shelf-bg p-3 text-xs text-shelf-text shadow-lg"
         >
           {error !== null ? (
             <p className="text-shelf-text-muted">{error}</p>

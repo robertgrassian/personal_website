@@ -2,7 +2,7 @@
 
 _Section: **Backlog / Ideas** &middot; index: [`TODO.md`](../../TODO.md)_
 
-## What shipped 2026-08-24, so it is not re-derived
+## What shipped, so it is not re-derived
 
 Library games have notes. The decisions, since each closes off an approach:
 
@@ -15,9 +15,14 @@ Library games have notes. The decisions, since each closes off an approach:
   notes gain a public read.
 - **20,000 characters** (`MAX_NOTE_LENGTH`, rendered into a DB CHECK), against 1,000 for a wishlist
   note. Blank saves DELETE the row, so "no note" has one representation.
-- **Explicit Save, no autosave**, matching every other persisted edit in the directory. The
-  data-loss risk autosave usually answers is covered instead by the draft outliving the editor
-  (`useGameNote`) and an unsaved-changes guard on close.
+- **A third face of the detail card, committed by the card's one Save.** Reached by a Notes button
+  in the row beside "View or add play history", so the details face gains no height; a
+  three-line preview there was built first and cost ~100px a phone does not have
+  (`docs/mobile-viewport.md` has the measurements). No autosave: the draft lives in the card
+  (`useGameNote`), and a close with unsaved notes is refused with a prompt, which no other draft
+  on the card gets because none of them is a page of typing.
+- **Read through a Server Action (`getGameNote`)**, the same path wishlist notes use, not
+  browser to FastAPI.
 
 ## Decided against: timestamped journal entries
 
@@ -29,14 +34,11 @@ that was the interesting version and it went with the rest.
 ## What is left
 
 **1. The wishlist half.** `wishlist_games.notes` is still a 1,000-character column with a 2-row
-textarea in `WishlistEditFields.tsx`, and it still rides the cached public `/users/*` payload. The
-original item wanted both sides to behave the same. Deliberately not done in one pass: "wait for a
-sale" is a label, not a journal, and moving it would be a breaking change to `WishlistGameRead` for
-notes nobody writes at length.
-
-`GameNotesEditor` already takes its state as one object, so pointing the wishlist at it is mostly
-**one decision**: do wishlist notes stay public (leave the column where it is, reuse the editor
-only) or become owner-only like library notes (a second table and a payload change)?
+textarea in `WishlistEditFields.tsx`. The privacy question this used to hinge on is settled: since
+#205 wishlist notes are owner-only too (`MyWishlistGameRead`, fetched per entry). What is left is
+only whether they want the notes face as well, and "wait for a sale" is a label, not a journal, so
+the answer may simply be no. `GameNotesFace` takes its state as one `NoteDraft`, so reuse is cheap
+if it is yes.
 
 **2. Markdown.** Notes render as plain text with line breaks preserved. The blocker is the WRITING
 experience, not the rendering — measured 2026-08-24 rather than guessed:

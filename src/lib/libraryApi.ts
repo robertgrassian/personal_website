@@ -1,7 +1,7 @@
 // Importing "server-only" causes a build error if this module is ever bundled
 // into a client component — catches the mistake at build time, not runtime.
 import "server-only";
-import { API_PREFIX, LEGACY_API_PREFIX } from "./apiPrefix";
+import { API_PREFIX } from "./apiPrefix";
 import type { Game } from "./games";
 import type { WishlistGame } from "./wishlist";
 import type { PlaySession } from "./sessions";
@@ -192,34 +192,6 @@ async function fetchUserResource<T>(
       throw wrapFetchError(retryErr, what, url);
     }
   }
-  // A 404 while prerendering can mean the deployed API predates this code's
-  // prefix, so retry once on the old one. Same self-healing shape as the follow
-  // lists below: a build fetches from the API that is currently DEPLOYED, so the
-  // deploy shipping the rename asks a production that has not got the new prefix
-  // yet. Failing there fails the build, which stops the new API deploying, which
-  // makes the next build fail identically. Costs one extra request per resource
-  // on a build against a genuinely missing user, and nothing at request time.
-  //
-  // TEMPORARY, and the only thing left over from the rename: dead as soon as the
-  // rename is live in production, since nothing serves LEGACY_API_PREFIX any
-  // more. Delete this block and that constant.
-  if (res.status === 404 && IS_PRERENDER) {
-    const legacyUrl = url.replace(API_PREFIX, LEGACY_API_PREFIX);
-    try {
-      const legacyRes = await fetchWithTimeout(legacyUrl, tags);
-      if (legacyRes.ok) {
-        console.warn(
-          `[libraryApi] ${requireLibraryApiOrigin()} 404'd ${API_PREFIX} and answered on ` +
-            `${LEGACY_API_PREFIX}; it predates the prefix rename. Expected only while that ` +
-            `deploy is in flight.`
-        );
-        return (await legacyRes.json()) as T;
-      }
-    } catch {
-      // Fall through to the normal handling below, which reports the ORIGINAL
-      // 404 rather than whatever the fallback attempt did.
-    }
-  }
   // An expected outcome, not a failure: /video-games/u/{username} for a
   // username nobody owns. The caller turns this into a 404 page.
   if (res.status === 404 && allowMissing) return null;
@@ -250,8 +222,17 @@ export function getGames(username: string): Promise<Game[]> {
   return fetchUserResource<Game[]>(username, "/games", "games", gamesTag);
 }
 
-// Every session across the library, newest first. Kept off getGames, which
-// backs the prerendered /video-games page: fetched only when a history opens.
+// Every session across the library, newest first.
+//
+// Fetched with the page, alongside getGames, rather than on demand from the
+// browser. It used to be lazy on the grounds that it would bloat the
+// prerendered /video-games payload; measured, it is the smallest read here (405
+// bytes against games' 54KB for this library, and still comparable to games at
+// 180x the session count), and on a prerendered route it costs a VISITOR
+// nothing at all because it runs at build time. What laziness did cost was a
+// visible wait when the stats panel opened, a loading state in every consumer,
+// and a client-side copy that writes elsewhere on the page could not
+// invalidate.
 export function getSessions(username: string): Promise<PlaySession[]> {
   return fetchUserResource<PlaySession[]>(username, "/sessions", "play history", sessionsTag);
 }

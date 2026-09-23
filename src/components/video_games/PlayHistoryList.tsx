@@ -14,8 +14,6 @@ type PlayHistoryListProps = {
   // To put a name against each session's gameId. The whole array because the
   // caller has it and this is the only place that needs the lookup.
   games: Game[];
-  isLoading: boolean;
-  error: string | null;
   // Differs by surface: an owner is invited to start, a visitor is told there
   // is nothing here.
   emptyMessage: string;
@@ -58,29 +56,14 @@ function SessionRow({
   );
 }
 
-export function PlayHistoryList({
-  sessions,
-  games,
-  isLoading,
-  error,
-  emptyMessage,
-}: PlayHistoryListProps) {
+export function PlayHistoryList({ sessions, games, emptyMessage }: PlayHistoryListProps) {
   // Rebuilt only when the library changes, not on every render of a long list.
   const gamesById = useMemo(() => new Map(games.map((game) => [game.id, game])), [games]);
-
-  if (isLoading && sessions.length === 0) {
-    return <p className="py-6 text-center text-sm text-muted">Loading play history...</p>;
-  }
 
   const rows = sessionsInLibrary(sessions, new Set(gamesById.keys()));
 
   return (
     <>
-      {error !== null && (
-        <p role="alert" className="mb-3 text-xs text-red-600 dark:text-red-400">
-          {error}
-        </p>
-      )}
       {rows.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted">{emptyMessage}</p>
       ) : (

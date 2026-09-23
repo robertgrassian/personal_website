@@ -1,22 +1,25 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 // The stylesheets live with the component that needs them rather than in each
 // route's layout: two routes render this shell now, and a per-route import
 // would be two places to remember. App Router allows CSS imports from any
 // component, unlike the Pages Router's global-CSS restriction.
 import "@/app/video-games/video-games.css";
+import "@/app/video-games/shelf-themes.css";
+import { ACTIVE_SHELF_THEME } from "@/lib/shelfTheme";
 import "@/components/crt/crt.css";
 import {
   getFollowers,
   getFollowing,
   getGames,
+  getSessions,
   getProfile,
   getWishlist,
   targetsForeignEnvironmentApi,
 } from "@/lib/libraryApi";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
-import { CrtTv } from "@/components/crt/CrtTv";
+import { CurrentlyPlayingSection } from "./CurrentlyPlayingSection";
+import { currentlyPlayingGames } from "./playingPicker";
 import { LibraryCount, LibraryCountFallback } from "@/components/video_games/LibraryCount";
 import { AuthButton } from "@/components/AuthButton";
 import {
@@ -30,7 +33,7 @@ import {
 } from "@/components/video_games/FollowCountLinks";
 import { SignupCta } from "@/components/video_games/SignupCta";
 import { LibraryHeaderMenu } from "@/components/video_games/LibraryHeaderMenu";
-import { headerMenuItemClass } from "@/components/video_games/formStyles";
+import { MenuItem } from "@/components/ui/MenuItem";
 import { NEW_ISSUE_URL } from "@/lib/feedback";
 import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 
@@ -119,16 +122,17 @@ export async function LibraryPage({
   // fetched when their tab is opened: they're public data on the same cache
   // tag, so they cost nothing after the first render and switching to the
   // Following tab needs no network at all.
-  const [games, wishlist, followers, following] = await Promise.all([
+  const [games, wishlist, sessions, followers, following] = await Promise.all([
     getGames(username),
     getWishlist(username),
+    getSessions(username),
     getFollowers(username),
     getFollowing(username),
   ]);
-  // All in-progress games — the CRT cycles through them like TV channels. Also
-  // forwarded to the stats panel, which needs them as their own list to break a
-  // "Recently Played" dedup tie, not to order anything (see GameStats).
-  const currentlyPlayingGames = games.filter((g) => g.currentlyPlaying);
+  // All in-progress games, newest session first — the CRT cycles through them
+  // like TV channels. The stats panel used to take this list too; it now ranks
+  // by session start date and reads the sessions themselves (see GameStats).
+  const playing = currentlyPlayingGames(games);
   // `games` goes to GameLibrary whole, rated and unrated alike. It used to be
   // split on `rating !== ""` here, which left the unrated half outside the
   // filter/group/sort pipeline entirely — invisible to search, and stuck on
@@ -145,12 +149,12 @@ export async function LibraryPage({
   const wishlistCount = wishlist.length;
 
   return (
-    <main className="min-h-screen bg-shelf-bg shelf-theme">
+    <main className="min-h-screen bg-shelf-bg shelf-theme" data-shelf-theme={ACTIVE_SHELF_THEME}>
       {/* Wraps the whole page, not just the header: GameLibrary reads
           useIsLikelyOwner() from this context to decide whether to render edit
           controls. Spanning a server-rendered subtree costs nothing, because
           `children` is a serialized RSC slot rather than an import — SignupCta
-          and CrtTv ship no extra JavaScript, and when `relationship` resolves
+          ships no extra JavaScript, and when `relationship` resolves
           React re-renders only the provider, since this server parent created
           the child elements. */}
       {/* Local always, preview only on the owner's own shelf, production never.
@@ -257,37 +261,35 @@ export async function LibraryPage({
                     long, and someone who just hit a bug is not going to scroll
                     past every shelf to report it. Plain <a>, not next/link,
                     because the target is off-site. */}
-                <a
-                  href={NEW_ISSUE_URL}
-                  target="_blank"
-                  // Without noopener the opened tab holds a window.opener handle
-                  // back to this one and can navigate it elsewhere.
-                  rel="noopener noreferrer"
-                  className={headerMenuItemClass}
-                >
+                <MenuItem href={NEW_ISSUE_URL} external>
                   Suggestion/Issue?
-                </a>
+                </MenuItem>
                 {/* Always rendered, hidden from signed-out visitors by CSS on the
                     pre-paint flag — the same mechanism AuthButton uses, so the
                     menu never reshuffles a beat after paint. The page itself
                     re-checks the session server-side; this flag is display only. */}
-                <Link href="/video-games/account" className={headerMenuItemClass} data-hide-anon="">
+                <MenuItem href="/video-games/account" data-hide-anon="">
                   Account
-                </Link>
+                </MenuItem>
                 <AuthButton />
               </LibraryHeaderMenu>
             </div>
           </div>
           {showSignupCta && <SignupCta />}
 
-          {currentlyPlayingGames.length > 0 && <CrtTv games={currentlyPlayingGames} compact />}
+          {/* Owns the CRT slot: whether the set shows with nothing playing,
+              and whether its label opens the manage panel, are both questions
+              about the viewer, which only a client component can answer.
+              `games` is the SAME array GameLibrary gets below, so the two props
+              share their rows in the Flight payload rather than doubling it. */}
+          <CurrentlyPlayingSection games={games} currentlyPlayingGames={playing} />
 
           {/* Suspense is required because GameLibrary uses useSearchParams() */}
           <Suspense fallback={null}>
             <GameLibrary
               games={games}
               wishlist={wishlist}
-              currentlyPlayingGames={currentlyPlayingGames}
+              sessions={sessions}
               followers={followers}
               following={following}
             />

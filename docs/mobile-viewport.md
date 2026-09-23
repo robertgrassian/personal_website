@@ -171,42 +171,35 @@ Three things that took a device to learn, all now in `hideOnScroll.ts`:
 
 ## Sizing content inside a clamped dialog
 
-A keyboard does not make a dialog scroll by growing it — the dialog is already
+A keyboard does not make a dialog scroll by growing it: the dialog is already
 clamped to what fits above the keyboard. It makes the dialog's _content_ longer
-than the box, and the cost lands on whatever sits lowest, which is usually the
-Save button.
+than the box, and the cost lands on whatever sits lowest, which is usually Save.
 
-Measured on the game detail card at 393px wide, with the notes preview added:
+The game detail card's owner form has no height to spare on a phone, which is
+what decided where notes went. Measured 2026-09-23 on its details face, with a
+game in progress (the tallest case):
 
-| viewport | card | must scroll to reach Save |
-| -------- | ---- | ------------------------- |
-| 850      | 608  | 0                         |
-| 667      | 608  | 0                         |
-| 560      | 536  | 72                        |
-| 430      | 406  | 202 (61 before notes)     |
+| viewport | card | Stop Playing wraps | must scroll |
+| -------- | ---- | ------------------ | ----------- |
+| 320x568  | 544  | yes                | 72          |
+| 375x667  | 568  | yes                | 0           |
+| 390x844  | 568  | yes (no on main)   | 0           |
+| 844x390  | 358  | yes                | 168         |
 
-Two things worth keeping:
-
-- **At any normal phone height there is no pressure at all.** The card caps at
-  608px against 564px of content, so anything that fits in that budget is free
-  and does not need a responsive rule. Check before building one.
-- **Trimming lines is the wrong lever.** The notes block was 100px, of which the
-  three text lines were ~40px and the rest was padding, its label row and its
-  divider. Three lines to two bought 19px of a 141px problem. Dropping the whole
-  body and keeping the label row bought 62px.
-
-**A height media query is the right mechanism here, and it is worth knowing
-exactly what it does and does not reach.** It keys on the LAYOUT viewport, so it
-fires wherever the keyboard shrinks that — iOS 26, Firefox, Android — and not on
-older iOS Safari/Chrome, which slide the visual viewport and leave the layout one
-alone. That is a graceful degradation (scroll a little further) rather than a
-break, which is why it is preferred here over JavaScript.
-
-`useVisibleViewportInsets` cannot stand in for it: its own docstring records that
-the insets read **0 on iOS 26**, precisely because that is the case where the
-layout viewport shrank and there was nothing left to correct. The two are
-complements, not substitutes — the insets catch the slide model, a height query
-catches the shrink model.
+- **Anything added to that face is paid for on a small phone.** The notes
+  preview first built here cost ~100px, of which its three lines of text were
+  ~40px; the rest was padding, a label row and a divider. That needed a
+  `max-height` media query to hide it on short viewports.
+- **A face costs nothing.** Notes became a third face, reached by a button in
+  the row that already holds "View or add play history". At 375px and below
+  Stop Playing already wrapped to a second row, so the button is free; at 390px
+  it pushes Stop Playing down one 42px row, inside the card's slack. The 320px
+  and landscape overflow is the same with or without it.
+- **The notes face sizes to the card, never the reverse.** The textarea is
+  `flex-1` down a `min-h-0` chain from the scroller, so it fills the case's 2:3
+  minimum rather than growing it, and floors at `min-h-28` under a keyboard,
+  where the scroller takes over. At 390x430 the face and the unsaved-changes
+  prompt together still fit without scrolling.
 
 ## Not everything is fixable
 

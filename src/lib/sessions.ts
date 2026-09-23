@@ -50,6 +50,14 @@ function formatDay(iso: string, withYear: boolean): string {
   });
 }
 
+/** "Jul 2, 2026". For a caller that has a bare date rather than a session and
+ *  supplies its own label, such as the currently-playing panel's "playing
+ *  since" rows. CrtTv keeps its own long-month formatter: that one is hero
+ *  type with room for "July 2", this is a compact list row. */
+export function formatDayShort(iso: string): string {
+  return formatDay(iso, true);
+}
+
 /** "Jul 2 – Jul 19, 2026", "Jul 2, 2026" for a single day, or "Since Jul 2,
  *  2026" while open. The year repeats only when the ends differ, so a session
  *  spanning New Year still reads unambiguously. */

@@ -9,6 +9,7 @@ import { useServerAction } from "./useServerAction";
 import type { MutateResult } from "@/lib/meApi";
 import { GameSearchStep } from "./GameSearchStep";
 import { GameDraftForm, draftGenres, type Draft } from "./GameDraftForm";
+import { usePlayDraft } from "./usePlayDraft";
 
 type AddGameModalProps = {
   // Where the confirmed game goes. Same search/confirm flow either way;
@@ -51,6 +52,14 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
 
   const { isPending, error, setError, run } = useServerAction();
 
+  // Held here rather than in the confirm step because `save` is here and
+  // submits it, and because the step unmounts on "Back to search". Reset by
+  // every new pick below: the dates belonged to the game you left, and a
+  // confirm form that arrives blank except for a playthrough is how you log
+  // one game's dates against another. Created on both targets because hooks
+  // cannot be conditional; only the library branch of `save` reads it.
+  const play = usePlayDraft();
+
   // Handed to ModalShell as the initial focus target, so this dialog opens
   // ready to type instead of focused on its close button. Created here because
   // ModalShell is here, and forwarded into the search step.
@@ -59,6 +68,7 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
   const pickResult = (r: IgdbSearchResult, query: string) => {
     setError(null);
     setLastQuery(query);
+    play.reset();
     setDraft({
       name: r.name,
       // Only prefilled when IGDB knows of exactly one platform, where there is
@@ -82,6 +92,7 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
   const startManual = (query: string) => {
     setError(null);
     setLastQuery(query);
+    play.reset();
     setDraft({
       name: query.trim(),
       system: "",
@@ -109,10 +120,14 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
       imageUrl: draft.imageUrl,
       igdbId: draft.igdbId,
     };
+    const session = target === "library" ? play.session.value : undefined;
     const submit = (): Promise<MutateResult> => {
       if (target === "library") {
         const game: NewGame = { ...shared, rating: draft.rating };
-        return addGame(game);
+        // Two writes behind one press: the game, then a playthrough against
+        // the id its 201 returns. addGame owns that sequencing, including what
+        // to say when the game lands and the dates do not.
+        return addGame(game, session ? { session } : {});
       }
       const item: NewWishlistItem = {
         ...shared,
@@ -122,7 +137,9 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
       };
       return addWishlistItem(item);
     };
-    run(submit, { onSuccess: onClose });
+    run(submit, {
+      onSuccess: onClose,
+    });
   };
 
   const heading = target === "library" ? "Add a game" : "Add to wishlist";
@@ -166,6 +183,7 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
           draft={draft}
           setDraft={setDraft}
           existingSystems={existingSystems}
+          play={play}
           isPending={isPending}
           onBack={() => setDraft(null)}
           onSave={save}

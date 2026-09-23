@@ -1,6 +1,9 @@
-// Shared Tailwind class strings for owner-edit form controls, so the shelf
-// input tokens (background, border, focus ring) live in one place instead of
-// being re-declared per modal.
+// Shared Tailwind class strings for owner-edit form FIELDS, so the shelf input
+// tokens (background, border, focus ring) live in one place instead of being
+// re-declared per modal.
+//
+// Buttons used to live here too. They are components now, in
+// src/components/ui/, because they are site-wide and this module is not.
 
 // The shelf-input token set, sizing excluded. Everything that renders a field
 // composes from this, so a token change lands everywhere at once — including
@@ -33,103 +36,3 @@ export const filterSelectClass = `${filterFieldClass} cursor-pointer`;
 // `flex flex-wrap` row of date labels.
 export const labelClass =
   "flex min-w-0 flex-col gap-1 text-[10px] uppercase tracking-wide text-shelf-label";
-
-// ---------------------------------------------------------------------------
-// Button recipes
-//
-// Compose buttons from these rather than writing the classes inline. Each one
-// encodes a light/dark pairing, and the repo's rule is that no color may work in
-// only one scheme — a copied-and-tweaked literal breaks that rule easily, since
-// the tweak is usually made while looking at one scheme.
-//
-// Call sites keep positional modifiers (`mt-2`, `block`, `w-full`) rather than
-// baking them in, so these stay about appearance and the layout stays local.
-// ---------------------------------------------------------------------------
-
-// Default modal button: outlined, neutral. Cancel, "Log a past session",
-// "Save", and the rest of the non-destructive actions.
-export const buttonClass =
-  "rounded-md border border-shelf-plank px-3 py-1.5 text-sm text-shelf-text " +
-  "hover:bg-shelf-input transition-colors cursor-pointer " +
-  "disabled:opacity-50 disabled:cursor-default";
-
-// The filled pairing, shared by the two recipes below. `bg-link` with
-// `text-background` is what works in both schemes, because both tokens flip
-// together — a literal color on either side would invert wrongly in one.
-const filledBaseClass =
-  "rounded-md bg-link font-medium text-background " +
-  "transition-opacity hover:opacity-90 cursor-pointer disabled:opacity-50";
-
-// The commit half of a draft-then-save edit: rating, system, wishlist notes,
-// logged sessions. Filled rather than outlined because it appears only once
-// there are unsaved changes, so it has to read as the thing to press instead of
-// as more chrome belonging to the field above it.
-//
-// The line this draws: filled means "commit a pending draft", outlined means an
-// action with nothing pending behind it ("Move to library", "Add to library").
-// Two filled buttons can otherwise end up side by side competing, which is what
-// keeping the dialog-level actions on `buttonClass` avoids.
-export const saveButtonClass = `${filledBaseClass} px-3 py-1.5 text-sm disabled:cursor-default`;
-
-// Text-only affordance for secondary actions inside a form ("Clear rating",
-// "Enter manually"). Underlined rather than bordered so it reads as a link-like
-// action without competing with the real buttons.
-export const ghostButtonClass =
-  "text-xs text-shelf-text-muted underline underline-offset-2 " +
-  "hover:text-shelf-text transition-colors cursor-pointer disabled:opacity-50";
-
-// The confirm half of a destructive two-step. Outlined in red rather than
-// filled: it sits next to a Cancel button, and a filled red button next to a
-// neutral one reads as the default action, which this must never be.
-//
-// Shelf tokens, not red-600/red-400: this renders on the account page's light
-// shelf AND on the card's dark scrim, and a `dark:` pairing cannot tell those
-// apart.
-export const dangerButtonClass =
-  "rounded-md border border-shelf-danger/60 px-3 py-1.5 text-sm " +
-  "text-shelf-danger hover:bg-shelf-danger-tint transition-colors cursor-pointer " +
-  "disabled:opacity-50 disabled:cursor-default";
-
-// A destructive trigger sharing a row with Save: smaller and tinted rather than
-// outlined, so the row keeps one obvious default action.
-//
-// Padding splits on pointer type, not a breakpoint: on touch it matches Save's
-// height, with a mouse it is visibly smaller. A 24px tap target is not the
-// "smaller" anyone wanted.
-export const dangerSubtleButtonClass =
-  "rounded-md bg-shelf-danger-tint px-2.5 py-2 pointer-fine:py-1 text-xs " +
-  "text-shelf-danger hover:bg-shelf-danger-tint-hover " +
-  "transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default";
-
-// One row inside the library header's menu (LibraryHeaderMenu): Back to my
-// library, Suggestion/Issue?, Account, Sign in / Sign out. Shared so a mix of
-// <a>, next/link and <button> reads as one list.
-//
-// No underline, unlike an inline text link: these are stacked rows in a panel,
-// where the row itself is the affordance and four underlines would be noise.
-// Hover tints the whole row instead.
-//
-// Shelf tokens, not the global ones: this sits on the library's own background
-// (.shelf-theme), where text-subtle would be low-contrast. Both tokens carry
-// light and dark values.
-//
-// Amber on hover, matching the view tabs, the Add game / Stats buttons and the
-// follow-count links, so every interactive element in the library highlights
-// the same way.
-//
-// text-left because a <button> centers its text by default and the anchors
-// beside it do not; block + w-full so the whole row is the target, not just
-// the glyphs.
-//
-// cursor-pointer is not redundant: Tailwind v4's preflight sets buttons to
-// cursor: default, so "Sign out" would otherwise show an arrow while the
-// "Account" link above it shows a hand.
-export const headerMenuItemClass =
-  "block w-full whitespace-nowrap rounded-md px-3 py-2 text-left text-sm " +
-  "text-shelf-text-muted hover:bg-shelf-input hover:text-link cursor-pointer " +
-  "transition-colors duration-150";
-
-// The page-level call to action: sign in, sign up, "Add game". Roomier than
-// saveButtonClass, and carries no text size — call sites set their own, because
-// the onboarding submit is deliberately a step larger than the in-library ones.
-export const accentButtonClass = `${filledBaseClass} px-4 py-2`;

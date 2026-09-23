@@ -552,7 +552,7 @@
 }
 
 /* Channel pips — one clickable dot per game, active one filled. currentColor
-   inherits the amber, so both themes are covered. */
+   inherits the accent, so both themes are covered. */
 .pcrt-channel-pip {
   display: inline-block;
   width: 10px;

@@ -68,6 +68,27 @@ also owns origin resolution (`requireLibraryApiOrigin`) and the cache tags.
 There is **no fallback data source**: an unresolvable origin throws, which fails
 the build for the static library pages instead of shipping an empty shelf.
 
+**The library and wishlist reads also write.** Before building the response,
+`services/users.py` hands the catalog rows it just loaded to
+`services/catalog_refresh.py`, which re-sources the couple that are most out of
+date from IGDB and Wikipedia and stamps them. It is bounded by a row cap and a
+wall-clock budget deliberately smaller than `REQUEST_TIMEOUT_MS` in
+`libraryApi.ts`, since overrunning that fails the render rather than degrading
+it. The rules are in that module; the reason it lives on the read path is that
+serving a page is the only regular event this site has.
+
+Two consequences of sitting under the cache, both accepted:
+
+- **A library nobody visits and nobody edits never refreshes**, because nothing
+  ever reaches Postgres to notice it has gone stale.
+- **A refresh cannot invalidate anyone else's cached page.** Catalog rows are
+  shared, so re-sourcing one while serving user A also changes what user B's
+  library should say — but the tags are revalidated from `actions.ts`, which
+  runs in Next, and the API has no way to reach it. B's page keeps the old
+  values until something B does purges the tag. This is the one place the
+  "pair every write with its tag" rule in `.claude/CLAUDE.md` cannot be
+  followed, rather than an oversight.
+
 Filtering, grouping and sorting happen **client-side**, after the fetch, in
 `components/video_games/pipeline.ts` — pure functions over the already-loaded
 array, with no React in them. The API returns a whole library and the browser
@@ -82,15 +103,14 @@ verifies that JWT locally against Supabase's JWKS and enforces
 `jwt.sub == row.user_id`. On success the action calls `revalidateTag`, which
 drops the cached read so the next render sees the change.
 
-The browser never holds an API token of its own for a WRITE. Adding a read means
-adding its tag in `libraryApi.ts` **and** pairing it with every write that can
-change it in `actions.ts`; too narrow a tag serves a stale page.
+The browser never holds an API token of its own. Adding a read means adding its
+tag in `libraryApi.ts` **and** pairing it with every write that can change it in
+`actions.ts`; too narrow a tag serves a stale page.
 
-The one exception, and the shape of any future one: per-game notes
-(`GET`/`PUT /me/games/{id}/note`) are owner-only, so they never enter a shared
-cached payload and there is no tag to pair. `saveGameNote` therefore revalidates
-nothing, on purpose. If notes ever become publishable they gain a tagged read at
-the same moment, and that line becomes a bug.
+The exception is an owner's private fields, which are read through a Server
+Action from `/me` (`getWishlistNotes`, `getGameNote`) rather than from the
+cached library read. They are never cached, so there is no tag to pair, and a
+Save that only changes a game's notes revalidates nothing.
 
 ## Cross-cutting notes
 
@@ -103,13 +123,6 @@ the same moment, and that line becomes a bug.
   only, so owner edit controls, the follow button and the sign-up banner all
   resolve client-side via uncached authenticated calls. Rendering any of it on
   the server would leak one viewer's state into another's cached HTML.
-  <br>
-  Those calls go **browser → FastAPI directly** with the Supabase session token,
-  not through a Server Action: there is no cache to invalidate and no
-  `server-only` module to reach. `useViewerRelationship` is one; `useGameNote` is
-  the other, and it is the only library RESOURCE (rather than UI state) that
-  works this way, because notes are the only one with no public endpoint at all.
-  Writes never take this path.
 - **`/api/library` is a literal prefix, not a rewrite artifact.** In dev, `next
 dev` proxies it to uvicorn on :8000; in production Vercel routes it to the
   Python function. FastAPI routes on the full path either way (`next.config.ts`).

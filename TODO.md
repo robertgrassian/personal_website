@@ -8,18 +8,9 @@ that govern this file (sections, caps, what goes where) live in the `proj-todo` 
 The organizing goal is **sharing the site with people**, so Up Next holds what should be true
 before that happens.
 
-- [ ] **When adding a game, let me say I'm playing it now, or that I played it before: a play
-      history section in the add-game form.** (Promoted by request 2026-08-09.) Collides with
-      **Fold "+ Add to wishlist" into a single "+ Add game"**.
-      [Details](docs/todo/add-game-play-history.md)
-
 ## Bugs
 
 _Confirmed defects that are not urgent enough for Up Next. Roughly severity-ordered, worst first._
-
-- [ ] On desktop: on wishlist game, if i click the notes section, the sticky filter bar dissapears (in the background).
-      When exiting and going back to the wishlist, it reappears. It only happens with this input. When we fix it
-      we should check if the notes for library games is implemented and if so if it happens for that too.
 
 - [ ] **Anyone can define a shared catalog row for everyone, because `igdb_id` is never checked
       against IGDB.** [Details](docs/todo/unverified-igdb-id-catalog.md)
@@ -30,9 +21,6 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 - [ ] **The add form's info popover can promise genres the add then fails to store.** Re-decide
       together with **Anyone can define a shared catalog row for everyone**.
       [Details](docs/todo/info-popover-genre-promise.md)
-
-- [ ] **The genre lookup picks the wrong Wikipedia article for two titles, at a confidence score of
-      1.0.** [Details](docs/todo/genre-lookup-wrong-article.md)
 
 - [ ] **Owner edit affordances still pop in, now at hydration rather than a round trip later.** The
       localStorage cache landed 2026-08-19; closing the last gap means reaching first paint, which is
@@ -45,26 +33,45 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 ## Backlog / Ideas
 
+- [ ] **A music app at `/music`: a decade's albums as a wall of sleeves, walked genre by genre
+      along an authored path, played through Spotify.** Stateless, no accounts.<br>The game
+      library's shelf machinery is game-typed, so this first tests **Decide the routing/namespace
+      strategy**. [Details](docs/todo/music-decades-wall.md)
+
+- [ ] **The built-in shelf remounts part of every group's game cases on load**, because the first
+      render puts the whole group in one bay and a layout effect re-cuts it into rows. ~35 of ~155
+      cases. **Promote to Bugs if the doc's focus-loss path reproduces.**
+      [Details](docs/todo/shelf-recut-remount.md)
+
+- [ ] **Rethink the staged "Stop Playing" notice and its Undo, both too easy to miss.** The stop is
+      the one pending edit with no control still showing its state, so bigger text is not the
+      answer. Decide with **Show a confirmation toast after logging a session**.
+      [Details](docs/todo/stop-playing-staged-notice.md)
+
 - [ ] **A site email address for feedback, so people without a GitHub account can report bugs and
       ideas.** `/privacy` already publishes `rgrassian@gmail.com` twice, so an address exists: what
       is missing is one that is not a personal inbox, and any link to it from the library.
       [Details](docs/todo/feedback-email-address.md)
 
-- [ ] Add "owned" as a field to wishlist games. Inloves migration and checkbox added to edit wishlist game UI.
+- [ ] **Add "owned" as a field to wishlist games**: a boolean, or a general `labels` array built
+      for later uses. Decide it against **promote**, which today _moves_ the game and deletes the
+      wishlist row. Wanted by **Show whether a wishlist game is on sale**.
+      [Details](docs/todo/wishlist-owned-flag.md)
 
-- [ ] **Delete the prerender-only `/api/py` retry in `libraryApi.ts`'s `fetchUserResource`, and
-      `LEGACY_API_PREFIX` with it.** All that survives the 2026-08-18 prefix rename, and dead the
-      moment that rename is live in prod: it exists so the deploy shipping it can build against a
-      production still on the old prefix.
+- [ ] **Show whether a wishlist game is on sale**, per entry's system, via a hardcoded system to
+      shop map, rechecked at most daily. Wants **Add "owned" as a field to wishlist games** first,
+      and `wishlist_games.system` is nullable free text, so many entries have no shop to check.
+      [Details](docs/todo/wishlist-sale-check.md)
 
 - [ ] **`AddGameModal` is the last dialog left. Decide whether adding a game moves onto the detail
-      card too.** No longer a merge of two: the other dialogs were deleted 2026-08-20. Sequence with
-      **When adding a game, let me say I'm playing it now**.
+      card too.** No longer a merge of two: the other dialogs were deleted 2026-08-20, and the add
+      form has since taken the card's one-Save model and its play-history fields.
       [Details](docs/todo/merge-game-modals.md)
 
 - [ ] **Audit the genre vocabulary, fix the wrong values in the database with a script, and stop
-      them coming back.** Premise unverified against prod; the eleven variant-id rows named inside
-      were fixed 2026-08-17. [Details](docs/todo/genre-vocabulary-audit.md)
+      them coming back.** Premise **confirmed 2026-08-28**: `Shooter` is one row, and the backfill
+      re-proposes it, so no Wikipedia sweep fixes it. What is left is the hand-typed add path.
+      [Details](docs/todo/genre-vocabulary-audit.md)
 
 - [ ] **Detect where the title sits on a game cover, and crop the CRT picture so it is not cut
       off.** [Details](docs/todo/cover-title-crop-crt.md)
@@ -108,8 +115,8 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       [Details](docs/todo/user-search.md)
 
 - [ ] **Give WISHLIST notes the editor library games now have, and render notes as Markdown.**
-      Library notes shipped 2026-08-24, plain text. Journal entries were decided against; Markdown
-      is gated on the writing experience, not the rendering.
+      Library notes shipped as a third face of the detail card, plain text. Journal entries were
+      decided against; Markdown is gated on the writing experience, not the rendering.
       [Details](docs/todo/game-notes-notes-markdown.md)
 
 - [ ] **Make library and wishlist entries fully editable.** Now just the shared `game_metadata`
@@ -117,21 +124,19 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       2026-08-20. Would unblock **Audit the genre vocabulary**.
       [Details](docs/todo/fully-editable-entries.md)
 
-- [ ] **Fold "+ Add to wishlist" into a single "+ Add game" that picks its destination.** Collides
-      with **When adding a game, let me say I'm playing it now**.
+- [ ] **Fold "+ Add to wishlist" into a single "+ Add game" that picks its destination.** The
+      switcher has to show and hide the add form's play-history section, which is library-only.
       [Details](docs/todo/merge-add-buttons.md)
 
 - [ ] **A username rename feature must delete `usernameByUserId` (`src/lib/meApi.ts`).**
       [Details](docs/todo/username-rename-cache-delete.md)
 
-- [ ] Library-level "create session" button (owner-only), for any game without opening its edit
-      modal. [Details](docs/todo/library-create-session-button.md)
-
 - [ ] Profile pictures for user accounts (post-v1: likely Supabase Storage plus an upload/crop flow,
       shown in the profile header and follower lists)
 
-- [ ] Homepage customization per user (post-v1: hero/backdrop, shelf styling, featured games. Scope
-      TBD)
+- [ ] **Per-user library customization, starting with letting someone pick their own shelf theme.**
+      The shelf half stopped being a design problem when shelf themes shipped: what is left is a
+      column, an API field and a picker. [Details](docs/todo/library-customization.md)
 
 - [ ] Staging environment: previews are read-only against prod, so writes first run for real in
       prod. [Details](docs/todo/staging-environment.md)
@@ -146,25 +151,14 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 - [ ] Alternate "currently playing" display: a full-width Marquee Banner as a sibling of the CRT.
       [Details](docs/todo/marquee-banner-display.md)
 
-- [ ] Make an "improve" skill that runs a code review on recent changes, follows up on obviously
-      actionable items, cleans up comments, and checks best practices
-
 - [ ] Fun interactive game/toy page, for fun and for learning TypeScript.
       [Details](docs/todo/interactive-toy-page.md)
 
-- [ ] Start filling in `last_played` dates (ISO `YYYY-MM-DD`) for recently played games; build a
-      "recently played" feature on the stats page
-
-- [ ] test that my linting on prs is working
-
 - [ ] Dark mode toggle
 
-- [ ] A fun game to make could be a "shift" inspired game... i liked that one a lot
-
-- [ ] Stats page: average rating per genre? Any other cool ones? Maybe average rating per X, ie
-      ranked genres, ranked consoles
-
-- [ ] Game library "want to play"
+- [ ] Stats page: **average rating** per genre, per console, per decade. The _count_ rankings
+      already ship ("Top Genres", systems and decades in `GameStats.tsx`); what is missing is any
+      cut weighted by rating rather than by how many games are in the bucket.
 
 - [ ] Movie library want to watch list, maybe a whole movie's seen section too...
 

@@ -7,14 +7,40 @@ that game and useless as a filter. The ask is the audit first: sweep for genres 
 per case between a one-off replace script, a block list, and a genuinely smarter picker. Named as a
 known weak point of the system, and of game sites generally.
 
-_The premise is unverified against the database, so start there._ The seed fixture
-(`api/scripts/fixtures/games.csv`) records Star Fox Adventures as `Action-Adventure`, and ~19
+_Premise CONFIRMED 2026-08-28_, from the snapshot a `--plan` run writes to
+`api/scripts/.genre_backfill_plan.json` (186 games, 50 distinct genres, no database access
+needed to read it). **Star Fox Adventures is the only game tagged "Shooter"**, exactly as
+complained about. The important part is what the backfill does with it: it re-proposes
+`Shooter` unchanged, because that is what the Wikipedia infobox says. **So no re-run of the
+sweep will ever fix this row** -- it needs a targeted correction or an `OVERRIDES` entry, which
+settles the question below about one bad row versus a systematic coarse-vs-specific split. It is
+one row. Sixteen genres have a count of 1; the rest read as legitimately rare rather than wrong.
+
+_The hand-typed hole is real, and it was measurable._ Six of the 50 stored genres were not what
+`normalize_genre` produces, all of them casing: `Beat 'em up`, `Real-time Strategy`,
+`Turn-based Strategy`, `Third-person Shooter`, `Pet-raising simulation`, `Tactical role-playing`
+(16 games in total). They reach the database through `_sourced_genres`
+(`api/app/services/me.py`), which returns the client's genres untouched when there is no
+`igdb_id`, so the normalizer never runs on them. `Shoot 'em Up` being title-cased while
+`Beat 'em up` is not is the two paths showing through.
+
+_Half of this shipped 2026-08-28._ `build_vocabulary` (`api/scripts/backfill_genres.py`) now puts
+its winning spelling through `normalize_genre` before anything snaps onto it, so the backfill
+**corrects** those 16 rows instead of preserving them -- previously a hand-typed row defined the
+vocabulary for rows that had gone through the normalizer, and a 1-1 tie between two spellings was
+settled by dict insertion order. What is left of this item is prevention: routing `clean_genres`
+through the normalizer so the manual add path stops creating them, versus accepting them and
+letting the backfill clean up after. The owner has said they hold no deliberate genre spellings
+and want Wikipedia's vocabulary unless it is badly wrong, which argues for routing it.
+
+_Superseded by the confirmation above, kept for how it was reasoned about before the data arrived._
+The prediction below turned out half right: the backfill did move the other shooters onto specific
+infobox terms and left this one behind, so it is one bad row, not a systematic split. The seed
+fixture (`api/scripts/fixtures/games.csv`) records Star Fox Adventures as `Action-Adventure`, and ~19
 fixture rows carry some spelling of "shooter", so whatever produced today's state happened **after**
 seeding. Most likely the Wikipedia backfill moved the other shooters onto the more specific infobox
 terms ("First-person shooter", "Third-person shooter") and left this one row on the bare word: that
-is a plausible reading of the code and the fixtures, not something confirmed by querying prod.
-Confirm before fixing, because it changes whether this is one bad row or a systematic
-coarse-vs-specific split.
+was a plausible reading of the code and the fixtures, and the `--plan` snapshot bore it out.
 
 _The audit query names itself, which makes this cheaper than it sounds._ `useFilterOptions` builds
 `allGenres` by flat-mapping every game's genres with **no minimum count**, so a genre held by
@@ -57,6 +83,17 @@ machine-readable answer. The cheap experiment for a third is an LLM pass over na
 lead + IGDB genres run **offline inside the backfill's plan step**, where a human already reviews every
 changing row: the review gate that makes a bad automated genre survivable exists only there, not in
 the live add path. Do not put a model in the write path first.
+
+_A one-off UPDATE is no longer a fix, as of the catalog refresh (2026-09-01)._
+`api/app/services/catalog_refresh.py` re-sources a stale row's genres from Wikipedia during a public
+read and **overwrites** what is stored, so correcting Star Fox Adventures' `Shooter` with a targeted
+`UPDATE` would survive at most thirty days. That settles the open question above in favour of the
+answer this doc already leaned toward: the correction has to live in the lookup, as a
+`SOURCE_SYNONYMS` / `THEME_VALUES` entry in `api/app/services/genres.py` or an `OVERRIDES` entry in
+`scripts/backfill_genres.py`, which is also the only kind of fix that "stops them coming back".
+Same constraint applies to **"Make library and wishlist entries fully editable"**: a genre edited by
+hand through a future UI is a value the refresh does not know is deliberate, so that item now has to
+decide how an edited row opts out (a flag on the row, or a stored override) before it ships genres.
 
 _The constraint that applies to every fix here:_ genres live on the **shared** `game_metadata` row,
 so correcting one rewrites the genre for every user who owns that game (the runbook says this

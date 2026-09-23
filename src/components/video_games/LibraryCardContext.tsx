@@ -7,10 +7,10 @@ import type { GameCaseInput } from "./GameCase";
 // the card that needs it.
 //
 // It used to travel as an optional `onEditGame`/`onEdit` prop threaded through
-// ShelfSection, and GameCase re-derived permission from the prop's *presence*
-// (`onEdit !== undefined`). That put the rule in three places and forced
-// ShelfSection — otherwise purely presentational — to carry an editing concern
-// through to every card.
+// the shelf group, and GameCase re-derived permission from the prop's
+// *presence* (`onEdit !== undefined`). That put the rule in three places and
+// forced the group — otherwise purely presentational — to carry an editing
+// concern through to every card.
 //
 // A React context is the counterpart to prop drilling, not to state management:
 // it changes how a value reaches a descendant, not who owns it. GameLibrary
@@ -22,7 +22,7 @@ import type { GameCaseInput } from "./GameCase";
 type LibraryCard = {
   openCard: (game: GameCaseInput, launch: CardLaunch) => void;
   // Which collection the cases on screen came from. Here rather than a
-  // GameCase prop so ShelfSection stays purely presentational: it is the same
+  // GameCase prop so the shelf group stays purely presentational: it is the same
   // answer for every case in the view, and it is GameLibrary that knows it.
   kind: CardKind;
 };

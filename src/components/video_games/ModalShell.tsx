@@ -3,6 +3,7 @@
 import { useRef, type ReactNode } from "react";
 import { CloseIcon } from "@/components/Icon";
 import { ModalFrame } from "./ModalFrame";
+import { IconButton } from "@/components/ui/IconButton";
 
 // The conventional dialog panel: a centered flex column with a header row, one
 // scrolling body and an error line, inside ModalFrame's backdrop and chrome.
@@ -60,7 +61,7 @@ export function ModalShell({
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className={`pointer-events-auto relative min-w-0 rounded-lg border border-shelf-plank bg-shelf-bg p-4 sm:p-5 shadow-2xl ${panelClassName}`}
+        className={`pointer-events-auto relative min-w-0 rounded-lg border border-shelf-border bg-shelf-bg p-4 sm:p-5 shadow-2xl ${panelClassName}`}
       >
         {/* shrink-0 keeps the header at its natural height as the scrolling
             body below grows. */}
@@ -71,15 +72,9 @@ export function ModalShell({
               <p className="text-shelf-text-muted text-xs mt-0.5">{subtitle}</p>
             )}
           </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="shrink-0 rounded-md p-1 text-shelf-text-muted hover:text-shelf-text hover:bg-shelf-input transition-colors cursor-pointer"
-          >
+          <IconButton ref={closeButtonRef} label="Close" onClick={onClose}>
             <CloseIcon className="w-5 h-5" aria-hidden />
-          </button>
+          </IconButton>
         </div>
 
         {scrollBody ? (

@@ -48,11 +48,15 @@ from app.schemas.me import (
     WishlistUpdate,
     clean_genres,
 )
-from app.schemas.users import GameRead, WishlistGameRead
+from app.schemas.users import GameRead, MyWishlistGameRead
 from app.services import genres as genre_service
 from app.services import igdb as igdb_service
 from app.services import rate_limit
-from app.services.users import derive_play_state, to_game_read, to_wishlist_read
+from app.services.users import (
+    derive_play_state,
+    to_game_read,
+    to_my_wishlist_read,
+)
 
 # Mirrors the DB CHECK on profiles.username (app/models/profile.py): starts
 # with a lowercase letter or digit, then [a-z0-9_-], 3-30 chars total. Kept in
@@ -557,12 +561,20 @@ def _sourced_genres(*, igdb_id: int | None, name: str, from_client: list[str]) -
     a Wikipedia miss or outage, which falls back to what the client sent rather
     than failing the add.
 
+    Both of those exits carry client genres, and both put them on the
+    pipeline's spelling first. Without that, the only rows in the catalog that
+    skip normalize_genre are the hand-typed ones, and they diverge visibly:
+    prod held "Beat 'em up" and "Shoot 'em Up" side by side, and six genres
+    across sixteen games were cased the way someone typed them rather than the
+    way every other row is.
+
     Note what that does and does not buy: the two share this implementation, so
     they cannot disagree about the RULE, but each makes its own Wikipedia call,
     so a lookup that succeeds for the preview and times out for the add will
     still store something the popover did not show. Nothing short of caching
     the result fixes that, and a serverless function has nowhere to cache it.
     """
+    from_client = _normalized_from_client(from_client)
     if igdb_id is None and from_client:
         return from_client
     # Two outbound requests on the slowest add there is: a game nobody has
@@ -574,6 +586,18 @@ def _sourced_genres(*, igdb_id: int | None, name: str, from_client: list[str]) -
     # to nothing, which would then be stored as "no genres" instead of falling
     # back to what the client sent.
     return sourced or from_client
+
+
+def _normalized_from_client(genres: list[str]) -> list[str]:
+    """Client-supplied genres put on the spelling the Wikipedia path produces.
+
+    Casing only. A value normalize_genre rejects outright -- a THEME_VALUES
+    entry -- is kept as typed rather than dropped, because not silently
+    discarding what the caller sent is the reason this fallback exists. So the
+    theme block list still does not bite a hand-typed add; that is a separate
+    decision, tracked in docs/todo/genre-vocabulary-audit.md.
+    """
+    return _shaped_genres([genre_service.normalize_genre(g) or g for g in genres])
 
 
 def _shaped_genres(genres: list[str]) -> list[str]:
@@ -799,7 +823,7 @@ def _game_read_with_fresh_state(db: Session, game, meta) -> GameRead:
 
 def create_my_wishlist_item(
     db: Session, user: AuthenticatedUser, payload: WishlistCreate
-) -> WishlistGameRead:
+) -> MyWishlistGameRead:
     """Add a wishlist entry. Same shape as create_my_game: profile first (FK),
     resolve the catalog row, then a friendly dedupe 409 with the unique
     constraint as the concurrency backstop."""
@@ -852,12 +876,12 @@ def create_my_wishlist_item(
     except IntegrityError as exc:
         db.rollback()
         raise WishlistItemExistsError(payload.name) from exc
-    return to_wishlist_read(item, meta)
+    return to_my_wishlist_read(item, meta)
 
 
 def update_my_wishlist_item(
     db: Session, user: AuthenticatedUser, item_id: int, payload: WishlistUpdate
-) -> WishlistGameRead:
+) -> MyWishlistGameRead:
     """Partial edit (starred / notes / system) with the same model_fields_set
     PATCH semantics as GameUpdate. system "" clears to undecided (NULL)."""
     found = me_repo.get_wishlist_item_for_owner(db, item_id, user.id)
@@ -872,7 +896,19 @@ def update_my_wishlist_item(
     if "system" in payload.model_fields_set and payload.system is not None:
         item.system = payload.system.strip() or None
     item = me_repo.update_wishlist_item(db, item)
-    return to_wishlist_read(item, meta)
+    return to_my_wishlist_read(item, meta)
+
+
+def get_my_wishlist_item(db: Session, user: AuthenticatedUser, item_id: int) -> MyWishlistGameRead:
+    """One of the caller's own wishlist entries, notes included.
+
+    Exists because ``notes`` is not on the public read: the owner's edit form
+    has to fetch the field it is about to edit. 404 rather than 403 for someone
+    else's row, like every other /me lookup here."""
+    found = me_repo.get_wishlist_item_for_owner(db, item_id, user.id)
+    if found is None:
+        raise WishlistItemNotFoundError(item_id)
+    return to_my_wishlist_read(*found)
 
 
 def delete_my_wishlist_item(db: Session, user: AuthenticatedUser, item_id: int) -> None:

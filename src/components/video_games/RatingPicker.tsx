@@ -1,6 +1,7 @@
 "use client";
 
 import { RATINGS, type Rating } from "@/lib/games";
+import { toggleClasses } from "@/components/ui/buttonStyles";
 
 // The five-letter rating grid, shared by every surface that lets you pick one.
 //
@@ -63,9 +64,10 @@ export function RatingPicker({
                 ? "flex flex-col items-center gap-0.5 rounded-md border py-2 "
                 : "rounded-md border py-1.5 text-sm font-bold ") +
               "transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default " +
-              (active
-                ? "border-transparent text-black/80"
-                : "border-shelf-plank text-shelf-text hover:bg-shelf-input")
+              // Selected overrides the shared toggle colors with the rating's
+              // own: that color is data, and it is the whole point of the
+              // control. Only the unselected half is shared.
+              (active ? "border-transparent text-black/80" : toggleClasses(false))
             }
             // Selected: the rating's color fills the button. Unselected in the
             // compact variant: it tints the letter. The labeled variant colors

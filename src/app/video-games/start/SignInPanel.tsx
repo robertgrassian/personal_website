@@ -19,15 +19,13 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/Button";
 
 const IS_DEV = process.env.NODE_ENV === "development";
 
 const inputClass =
   "rounded-md border border-divider bg-background px-3 py-2 text-foreground " +
   "placeholder:text-subtle focus:border-link focus:outline-none";
-const primaryButtonClass =
-  "rounded-md bg-link px-4 py-2 font-medium text-background transition-opacity " +
-  "hover:opacity-90 disabled:opacity-50";
 
 function GoogleSignIn() {
   const [pending, setPending] = useState(false);
@@ -58,14 +56,15 @@ function GoogleSignIn() {
   }
 
   return (
-    <button
-      type="button"
+    <Button
+      variant="primary"
+      size="md"
       onClick={signInWithGoogle}
       disabled={pending}
-      className={`${primaryButtonClass} w-full`}
+      className="w-full"
     >
       {pending ? "Redirecting…" : "Continue with Google"}
-    </button>
+    </Button>
   );
 }
 
@@ -120,9 +119,9 @@ function MagicLinkForm() {
         onChange={(e) => setEmail(e.target.value)}
         className={inputClass}
       />
-      <button type="submit" disabled={status === "sending"} className={primaryButtonClass}>
+      <Button type="submit" variant="primary" size="md" disabled={status === "sending"}>
         {status === "sending" ? "Sending…" : "Send magic link"}
-      </button>
+      </Button>
       {status === "error" && (
         // --rating-f carries light/dark values (globals.css) — theme-aware.
         <p className="text-sm" style={{ color: "var(--rating-f)" }}>

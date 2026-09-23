@@ -12,7 +12,7 @@
 // line.
 
 import { useSearchParams } from "next/navigation";
-import { isGameView, parseView } from "./libraryConfig";
+import { parseView } from "./libraryConfig";
 
 type LibraryCountProps = {
   playedCount: number;
@@ -26,9 +26,9 @@ function Separator() {
 
 export function LibraryCount({ playedCount, wishlistCount }: LibraryCountProps) {
   const view = parseView(useSearchParams().get("view"));
-  // Nothing to headline on a people tab: the profile header states both follow
-  // counts permanently, so repeating one here would just say it twice.
-  if (!isGameView(view)) return null;
+  // The people tabs keep the played count rather than dropping the segment.
+  // Removing it re-flowed the follow links under the cursor mid-click, and the
+  // library's size is still true on those tabs, just not the thing being shown.
   const count = view === "wishlist" ? wishlistCount : playedCount;
 
   return (
@@ -40,8 +40,8 @@ export function LibraryCount({ playedCount, wishlistCount }: LibraryCountProps) 
 }
 
 // Rendered into the prerendered HTML while the real component waits for
-// useSearchParams. The played count is the default view's, so the number only
-// changes here if the URL asked for a different tab.
+// useSearchParams. The played count is what every view but wishlist shows, so
+// the number only changes here if the URL asked for that one tab.
 export function LibraryCountFallback({ playedCount }: { playedCount: number }) {
   return (
     <>

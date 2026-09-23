@@ -5,13 +5,11 @@ whole PlayedGame entities: a column would load every note on every read of a
 page that never displays one, and notes are deliberately long (20,000
 characters, vs 1,000 for a wishlist note).
 
-The UNIQUE on game_id is load-bearing beyond deduplication. It is what makes
-"one note per game" the current shape of a table that can become timestamped
-journal entries later by dropping it, and it gives the FK its index, so the
-ON DELETE CASCADE's child lookup is not a sequential scan.
+The UNIQUE on game_id is what says "one note per game", and it gives the FK
+its index, so the ON DELETE CASCADE's child lookup is not a sequential scan.
 
 Revision ID: e2b6c9a4d117
-Revises: d1a83f6c25e7
+Revises: c7f2a91b4e63
 Create Date: 2026-08-24
 """
 
@@ -20,7 +18,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "e2b6c9a4d117"
-down_revision = "d1a83f6c25e7"
+down_revision = "c7f2a91b4e63"
 branch_labels = None
 depends_on = None
 

@@ -25,6 +25,8 @@ import { fetchMyProfile } from "@/lib/meApi";
 import { getGames, getWishlist } from "@/lib/libraryApi";
 import { userLibraryPath } from "@/lib/profile";
 import "@/app/video-games/video-games.css";
+import "@/app/video-games/shelf-themes.css";
+import { ACTIVE_SHELF_THEME } from "@/lib/shelfTheme";
 import { AccountPanel } from "./AccountPanel";
 
 // Per-request (reads the session cookie) — never statically rendered.
@@ -90,7 +92,7 @@ export default async function AccountPage() {
   const wishlistCount = counts?.[1]?.length ?? null;
 
   return (
-    <main className="min-h-screen bg-shelf-bg shelf-theme">
+    <main className="min-h-screen bg-shelf-bg shelf-theme" data-shelf-theme={ACTIVE_SHELF_THEME}>
       <div className="mx-auto max-w-2xl px-6 py-16">
         <h1 className="text-2xl font-semibold text-shelf-text">Account</h1>
 
@@ -131,7 +133,7 @@ export default async function AccountPage() {
           )}
         </p>
 
-        <div className="mt-10 border-t border-shelf-plank pt-8">
+        <div className="mt-10 border-t border-shelf-border pt-8">
           <h2 className="text-lg font-semibold text-shelf-text">Delete account</h2>
           <p className="mt-2 text-sm text-shelf-text">
             This removes your account and everything in it. It cannot be undone, and it cannot be

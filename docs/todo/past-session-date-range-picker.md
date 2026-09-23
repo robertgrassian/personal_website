@@ -56,5 +56,7 @@ ground worth considering first: default "To" to the start date once "From" is se
 single-day session needs no second pick at all.
 
 **The "make it a shared component first" prerequisite is done:** `SessionDateFields` is controlled
-and stateless, holds no write of its own, and is what the "library-level create session button" item
-should render.
+and stateless, and holds no write of its own. The "library-level create session button" item that
+used to be named here shipped 2026-09-01 as the currently-playing panel
+(`CurrentlyPlayingPanel.tsx`), which starts a session from a library picker with no date form at
+all, so `SessionDateFields` is not one of its callers.

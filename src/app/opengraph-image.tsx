@@ -131,10 +131,11 @@ function VariantA({ photoSrc }: { photoSrc: string }) {
   );
 }
 
-// ─── Option B: Warm amber gradient ───────────────────────────────────────────
+// ─── Option B: Warm accent gradient ──────────────────────────────────────────
 function VariantB() {
-  // OG.accent is #b45309 = rgb(180, 83, 9) — used as the glow color so the
-  // background warmth matches the text accent exactly.
+  // The glow is the accent, so the background warmth matches the text accent
+  // exactly. Both come from OG, which follows ACTIVE_ACCENT: this variant is
+  // not currently rendered, and a hardcoded color here would quietly go stale.
   return (
     <div
       style={{
@@ -145,7 +146,7 @@ function VariantB() {
         // Glow center is pushed just below the image (110%) so the light
         // appears to rise up from beneath rather than sit in a corner.
         background:
-          "radial-gradient(ellipse 110% 80% at 50% 110%, rgba(180, 83, 9, 0.55) 0%, transparent 60%), " +
+          `radial-gradient(ellipse 110% 80% at 50% 110%, ${OG.accentGlow} 0%, transparent 60%), ` +
           "linear-gradient(180deg, #0f172a 0%, #0c0a08 100%)",
       }}
     >

@@ -67,11 +67,19 @@ class GameMetadata(Base):
     image_url: Mapped[str | None] = mapped_column(Text)
     # NULL on shared rows, set on private ones. ON DELETE SET NULL rather than
     # CASCADE: a deleted account must not take a catalog row with it, since
-    # another user's link row may since have been repointed at it.
+    # another user's link row may since have been repointed at it. This FK is
+    # the whole of the row's provenance -- there is no created_at beside it, on
+    # purpose: see the timestamp conventions in api/README.md.
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("profiles.id", ondelete="SET NULL")
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # When IGDB and Wikipedia were last asked about this row, so a read can tell
+    # a checked-yesterday row from one nobody has looked at since 2024 (see
+    # services/catalog_refresh.py). Defaults to now() on insert, which is true
+    # rather than convenient: the add path sources the row on the way in.
+    refreshed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     __table_args__ = (
         UniqueConstraint("igdb_id", name="uq_game_metadata_igdb_id"),

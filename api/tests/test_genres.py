@@ -183,6 +183,15 @@ def test_is_video_game_detects_the_template():
     assert genre_service.is_video_game("{{Infobox animanga/Header\n|title=X}}") is False
 
 
+def test_is_series_article_detects_the_franchise_variant():
+    """The two overlap on purpose: a franchise article IS a video game article,
+    so it stays eligible, and the second check only lets ranking demote it."""
+    series = "{{Infobox video game series\n|title=X}}"
+    assert genre_service.is_series_article(series) is True
+    assert genre_service.is_video_game(series) is True
+    assert genre_service.is_series_article("{{Infobox video game\n|title=X}}") is False
+
+
 # --- the search -> infobox cascade ------------------------------------------
 
 
@@ -190,7 +199,7 @@ def build_stub(search_hits, articles):
     """A _get stub: `search_hits` maps a query to article titles, `articles`
     maps an article title to its lead wikitext."""
 
-    def fake_get(url, params):
+    def fake_get(url, params, timeout=None):
         if params.get("list") == "search":
             return FakeResponse(
                 {"query": {"search": [{"title": t} for t in search_hits[params["srsearch"]]]}}
@@ -219,6 +228,11 @@ def GAME(genre):
     return "{{Infobox video game\n| genre = GENRE\n| modes = Single-player\n}}".replace(
         "GENRE", genre
     )
+
+
+def SERIES(genre):
+    """A franchise overview article: the same infobox, "series" variant."""
+    return "{{Infobox video game series\n| genre = GENRE\n}}".replace("GENRE", genre)
 
 
 MANGA = "{{Infobox animanga/Print\n| genre = [[Adventure (genre)|Adventure]]\n}}"
@@ -276,12 +290,108 @@ def test_no_game_candidate_is_a_clean_miss(monkeypatch):
     assert out["Obscure Thing"].article is None
 
 
+def test_the_title_itself_is_always_a_candidate(monkeypatch):
+    """The measured failure: an article exists under exactly the typed title and
+    the search does not return it in five hits, so no ranking rule could reach
+    it. "Call of Duty: Modern Warfare 3" resolved to the DS spinoff."""
+    title = "Call of Duty: Modern Warfare 3"
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {
+                f"{title} video game": [
+                    "Call of Duty: Modern Warfare III",
+                    "Call of Duty 4: Modern Warfare",
+                    "Call of Duty: Modern Warfare 3: Defiance",
+                ]
+            },
+            {
+                "Call of Duty: Modern Warfare III": GAME("[[First-person shooter]]"),
+                "Call of Duty 4: Modern Warfare": GAME("[[First-person shooter]]"),
+                "Call of Duty: Modern Warfare 3: Defiance": GAME("[[Run and gun]]"),
+                title: GAME("[[First-person shooter]]"),
+            },
+        ),
+    )
+    assert genre_service.lookup_many([title])[title].article == title
+
+
+def test_a_seeded_title_that_is_not_a_game_is_filtered_like_any_other(monkeypatch):
+    """The seed is a candidate, not a shortcut: it still has to carry the
+    infobox, which is what keeps a film of the same name out."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Tron video game": ["Tron (video game)"]},
+            {
+                "Tron": "{{Infobox film\n| genre = [[Science fiction]]\n}}",
+                "Tron (video game)": GAME("[[Action]]"),
+            },
+        ),
+    )
+    out = genre_service.lookup_many(["Tron"])
+    assert out["Tron"].article == "Tron (video game)"
+    assert out["Tron"].genres == ["Action"]
+
+
+def test_a_seeded_title_with_no_article_is_inert(monkeypatch):
+    """Nothing to fetch and nothing to rank: the batch drops a missing page."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Halo CE video game": ["Halo: Combat Evolved"]},
+            {"Halo: Combat Evolved": GAME("[[First-person shooter]]")},
+        ),
+    )
+    out = genre_service.lookup_many(["Halo CE"])
+    assert out["Halo CE"].article == "Halo: Combat Evolved"
+
+
+def test_the_seeded_title_survives_a_failed_search(monkeypatch):
+    """Why the seed is added in lookup_many and not in search_candidates: the
+    search is the leg that fails (Wikimedia serves HTML with a 200 often enough
+    to have its own test), and a run that loses it can still resolve every title
+    that names its own article."""
+    inner = build_stub({}, {"Hollow Knight": GAME("[[Metroidvania]]")})
+
+    def fake_get(url, params, timeout=None):
+        if params.get("list") == "search":
+            raise httpx.ConnectError("boom")
+        return inner(url, params)
+
+    monkeypatch.setattr(genre_service, "_get", fake_get)
+    out = genre_service.lookup_many(["Hollow Knight"])
+    assert out["Hollow Knight"].article == "Hollow Knight"
+    assert out["Hollow Knight"].genres == ["Metroidvania"]
+
+
+def test_a_title_containing_a_pipe_is_not_seeded(monkeypatch):
+    """Phase 2 separates titles with "|", and a seeded title is the only string
+    in that request that someone typed by hand rather than Wikipedia returning
+    it. One would silently split the batch into 51 titles."""
+    inner = build_stub({"Portal 2| video game": ["Portal 2"]}, {"Portal 2": GAME("[[Puzzle]]")})
+    requested = []
+
+    def fake_get(url, params, timeout=None):
+        if params.get("prop") == "revisions":
+            requested.extend(params["titles"].split("|"))
+        return inner(url, params)
+
+    monkeypatch.setattr(genre_service, "_get", fake_get)
+    out = genre_service.lookup_many(["Portal 2|"])
+    assert requested == ["Portal 2"]
+    assert out["Portal 2|"].article == "Portal 2"
+
+
 def test_candidate_wikitext_is_fetched_in_batches(monkeypatch):
     """Several hundred candidates across a library must not be one request
     each; MediaWiki takes 50 titles at a time."""
     calls = {"search": 0, "wikitext": 0}
 
-    def fake_get(url, params):
+    def fake_get(url, params, timeout=None):
         if params.get("list") == "search":
             calls["search"] += 1
             return FakeResponse(
@@ -313,7 +423,7 @@ def test_survives_a_malformed_search_response(monkeypatch):
     """Wikimedia can serve an HTML error page with a 200, so the failure is a
     JSON/KeyError rather than an HTTPError."""
 
-    def fake_get(url, params):
+    def fake_get(url, params, timeout=None):
         if params.get("list") == "search":
             if "Bad" in params["srsearch"]:
                 return FakeResponse({"unexpected": "shape"})
@@ -340,7 +450,7 @@ def test_survives_a_malformed_search_response(monkeypatch):
 def test_falls_back_to_wikidata_when_the_infobox_has_no_genre(monkeypatch):
     """Some articles carry the template but leave `genre` empty."""
 
-    def fake_get(url, params):
+    def fake_get(url, params, timeout=None):
         if params.get("list") == "search":
             return FakeResponse({"query": {"search": [{"title": "Ball x Pit"}]}})
         if params.get("prop") == "revisions":
@@ -694,20 +804,12 @@ def test_a_combined_article_still_wins_end_to_end(monkeypatch):
     assert out[title].genres == ["Fighting"]
 
 
-def test_a_bare_series_title_beats_its_combined_article_a_known_limitation(monkeypatch):
-    """Documents TODAY'S behaviour, and is not an endorsement of it.
-
-    Against the bare *Super Smash Bros.* the combined article loses: both leave
-    three words over ("for", "wii", "u" on one side; "nintendo", "3ds", "and" on
-    the other), so the shorter title takes it. The old rank key chose the same
-    way, so this is a pre-existing limit of a title-only rule rather than a
-    regression, and it does not occur in practice because the live search does
-    not return the bare series article for this query.
-
-    The fix is not to reorder the key, which would re-open the validated diff
-    over the fixture library. It is the follow-up recorded in TODO.md: read
-    series-ness from the {{Infobox video game series}} template already present
-    in the fetched wikitext instead of guessing at it from the title.
+def test_an_untagged_franchise_article_loses_to_the_combined_article(monkeypatch):
+    """*Super Smash Bros.* is a franchise article whose title says so nowhere, and
+    the title-only rules cannot reach it: both candidates leave three words over
+    ("for", "wii", "u" against "nintendo", "3ds", "and"), so the shorter title
+    used to take it. Reading {{Infobox video game series}} off the wikitext that
+    was fetched anyway is the signal that separates them.
     """
     title = "Super Smash Bros. for Wii U"
     monkeypatch.setattr(
@@ -722,11 +824,111 @@ def test_a_bare_series_title_beats_its_combined_article_a_known_limitation(monke
             },
             {
                 "Super Smash Bros. for Nintendo 3DS and Wii U": GAME("[[Fighting]]"),
-                "Super Smash Bros.": GAME("[[Fighting]]"),
+                "Super Smash Bros.": SERIES("[[Fighting]]"),
             },
         ),
     )
-    assert genre_service.lookup_many([title])[title].article == "Super Smash Bros."
+    out = genre_service.lookup_many([title])
+    assert out[title].article == "Super Smash Bros. for Nintendo 3DS and Wii U"
+
+
+def test_a_franchise_article_beats_a_sequel_that_does_not_match(monkeypatch):
+    """Pins the ORDER of the rank key, which no other test constrains: `exact`
+    sits above the franchise demotion, so a row named "Metroid" cannot fall
+    through to whichever sequel the search happened to return.
+
+    Note the narrow claim. This does NOT show that a franchise article named by
+    the query always wins: no candidate here strips to "Metroid" except the
+    franchise article itself. The test below covers the case where one does.
+
+    Seeding made this an everyday path rather than a rarity: the franchise
+    article is now a candidate for such a row whether or not the search returns
+    it."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Metroid video game": ["Metroid Dread", "Metroid Fusion"]},
+            {
+                "Metroid": SERIES("[[Action-adventure]]"),
+                "Metroid Dread": GAME("[[Action-adventure]], [[Platform]]"),
+                "Metroid Fusion": GAME("[[Action-adventure]]"),
+            },
+        ),
+    )
+    out = genre_service.lookup_many(["Metroid"])
+    assert out["Metroid"].article == "Metroid"
+
+
+def test_a_disambiguated_entry_beats_the_franchise_article_it_ties_with(monkeypatch):
+    """`exact` is measured with the disambiguating parenthetical stripped, so
+    *Metroid (video game)* is exact for the query "Metroid" too, and the
+    demotion is what separates the two. Sitting below `exact` does not hold it
+    off, which an earlier version of _rank_key's docstring claimed it did.
+
+    Choosing the entry is what we want: a franchise infobox aggregates genres
+    over the whole series, which is how "Star Fox" picked up Star Fox
+    Adventures\' "Action-Adventure" and "Super Smash Bros." picked up "Platform
+    Fighting" against a library row that means one game."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Metroid video game": ["Metroid (video game)", "Metroid Dread"]},
+            {
+                "Metroid": SERIES("[[Action-adventure]], [[Platform]], [[Pinball]]"),
+                "Metroid (video game)": GAME("[[Action-adventure]]"),
+                "Metroid Dread": GAME("[[Action-adventure]]"),
+            },
+        ),
+    )
+    out = genre_service.lookup_many(["Metroid"])
+    assert out["Metroid"].article == "Metroid (video game)"
+    assert out["Metroid"].genres == ["Action-Adventure"]
+
+
+def test_an_untagged_franchise_article_is_still_used_when_it_is_the_only_candidate(monkeypatch):
+    """Demoted, not rejected, on the template signal as much as on the title one.
+    Also pins the overlap: the series template must keep passing is_video_game,
+    or a franchise-only match becomes a miss instead of an approximate answer."""
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {"Super Mario Sunshine video game": ["Super Mario"]},
+            {"Super Mario": SERIES("[[Platform]]")},
+        ),
+    )
+    out = genre_service.lookup_many(["Super Mario Sunshine"])
+    assert out["Super Mario Sunshine"].article == "Super Mario"
+    assert out["Super Mario Sunshine"].genres == ["Platform"]
+
+
+def test_a_franchise_article_loses_to_the_disambiguated_game_of_the_same_name(monkeypatch):
+    """The worst case for the title rules, because the two are indistinguishable
+    by title: both strip to "The Legend of Zelda", so they tie on exactness,
+    similarity, leftover words and stripped length, and the franchise article is
+    shorter in full -- the last tiebreak, which it used to win. Wikipedia names
+    a series article after the series constantly, so this pairing is common."""
+    title = "The Legend of Zelda"
+    monkeypatch.setattr(
+        genre_service,
+        "_get",
+        build_stub(
+            {
+                f"{title} video game": [
+                    "The Legend of Zelda",
+                    "The Legend of Zelda (video game)",
+                ]
+            },
+            {
+                "The Legend of Zelda": SERIES("[[Action-adventure]]"),
+                "The Legend of Zelda (video game)": GAME("[[Action-adventure]], [[Puzzle]]"),
+            },
+        ),
+    )
+    out = genre_service.lookup_many([title])
+    assert out[title].article == "The Legend of Zelda (video game)"
 
 
 @pytest.mark.parametrize(
@@ -870,7 +1072,7 @@ def test_lookup_one_skips_the_wikidata_fallback(monkeypatch):
     lookup_many would go on to ask Wikidata."""
     urls: list[str] = []
 
-    def fake_get(url, params):
+    def fake_get(url, params, timeout=None):
         urls.append(url)
         if params.get("list") == "search":
             return FakeResponse({"query": {"search": [{"title": "Ball x Pit"}]}})
@@ -968,3 +1170,42 @@ def test_lookup_one_rejects_the_wrong_entry_in_a_series(monkeypatch):
         ),
     )
     assert genre_service.lookup_one("Octopath Traveller") == []
+
+
+def test_ref_containing_a_cite_template_does_not_truncate_the_genre_field():
+    """The real shape of a Wikipedia citation, which the older test missed.
+
+    ``<ref name=x>Cite</ref>`` has no ``{{...}}`` in it, so it never exercised
+    the interaction that matters: _INFOBOX_FIELD ends the value at any ``}}``,
+    and a ``{{cite web}}`` inside the ref closes long before the infobox does.
+
+    Both spellings of the ref tag are here because they failed differently on
+    the real articles: the unnamed one left "action-adventure<ref>cite web" as
+    a genre, while the named one carried an "=" and was dropped, losing
+    Action-Adventure entirely.
+    """
+    unnamed = (
+        "{{Infobox video game\n"
+        "| genre = [[Platformer|Platform]], [[Action-adventure game|action-adventure]]"
+        "<ref>{{cite web|url=http://example.com|title=T|date=December 8, 2017"
+        "|access-date=December 22, 2017}}</ref>\n"
+        "| modes = Single-player\n}}"
+    )
+    named = unnamed.replace("<ref>", '<ref name="dice">')
+    for text in (unnamed, named):
+        assert genre_service.parse_infobox_genres(text) == ["Platform", "action-adventure"]
+
+
+def test_a_self_closing_ref_does_not_swallow_the_rest_of_the_field():
+    """_REF ends at "/>" OR "</ref>", whichever comes first, so <ref name=x />
+    closes itself. If that alternation is ever reduced to just "</ref>", a
+    self-closing tag would run on to the next real citation anywhere later in
+    the article and take the genres in between with it.
+    """
+    text = (
+        "{{Infobox video game\n"
+        "| genre = Puzzle<ref name=x />, Platform\n"
+        "| modes = Single\n}}\n"
+        "Prose about the game.<ref>{{cite web|title=T}}</ref>"
+    )
+    assert genre_service.parse_infobox_genres(text) == ["Puzzle", "Platform"]

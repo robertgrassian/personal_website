@@ -12,7 +12,7 @@ import {
 import dynamic from "next/dynamic";
 import type { Game } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
-import { ShelfSection } from "./ShelfSection";
+import { SHELF_GROUPS } from "./shelves";
 import { FilterBar } from "./FilterBar";
 import { FilterSheet } from "./FilterSheet";
 import type { GameView } from "./libraryConfig";
@@ -24,12 +24,13 @@ import {
   groupWishlist,
   sortWishlist,
 } from "./pipeline";
-import type { PlayHistoryState } from "./usePlayHistory";
+import type { PlaySession } from "@/lib/sessions";
 import { useFilterOptions } from "./useFilterOptions";
 import { useKeepResultsInView } from "./useKeepResultsInView";
 import { useHideOnScrollDown } from "./useHideOnScrollDown";
 import type { UrlState } from "./useGameLibraryUrlState";
-import { accentButtonClass } from "./formStyles";
+import { Button } from "@/components/ui/Button";
+import { ACTIVE_SHELF_THEME } from "@/lib/shelfTheme";
 import { systemLabel } from "@/lib/games";
 
 // Loaded on demand rather than in the page bundle. The panel pulls in GameStats
@@ -41,12 +42,16 @@ const StatsPanel = dynamic(() => import("./StatsPanel").then((m) => m.StatsPanel
   ssr: false,
 });
 
+// The one place a shelf theme is chosen. Everything in this file is shared by
+// every theme -- the pipeline, the sticky chrome, the stats panel -- and a
+// theme decides only how ONE group of games is laid out. Resolved at module
+// scope because it cannot change without a reload today; when it becomes a
+// per-user setting this reads from props instead and nothing else moves.
+const ShelfGroup = SHELF_GROUPS[ACTIVE_SHELF_THEME];
+
 type GameShelvesProps = {
   games: Game[];
   wishlist: WishlistGame[];
-  // In-progress games, a subset of `games`; forwarded to the stats panel so
-  // "Recently Played" can rank them first.
-  currentlyPlayingGames: Game[];
   // The same value as `urlState.view`, narrowed to GameView: this component
   // only mounts on a shelf tab, which is the whole point of the split, and the
   // filter/group/sort machinery no longer has to opt out of itself on a tab
@@ -79,11 +84,9 @@ type GameShelvesProps = {
   // strip up there, while the panel it opens belongs down here.
   statsOpen: boolean;
   onStatsClose: () => void;
-  // Both forwarded straight to the stats panel, which is the only thing down
-  // here that reads them. Owned by GameLibrary so one copy serves every
-  // surface that shows sessions.
-  playHistory: PlayHistoryState;
-  onRequestHistory: () => void;
+  // Forwarded straight to the stats panel, the only thing down here that reads
+  // it.
+  sessions: PlaySession[];
 };
 
 // The shelf half of the library: filter chrome, the filter/group/sort pipeline,
@@ -92,7 +95,6 @@ type GameShelvesProps = {
 export function GameShelves({
   games,
   wishlist,
-  currentlyPlayingGames,
   view,
   tabs,
   canEdit,
@@ -101,8 +103,7 @@ export function GameShelves({
   onAddGame,
   statsOpen,
   onStatsClose,
-  playHistory,
-  onRequestHistory,
+  sessions,
 }: GameShelvesProps) {
   const {
     groupBy,
@@ -359,13 +360,9 @@ export function GameShelves({
             <span className="text-shelf-text-muted text-sm">
               {filteredCount} of {activeTotal} games
             </span>
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="text-shelf-text-muted text-sm underline underline-offset-2 cursor-pointer hover:text-shelf-text transition-colors"
-            >
+            <Button variant="ghost" size="md" onClick={clearFilters}>
               Clear filters
-            </button>
+            </Button>
           </div>
         )}
 
@@ -444,16 +441,9 @@ export function GameShelves({
                 } is empty.`}
               </p>
               {canAdd && (
-                <button
-                  type="button"
-                  onClick={onAddGame}
-                  // Site amber accent + text-background, the same pairing the
-                  // login button and the sign-up CTA use, so it reads correctly
-                  // in light and dark.
-                  className={`${accentButtonClass} text-sm`}
-                >
+                <Button variant="primary" size="md" className="text-sm" onClick={onAddGame}>
                   {view === "played" ? "Add your first game" : "Add your first wish"}
-                </button>
+                </Button>
               )}
             </div>
           ) : (
@@ -462,12 +452,12 @@ export function GameShelves({
             </p>
           )
         ) : (
-          // ShelfSection brings its own top margin, so this only needs to
+          // A shelf group brings its own top margin, so this only needs to
           // offset the group from the filter bar above it. Both halve on
           // phones.
           <div className="mt-3 sm:mt-6">
             {activeShelves.map((shelf) => (
-              <ShelfSection
+              <ShelfGroup
                 key={shelf.label}
                 label={groupBy === "system" ? systemLabel(shelf.label) : shelf.label}
                 games={shelf.games}
@@ -480,11 +470,10 @@ export function GameShelves({
       {view === "played" && statsMounted && (
         <StatsPanel
           games={games}
-          currentlyPlayingGames={currentlyPlayingGames}
+          wishlist={wishlist}
           isOpen={statsVisible}
           onClose={onStatsClose}
-          playHistory={playHistory}
-          onRequestHistory={onRequestHistory}
+          sessions={sessions}
         />
       )}
     </>
