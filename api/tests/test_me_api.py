@@ -24,13 +24,15 @@ from app.core.db import get_sessionmaker
 from app.main import create_app
 from app.models import GameMetadata, PlayedGame, PlaySession
 from app.services import genres as genre_service
+from app.services import igdb as igdb_service
+from app.services.igdb import IgdbCatalogGame
 from scripts.seed import ROBERT_PROFILE_ID
 
 requires_db = pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
 
 # Adding a game or a wishlist entry calls Wikipedia for any catalog row that
 # does not exist yet, which is most rows these tests create. See conftest.
-pytestmark = pytest.mark.usefixtures("stub_genre_lookup", "stub_platform_lookup")
+pytestmark = pytest.mark.usefixtures("stub_genre_lookup", "stub_igdb_lookup")
 
 # Test igdb ids start well above anything IGDB actually issues (their ids are
 # six digits at most). Since igdb_id became the catalog's identity key, a test
@@ -1030,15 +1032,31 @@ def test_add_game_minimal_manual_entry(fresh_user_with_game) -> None:
     assert isinstance(game["id"], int)
 
 
+def _igdb_game(name: str, **overrides) -> IgdbCatalogGame:
+    """An IGDB record for the stub, with the fields a test does not care about empty."""
+    fields = {"release_date": None, "platforms": [], "genres": [], "cover_url": ""}
+    return IgdbCatalogGame(name=name, **{**fields, **overrides})
+
+
+CHRONO_TRIGGER = _igdb_game(
+    "Chrono Trigger",
+    release_date=date(1995, 3, 11),
+    platforms=["Super Nintendo Entertainment System"],
+    genres=["Role-playing (RPG)", "Adventure"],
+    cover_url="https://images.igdb.com/igdb/image/upload/t_cover_big/co2mkh.jpg",
+)
+
+
 @requires_db
-def test_add_game_full_igdb_payload(fresh_user_with_game) -> None:
+def test_add_game_full_igdb_payload(fresh_user_with_game, igdb_games) -> None:
     user_id, _ = fresh_user_with_game
+    igdb_games[TEST_IGDB_BASE + 1] = CHRONO_TRIGGER
     response = client_as(user_id).post(
         "/api/library/me/games",
         json={
             "name": "Chrono Trigger",
-            "system": "SNES",
-            "genres": ["RPG", "Adventure"],
+            "system": "Super Nintendo Entertainment System",
+            "genres": ["Role-playing (RPG)", "Adventure"],
             "releaseDate": "1995-03-11",
             "imageUrl": "https://images.igdb.com/igdb/image/upload/t_cover_big/co2mkh.jpg",
             "igdbId": TEST_IGDB_BASE + 1,
@@ -1048,10 +1066,99 @@ def test_add_game_full_igdb_payload(fresh_user_with_game) -> None:
     assert response.status_code == 201
     game = response.json()
     assert game["rating"] == "Perfect"
-    # The client's genres, because stub_genre_lookup makes Wikipedia a miss.
-    assert game["genres"] == ["RPG", "Adventure"]
+    # IGDB's genres on the pipeline's spelling, since stub_genre_lookup makes
+    # Wikipedia a miss.
+    assert game["genres"] == ["Role-Playing", "Adventure"]
     assert game["releaseDate"] == "1995-03-11"
     assert game["imageUrl"].endswith("co2mkh.jpg")
+    assert game["platforms"] == ["Super Nintendo Entertainment System"]
+
+
+@requires_db
+def test_a_crafted_payload_cannot_define_a_shared_catalog_row(
+    fresh_user_with_game, igdb_games
+) -> None:
+    """The bug this guards: the first adder of an IGDB game used to name it,
+    date it and pick its cover for every later adder. Now the id is the only
+    thing read from the payload, and IGDB answers for the rest."""
+    user_id, _ = fresh_user_with_game
+    igdb_games[TEST_IGDB_BASE + 22] = CHRONO_TRIGGER
+    response = client_as(user_id).post(
+        "/api/library/me/games",
+        json={
+            "name": "anything",
+            "system": "Super Nintendo Entertainment System",
+            "genres": ["Nonsense"],
+            "releaseDate": "2001-01-01",
+            # Another real IGDB cover, which the URL validator cannot tell apart.
+            "imageUrl": "https://images.igdb.com/igdb/image/upload/t_cover_big/co0000.jpg",
+            "igdbId": TEST_IGDB_BASE + 22,
+        },
+    )
+    assert response.status_code == 201
+    game = response.json()
+    assert game["name"] == "Chrono Trigger"
+    assert game["genres"] == ["Role-Playing", "Adventure"]
+    assert game["releaseDate"] == "1995-03-11"
+    assert game["imageUrl"].endswith("co2mkh.jpg")
+
+
+@requires_db
+def test_an_igdb_id_igdb_never_issued_is_422(fresh_user_with_game, monkeypatch) -> None:
+    user_id, _ = fresh_user_with_game
+    monkeypatch.setattr(igdb_service, "fetch_catalog_game", lambda db, igdb_id: None)
+    response = client_as(user_id).post(
+        "/api/library/me/games",
+        json={"name": "Made Up", "system": "PC", "igdbId": TEST_IGDB_BASE + 23},
+    )
+    assert response.status_code == 422
+    assert _catalog_rows_for(TEST_IGDB_BASE + 23) == 0
+
+
+@requires_db
+def test_an_igdb_outage_refuses_a_new_catalog_row(fresh_user_with_game, monkeypatch) -> None:
+    """Refused rather than built from the payload, which would reopen the hole
+    for as long as IGDB is down."""
+    user_id, _ = fresh_user_with_game
+
+    def outage(db, igdb_id):
+        raise igdb_service.IgdbUpstreamError("IGDB answered 500")
+
+    monkeypatch.setattr(igdb_service, "fetch_catalog_game", outage)
+    response = client_as(user_id).post(
+        "/api/library/me/wishlist",
+        json={"name": "Down Quest", "igdbId": TEST_IGDB_BASE + 24},
+    )
+    assert response.status_code == 503
+    assert _catalog_rows_for(TEST_IGDB_BASE + 24) == 0
+
+
+@requires_db
+def test_an_existing_catalog_row_needs_no_igdb(fresh_user_with_game, monkeypatch) -> None:
+    """The common case costs nothing: the row was verified when it was created,
+    so adding it again works even with IGDB down."""
+    user_id, _ = fresh_user_with_game
+    first = client_as(user_id).post(
+        "/api/library/me/wishlist", json={"name": "Known Quest", "igdbId": TEST_IGDB_BASE + 25}
+    )
+    assert first.status_code == 201
+
+    def outage(db, igdb_id):
+        raise AssertionError("IGDB should not be asked about an existing row")
+
+    monkeypatch.setattr(igdb_service, "fetch_catalog_game", outage)
+    again = client_as(user_id).post(
+        "/api/library/me/games",
+        json={"name": "Known Quest", "system": "PC", "igdbId": TEST_IGDB_BASE + 25},
+    )
+    assert again.status_code == 201
+
+
+def _catalog_rows_for(igdb_id: int) -> int:
+    with get_sessionmaker()() as session:
+        return session.execute(
+            text("SELECT count(*) FROM game_metadata WHERE igdb_id = :g"), {"g": igdb_id}
+        ).scalar_one()
 
 
 @requires_db
@@ -1161,7 +1268,7 @@ def test_two_users_adding_the_same_igdb_game_share_one_catalog_row(fresh_auth_us
 
 
 @requires_db
-def test_same_title_via_search_then_by_hand_is_a_conflict(fresh_user_with_game) -> None:
+def test_same_title_via_search_then_by_hand_is_a_conflict(fresh_user_with_game, igdb_games) -> None:
     """The gap the (user_id, metadata_id) key cannot close on its own.
 
     A title added through IGDB search resolves to the SHARED catalog row; the
@@ -1171,6 +1278,7 @@ def test_same_title_via_search_then_by_hand_is_a_conflict(fresh_user_with_game) 
     prevented. find_game_by_name is what closes it.
     """
     user_id, _ = fresh_user_with_game
+    igdb_games[TEST_IGDB_BASE + 6] = _igdb_game("Hollow Knight")
     client = client_as(user_id)
     first = client.post(
         "/api/library/me/games",
@@ -1183,7 +1291,9 @@ def test_same_title_via_search_then_by_hand_is_a_conflict(fresh_user_with_game) 
 
 
 @requires_db
-def test_by_hand_then_the_same_title_via_search_is_a_conflict(fresh_user_with_game) -> None:
+def test_by_hand_then_the_same_title_via_search_is_a_conflict(
+    fresh_user_with_game, igdb_games
+) -> None:
     """The same gap approached from the other side, where the incoming game HAS
     an id and the narrowing is doing the work.
 
@@ -1192,6 +1302,7 @@ def test_by_hand_then_the_same_title_via_search_is_a_conflict(fresh_user_with_ga
     passes, because narrowing to id-less rows is what keeps a hand-entered
     entry in scope. Verified by making that mutation."""
     user_id, _ = fresh_user_with_game
+    igdb_games[TEST_IGDB_BASE + 10] = _igdb_game("Celeste")
     client = client_as(user_id)
     first = client.post("/api/library/me/games", json={"name": "Celeste", "system": "PC"})
     assert first.status_code == 201
@@ -1647,8 +1758,9 @@ def test_promoting_a_title_you_own_a_different_edition_of_succeeds(fresh_user_wi
 
 
 @requires_db
-def test_promote_wishlist_item(fresh_user_with_game) -> None:
+def test_promote_wishlist_item(fresh_user_with_game, igdb_games) -> None:
     user_id, _ = fresh_user_with_game
+    igdb_games[TEST_IGDB_BASE + 4] = _igdb_game("Promoted Quest")
     username = f"gamer-{str(user_id)[:8]}"
     item = _add_wishlist(
         user_id,
@@ -1675,11 +1787,17 @@ def test_promote_wishlist_item(fresh_user_with_game) -> None:
 
 
 @requires_db
-def test_promote_keeps_the_games_metadata(fresh_user_with_game) -> None:
+def test_promote_keeps_the_games_metadata(fresh_user_with_game, igdb_games) -> None:
     # Promote used to rebuild the library row from the wishlist row's own copy
     # of the metadata. Now the catalog row carries straight across, so nothing
     # can be dropped on the way.
     user_id, _ = fresh_user_with_game
+    igdb_games[TEST_IGDB_BASE + 5] = _igdb_game(
+        "Detailed Quest",
+        release_date=date(2021, 6, 1),
+        genres=["RPG", "Roguelike"],
+        cover_url="https://images.igdb.com/igdb/image/upload/t_cover_big/co9zzz.jpg",
+    )
     item = _add_wishlist(
         user_id,
         {

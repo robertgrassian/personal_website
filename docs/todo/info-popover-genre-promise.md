@@ -17,5 +17,9 @@ process. A durable cache means a table, which is a lot of machinery for a narrow
 _The cheaper answer, if it ever matters:_ let the client send the previewed genres on the POST and
 have the server use them when present. Explicitly **declined 2026-08-14** on the grounds that it
 adds a second path through the write path and lets a crafted POST pick the genres every later owner
-inherits — the same trust question as **"Anyone can define a shared catalog row for everyone"**
-Re-decide the two together, not separately.
+inherits.
+
+_Re-decided 2026-09-23, still declined._ That trust question was answered when the add path stopped
+building a new shared row from the payload: it now takes only the `igdb_id` and asks IGDB for the
+rest (`fetch_catalog_game`, `api/README.md`). Accepting client genres would be the one exception to
+that rule, so the fix, if this ever matters, has to be server-side: a durable cache of the lookup.

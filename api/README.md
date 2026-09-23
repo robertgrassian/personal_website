@@ -102,16 +102,18 @@ NULL`) are skipped, and the game's **name** is never overwritten: IGDB's title
   name is what the Wikipedia genre lookup searches on. The backfill scripts
   remain the bulk repair tools; this is the trickle that keeps an active library
   from drifting.
-- **Known gap: creating a shared row is first-write-wins and unvalidated.** Nothing checks
-  the client's `igdb_id` against IGDB, so whoever adds a given IGDB game first defines the
-  name and release date every later adder inherits — and no UI path edits a shared
-  row afterwards. `POST /me/games {"name": "anything", "igdbId": 1051}` is enough. Bounded
-  in three ways today: `MAX_USERS` is 100 and signup is capped, writes are rate-limited,
-  and `validate_igdb_image_url` restricts `image_url` to the IGDB CDN so the cover can only
-  be swapped for another real IGDB cover. Accepted for now; the fix is verifying `igdb_id`
-  against IGDB on create, which puts a network call in the write path. Tracked in `TODO.md`.
-  The private/shared split removes the need for a moderation story about _editing_, not
-  about _first creation_ — do not read it as covering both.
+- **A new shared row is built from IGDB, not from the payload.** The client's `igdb_id`
+  is the only catalog field an add takes on trust. When that id has no row yet,
+  `fetch_catalog_game` (`app/services/igdb.py`) asks IGDB for it and the row's name,
+  release date, cover, platforms and fallback genres all come from IGDB's answer (genres
+  prefer Wikipedia, looked up by IGDB's title). Otherwise whoever added a game first
+  would name it for everyone, and no UI path edits a shared row afterwards. An id IGDB
+  has never issued is a 422, and an IGDB that cannot answer is a 503 rather than a
+  fallback to the payload, which would reopen the hole for as long as IGDB is down. This
+  is the query that previously fetched only platforms, so verifying costs no extra
+  request, and an add that resolves to an existing row asks IGDB nothing. Hand-entered
+  rows are private and keep what their owner sent. The private/shared split answers who
+  may _edit_ a row; this answers who may _create_ one.
 - **One entry per game per user**, via `UNIQUE (user_id, metadata_id)` on both link
   tables. The console is a field on the entry, not part of its identity, so adding a game
   you already own on a different console is a 409 rather than a second row. Allowing two

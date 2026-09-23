@@ -78,8 +78,8 @@ export function AddGameModal({ target, existingSystems, ownedNames, onClose }: A
       // instead, with the platforms offered as suggestions on the field.
       system: r.platforms.length === 1 ? r.platforms[0] : "",
       platforms: r.platforms,
-      // Still sent, but only as the fallback: the API re-sources genres from
-      // Wikipedia when it creates the catalog row, and uses these if it misses.
+      // Sent, but a new catalog row for an IGDB game takes its genres (and
+      // name, date, cover) from IGDB and Wikipedia, never from the payload.
       genresText: r.genres.join(", "),
       releaseDate: r.releaseDate || null,
       imageUrl: r.coverUrl,

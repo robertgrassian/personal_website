@@ -21,8 +21,9 @@ so the map keys are whatever people typed and unknown systems have to degrade to
 than a wrong shop. It is also nullable by design (an entry may predate deciding which platform to
 buy on), so a good share of entries have no shop to check at all. Beyond that, a price lookup needs
 a shop-specific product id per catalog row. Matching by name is unreliable in exactly the way
-**Audit the genre vocabulary** documents, and storing one is the same "who gets to write a shared
-catalog row" question as **Anyone can define a shared catalog row for everyone**.
+**Audit the genre vocabulary** documents, and storing one raises "who gets to write a shared catalog
+row". The add path's answer (since 2026-09-23) is that no client does: a new shared row is built
+from IGDB alone, so a product id would need a server-side source too.
 
 _Sources, unverified: check before designing around any of these._ Steam has a public storefront
 endpoint returning a price overview per appid. Nintendo eShop, PlayStation Store and Xbox have no

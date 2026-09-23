@@ -8,7 +8,7 @@ Postgres tables.
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import httpx
 import pytest
@@ -556,3 +556,45 @@ def test_rate_limits_are_per_user(igdb_env, test_user) -> None:
         with sm() as session:
             session.execute(text("DELETE FROM rate_limits WHERE user_id = :id"), {"id": other_user})
             session.commit()
+
+
+# ---------------------------------------------------------------------------
+# fetch_catalog_game: what the add path builds a new shared row from
+# ---------------------------------------------------------------------------
+
+
+@requires_db
+def test_fetch_catalog_game_parses_igdbs_record(igdb_env) -> None:
+    with get_sessionmaker()() as session:
+        game = igdb_service.fetch_catalog_game(session, 1022)
+    assert game == igdb_service.IgdbCatalogGame(
+        name="The Legend of Zelda: A Link Between Worlds",
+        release_date=date(2013, 11, 22),
+        platforms=["Nintendo 3DS"],
+        genres=["Adventure", "Puzzle"],
+        cover_url="https://images.igdb.com/igdb/image/upload/t_cover_big/co3p0j.jpg",
+    )
+    assert "where id = 1022;" in igdb_env["last_body"]
+
+
+@requires_db
+def test_fetch_catalog_game_is_none_for_an_unknown_id(igdb_env) -> None:
+    igdb_env["igdb_responses"].append(httpx.Response(200, json=[]))
+    with get_sessionmaker()() as session:
+        assert igdb_service.fetch_catalog_game(session, 1022) is None
+
+
+@requires_db
+def test_fetch_catalog_game_raises_when_igdb_cannot_answer(igdb_env) -> None:
+    # Unlike the lookups that ride on a read, this must not swallow an outage:
+    # the caller refuses the add rather than trusting the payload instead.
+    igdb_env["igdb_responses"].append(httpx.Response(500))
+    with get_sessionmaker()() as session, pytest.raises(igdb_service.IgdbUpstreamError):
+        igdb_service.fetch_catalog_game(session, 1022)
+
+
+def test_fetch_catalog_game_raises_when_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "twitch_client_id", None)
+    with pytest.raises(igdb_service.IgdbNotConfiguredError):
+        igdb_service.fetch_catalog_game(None, 1022)

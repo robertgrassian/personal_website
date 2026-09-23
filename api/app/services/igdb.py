@@ -499,7 +499,7 @@ def _fetch_one_game(
     """One IGDB row by id, or None on a miss, a misconfiguration or an outage.
 
     Never raises, which is the shared rule for every lookup that rides on
-    another request (see lookup_platforms and genres.lookup_one): a third-party
+    another request (see lookup_game_facts and genres.lookup_one): a third-party
     problem must not fail the add or read that triggered it.
 
     ``deadline_timeout`` switches to the one-request budget above. Without it
@@ -529,25 +529,62 @@ def _platform_names(row: dict) -> list[str]:
     return sorted(p["name"] for p in row.get("platforms") or [] if p.get("name"))
 
 
-def lookup_platforms(db: Session, igdb_id: int) -> list[str]:
-    """Every platform IGDB lists for one game, in IGDB's own names. [] on a miss.
+@dataclass(frozen=True)
+class IgdbCatalogGame:
+    """Everything a NEW shared catalog row is built from, as IGDB states it.
 
-    For the add write path, so a catalog row carries its platforms the moment
-    it is created rather than waiting for scripts/backfill_platforms.py. Same
-    query that script runs, so the two agree and a later re-run finds nothing
-    to change -- including the sort, which is what makes "nothing to change"
-    true rather than merely likely.
-
-    Two rules borrowed from genres.lookup_one, which shares this path:
-
-      * Never raises. A third-party miss must not fail an add; the caller
-        stores [] and the read path falls back to the user's own systems.
-      * No rate limit of its own. Unlike search_games this is not a request a
-        client can aim at IGDB directly -- it rides on a write already bounded
-        by rate_limit_writes, one call per new catalog row.
+    Includes the name, unlike IgdbGameFacts: this only ever seeds a row that
+    does not exist yet, and the add form already posts IGDB's title verbatim,
+    so an honest add stores exactly what it did before. The refresh must not
+    rename a row a human may since have corrected; creation has no such row.
     """
-    row = _fetch_one_game(db, igdb_id, "fields platforms.name;", "Platform lookup")
-    return _platform_names(row) if row else []
+
+    name: str
+    release_date: date | None
+    platforms: list[str]
+    genres: list[str]
+    cover_url: str
+
+
+def fetch_catalog_game(db: Session, igdb_id: int) -> IgdbCatalogGame | None:
+    """IGDB's own record for one id, or None when IGDB has no such game.
+
+    For the add write path, which builds a new shared row from this rather
+    than from the client's payload: the id is the only thing it takes on
+    trust, and this is what checks it.
+
+    Raises, unlike the lookups around it: IgdbNotConfiguredError or
+    IgdbUpstreamError when IGDB cannot answer. The add must fail then, because
+    storing the payload instead would reopen the hole this closes. Takes the
+    reliable _run_query path, since a user is waiting on the add and a token
+    mint beats refusing it. No rate limit of its own: it rides on a write
+    already bounded by rate_limit_writes, one call per new catalog row.
+    """
+    settings = get_settings()
+    if not settings.twitch_client_id or not settings.twitch_client_secret:
+        raise IgdbNotConfiguredError()
+    # int() is what makes the interpolation safe: Apicalypse has no parameters.
+    rows = _run_query(
+        db,
+        settings,
+        "fields name, first_release_date, platforms.name, genres.name, cover.url;"
+        f" where id = {int(igdb_id)}; limit 1;",
+    )
+    # _parse_results drops a row missing its name, which is a miss here too:
+    # there would be nothing to call the game.
+    parsed = _parse_results(rows[:1])
+    if not parsed:
+        return None
+    game = parsed[0]
+    return IgdbCatalogGame(
+        name=game.name,
+        release_date=date.fromisoformat(game.release_date) if game.release_date else None,
+        # Re-derived rather than taken from `game`: this column is sorted on
+        # every path that writes it (see _platform_names).
+        platforms=_platform_names(rows[0]),
+        genres=game.genres,
+        cover_url=game.cover_url,
+    )
 
 
 def lookup_game_facts(db: Session, igdb_id: int, *, timeout: float) -> IgdbGameFacts | None:
@@ -555,9 +592,10 @@ def lookup_game_facts(db: Session, igdb_id: int, *, timeout: float) -> IgdbGameF
     miss, a misconfiguration, an outage or a cold token cache.
 
     For the staleness refresh (services/catalog_refresh.py), which needs the
-    release date and the cover as well as the platforms lookup_platforms
-    already answers -- and needs them without paying three round trips inside
-    a read someone is waiting on. Same never-raises rule as lookup_platforms.
+    release date and the cover as well as the platforms -- and needs them
+    without paying three round trips inside a read someone is waiting on.
+    Never raises: a third-party problem must not fail the read that
+    triggered it.
 
     ``timeout`` is required, not optional: this is only ever called from a path
     that has a deadline, and it bounds the whole call rather than one leg of it
