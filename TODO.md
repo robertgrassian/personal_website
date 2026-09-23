@@ -28,6 +28,11 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 ## Backlog / Ideas
 
+- [ ] **A music app at `/music`: a decade's albums as a wall of sleeves, walked genre by genre
+      along an authored path, played through Spotify.** Stateless, no accounts.<br>The game
+      library's shelf machinery is game-typed, so this first tests **Decide the routing/namespace
+      strategy**. [Details](docs/todo/music-decades-wall.md)
+
 - [ ] **The built-in shelf remounts part of every group's game cases on load**, because the first
       render puts the whole group in one bay and a layout effect re-cuts it into rows. ~35 of ~155
       cases. **Promote to Bugs if the doc's focus-loss path reproduces.**
