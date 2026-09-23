@@ -91,6 +91,9 @@ PLATFORM_CACHE_TTL = timedelta(hours=12)
 # one extra IGDB call every 12 hours is cheaper than a table and a migration.
 _platform_aliases: dict[str, tuple[int, ...]] | None = None
 _platform_aliases_expire_at: datetime | None = None
+# The exact names from the same fetch, for is_platform_name. Empty whenever
+# the aliases are, including after a failed fetch.
+_known_platform_names: frozenset[str] = frozenset()
 
 
 class IgdbNotConfiguredError(DomainError):
@@ -277,7 +280,7 @@ def _get_platform_aliases(db: Session, settings: Settings) -> dict[str, tuple[in
     """The alias map, fetched from IGDB on first use and refreshed every
     PLATFORM_CACHE_TTL. Failure is not fatal: an empty map just means the
     query goes to IGDB unsplit, which is the old behaviour."""
-    global _platform_aliases, _platform_aliases_expire_at
+    global _platform_aliases, _platform_aliases_expire_at, _known_platform_names
     now = datetime.now(UTC)
     if (
         _platform_aliases is not None
@@ -296,9 +299,11 @@ def _get_platform_aliases(db: Session, settings: Settings) -> dict[str, tuple[in
         # Cache the failure briefly so one IGDB wobble doesn't make every
         # subsequent search pay for another timeout.
         _platform_aliases = {}
+        _known_platform_names = frozenset()
         _platform_aliases_expire_at = now + timedelta(minutes=5)
         return _platform_aliases
     _platform_aliases = _build_platform_aliases(rows)
+    _known_platform_names = frozenset(row["name"] for row in rows if row.get("name"))
     _platform_aliases_expire_at = now + PLATFORM_CACHE_TTL
     return _platform_aliases
 
@@ -384,8 +389,8 @@ def _parse_results(raw: list[dict]) -> list[IgdbSearchResult]:
                     if release_ts
                     else ""
                 ),
-                platforms=[p["name"] for p in row.get("platforms") or []],
-                genres=[g["name"] for g in row.get("genres") or []],
+                platforms=[p["name"] for p in row.get("platforms") or [] if p.get("name")],
+                genres=[g["name"] for g in row.get("genres") or [] if g.get("name")],
                 cover_url=_upgrade_cover_url(cover_url),
             )
         )
@@ -529,6 +534,19 @@ def _platform_names(row: dict) -> list[str]:
     return sorted(p["name"] for p in row.get("platforms") or [] if p.get("name"))
 
 
+def is_platform_name(db: Session, name: str) -> bool | None:
+    """Whether `name` is exactly one of IGDB's platform names, or None when the
+    platform list is unavailable. Rides on the search path's 12-hour cache, so
+    a warm instance answers without a request."""
+    settings = get_settings()
+    if not settings.twitch_client_id or not settings.twitch_client_secret:
+        return None
+    _get_platform_aliases(db, settings)
+    if not _known_platform_names:
+        return None
+    return name in _known_platform_names
+
+
 @dataclass(frozen=True)
 class IgdbCatalogGame:
     """Everything a NEW shared catalog row is built from, as IGDB states it.
@@ -563,28 +581,34 @@ def fetch_catalog_game(db: Session, igdb_id: int) -> IgdbCatalogGame | None:
     settings = get_settings()
     if not settings.twitch_client_id or not settings.twitch_client_secret:
         raise IgdbNotConfiguredError()
-    # int() is what makes the interpolation safe: Apicalypse has no parameters.
-    rows = _run_query(
-        db,
-        settings,
-        "fields name, first_release_date, platforms.name, genres.name, cover.url;"
-        f" where id = {int(igdb_id)}; limit 1;",
-    )
-    # _parse_results drops a row missing its name, which is a miss here too:
-    # there would be nothing to call the game.
-    parsed = _parse_results(rows[:1])
-    if not parsed:
-        return None
-    game = parsed[0]
-    return IgdbCatalogGame(
-        name=game.name,
-        release_date=date.fromisoformat(game.release_date) if game.release_date else None,
-        # Re-derived rather than taken from `game`: this column is sorted on
-        # every path that writes it (see _platform_names).
-        platforms=_platform_names(rows[0]),
-        genres=game.genres,
-        cover_url=game.cover_url,
-    )
+    try:
+        # int() is what makes the interpolation safe: Apicalypse has no parameters.
+        rows = _run_query(
+            db,
+            settings,
+            "fields name, first_release_date, platforms.name, genres.name, cover.url;"
+            f" where id = {int(igdb_id)}; limit 1;",
+        )
+        # _parse_results drops a row missing its name, which is a miss here too:
+        # there would be nothing to call the game.
+        parsed = _parse_results(rows[:1])
+        if not parsed:
+            return None
+        game = parsed[0]
+        return IgdbCatalogGame(
+            name=game.name,
+            release_date=date.fromisoformat(game.release_date) if game.release_date else None,
+            # Re-derived rather than taken from `game`: this column is sorted on
+            # every path that writes it (see _platform_names).
+            platforms=_platform_names(rows[0]),
+            genres=game.genres,
+            cover_url=game.cover_url,
+        )
+    except (ValueError, KeyError, TypeError, AttributeError) as exc:
+        # A 200 that is not the shape asked for: non-JSON, a dict, a null where
+        # an object belongs. Unreadable is the same as unreachable to the add,
+        # which refuses with a message rather than a bare 500.
+        raise IgdbUpstreamError("IGDB sent a response that could not be read") from exc
 
 
 def lookup_game_facts(db: Session, igdb_id: int, *, timeout: float) -> IgdbGameFacts | None:

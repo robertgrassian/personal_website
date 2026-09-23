@@ -75,9 +75,10 @@ def preview_catalog_entry(
 
     A GET rather than part of the add response, because the add form shows this
     before anything is created. `genres` and `releaseDate` are what the client
-    already has from IGDB: the same fallbacks the write path would use, passed
-    in so this answers with exactly what an add would store rather than with a
-    second opinion.
+    already has from IGDB. For a new IGDB row the add re-fetches those from
+    IGDB rather than trusting them; the preview does not, so the two agree
+    exactly when the client passes a search result through unedited, as the
+    form does.
 
     The service function stays in services/me.py even though this route does
     not: it shares the genre-resolution helpers with the add path on purpose, so

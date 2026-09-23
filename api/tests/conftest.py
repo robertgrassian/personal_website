@@ -138,6 +138,8 @@ def stub_igdb_lookup(
         )
 
     monkeypatch.setattr(igdb_service, "fetch_catalog_game", fetch)
+    # "Platform list unavailable", the cautious answer, unless a test says otherwise.
+    monkeypatch.setattr(igdb_service, "is_platform_name", lambda db, name: None)
 
 
 # The module-level conveniences. httpx.Client methods are untouched on purpose,

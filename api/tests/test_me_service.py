@@ -118,8 +118,12 @@ class TestFieldsForNewCatalogRow:
         `found` what Wikipedia answers, `platforms` the platforms on IGDB's
         record, and `igdb` replaces that record outright (None is a miss)."""
 
-        def wire(*, existing=None, found=None, platforms=None, igdb=...):
+        def wire(*, existing=None, found=None, platforms=None, igdb=..., platform_name=True):
             monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: existing)
+            # Whether a console missing from IGDB's list is a real IGDB platform.
+            monkeypatch.setattr(
+                me_service.igdb_service, "is_platform_name", lambda db, name: platform_name
+            )
 
             def fake_lookup(name):
                 calls.append(name)
@@ -217,13 +221,19 @@ class TestFieldsForNewCatalogRow:
         assert calls == ["Chrono Trigger"]
 
     def test_an_existing_catalog_row_skips_the_lookup(self, stub, calls, igdb_calls):
-        # find_or_create_metadata returns the existing row untouched, so
-        # sourcing anything for it would be requests thrown away. That is also
-        # why it needs no verifying: the row was checked when it was created.
+        # The existing row is used untouched, so sourcing anything for it would
+        # be requests thrown away. That is also why it needs no verifying: the
+        # row was checked when it was created.
         stub(existing=object(), found=["Role-Playing"], platforms=["Super Nintendo"])
-        assert self.source() == ["Role-playing (RPG)"]
+        assert self.fields() is None
         assert calls == []
         assert igdb_calls == []
+
+    def test_an_existing_private_row_keeps_the_payload(self, stub, calls):
+        # Private, so the payload is safe to hand on even if the row vanished.
+        stub(existing=object(), found=["Role-Playing"])
+        assert self.source(igdb_id=None, from_client=["Farm Life Sim"]) == ["Farm Life Sim"]
+        assert calls == []
 
     def test_a_wikipedia_miss_falls_back_to_igdbs_genres(self, stub):
         """IGDB's, not the payload's, and normalized on the way through: IGDB
@@ -305,10 +315,42 @@ class TestFieldsForNewCatalogRow:
         stub(platforms=["iOS", "Mac"])
         assert self.fields(system="Nintendo Switch").platforms == []
 
+    def test_free_text_cannot_blank_a_shared_rows_platforms(self, stub):
+        """Not an IGDB platform, so it says nothing about which game the id is.
+        Otherwise any adder could empty the column for every later one."""
+        stub(platforms=["iOS", "Mac"], platform_name=False)
+        assert self.fields(system="Bogus").platforms == ["iOS", "Mac"]
+
+    def test_an_unavailable_platform_list_keeps_the_cautious_answer(self, stub):
+        stub(platforms=["iOS", "Mac"], platform_name=None)
+        assert self.fields(system="Nintendo Switch").platforms == []
+
     def test_no_recorded_console_has_nothing_to_contradict(self, stub):
         # The wishlist path, where naming a system is optional.
         stub(platforms=["iOS", "Mac"])
         assert self.fields(system=None).platforms == ["iOS", "Mac"]
+
+
+class TestCatalogRowForAdd:
+    def test_an_existing_shared_row_is_adopted_without_creating(self, monkeypatch):
+        row = object()
+        monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: row)
+
+        def create(*a, **kw):
+            raise AssertionError("an existing row must not reach find_or_create_metadata")
+
+        monkeypatch.setattr(me_service.me_repo, "find_or_create_metadata", create)
+        out = me_service._catalog_row_for_add(
+            fake_db(), user_id=uuid.uuid4(), igdb_id=1051, name="anything", sourced=None
+        )
+        assert out is row
+
+    def test_a_shared_row_deleted_mid_add_is_not_rebuilt_from_the_payload(self, monkeypatch):
+        monkeypatch.setattr(me_service.me_repo, "find_metadata", lambda db, **kw: None)
+        with pytest.raises(me_service.CatalogUnverifiedError):
+            me_service._catalog_row_for_add(
+                fake_db(), user_id=uuid.uuid4(), igdb_id=1051, name="anything", sourced=None
+            )
 
 
 class TestPreviewCatalogEntry:

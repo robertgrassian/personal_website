@@ -1104,6 +1104,47 @@ def test_a_crafted_payload_cannot_define_a_shared_catalog_row(
 
 
 @requires_db
+def test_a_crafted_wishlist_payload_cannot_define_a_shared_catalog_row(
+    fresh_user_with_game, igdb_games
+) -> None:
+    # Same rule on the wishlist path, which a later promote carries across.
+    user_id, _ = fresh_user_with_game
+    igdb_games[TEST_IGDB_BASE + 26] = CHRONO_TRIGGER
+    item = _add_wishlist(
+        user_id,
+        {"name": "anything", "releaseDate": "2001-01-01", "igdbId": TEST_IGDB_BASE + 26},
+    )
+    assert (item["name"], item["releaseDate"]) == ("Chrono Trigger", "1995-03-11")
+
+
+@requires_db
+def test_a_free_text_system_cannot_blank_a_shared_rows_platforms(
+    fresh_user_with_game, igdb_games, monkeypatch
+) -> None:
+    user_id, _ = fresh_user_with_game
+    igdb_games[TEST_IGDB_BASE + 27] = CHRONO_TRIGGER
+    monkeypatch.setattr(igdb_service, "is_platform_name", lambda db, name: False)
+    response = client_as(user_id).post(
+        "/api/library/me/games",
+        json={"name": "Chrono Trigger", "system": "Bogus", "igdbId": TEST_IGDB_BASE + 27},
+    )
+    assert response.status_code == 201
+    assert response.json()["platforms"] == ["Super Nintendo Entertainment System"]
+
+
+@requires_db
+def test_a_duplicate_is_reported_by_the_catalogs_name(fresh_user_with_game, igdb_games) -> None:
+    user_id, _ = fresh_user_with_game
+    igdb_games[TEST_IGDB_BASE + 28] = CHRONO_TRIGGER
+    client = client_as(user_id)
+    body = {"system": "PC", "igdbId": TEST_IGDB_BASE + 28}
+    assert client.post("/api/library/me/games", json={**body, "name": "x"}).status_code == 201
+    again = client.post("/api/library/me/games", json={**body, "name": "anything"})
+    assert again.status_code == 409
+    assert "Chrono Trigger" in again.json()["detail"]
+
+
+@requires_db
 def test_an_igdb_id_igdb_never_issued_is_422(fresh_user_with_game, monkeypatch) -> None:
     user_id, _ = fresh_user_with_game
     monkeypatch.setattr(igdb_service, "fetch_catalog_game", lambda db, igdb_id: None)
@@ -1112,6 +1153,7 @@ def test_an_igdb_id_igdb_never_issued_is_422(fresh_user_with_game, monkeypatch) 
         json={"name": "Made Up", "system": "PC", "igdbId": TEST_IGDB_BASE + 23},
     )
     assert response.status_code == 422
+    assert response.json()["detail"] == f"IGDB has no game with id {TEST_IGDB_BASE + 23}."
     assert _catalog_rows_for(TEST_IGDB_BASE + 23) == 0
 
 
@@ -1130,6 +1172,7 @@ def test_an_igdb_outage_refuses_a_new_catalog_row(fresh_user_with_game, monkeypa
         json={"name": "Down Quest", "igdbId": TEST_IGDB_BASE + 24},
     )
     assert response.status_code == 503
+    assert response.json()["detail"].startswith("Couldn't confirm this game with IGDB")
     assert _catalog_rows_for(TEST_IGDB_BASE + 24) == 0
 
 
