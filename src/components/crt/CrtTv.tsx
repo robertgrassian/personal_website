@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import type { Game } from "@/lib/games";
 import { systemLabel } from "@/lib/games";
+import { formatIsoDate, parseIsoDate } from "@/lib/dates";
 
 // How long each channel stays on screen before auto-advancing (ms).
 const CHANNEL_INTERVAL_MS = 7000;
@@ -23,15 +24,13 @@ const CHANNEL_INTERVAL_MS = 7000;
 const STATIC_BURST_MS = 220;
 
 // "2026-07-13" → "July 13" in the current year, "July 13, 2025" otherwise.
-// Uses UTC so the date never shifts by a timezone.
+// Long months: this is hero type, with room for "July 13".
 function formatDay(iso: string): string {
-  const date = new Date(iso + "T00:00:00Z");
-  const isCurrentYear = date.getUTCFullYear() === new Date().getUTCFullYear();
-  return date.toLocaleDateString("en-US", {
+  const isCurrentYear = parseIsoDate(iso).getUTCFullYear() === new Date().getUTCFullYear();
+  return formatIsoDate(iso, {
     month: "long",
     day: "numeric",
     year: isCurrentYear ? undefined : "numeric",
-    timeZone: "UTC",
   });
 }
 

@@ -13,7 +13,8 @@ import type { CardOrigin } from "./LibraryCardContext";
 import { GameEditFields, type CardFace } from "./GameEditFields";
 import { useGameNote } from "./useGameNote";
 import { WishlistEditFields } from "./WishlistEditFields";
-import { formatDayShort, sessionsByGame } from "@/lib/sessions";
+import { formatDayShort, formatIsoDate } from "@/lib/dates";
+import { sessionsByGame } from "@/lib/sessions";
 import type { PlaySession } from "@/lib/sessions";
 import { IconButton } from "@/components/ui/IconButton";
 import { Button } from "@/components/ui/Button";
@@ -64,13 +65,7 @@ type GameDetailCardProps = {
 function releaseLabel(iso: string): string {
   if (!iso) return "Released —";
   if (iso > localToday()) return `Releases ${formatDayShort(iso)}`;
-  const date = new Date(iso + "T00:00:00Z"); // Z = UTC, avoids local-timezone shift
-  const month = date.toLocaleDateString("en-US", {
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-  return `Released ${month}`;
+  return `Released ${formatIsoDate(iso, { month: "short", year: "numeric" })}`;
 }
 
 // The back of the game case, at reading size: what used to be a 96px text

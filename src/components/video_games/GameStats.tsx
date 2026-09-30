@@ -3,7 +3,8 @@
 import { useMemo } from "react";
 import type { Game } from "@/lib/games";
 import { RATINGS, UNRATED_LABEL, systemLabel } from "@/lib/games";
-import { formatDayShort, type PlaySession } from "@/lib/sessions";
+import { formatDayShort } from "@/lib/dates";
+import type { PlaySession } from "@/lib/sessions";
 import { compareIso } from "./pipeline";
 
 // How many rows "Recently Started" shows before deferring to the full history.

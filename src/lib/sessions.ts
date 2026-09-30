@@ -1,3 +1,5 @@
+import { formatDayShort, formatIsoDate, parseIsoDate } from "./dates.ts";
+
 /** A play session: one stretch of time you spent with a game. Mirrors
  *  `PlaySessionRead` (api/app/schemas/users.py).
  *
@@ -35,27 +37,8 @@ export function sessionsInLibrary(sessions: PlaySession[], gameIds: Set<number>)
   return sessions.filter((session) => gameIds.has(session.gameId));
 }
 
-// UTC: a bare YYYY-MM-DD parsed as local time shifts a day backwards west of
-// Greenwich.
-function parseIso(iso: string): Date {
-  return new Date(iso + "T00:00:00Z");
-}
-
 function formatDay(iso: string, withYear: boolean): string {
-  return parseIso(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    ...(withYear ? { year: "numeric" } : {}),
-    timeZone: "UTC",
-  });
-}
-
-/** "Jul 2, 2026". For a caller that has a bare date rather than a session and
- *  supplies its own label, such as the currently-playing panel's "playing
- *  since" rows. CrtTv keeps its own long-month formatter: that one is hero
- *  type with room for "July 2", this is a compact list row. */
-export function formatDayShort(iso: string): string {
-  return formatDay(iso, true);
+  return withYear ? formatDayShort(iso) : formatIsoDate(iso, { month: "short", day: "numeric" });
 }
 
 /** "Jul 2 – Jul 19, 2026", "Jul 2, 2026" for a single day, or "Since Jul 2,
@@ -73,6 +56,6 @@ export function formatSessionRange(session: PlaySession): string {
  *  the session is open. */
 export function sessionLengthDays(session: PlaySession): number | null {
   if (session.endDate === null) return null;
-  const ms = parseIso(session.endDate).getTime() - parseIso(session.startDate).getTime();
+  const ms = parseIsoDate(session.endDate).getTime() - parseIsoDate(session.startDate).getTime();
   return Math.round(ms / 86_400_000) + 1;
 }

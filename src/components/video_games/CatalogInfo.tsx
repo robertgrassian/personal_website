@@ -5,6 +5,7 @@ import { InfoIcon } from "@/components/Icon";
 import type { CatalogPreview, NewGame } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
 import { previewGameCatalog } from "@/app/video-games/actions";
+import { formatDayShort } from "@/lib/dates";
 
 type CatalogInfoProps = {
   // The draft as it would be posted. Passed whole because the API wants the
@@ -114,7 +115,7 @@ export function CatalogInfo({ game }: CatalogInfoProps) {
                 <dt className="text-[10px] uppercase tracking-wide text-shelf-label">
                   Release date
                 </dt>
-                <dd>{formatReleaseDate(preview.releaseDate)}</dd>
+                <dd>{preview.releaseDate ? formatDayShort(preview.releaseDate) : "Not known"}</dd>
               </div>
             </dl>
           )}
@@ -122,16 +123,4 @@ export function CatalogInfo({ game }: CatalogInfoProps) {
       )}
     </>
   );
-}
-
-// "2023-05-12" → "May 12, 2023". UTC-pinned like GameDetailCard's formatDate:
-// the ISO string parses as midnight UTC, a day earlier in negative offsets.
-function formatReleaseDate(iso: string | null): string {
-  if (!iso) return "Not known";
-  return new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
 }
