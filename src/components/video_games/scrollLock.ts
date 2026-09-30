@@ -83,6 +83,14 @@ export function lockScroll(): () => void {
     // Recorded now, while the page is still where the user left it, because
     // stage two needs a position from before anything could have moved it.
     lockedScrollY = window.scrollY;
+    // Hiding overflow removes a classic (space-taking) scrollbar and widens the
+    // page, shifting everything centered. Padding holds that width. Measured
+    // before the overflow change; 0 wherever scrollbars are overlays.
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    if (scrollbarWidth > 0) {
+      const padding = parseFloat(getComputedStyle(document.body).paddingRight);
+      document.body.style.paddingRight = `${padding + scrollbarWidth}px`;
+    }
     document.body.style.overflow = "hidden";
   }
 
@@ -91,7 +99,7 @@ export function lockScroll(): () => void {
     if (depth > 0) return;
     const wasOutOfFlow = outOfFlow;
     outOfFlow = false;
-    // cssText, not six assignments: it restores exactly what was there,
+    // cssText, not seven assignments: it restores exactly what was there,
     // including nothing, rather than a hardcoded default.
     document.body.style.cssText = previousBodyStyle;
     // Only if stage two ran: the browser forgot the scroll position while the
