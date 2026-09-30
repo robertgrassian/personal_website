@@ -426,3 +426,30 @@
     --shelf-divider: #3d3530;
   }
 }
+
+/* The CRT picture over a card opened from the screen (useScreenReveal). The
+   outer box fills the card's grid cell and centres the picture, whose size the
+   animation drives; at rest it is transparent and takes no taps. */
+.game-card-screen {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+.game-card-screen-picture {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  /* The tube's own background, for a game with no cover art. */
+  background: #10160f;
+}
+/* Scanlines, so the picture still reads as the TV's while it grows. */
+.game-card-screen-picture::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.35) 0 1px, transparent 1px 3px);
+}

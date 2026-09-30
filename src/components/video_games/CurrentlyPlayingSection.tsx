@@ -11,7 +11,7 @@ import { useCallback, useState } from "react";
 import dynamic from "next/dynamic";
 import type { Game } from "@/lib/games";
 import { cachedDominantColor } from "@/lib/dominant-color";
-import { CRT_CASE_ID, CrtTv, type CrtOrigin } from "@/components/crt/CrtTv";
+import { CRT_SCREEN_ID, CrtTv } from "@/components/crt/CrtTv";
 import { useIsLikelyOwner } from "./FollowControls";
 import { useGameCardOpener } from "./LibraryCardContext";
 
@@ -49,15 +49,14 @@ export function CurrentlyPlayingSection({
   // to the owner. The colour is whatever the game's shelf case already read
   // off its cover, and the card falls back to the console colour without it.
   const handleOpen = useCallback(
-    (game: Game, origin: CrtOrigin) => {
+    (game: Game) => {
       const color = cachedDominantColor(game.imageUrl);
       const opened = openGameCard(
         game.id,
         {
-          origin,
           dominantColor: color?.hex ?? null,
           isDark: color?.isDark ?? true,
-          returnTo: CRT_CASE_ID,
+          screenId: CRT_SCREEN_ID,
         },
         () => setCardOpen(false)
       );

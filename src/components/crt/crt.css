@@ -390,18 +390,6 @@
   opacity: 1;
 }
 
-/* Where a detail card opened from the screen flies from and lands. Case
-   proportions, the tube's full height, centred. Never painted. */
-.pcrt-cover-slot {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  aspect-ratio: 2 / 3;
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-
 /* Channel readout, pinned top-right. */
 .pcrt-osd--channel {
   left: auto;

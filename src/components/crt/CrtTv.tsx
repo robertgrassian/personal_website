@@ -24,13 +24,9 @@ const STATIC_BURST_MS = 220;
 // Horizontal travel that makes a drag on the screen a channel change, not a tap.
 const SWIPE_MIN_PX = 40;
 
-/** The `data-case-id` of the screen's cover-shaped slot. A detail card opened
- *  from the screen flies out of this box and back into it. */
-export const CRT_CASE_ID = "crt-screen";
-
-/** A viewport rect: structurally the library's CardOrigin, restated so crt/
- *  does not import from video_games/. */
-export type CrtOrigin = { top: number; left: number; width: number; height: number };
+/** The screen's `data-card-screen`: a detail card opened from it grows out of
+ *  this element and shrinks back into it. */
+export const CRT_SCREEN_ID = "crt-screen";
 
 // "2026-07-13" → "July 13" in the current year, "July 13, 2025" otherwise.
 // Uses UTC so the date never shifts by a timezone.
@@ -69,10 +65,9 @@ type CrtTvProps = {
   // invitation. A separate `canManage` flag would only ever be true alongside
   // this callback.
   onManage?: () => void;
-  // Makes a tap on the screen open the game on it, handing over the screen's
-  // cover slot to fly from. Without it (the standalone route, which has no
-  // card) a tap changes channel instead.
-  onOpen?: (game: Game, origin: CrtOrigin) => void;
+  // Makes a tap on the screen open the game on it. Without it (the standalone
+  // route, which has no card) a tap changes channel instead.
+  onOpen?: (game: Game) => void;
   // Holds the auto-cycle, so the game a card was opened from is still on
   // screen when the card flies back.
   paused?: boolean;
@@ -101,7 +96,6 @@ export function CrtTv({ games, compact = false, onManage, onOpen, paused = false
   // Set when a press turned out to be a swipe, so the click that some browsers
   // still fire after a drag does not also open the card.
   const swipedRef = useRef(false);
-  const coverSlotRef = useRef<HTMLDivElement>(null);
 
   const hasGames = games.length > 0;
   const hasMultiple = games.length > 1;
@@ -152,10 +146,8 @@ export function CrtTv({ games, compact = false, onManage, onOpen, paused = false
       swipedRef.current = false;
       return;
     }
-    const slot = coverSlotRef.current;
-    if (onOpen && active !== undefined && slot !== null) {
-      const r = slot.getBoundingClientRect();
-      onOpen(active, { top: r.top, left: r.left, width: r.width, height: r.height });
+    if (onOpen && active !== undefined) {
+      onOpen(active);
       return;
     }
     if (hasMultiple) stepChannel(1);
@@ -285,7 +277,7 @@ export function CrtTv({ games, compact = false, onManage, onOpen, paused = false
           <div className="pcrt-front">
             {/* Thin near-black tube mask around the curved glass. */}
             <div className="pcrt-screen-recess">
-              <div className={screenClass}>
+              <div className={screenClass} data-card-screen={onOpen ? CRT_SCREEN_ID : undefined}>
                 {/* .pcrt-picture holds the image + phosphor layers so the power-on
                     animation and screen curvature transform them as one surface. */}
                 <div className="pcrt-picture">
@@ -337,18 +329,6 @@ export function CrtTv({ games, compact = false, onManage, onOpen, paused = false
                   </span>
                 )}
 
-                {/* Invisible, cover-shaped box centred on the tube: what a card
-                    opened from the screen flies out of and back into. A portrait
-                    box rather than the 4:3 screen, because the flight scales by
-                    width and a card is shaped like a case. */}
-                {onOpen && hasGames && (
-                  <div
-                    ref={coverSlotRef}
-                    className="pcrt-cover-slot"
-                    data-case-id={CRT_CASE_ID}
-                    aria-hidden
-                  />
-                )}
                 {onOpen && hasGames && (
                   <span className="pcrt-osd pcrt-osd--hint" aria-hidden>
                     ▶ VIEW GAME

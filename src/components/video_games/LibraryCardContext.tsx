@@ -71,9 +71,9 @@ export function useLibraryCard(): LibraryCard {
 // the provider above. The card's state stays in GameLibrary, which registers
 // its opener here; this provider only relays the request up and across.
 
-/** A launch from something that is not a shelf case, so it names what the card
- *  should fly back to: the `data-case-id` of an element to land on. */
-export type ExternalCardLaunch = CardLaunch & { returnTo: string };
+/** A launch from the CRT. No origin: the card measures the screen itself, by
+ *  its `data-card-screen`, on the way in and again on the way out. */
+export type ExternalCardLaunch = Omit<CardLaunch, "origin"> & { screenId: string };
 
 type ExternalOpener = (gameId: number, launch: ExternalCardLaunch, onClosed: () => void) => void;
 

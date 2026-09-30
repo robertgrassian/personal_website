@@ -96,9 +96,9 @@ export function GameLibrary({ games, wishlist, sessions, followers, following }:
     // branch that swaps to an owned game: that swap otherwise throws the id
     // away, and Save needs it to clear the entry.
     wishlistItemId: number | null;
-    // The element to fly back to when it is not this game's shelf case: the
-    // CRT's screen. null means the shelf case.
-    returnTo: string | null;
+    // Opened from the CRT: the screen the card grows out of instead of flying
+    // from a case. null for every shelf-opened card.
+    screenId: string | null;
   };
   const [expanded, setExpanded] = useState<Expanded | null>(null);
 
@@ -173,7 +173,7 @@ export function GameLibrary({ games, wishlist, sessions, followers, following }:
         ...launch,
         startWithSession: false,
         wishlistItemId: null,
-        returnTo: null,
+        screenId: null,
       });
     },
     [cardKind]
@@ -187,15 +187,15 @@ export function GameLibrary({ games, wishlist, sessions, followers, following }:
   // Always a library game, whichever tab is showing: the CRT only ever holds
   // played games, and a wishlist tab must not turn its id into a wishlist one.
   const openFromOutside = useCallback(
-    (gameId: number, { returnTo, ...launch }: ExternalCardLaunch, onClosed: () => void) => {
+    (gameId: number, launch: ExternalCardLaunch, onClosed: () => void) => {
       externalClosedRef.current = onClosed;
       setExpanded({
         kind: "game",
         id: gameId,
+        origin: null,
         ...launch,
         startWithSession: false,
         wishlistItemId: null,
-        returnTo,
       });
     },
     []
@@ -229,7 +229,7 @@ export function GameLibrary({ games, wishlist, sessions, followers, following }:
               // from: `expandedWishlistItem` goes undefined the moment the kind
               // is "game".
               wishlistItemId: expandedWishlistItem.id,
-              returnTo: null,
+              screenId: null,
             }
     );
   }, [expandedWishlistItem, ownedInLibrary]);
@@ -450,10 +450,8 @@ export function GameLibrary({ games, wishlist, sessions, followers, following }:
             dominantColor={expanded.dominantColor}
             isDark={expanded.isDark}
             origin={expanded.origin}
-            caseId={
-              expanded.returnTo ??
-              (expanded.kind === "promote" ? null : `${expanded.kind}-${expanded.id}`)
-            }
+            caseId={expanded.kind === "promote" ? null : `${expanded.kind}-${expanded.id}`}
+            screenId={expanded.screenId}
             sessions={sessions}
             onClose={closeCard}
           />
