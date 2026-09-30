@@ -21,9 +21,6 @@ import { systemLabel } from "@/lib/games";
 const CHANNEL_INTERVAL_MS = 7000;
 // Duration of the static/noise burst shown while switching channels (ms).
 const STATIC_BURST_MS = 220;
-// A little longer when a detail card lands back on the screen, so the snow
-// reads as the signal returning rather than a flicker.
-const LANDING_BURST_MS = 320;
 // Horizontal travel that makes a drag on the screen a channel change, not a tap.
 const SWIPE_MIN_PX = 40;
 
@@ -74,19 +71,9 @@ type CrtTvProps = {
   // Holds the auto-cycle, so the game a card was opened from is still on
   // screen when the card flies back.
   paused?: boolean;
-  // Bump to flash static without changing channel: a card has just landed
-  // back on the screen. 0 on mount, which flashes nothing.
-  burstKey?: number;
 };
 
-export function CrtTv({
-  games,
-  compact = false,
-  onManage,
-  onOpen,
-  paused = false,
-  burstKey = 0,
-}: CrtTvProps) {
+export function CrtTv({ games, compact = false, onManage, onOpen, paused = false }: CrtTvProps) {
   // Which channel (game) is on screen.
   const [activeIndex, setActiveIndex] = useState(0);
   // True during the static burst between channels — drives the `.is-switching` class.
@@ -207,16 +194,6 @@ export function CrtTv({
     // every channel change (auto or manual); goToChannel is stable enough here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeIndex, resetToken, hasMultiple, reducedMotion, paused, hovering, games.length]);
-
-  // The landing burst. Its own timer rather than burstTimeoutRef, which a
-  // channel change clears and would cut this short. Reduced motion is left to
-  // crt.css, which already hides the snow during a switch.
-  useEffect(() => {
-    if (burstKey === 0) return;
-    setIsSwitching(true);
-    const id = setTimeout(() => setIsSwitching(false), LANDING_BURST_MS);
-    return () => clearTimeout(id);
-  }, [burstKey]);
 
   // Clear any pending burst timeout on unmount so we never setState afterward.
   useEffect(() => {

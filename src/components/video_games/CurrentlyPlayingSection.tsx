@@ -43,8 +43,6 @@ export function CurrentlyPlayingSection({
   const [open, setOpen] = useState(false);
   // A detail card opened from the screen is showing; the CRT holds its channel.
   const [cardOpen, setCardOpen] = useState(false);
-  // Bumped when that card has landed back on the screen, which flashes static.
-  const [landings, setLandings] = useState(0);
   const { open: openGameCard } = useGameCardOpener();
 
   // Every viewer can open a card: it shows edit fields, notes included, only
@@ -60,10 +58,7 @@ export function CurrentlyPlayingSection({
           isDark: color?.isDark ?? true,
           screenId: CRT_SCREEN_ID,
         },
-        () => {
-          setCardOpen(false);
-          setLandings((n) => n + 1);
-        }
+        () => setCardOpen(false)
       );
       if (opened) setCardOpen(true);
     },
@@ -87,7 +82,6 @@ export function CurrentlyPlayingSection({
         onManage={canManage ? () => setOpen(true) : undefined}
         onOpen={handleOpen}
         paused={cardOpen}
-        burstKey={landings}
       />
       {open && (
         <CurrentlyPlayingPanel
