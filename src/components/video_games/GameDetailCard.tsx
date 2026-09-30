@@ -9,6 +9,7 @@ import { ModalFrame } from "./ModalFrame";
 import { GameCaseBackSurface } from "./GameCaseBackSurface";
 import { GameCaseSpine } from "./GameCaseSpine";
 import { DURATION_MS, useCardFlight } from "./useCardFlight";
+import { REVEAL_OPEN_MS, useScreenReveal } from "./useScreenReveal";
 import type { CardOrigin } from "./LibraryCardContext";
 import { GameEditFields, type CardFace } from "./GameEditFields";
 import { useGameNote } from "./useGameNote";
@@ -53,6 +54,9 @@ type GameDetailCardProps = {
   // The source case, hidden while the card is out and re-measured on the way
   // back. null for a promote, which has no case.
   caseId: string | null;
+  // Opened from the CRT: the `data-card-screen` the card grows out of and
+  // shrinks back into, in place of the flip. Overrides origin and caseId.
+  screenId?: string | null;
   // Every session in the library, narrowed here to the game on screen.
   sessions: PlaySession[];
   onClose: () => void;
@@ -96,10 +100,12 @@ export function GameDetailCard({
   isDark,
   origin,
   caseId,
+  screenId = null,
   sessions,
   onClose,
 }: GameDetailCardProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const pictureRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const source = subject.kind === "game" ? subject.game : subject.item;
 
@@ -134,11 +140,17 @@ export function GameDetailCard({
   // `close` runs the return flight and calls onClose when it lands, so every
   // way out of the card — the X, Escape, the backdrop, a delete — flies back
   // rather than vanishing.
-  const { flightRef, innerRef, phase, close, closing } = useCardFlight({
-    origin,
-    caseId,
+  // Both hooks always run (hooks cannot be conditional); the one not in use
+  // is handed nulls and does nothing. With no origin the flip settles at once.
+  const flight = useCardFlight({
+    origin: screenId === null ? origin : null,
+    caseId: screenId === null ? caseId : null,
     onClosed: onClose,
   });
+  const { flightRef, innerRef, phase } = flight;
+  const reveal = useScreenReveal({ screenId, cardRef: flightRef, pictureRef, onClosed: onClose });
+  const close = screenId === null ? flight.close : reveal.close;
+  const closing = flight.closing || reveal.closing;
 
   // Every way out (the X, Escape, the backdrop) funnels through here. Moving
   // between faces needs no guard: the draft lives in the card, which outlives
@@ -175,7 +187,7 @@ export function GameDetailCard({
       // on at the click and off once the case has already landed. Only when
       // there is a flight to match: a promote has no case to fly from, so its
       // card simply appears and so does its dim.
-      backdropFadeMs={origin === null ? null : DURATION_MS}
+      backdropFadeMs={screenId !== null ? REVEAL_OPEN_MS : origin === null ? null : DURATION_MS}
       backdropFadingOut={closing}
     >
       {/* The grid item, and the element the flight translates and scales. min-w-0
@@ -411,6 +423,27 @@ export function GameDetailCard({
             </div>
           </GameCaseBackSurface>
         </div>
+        {/* The TV picture, stacked over the card in the same grid cell. It is
+            invisible at rest; useScreenReveal grows and fades it on the way in
+            and out. Same crop and image size as the CRT, so the browser
+            reuses the loaded image and the first frame matches the screen. */}
+        {screenId !== null && (
+          <div className="game-card-screen" aria-hidden>
+            <div ref={pictureRef} className="game-card-screen-picture">
+              {source.imageUrl !== "" && (
+                <Image
+                  src={source.imageUrl}
+                  alt=""
+                  fill
+                  className="object-cover [object-position:center_22%]"
+                  sizes="(max-width: 480px) 140px, 190px"
+                  // Lazy would leave the first frames blank.
+                  loading="eager"
+                />
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </ModalFrame>
   );

@@ -372,6 +372,24 @@
     pcrt-blink 2.4s 0.92s steps(2, jump-none) infinite;
 }
 
+/* "View game" hint, bottom-left, shown only while the screen is hovered or
+   focused. No blink: it answers the pointer, so it should hold still. */
+.pcrt-osd--hint {
+  top: auto;
+  bottom: 12px;
+  opacity: 0;
+  animation: none;
+  transition: opacity 0.15s ease;
+}
+@media (hover: hover) {
+  .pcrt-screen:hover .pcrt-osd--hint {
+    opacity: 1;
+  }
+}
+.pcrt-screen:has(.pcrt-screen-button:focus-visible) .pcrt-osd--hint {
+  opacity: 1;
+}
+
 /* Channel readout, pinned top-right. */
 .pcrt-osd--channel {
   left: auto;
@@ -397,8 +415,9 @@
   }
 }
 
-/* Transparent full-screen click target — advances to the next channel. Sits
-   above the (pointer-events:none) picture/glare/OSD so every click lands here. */
+/* Transparent full-screen target: opens the game on screen (or, with no card to
+   open, advances the channel). Sits above the (pointer-events:none)
+   picture/glare/OSD so every click lands here. */
 .pcrt-screen-button {
   position: absolute;
   inset: 0;
@@ -408,6 +427,9 @@
   appearance: none;
   background: transparent;
   cursor: pointer;
+  /* Vertical drags still scroll the page; horizontal ones are channel swipes. */
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
 }
 .pcrt-screen-button:focus-visible {
   outline: 2px solid var(--link);
@@ -553,7 +575,11 @@
 
 /* Channel pips — one clickable dot per game, active one filled. currentColor
    inherits the accent, so both themes are covered. */
+.pcrt-channel-pips {
+  gap: 0.5rem;
+}
 .pcrt-channel-pip {
+  position: relative;
   display: inline-block;
   width: 10px;
   height: 10px;
@@ -575,6 +601,20 @@
 .pcrt-channel-pip:focus-visible {
   outline: 2px solid var(--link);
   outline-offset: 2px;
+}
+/* A finger cannot hit a 10px dot. On touch screens the dots spread out and each
+   gets an invisible 30x44 target: half the gap to either side, so neighbours
+   never overlap, and extra height, which is free. Absolute, so the row does not
+   grow and push the compact TV down. */
+@media (pointer: coarse) {
+  .pcrt-channel-pips {
+    gap: 1.25rem;
+  }
+  .pcrt-channel-pip::before {
+    content: "";
+    position: absolute;
+    inset: -17px -10px;
+  }
 }
 
 /* ── Reduced motion ─────────────────────────────────────────────────────────

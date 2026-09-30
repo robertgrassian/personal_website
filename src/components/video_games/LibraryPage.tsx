@@ -19,6 +19,7 @@ import {
 } from "@/lib/libraryApi";
 import { GameLibrary } from "@/components/video_games/GameLibrary";
 import { CurrentlyPlayingSection } from "./CurrentlyPlayingSection";
+import { GameCardOpenerProvider } from "./LibraryCardContext";
 import { currentlyPlayingGames } from "./playingPicker";
 import { LibraryCount, LibraryCountFallback } from "@/components/video_games/LibraryCount";
 import { AuthButton } from "@/components/AuthButton";
@@ -282,18 +283,21 @@ export async function LibraryPage({
               about the viewer, which only a client component can answer.
               `games` is the SAME array GameLibrary gets below, so the two props
               share their rows in the Flight payload rather than doubling it. */}
-          <CurrentlyPlayingSection games={games} currentlyPlayingGames={playing} />
+          {/* Spans both so a tap on the CRT can open GameLibrary's detail card. */}
+          <GameCardOpenerProvider>
+            <CurrentlyPlayingSection games={games} currentlyPlayingGames={playing} />
 
-          {/* Suspense is required because GameLibrary uses useSearchParams() */}
-          <Suspense fallback={null}>
-            <GameLibrary
-              games={games}
-              wishlist={wishlist}
-              sessions={sessions}
-              followers={followers}
-              following={following}
-            />
-          </Suspense>
+            {/* Suspense is required because GameLibrary uses useSearchParams() */}
+            <Suspense fallback={null}>
+              <GameLibrary
+                games={games}
+                wishlist={wishlist}
+                sessions={sessions}
+                followers={followers}
+                following={following}
+              />
+            </Suspense>
+          </GameCardOpenerProvider>
         </div>
       </FollowStateProvider>
     </main>
