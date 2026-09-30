@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useRef, type ReactNode } from "react";
 import type { GameCaseInput } from "./GameCase";
 
 // "How does a shelf case open its detail card?" — one answer, read directly by
@@ -63,4 +63,57 @@ export function LibraryCardProvider({
 
 export function useLibraryCard(): LibraryCard {
   return useContext(LibraryCardContext);
+}
+
+// ── Opening a game's card from outside GameLibrary ─────────────────────────
+//
+// The CRT renders beside GameLibrary rather than inside it, so it cannot reach
+// the provider above. The card's state stays in GameLibrary, which registers
+// its opener here; this provider only relays the request up and across.
+
+/** A launch from something that is not a shelf case, so it names what the card
+ *  should fly back to: the `data-case-id` of an element to land on. */
+export type ExternalCardLaunch = CardLaunch & { returnTo: string };
+
+type ExternalOpener = (gameId: number, launch: ExternalCardLaunch, onClosed: () => void) => void;
+
+type GameCardOpener = {
+  /** Called by GameLibrary. Returns the unregister, for an effect cleanup. */
+  register: (opener: ExternalOpener) => () => void;
+  /** False when nothing is registered yet (GameLibrary still suspended), so
+   *  the caller knows no card, and so no `onClosed`, is coming. */
+  open: (gameId: number, launch: ExternalCardLaunch, onClosed: () => void) => boolean;
+};
+
+const GameCardOpenerContext = createContext<GameCardOpener>({
+  register: () => () => {},
+  open: () => false,
+});
+
+export function GameCardOpenerProvider({ children }: { children: ReactNode }) {
+  // A ref, not state: registering must not re-render the page, and `open`
+  // only needs whichever opener is current at the moment it is called.
+  const openerRef = useRef<ExternalOpener | null>(null);
+  const value = useMemo<GameCardOpener>(
+    () => ({
+      register: (opener) => {
+        openerRef.current = opener;
+        return () => {
+          if (openerRef.current === opener) openerRef.current = null;
+        };
+      },
+      open: (gameId, launch, onClosed) => {
+        const opener = openerRef.current;
+        if (opener === null) return false;
+        opener(gameId, launch, onClosed);
+        return true;
+      },
+    }),
+    []
+  );
+  return <GameCardOpenerContext.Provider value={value}>{children}</GameCardOpenerContext.Provider>;
+}
+
+export function useGameCardOpener(): GameCardOpener {
+  return useContext(GameCardOpenerContext);
 }

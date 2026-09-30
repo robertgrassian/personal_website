@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import type { Game } from "@/lib/games";
 import type { WishlistGame } from "@/lib/wishlist";
 import type { PlaySession } from "@/lib/sessions";
@@ -16,7 +16,13 @@ import { GameDetailCard, type CardSubject } from "./GameDetailCard";
 import { ownedKey } from "./GameSearchStep";
 import { foldForSearch } from "./pipeline";
 import type { GameCaseInput } from "./GameCase";
-import { LibraryCardProvider, type CardLaunch, type CardOrigin } from "./LibraryCardContext";
+import {
+  LibraryCardProvider,
+  useGameCardOpener,
+  type CardLaunch,
+  type CardOrigin,
+  type ExternalCardLaunch,
+} from "./LibraryCardContext";
 import { Button } from "@/components/ui/Button";
 import { TabBar } from "@/components/ui/TabBar";
 
@@ -90,6 +96,9 @@ export function GameLibrary({ games, wishlist, sessions, followers, following }:
     // branch that swaps to an owned game: that swap otherwise throws the id
     // away, and Save needs it to clear the entry.
     wishlistItemId: number | null;
+    // The element to fly back to when it is not this game's shelf case: the
+    // CRT's screen. null means the shelf case.
+    returnTo: string | null;
   };
   const [expanded, setExpanded] = useState<Expanded | null>(null);
 
@@ -164,10 +173,35 @@ export function GameLibrary({ games, wishlist, sessions, followers, following }:
         ...launch,
         startWithSession: false,
         wishlistItemId: null,
+        returnTo: null,
       });
     },
     [cardKind]
   );
+
+  // Told when a card opened from outside closes, so the CRT can resume cycling.
+  // A ref rather than a field on `expanded`: it is a callback to fire once,
+  // not something the render reads.
+  const externalClosedRef = useRef<(() => void) | null>(null);
+
+  // Always a library game, whichever tab is showing: the CRT only ever holds
+  // played games, and a wishlist tab must not turn its id into a wishlist one.
+  const openFromOutside = useCallback(
+    (gameId: number, { returnTo, ...launch }: ExternalCardLaunch, onClosed: () => void) => {
+      externalClosedRef.current = onClosed;
+      setExpanded({
+        kind: "game",
+        id: gameId,
+        ...launch,
+        startWithSession: false,
+        wishlistItemId: null,
+        returnTo,
+      });
+    },
+    []
+  );
+  const { register } = useGameCardOpener();
+  useEffect(() => register(openFromOutside), [register, openFromOutside]);
 
   // "Played?" on a wishlist card. What it becomes is decided here, because this
   // is where both collections are in hand: a game already in the library swaps
@@ -195,11 +229,17 @@ export function GameLibrary({ games, wishlist, sessions, followers, following }:
               // from: `expandedWishlistItem` goes undefined the moment the kind
               // is "game".
               wishlistItemId: expandedWishlistItem.id,
+              returnTo: null,
             }
     );
   }, [expandedWishlistItem, ownedInLibrary]);
 
-  const closeCard = useCallback(() => setExpanded(null), []);
+  const closeCard = useCallback(() => {
+    setExpanded(null);
+    const onClosed = externalClosedRef.current;
+    externalClosedRef.current = null;
+    onClosed?.();
+  }, []);
   const handleAddGame = useCallback(() => setAddOpen(true), []);
   const handleStatsOpen = useCallback(() => setStatsOpen(true), []);
   const handleStatsClose = useCallback(() => setStatsOpen(false), []);
@@ -410,7 +450,10 @@ export function GameLibrary({ games, wishlist, sessions, followers, following }:
             dominantColor={expanded.dominantColor}
             isDark={expanded.isDark}
             origin={expanded.origin}
-            caseId={expanded.kind === "promote" ? null : `${expanded.kind}-${expanded.id}`}
+            caseId={
+              expanded.returnTo ??
+              (expanded.kind === "promote" ? null : `${expanded.kind}-${expanded.id}`)
+            }
             sessions={sessions}
             onClose={closeCard}
           />

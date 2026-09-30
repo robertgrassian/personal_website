@@ -7,11 +7,13 @@
 // pulling in the library's actions and follow state.
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import dynamic from "next/dynamic";
 import type { Game } from "@/lib/games";
-import { CrtTv } from "@/components/crt/CrtTv";
+import { cachedDominantColor } from "@/lib/dominant-color";
+import { CRT_CASE_ID, CrtTv, type CrtOrigin } from "@/components/crt/CrtTv";
 import { useIsLikelyOwner } from "./FollowControls";
+import { useGameCardOpener } from "./LibraryCardContext";
 
 // Owner-only and opened on purpose, so nobody downloads it by visiting a
 // library. Same treatment GameShelves gives StatsPanel.
@@ -39,6 +41,30 @@ export function CurrentlyPlayingSection({
   // one write two different ways.
   const canManage = useIsLikelyOwner();
   const [open, setOpen] = useState(false);
+  // A detail card opened from the screen is showing; the CRT holds its channel.
+  const [cardOpen, setCardOpen] = useState(false);
+  const { open: openGameCard } = useGameCardOpener();
+
+  // Every viewer can open a card: it shows edit fields, notes included, only
+  // to the owner. The colour is whatever the game's shelf case already read
+  // off its cover, and the card falls back to the console colour without it.
+  const handleOpen = useCallback(
+    (game: Game, origin: CrtOrigin) => {
+      const color = cachedDominantColor(game.imageUrl);
+      const opened = openGameCard(
+        game.id,
+        {
+          origin,
+          dominantColor: color?.hex ?? null,
+          isDark: color?.isDark ?? true,
+          returnTo: CRT_CASE_ID,
+        },
+        () => setCardOpen(false)
+      );
+      if (opened) setCardOpen(true);
+    },
+    [openGameCard]
+  );
 
   // A visitor looking at a library with nothing in progress still gets no set,
   // exactly as before. The owner gets one so there is something to press.
@@ -55,6 +81,8 @@ export function CurrentlyPlayingSection({
         games={currentlyPlayingGames}
         compact
         onManage={canManage ? () => setOpen(true) : undefined}
+        onOpen={handleOpen}
+        paused={cardOpen}
       />
       {open && (
         <CurrentlyPlayingPanel
