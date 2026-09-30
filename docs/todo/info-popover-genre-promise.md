@@ -4,7 +4,7 @@ _Section: **Bugs** &middot; index: [`TODO.md`](../../TODO.md)_
 
 Found in the code review of this branch (2026-08-14) and accepted as a known limit rather than
 fixed. The popover (`CatalogInfo`) and the add itself go through the same decision
-(`_sourced_genres` in `api/app/services/me.py`), so they cannot disagree about the **rule** — but
+(`_sourced_genres` in `api/app/services/catalog_sourcing.py`), so they cannot disagree about the **rule** — but
 each makes its own `lookup_one` call. Wikipedia answering the preview and timing out during the POST
 means the popover showed "Metroidvania" and the catalog row got IGDB's coarse fallback. Rare (it
 needs the lookup to succeed and then fail seconds later) and self-limiting (the genres are wrong,

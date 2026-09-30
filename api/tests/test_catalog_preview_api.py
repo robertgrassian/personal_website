@@ -20,8 +20,8 @@ from fastapi.testclient import TestClient
 from app.core.auth import AuthenticatedUser, get_current_user
 from app.core.db import get_db
 from app.main import create_app
-from app.routers import me as me_router
 from app.schemas.me import CatalogPreview
+from app.services import catalog_sourcing
 
 PREVIEW_URL = "/api/library/game-catalog/preview"
 
@@ -45,7 +45,7 @@ def client(monkeypatch, captured):
         captured.update(kwargs)
         return CatalogPreview(genres=["Role-Playing"], release_date=None)
 
-    monkeypatch.setattr(me_router.me_service, "preview_catalog_entry", fake_preview)
+    monkeypatch.setattr(catalog_sourcing, "preview_catalog_entry", fake_preview)
     return TestClient(app)
 
 
