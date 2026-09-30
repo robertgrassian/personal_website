@@ -437,6 +437,8 @@ export function GameDetailCard({
                   fill
                   className="object-cover [object-position:center_22%]"
                   sizes="(max-width: 480px) 140px, 190px"
+                  // Lazy would leave the first frames blank.
+                  loading="eager"
                 />
               )}
             </div>

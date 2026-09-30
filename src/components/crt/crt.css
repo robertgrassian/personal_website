@@ -415,8 +415,9 @@
   }
 }
 
-/* Transparent full-screen click target — advances to the next channel. Sits
-   above the (pointer-events:none) picture/glare/OSD so every click lands here. */
+/* Transparent full-screen target: opens the game on screen (or, with no card to
+   open, advances the channel). Sits above the (pointer-events:none)
+   picture/glare/OSD so every click lands here. */
 .pcrt-screen-button {
   position: absolute;
   inset: 0;

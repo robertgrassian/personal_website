@@ -82,7 +82,7 @@ export function CrtTv({ games, compact = false, onManage, onOpen, paused = false
   // its countdown — a click shouldn't be followed immediately by an auto-flip.
   const [resetToken, setResetToken] = useState(0);
   // Mirrors the OS "reduce motion" setting; when true we skip the static burst
-  // and don't auto-cycle (the pips/screen click still work, they just swap instantly).
+  // and don't auto-cycle (swipes, keys and pips still work, they just swap instantly).
   const [reducedMotion, setReducedMotion] = useState(false);
   // A mouse is over the screen. Pauses the cycle so the game cannot change
   // between aiming a click and landing it. Touch has no hover, so never sets it.
@@ -147,6 +147,10 @@ export function CrtTv({ games, compact = false, onManage, onOpen, paused = false
       return;
     }
     if (onOpen && active !== undefined) {
+      // A switch still bursting would land under the card and change the game
+      // it flies back to. Stay on the one that was opened.
+      if (burstTimeoutRef.current) clearTimeout(burstTimeoutRef.current);
+      setIsSwitching(false);
       onOpen(active);
       return;
     }
@@ -174,6 +178,9 @@ export function CrtTv({ games, compact = false, onManage, onOpen, paused = false
   }
 
   function handleScreenKeyDown(e: React.KeyboardEvent) {
+    // A touch swipe usually fires no click to consume the flag, and Enter or
+    // Space here would otherwise be swallowed as that click.
+    swipedRef.current = false;
     if (!hasMultiple) return;
     if (e.key === "ArrowRight") stepChannel(1);
     else if (e.key === "ArrowLeft") stepChannel(-1);
@@ -347,7 +354,9 @@ export function CrtTv({ games, compact = false, onManage, onOpen, paused = false
                     onKeyDown={handleScreenKeyDown}
                     onPointerDown={handlePointerDown}
                     onPointerUp={handlePointerUp}
-                    onPointerCancel={() => (pressStartRef.current = null)}
+                    onPointerCancel={() => {
+                      pressStartRef.current = null;
+                    }}
                     onPointerEnter={(e) => e.pointerType === "mouse" && setHovering(true)}
                     onPointerLeave={() => setHovering(false)}
                     aria-label={onOpen ? `View details for ${active!.name}` : "Next game"}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { pinCard, prefersReducedMotion, unpinCard } from "./useCardFlight";
 
 // The detail card's entrance and exit when it is opened from the CRT rather
 // than a shelf case.
@@ -23,10 +24,6 @@ const PICTURE_BLUR = "blur(14px)";
 
 function findScreen(screenId: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-card-screen="${CSS.escape(screenId)}"]`);
-}
-
-function prefersReducedMotion(): boolean {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 type ScreenWindow = { transform: string; clipPath: string; width: number; height: number };
@@ -87,6 +84,9 @@ export function useScreenReveal({ screenId, cardRef, pictureRef, onClosed }: Use
     }
     const rect = card.getBoundingClientRect();
     const from = screenWindow(screen, rect);
+    // No taps while it moves. The window starts under the finger, so a double
+    // tap's second tap would otherwise land on whatever control is centred.
+    card.style.pointerEvents = "none";
     const timing = { duration: REVEAL_OPEN_MS, easing: EASING, fill: "forwards" as FillMode };
     const move = card.animate(
       [
@@ -113,11 +113,13 @@ export function useScreenReveal({ screenId, cardRef, pictureRef, onClosed }: Use
         openRef.current = true;
         move.cancel();
         fade.cancel();
+        card.style.pointerEvents = "";
       })
       .catch(() => {});
     return () => {
       move.cancel();
       fade.cancel();
+      card.style.pointerEvents = "";
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -145,14 +147,8 @@ export function useScreenReveal({ screenId, cardRef, pictureRef, onClosed }: Use
     // the layout viewport mid-animation, which would re-centre the card under
     // a transform measured before it moved.
     const before = card.getBoundingClientRect();
-    card.style.position = "fixed";
-    card.style.top = `${before.top}px`;
-    card.style.left = `${before.left}px`;
-    card.style.width = `${before.width}px`;
-    card.style.height = `${before.height}px`;
-    card.style.maxWidth = "none";
-    card.style.maxHeight = "none";
-    card.style.margin = "0";
+    pinCard(card, before);
+    card.style.pointerEvents = "none";
 
     const rect = card.getBoundingClientRect();
     const to = screenWindow(screen, rect);
@@ -178,6 +174,8 @@ export function useScreenReveal({ screenId, cardRef, pictureRef, onClosed }: Use
     return () => {
       move.cancel();
       fade.cancel();
+      unpinCard(card);
+      card.style.pointerEvents = "";
     };
   }, [closing, screenId, cardRef, pictureRef]);
 

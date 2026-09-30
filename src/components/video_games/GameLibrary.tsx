@@ -290,6 +290,13 @@ export function GameLibrary({ games, wishlist, sessions, followers, following }:
     return id !== null && wishlist.some((item) => item.id === id) ? id : null;
   }, [expanded, wishlist]);
 
+  // A CRT-opened card whose game vanished (Remove revalidates it away) unmounts
+  // without closeCard running, which would leave the CRT paused for good. Keyed
+  // on screenId so the promote handoff's deliberate wait for its row is untouched.
+  useEffect(() => {
+    if (expanded?.screenId != null && cardSubject === null) closeCard();
+  }, [expanded, cardSubject, closeCard]);
+
   const existingSystems = useMemo(() => [...new Set(games.map((g) => g.system))].sort(), [games]);
 
   // What the add-game search already has, so a result can say so instead of
