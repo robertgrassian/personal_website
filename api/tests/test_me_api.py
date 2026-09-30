@@ -1860,6 +1860,26 @@ def test_promote_keeps_the_games_metadata(fresh_user_with_game, igdb_games) -> N
 
 
 @requires_db
+def test_promote_carries_the_wishlist_note_to_the_game(fresh_user_with_game) -> None:
+    user_id, _ = fresh_user_with_game
+    client = client_as(user_id)
+    noted = _add_wishlist(
+        user_id, {"name": "Noted Quest", "system": "PS5", "notes": "wait for a sale"}
+    )
+    blank = _add_wishlist(user_id, {"name": "Blank Quest", "system": "PS5", "notes": "   "})
+
+    game = client.post(f"/api/library/me/wishlist/{noted['id']}/promote", json={}).json()
+    note = client.get(f"/api/library/me/games/{game['id']}/note").json()
+    assert note["body"] == "wait for a sale"
+    assert note["updatedAt"] is not None  # a real row, not the empty default
+
+    # A blank wishlist note writes no row, the same as a blank PUT.
+    game = client.post(f"/api/library/me/wishlist/{blank['id']}/promote", json={}).json()
+    note = client.get(f"/api/library/me/games/{game['id']}/note").json()
+    assert note == {"body": "", "updatedAt": None}
+
+
+@requires_db
 def test_promote_payload_system_wins(fresh_user_with_game) -> None:
     # Wishlisted for PS5, bought on Switch: the request's system wins.
     user_id, _ = fresh_user_with_game
