@@ -17,6 +17,9 @@ const REVEAL_CLOSE_MS = 380;
 const EASING = "cubic-bezier(0.2, 0.7, 0.3, 1)";
 // The card's own corners, rounded-lg.
 const CARD_RADIUS = "0.5rem";
+// How soft the TV picture gets before it hands over to the card's own blurred
+// cover. Reached early, so the card never reads as settling and then blurring.
+const PICTURE_BLUR = "blur(14px)";
 
 function findScreen(screenId: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-card-screen="${CSS.escape(screenId)}"]`);
@@ -94,12 +97,14 @@ export function useScreenReveal({ screenId, cardRef, pictureRef, onClosed }: Use
     );
     // Width and height rather than a scale, so the cover re-crops as it grows
     // instead of stretching. One small absolutely positioned box, so the
-    // per-frame layout is cheap.
+    // per-frame layout is cheap. Blurred by 40% and gone by 70%, so the last
+    // stretch of the grow is already the card as it will rest.
     const fade = picture.animate(
       [
-        { width: `${from.width}px`, height: `${from.height}px`, opacity: 1 },
-        { opacity: 0.85, offset: 0.35 },
-        { width: `${rect.width}px`, height: `${rect.height}px`, opacity: 0 },
+        { width: `${from.width}px`, height: `${from.height}px`, opacity: 1, filter: "blur(0px)" },
+        { opacity: 0.9, filter: PICTURE_BLUR, offset: 0.4 },
+        { opacity: 0, filter: PICTURE_BLUR, offset: 0.7 },
+        { width: `${rect.width}px`, height: `${rect.height}px`, opacity: 0, filter: PICTURE_BLUR },
       ],
       timing
     );
@@ -161,9 +166,9 @@ export function useScreenReveal({ screenId, cardRef, pictureRef, onClosed }: Use
     );
     const fade = picture.animate(
       [
-        { width: `${rect.width}px`, height: `${rect.height}px`, opacity: 0 },
-        { opacity: 0.85, offset: 0.65 },
-        { width: `${to.width}px`, height: `${to.height}px`, opacity: 1 },
+        { width: `${rect.width}px`, height: `${rect.height}px`, opacity: 0, filter: PICTURE_BLUR },
+        { opacity: 0.9, filter: PICTURE_BLUR, offset: 0.35 },
+        { width: `${to.width}px`, height: `${to.height}px`, opacity: 1, filter: "blur(0px)" },
       ],
       timing
     );
