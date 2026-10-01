@@ -22,7 +22,7 @@
 // --test loads this module for queryTables.test.ts and resolves real paths, so
 // a runtime import through the alias would fail there. Same reason as
 // playingPicker.ts. tsconfig's allowImportingTsExtensions covers it.
-import { RATINGS, type Game } from "../../lib/games.ts";
+import { RATINGS, ratingScore, type Game } from "../../lib/games.ts";
 import type { WishlistGame } from "../../lib/wishlist.ts";
 import { sessionLengthDays, type PlaySession } from "../../lib/sessions.ts";
 import { baseGameGenres } from "../../lib/baseGame.ts";
@@ -90,11 +90,7 @@ export type QueryTables = {
 
 // --- Row builders ---
 
-// RATINGS is ordered best to worst, so the index IS the rank: S=4 down to F=0.
-// Derived rather than written out, so adding a sixth grade cannot leave the
-// numeric scale behind.
 const RATING_LETTER = new Map(RATINGS.map((r) => [r.name, r.letter]));
-const RATING_VALUE = new Map(RATINGS.map((r, i) => [r.name, RATINGS.length - 1 - i]));
 
 /** "" (the wire format's "unknown") to NULL (SQL's). */
 function nullable(value: string): string | null {
@@ -138,7 +134,7 @@ function toGameRow(game: Game, played: PlayAggregate | undefined): GameRow {
     name: game.name,
     system: game.system,
     rating: game.rating === "" ? null : (RATING_LETTER.get(game.rating) ?? null),
-    rating_value: game.rating === "" ? null : (RATING_VALUE.get(game.rating) ?? null),
+    rating_value: ratingScore(game.rating),
     genres: game.genres.join(", "),
     platforms: game.platforms.join(", "),
     release_date: nullable(game.releaseDate),

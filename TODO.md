@@ -153,10 +153,6 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 - [ ] Dark mode toggle
 
-- [ ] Stats page: **average rating** per genre, per console, per decade. The _count_ rankings
-      already ship ("Top Genres", systems and decades in `GameStats.tsx`); what is missing is any
-      cut weighted by rating rather than by how many games are in the bucket.
-
 - [ ] Movie library want to watch list, maybe a whole movie's seen section too...
 
 - [ ] Book library, similar to the movie library idea. Raises whether the route becomes `/library`

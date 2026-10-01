@@ -22,3 +22,11 @@ export interface BaseGame {
 export function baseGameGenres(game: BaseGame): string[] {
   return game.genres.length > 0 ? game.genres : ["Unknown"];
 }
+
+// "1990s" for a 1990s release; null when the date is missing or before 1970.
+// Shared by the decade shelf grouping and the stats panel.
+export function decadeOf(releaseDate: string): string | null {
+  const year = parseInt(releaseDate.slice(0, 4));
+  if (isNaN(year) || year < 1970) return null;
+  return `${Math.floor(year / 10) * 10}s`;
+}
