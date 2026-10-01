@@ -141,3 +141,28 @@ dev` proxies it to uvicorn on :8000; in production Vercel routes it to the
   is currently DEPLOYED, so the build shipping a prefix rename asks a production
   that has not got the new one yet, and failing there fails the build, which
   stops the new API deploying, which fails the next build the same way.
+
+## Authentication
+
+Google (OpenID Connect) via Supabase Auth, which owns the user store and mints
+the session token: a signed JWT (ES256). Authorization is the FastAPI backend's
+job, not Supabase's. It verifies the JWT locally against Supabase's JWKS
+endpoint, with no per-request round-trip, and enforces access in application
+code: reads public, writes owner-only (`jwt.sub == row.user_id`). Row-Level
+Security is deliberately unused, because the browser never talks to Postgres and
+FastAPI is its only client. Local sign-in uses magic links captured by Mailpit
+instead of Google.
+
+## Design decisions
+
+Play state and per-viewer UI are covered under the cross-cutting notes above.
+
+| Decision                                  | Why                                                                                                                                           |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **All libraries public**                  | No private-library setting, which is what lets pages be statically cached and shared across viewers.                                          |
+| **A shared catalog, plus per-user rows**  | `game_metadata` holds the game; per-user tables hold only what differs between people. Two owners of one game can never disagree about it.    |
+| **`/video-games` stays Robert's library** | Its URL never moved, so existing links keep working, and it doubles as the logged-out demo.                                                   |
+| **The build fails on an unreachable API** | `/video-games` prerenders from the API, and there is no fallback: a fallback ships a plausible-looking empty library instead of a loud error. |
+
+How a shared catalog row stays accurate after it is written is
+[`catalog-refresh.md`](catalog-refresh.md).

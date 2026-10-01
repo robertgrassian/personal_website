@@ -42,7 +42,15 @@ which is where the reference documentation lives.
 npm run lint                            # ESLint (frontend)
 cd api && uv run ruff check .           # Python lint + import order
 cd api && uv run pytest                 # Python tests
+npm test                                # frontend tests (node --test)
 ```
+
+`npm run build` needs the API running, because `/video-games` prerenders from
+it. `npm run grain` re-bakes the shelf's wood-grain tiles from
+`scripts/wood-grain/tiles/`.
+
+Local sign-in uses magic links, which land in [Mailpit](http://127.0.0.1:54324)
+rather than a real inbox.
 
 ## Database
 

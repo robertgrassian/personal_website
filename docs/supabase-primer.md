@@ -5,7 +5,7 @@ backend-as-a-service — is that how we'd use it? And if so, why have a Python b
 instead of calling Supabase from the frontend?"_ The answer it argues for is the one the site
 shipped: Supabase as managed Postgres plus Auth, with FastAPI as the only database client.
 Kept because the reasoning is still load-bearing and gets re-asked. For what was actually
-built, see the Authentication and Design decisions sections of the root `README.md`, and
+built, see the Authentication and Design decisions sections of [`architecture.md`](architecture.md), and
 `api/README.md` for the data model.
 
 ## 1. What Supabase actually is
