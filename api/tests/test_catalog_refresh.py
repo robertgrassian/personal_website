@@ -260,7 +260,12 @@ class TestRefreshStaleRows:
             raise AssertionError("a fresh library must not reach a third party")
 
         monkeypatch.setattr(igdb_service, "lookup_game_facts", explode)
-        refresh_stale_rows(FakeSession(), [make_row(), make_row(id=2)])
+        # The real clock, not NOW: refresh_stale_rows reads it, so a row pinned
+        # to a fixed date goes stale once that date is STALE_AFTER behind.
+        fresh = datetime.now(UTC)
+        refresh_stale_rows(
+            FakeSession(), [make_row(refreshed_at=fresh), make_row(id=2, refreshed_at=fresh)]
+        )
         assert stub_repo["claimed"] == []
 
     def test_a_spent_budget_drops_the_genre_leg_rather_than_the_row(
