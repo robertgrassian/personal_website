@@ -403,6 +403,12 @@ def promote_wishlist_item(db: Session, item: WishlistGame, *, system: str) -> Pl
         rating=None,
     )
     db.add(game)
+    # The wishlist note becomes the library game's note, in the same commit.
+    # Blank writes no row, matching set_my_game_note's one "no note" shape;
+    # the 1,000-char wishlist cap is well under MAX_NOTE_LENGTH, so it fits.
+    if item.notes.strip():
+        db.flush()  # assigns game.id for the FK
+        db.add(GameNote(game_id=game.id, body=item.notes))
     db.delete(item)
     db.commit()
     db.refresh(game)

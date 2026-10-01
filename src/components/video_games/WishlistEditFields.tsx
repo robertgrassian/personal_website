@@ -93,12 +93,23 @@ export function WishlistEditFields({
   const canSave = (starredDirty || notesDirty || systemDirty) && !isPending;
 
   const save = () => {
-    run(() =>
-      updateWishlistItem(item.id, {
-        ...(starredDirty ? { starred: starredDraft } : {}),
-        ...(notesDirty ? { notes: notesValue } : {}),
-        ...(systemDirty ? { system: systemDraft.trim() } : {}),
-      })
+    run(
+      () =>
+        updateWishlistItem(item.id, {
+          ...(starredDirty ? { starred: starredDraft } : {}),
+          ...(notesDirty ? { notes: notesValue } : {}),
+          ...(systemDirty ? { system: systemDraft.trim() } : {}),
+        }),
+      {
+        // Starred and system compare against `item`, which revalidation
+        // refreshes. Notes compare against savedNotes, which nothing re-fetches,
+        // so the new baseline is set here or Save stays lit after a notes save.
+        onSuccess: () => {
+          if (!notesDirty) return;
+          setSavedNotes(notesValue);
+          setNotesDraft(null);
+        },
+      }
     );
   };
 

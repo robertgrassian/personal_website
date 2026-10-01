@@ -41,7 +41,7 @@ type UseCardFlightArgs = {
   onClosed: () => void;
 };
 
-function prefersReducedMotion(): boolean {
+export function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
@@ -67,6 +67,38 @@ function keepFramesFlowing(): () => void {
     raf = requestAnimationFrame(tick);
   });
   return () => cancelAnimationFrame(raf);
+}
+
+/** Takes the card out of the frame's grid into a fixed px box, so nothing the
+ *  viewport does mid-close can re-centre it (see the inbound flight). */
+export function pinCard(
+  card: HTMLElement,
+  box: { top: number; left: number; width: number; height: number }
+) {
+  card.style.position = "fixed";
+  card.style.top = `${box.top}px`;
+  card.style.left = `${box.left}px`;
+  card.style.width = `${box.width}px`;
+  card.style.height = `${box.height}px`;
+  card.style.maxWidth = "none";
+  card.style.maxHeight = "none";
+  card.style.margin = "0";
+}
+
+/** Undoes pinCard, for a close that was cancelled rather than landing. */
+export function unpinCard(card: HTMLElement) {
+  for (const prop of [
+    "position",
+    "top",
+    "left",
+    "width",
+    "height",
+    "maxWidth",
+    "maxHeight",
+    "margin",
+  ] as const) {
+    card.style[prop] = "";
+  }
 }
 
 function findCase(caseId: string | null): HTMLElement | null {
@@ -278,15 +310,9 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
     card.style.maxHeight = "none";
     const height = (rect.height * before.width) / rect.width;
 
-    card.style.position = "fixed";
     // The top edge, not the centre: the card grows downward from where it
     // already is rather than jumping up to meet its own new middle.
-    card.style.top = `${before.top}px`;
-    card.style.left = `${before.left}px`;
-    card.style.width = `${before.width}px`;
-    card.style.height = `${height}px`;
-    card.style.maxWidth = "none";
-    card.style.margin = "0";
+    pinCard(card, { top: before.top, left: before.left, width: before.width, height });
 
     // Re-read rather than assume: this is the pinned box, and it is what the
     // animation below has to be measured against.
@@ -321,14 +347,7 @@ export function useCardFlight({ origin, caseId, onClosed }: UseCardFlightArgs) {
       // Only reached if the close was cancelled rather than landing, and
       // whatever runs next has to measure a card that is back in the frame's
       // grid.
-      card.style.position = "";
-      card.style.top = "";
-      card.style.left = "";
-      card.style.width = "";
-      card.style.height = "";
-      card.style.maxWidth = "";
-      card.style.maxHeight = "";
-      card.style.margin = "";
+      unpinCard(card);
     };
   }, [closing, caseId]);
 

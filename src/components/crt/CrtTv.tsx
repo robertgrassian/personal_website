@@ -22,6 +22,12 @@ import { formatIsoDate, parseIsoDate } from "@/lib/dates";
 const CHANNEL_INTERVAL_MS = 7000;
 // Duration of the static/noise burst shown while switching channels (ms).
 const STATIC_BURST_MS = 220;
+// Horizontal travel that makes a drag on the screen a channel change, not a tap.
+const SWIPE_MIN_PX = 40;
+
+/** The screen's `data-card-screen`: a detail card opened from it grows out of
+ *  this element and shrinks back into it. */
+export const CRT_SCREEN_ID = "crt-screen";
 
 // "2026-07-13" → "July 13" in the current year, "July 13, 2025" otherwise.
 // Long months: this is hero type, with room for "July 13".
@@ -58,9 +64,15 @@ type CrtTvProps = {
   // invitation. A separate `canManage` flag would only ever be true alongside
   // this callback.
   onManage?: () => void;
+  // Makes a tap on the screen open the game on it. Without it (the standalone
+  // route, which has no card) a tap changes channel instead.
+  onOpen?: (game: Game) => void;
+  // Holds the auto-cycle, so the game a card was opened from is still on
+  // screen when the card flies back.
+  paused?: boolean;
 };
 
-export function CrtTv({ games, compact = false, onManage }: CrtTvProps) {
+export function CrtTv({ games, compact = false, onManage, onOpen, paused = false }: CrtTvProps) {
   // Which channel (game) is on screen.
   const [activeIndex, setActiveIndex] = useState(0);
   // True during the static burst between channels — drives the `.is-switching` class.
@@ -69,12 +81,20 @@ export function CrtTv({ games, compact = false, onManage }: CrtTvProps) {
   // its countdown — a click shouldn't be followed immediately by an auto-flip.
   const [resetToken, setResetToken] = useState(0);
   // Mirrors the OS "reduce motion" setting; when true we skip the static burst
-  // and don't auto-cycle (the pips/screen click still work, they just swap instantly).
+  // and don't auto-cycle (swipes, keys and pips still work, they just swap instantly).
   const [reducedMotion, setReducedMotion] = useState(false);
+  // A mouse is over the screen. Pauses the cycle so the game cannot change
+  // between aiming a click and landing it. Touch has no hover, so never sets it.
+  const [hovering, setHovering] = useState(false);
 
   // A ref is a mutable box whose `.current` survives re-renders without causing
   // one. We hold the pending burst timeout here so cleanup can clear it.
   const burstTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Where the current press on the screen started, for telling a swipe from a tap.
+  const pressStartRef = useRef<{ x: number; y: number } | null>(null);
+  // Set when a press turned out to be a swipe, so the click that some browsers
+  // still fire after a drag does not also open the card.
+  const swipedRef = useRef(false);
 
   const hasGames = games.length > 0;
   const hasMultiple = games.length > 1;
@@ -115,16 +135,63 @@ export function CrtTv({ games, compact = false, onManage }: CrtTvProps) {
     setResetToken((t) => t + 1);
   }
 
-  // Clicking the screen advances to the next channel (wraps back to 0).
+  /** One channel forward (+1) or back (-1), wrapping at both ends. */
+  function stepChannel(delta: 1 | -1) {
+    selectChannel((activeIndex + delta + games.length) % games.length);
+  }
+
   function handleScreenClick() {
-    selectChannel((activeIndex + 1) % games.length);
+    if (swipedRef.current) {
+      swipedRef.current = false;
+      return;
+    }
+    if (onOpen && active !== undefined) {
+      // A switch still bursting would land under the card and change the game
+      // it flies back to. Stay on the one that was opened.
+      if (burstTimeoutRef.current) clearTimeout(burstTimeoutRef.current);
+      setIsSwitching(false);
+      onOpen(active);
+      return;
+    }
+    if (hasMultiple) stepChannel(1);
+  }
+
+  // Pointer events cover mouse and touch alike. `touch-action: pan-y` on the
+  // button (crt.css) keeps vertical page scrolling with the browser and leaves
+  // horizontal drags to this.
+  function handlePointerDown(e: React.PointerEvent) {
+    pressStartRef.current = { x: e.clientX, y: e.clientY };
+    swipedRef.current = false;
+  }
+
+  function handlePointerUp(e: React.PointerEvent) {
+    const start = pressStartRef.current;
+    pressStartRef.current = null;
+    if (start === null || !hasMultiple) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy)) return;
+    swipedRef.current = true;
+    // Swiping left brings the next channel in from the right, like a carousel.
+    stepChannel(dx < 0 ? 1 : -1);
+  }
+
+  function handleScreenKeyDown(e: React.KeyboardEvent) {
+    // A touch swipe usually fires no click to consume the flag, and Enter or
+    // Space here would otherwise be swallowed as that click.
+    swipedRef.current = false;
+    if (!hasMultiple) return;
+    if (e.key === "ArrowRight") stepChannel(1);
+    else if (e.key === "ArrowLeft") stepChannel(-1);
+    else return;
+    e.preventDefault();
   }
 
   // Auto-cycle. Re-runs whenever the active channel changes or a manual advance
   // bumps resetToken, so the countdown always starts fresh. Skipped for a single
   // game and under reduced motion.
   useEffect(() => {
-    if (!hasMultiple || reducedMotion) return;
+    if (!hasMultiple || reducedMotion || paused || hovering) return;
     const id = setInterval(() => {
       goToChannel((activeIndex + 1) % games.length);
     }, CHANNEL_INTERVAL_MS);
@@ -132,7 +199,7 @@ export function CrtTv({ games, compact = false, onManage }: CrtTvProps) {
     // We intentionally key off activeIndex + resetToken to restart the timer on
     // every channel change (auto or manual); goToChannel is stable enough here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeIndex, resetToken, hasMultiple, reducedMotion, games.length]);
+  }, [activeIndex, resetToken, hasMultiple, reducedMotion, paused, hovering, games.length]);
 
   // Clear any pending burst timeout on unmount so we never setState afterward.
   useEffect(() => {
@@ -216,7 +283,7 @@ export function CrtTv({ games, compact = false, onManage }: CrtTvProps) {
           <div className="pcrt-front">
             {/* Thin near-black tube mask around the curved glass. */}
             <div className="pcrt-screen-recess">
-              <div className={screenClass}>
+              <div className={screenClass} data-card-screen={onOpen ? CRT_SCREEN_ID : undefined}>
                 {/* .pcrt-picture holds the image + phosphor layers so the power-on
                     animation and screen curvature transform them as one surface. */}
                 <div className="pcrt-picture">
@@ -268,15 +335,32 @@ export function CrtTv({ games, compact = false, onManage }: CrtTvProps) {
                   </span>
                 )}
 
-                {/* Transparent full-screen click target — advances to the next
-                    channel. Rendered last so it sits above the (pointer-events:none)
-                    picture/glare/OSD and catches every click. Only when >1 game. */}
-                {hasMultiple && (
+                {onOpen && hasGames && (
+                  <span className="pcrt-osd pcrt-osd--hint" aria-hidden>
+                    ▶ VIEW GAME
+                  </span>
+                )}
+
+                {/* Transparent full-screen target, rendered last so it sits
+                    above the (pointer-events:none) picture/glare/OSD. A tap
+                    opens the game when there is a card to open, otherwise
+                    changes channel; a horizontal swipe or an arrow key always
+                    changes channel. */}
+                {(onOpen ? hasGames : hasMultiple) && (
                   <button
                     type="button"
                     onClick={handleScreenClick}
-                    aria-label="Next game"
-                    title="Next game"
+                    onKeyDown={handleScreenKeyDown}
+                    onPointerDown={handlePointerDown}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={() => {
+                      pressStartRef.current = null;
+                    }}
+                    onPointerEnter={(e) => e.pointerType === "mouse" && setHovering(true)}
+                    onPointerLeave={() => setHovering(false)}
+                    aria-label={onOpen ? `View details for ${active!.name}` : "Next game"}
+                    aria-haspopup={onOpen ? "dialog" : undefined}
+                    title={onOpen ? active!.name : "Next game"}
                     className="pcrt-screen-button"
                   />
                 )}
@@ -285,8 +369,9 @@ export function CrtTv({ games, compact = false, onManage }: CrtTvProps) {
 
             {/* Lower bezel: a fine-mesh speaker grille on each side of a labeled
                 control cluster — small round buttons plus the front composite A/V
-                inputs, matching the reference. Decorative — channels change by
-                clicking the screen or the pips below. */}
+                inputs, matching the reference. Decorative: channels change by
+                swiping the screen or the pips below. The real buttons are far
+                too small to hit, so they stay painted on. */}
             <div className="pcrt-controls" aria-hidden>
               <span className="pcrt-grille" />
               <div className="pcrt-buttons">
@@ -365,7 +450,7 @@ export function CrtTv({ games, compact = false, onManage }: CrtTvProps) {
               game to assistive tech. */}
           {hasMultiple && (
             <span
-              className="text-link flex items-center gap-2"
+              className="pcrt-channel-pips text-link flex items-center"
               role="group"
               aria-label="Currently playing games"
             >
