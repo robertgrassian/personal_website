@@ -113,15 +113,16 @@ const labels = (rows: RatingAverage[]) => rows.map((r) => r.label);
 test("a ranking that fits in two ends is shown whole, unsplit", () => {
   const ends = rankingEnds(ranked(10), 5);
   assert.equal(ends.highest.length, 10);
+  assert.deepEqual(ends.middle, []);
   assert.deepEqual(ends.lowest, []);
-  assert.equal(ends.skipped, 0);
 });
 
-test("a longer ranking keeps both ends, best first, and counts the middle", () => {
+test("a longer ranking splits into three parts that rebuild it in order", () => {
   const ends = rankingEnds(ranked(13), 5);
   assert.deepEqual(labels(ends.highest), ["R1", "R2", "R3", "R4", "R5"]);
+  assert.deepEqual(labels(ends.middle), ["R6", "R7", "R8"]);
   assert.deepEqual(labels(ends.lowest), ["R9", "R10", "R11", "R12", "R13"]);
-  assert.equal(ends.skipped, 3);
+  assert.deepEqual([...ends.highest, ...ends.middle, ...ends.lowest], ranked(13));
 });
 
 test("decadeOf buckets by release year and rejects missing dates", () => {

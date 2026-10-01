@@ -46,19 +46,19 @@ export function averageRatingBy(games: Game[], keysOf: (game: Game) => string[])
 
 export type RankingEnds = {
   highest: RatingAverage[];
+  /** The rows between the two ends, hidden until expanded. */
+  middle: RatingAverage[];
   /** Empty when the whole ranking fits in `highest`. */
   lowest: RatingAverage[];
-  /** How many rows sit between the two ends and are not shown. */
-  skipped: number;
 };
 
 /** The top and bottom `size` rows of a best-first ranking, or all of it if it fits. */
 export function rankingEnds(ranked: RatingAverage[], size = ENDS_SIZE): RankingEnds {
-  if (ranked.length <= size * 2) return { highest: ranked, lowest: [], skipped: 0 };
+  if (ranked.length <= size * 2) return { highest: ranked, middle: [], lowest: [] };
   return {
     highest: ranked.slice(0, size),
+    middle: ranked.slice(size, -size),
     lowest: ranked.slice(-size),
-    skipped: ranked.length - size * 2,
   };
 }
 

@@ -7,6 +7,7 @@ import { decadeOf } from "@/lib/baseGame";
 import { formatDayShort, type PlaySession } from "@/lib/sessions";
 import { compareIso } from "./pipeline";
 import { TabBar } from "@/components/ui/TabBar";
+import { ChevronDownIcon } from "@/components/Icon";
 import {
   MIN_RATED_GAMES,
   averageRatingBy,
@@ -222,6 +223,13 @@ export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
   }, [games]);
 
   const [averageBy, setAverageBy] = useState<AverageDimension>("genre");
+  const [showMiddle, setShowMiddle] = useState(false);
+  // Collapsed again on every tab switch, in the handler rather than an effect,
+  // so the new tab never renders a frame expanded.
+  const chooseAverageBy = (dimension: AverageDimension) => {
+    setAverageBy(dimension);
+    setShowMiddle(false);
+  };
   const averageEnds = rankingEnds(stats.averages[averageBy]);
 
   // Kept out of the memo above because it depends on the sessions fetch, which
@@ -377,7 +385,7 @@ export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
         <TabBar
           tabs={AVERAGE_TABS}
           value={averageBy}
-          onChange={setAverageBy}
+          onChange={chooseAverageBy}
           tone="page"
           className="mb-3 gap-4 border-b border-divider"
           tabClassName="text-xs"
@@ -392,11 +400,31 @@ export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
             <AverageRows rows={averageEnds.highest} color={AVERAGE_COLORS[averageBy]} />
             {averageEnds.lowest.length > 0 && (
               <>
-                <div className="my-4 flex items-center gap-3 text-xs text-subtle">
+                {/* The toggle sits above the rows it reveals, so it stays put
+                    under the finger in both directions. */}
+                <button
+                  type="button"
+                  aria-expanded={showMiddle}
+                  onClick={() => setShowMiddle((shown) => !shown)}
+                  className="my-4 flex w-full items-center gap-3 text-xs text-subtle hover:text-link cursor-pointer"
+                >
                   <span className="flex-1 border-t border-dashed border-divider" />
-                  {averageEnds.skipped} more in between
+                  <span className="flex items-center gap-1">
+                    {showMiddle
+                      ? `Hide the ${averageEnds.middle.length} in between`
+                      : `${averageEnds.middle.length} more in between`}
+                    <ChevronDownIcon
+                      aria-hidden
+                      className={`h-3.5 w-3.5 transition-transform ${showMiddle ? "rotate-180" : ""}`}
+                    />
+                  </span>
                   <span className="flex-1 border-t border-dashed border-divider" />
-                </div>
+                </button>
+                {showMiddle && (
+                  <div className="mb-6">
+                    <AverageRows rows={averageEnds.middle} color={AVERAGE_COLORS[averageBy]} />
+                  </div>
+                )}
                 <SubHeading>Lowest rated</SubHeading>
                 <AverageRows rows={averageEnds.lowest} color={AVERAGE_COLORS[averageBy]} />
               </>
