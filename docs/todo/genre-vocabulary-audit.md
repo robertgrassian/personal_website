@@ -20,7 +20,7 @@ _The hand-typed hole is real, and it was measurable._ Six of the 50 stored genre
 `normalize_genre` produces, all of them casing: `Beat 'em up`, `Real-time Strategy`,
 `Turn-based Strategy`, `Third-person Shooter`, `Pet-raising simulation`, `Tactical role-playing`
 (16 games in total). They reach the database through `_sourced_genres`
-(`api/app/services/me.py`), which returns the client's genres untouched when there is no
+(`api/app/services/catalog_sourcing.py`), which returns the client's genres untouched when there is no
 `igdb_id`, so the normalizer never runs on them. `Shoot 'em Up` being title-cased while
 `Beat 'em up` is not is the two paths showing through.
 

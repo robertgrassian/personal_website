@@ -11,7 +11,7 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import { localToday, systemLabel, type Game } from "@/lib/games";
-import { formatDayShort } from "@/lib/sessions";
+import { formatDayShort } from "@/lib/dates";
 import { saveGameEdits } from "@/app/video-games/actions";
 import { useServerAction } from "./useServerAction";
 import { ConfirmStep } from "./ConfirmStep";

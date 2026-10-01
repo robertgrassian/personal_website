@@ -27,8 +27,8 @@ from app.core.guards import forbid_in_preview
 from app.models.game import MAX_GENRES
 from app.schemas.igdb import IgdbSearchResponse
 from app.schemas.me import CatalogPreview
+from app.services import catalog_sourcing
 from app.services import igdb as igdb_service
-from app.services import me as me_service
 
 router = APIRouter(tags=["catalog"])
 
@@ -80,15 +80,13 @@ def preview_catalog_entry(
     exactly when the client passes a search result through unedited, as the
     form does.
 
-    The service function stays in services/me.py even though this route does
-    not: it shares the genre-resolution helpers with the add path on purpose, so
-    the preview and the write cannot disagree about the rule. Splitting the
-    module would separate them.
+    The service lives in services/catalog_sourcing.py beside the helpers the
+    add path uses, so the preview and the write cannot disagree about the rule.
 
     Status mapping:
     - 429 caller over their per-minute lookup budget
     """
-    return me_service.preview_catalog_entry(
+    return catalog_sourcing.preview_catalog_entry(
         db,
         user,
         name=name,

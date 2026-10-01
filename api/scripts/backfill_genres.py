@@ -159,7 +159,7 @@ def build_vocabulary(games: list[dict]) -> dict[str, str]:
 
     Snapping to the raw stored spelling was wrong in both directions. It let
     hand-typed rows -- the only ones that skip the normalizer, per
-    _sourced_genres in app/services/me.py -- define the vocabulary for rows that
+    _sourced_genres in app/services/catalog_sourcing.py -- define the vocabulary for rows that
     did go through it. And where the library held two spellings once each, the
     1-1 tie fell to dict insertion order, which is games sorted by name: "Final
     Fantasy Tactics" beat "Fire Emblem" and the un-normalized side won on the
