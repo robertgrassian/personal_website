@@ -1,13 +1,29 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Game } from "@/lib/games";
 import { RATINGS, UNRATED_LABEL, systemLabel } from "@/lib/games";
 import { formatDayShort, type PlaySession } from "@/lib/sessions";
 import { compareIso } from "./pipeline";
+import { TabBar } from "@/components/ui/TabBar";
+import {
+  MAX_SCORE,
+  MIN_RATED_GAMES,
+  averageRatingBy,
+  decadeOf,
+  nearestRating,
+  type RatingAverage,
+} from "./ratingAverages";
 
 // How many rows "Recently Started" shows before deferring to the full history.
 const RECENT_LIMIT = 5;
+
+const AVERAGE_TABS = [
+  { value: "genre", label: "Genre" },
+  { value: "system", label: "Platform" },
+  { value: "decade", label: "Era" },
+] as const;
+type AverageDimension = (typeof AVERAGE_TABS)[number]["value"];
 
 type GameStatsProps = {
   games: Game[];
@@ -43,6 +59,29 @@ function BarRow({
         />
       </div>
       <span className="w-8 shrink-0 text-right text-sm tabular-nums text-muted">{count}</span>
+    </div>
+  );
+}
+
+function AverageRow({ row }: { row: RatingAverage }) {
+  const grade = nearestRating(row.average);
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-36 shrink-0 text-sm text-muted truncate text-right" title={row.label}>
+        {row.label}
+      </span>
+      <div className="flex-1 h-2 rounded-full bg-divider overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${(row.average / MAX_SCORE) * 100}%`, background: grade.color }}
+        />
+      </div>
+      <span
+        className="w-8 shrink-0 text-right text-sm tabular-nums text-muted"
+        title={`${row.rated} rated games, nearest grade ${grade.letter}`}
+      >
+        {row.average.toFixed(1)}
+      </span>
     </div>
   );
 }
@@ -139,11 +178,8 @@ export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
 
     const decadeMap = new Map<string, number>();
     for (const game of games) {
-      const y = parseInt(game.releaseDate?.slice(0, 4) ?? "");
-      if (!isNaN(y) && y >= 1970) {
-        const decade = `${Math.floor(y / 10) * 10}s`;
-        decadeMap.set(decade, (decadeMap.get(decade) ?? 0) + 1);
-      }
+      const decade = decadeOf(game.releaseDate ?? "");
+      if (decade) decadeMap.set(decade, (decadeMap.get(decade) ?? 0) + 1);
     }
     const decades = [...decadeMap.entries()]
       .map(([decade, count]) => ({ decade, count }))
@@ -160,8 +196,19 @@ export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
       systems,
       genres,
       decades,
+      averages: {
+        genre: averageRatingBy(games, (g) => g.genres),
+        system: averageRatingBy(games, (g) => [systemLabel(g.system)]),
+        decade: averageRatingBy(games, (g) => {
+          const decade = decadeOf(g.releaseDate ?? "");
+          return decade ? [decade] : [];
+        }),
+      } satisfies Record<AverageDimension, RatingAverage[]>,
     };
   }, [games]);
+
+  const [averageBy, setAverageBy] = useState<AverageDimension>("genre");
+  const averageRows = stats.averages[averageBy];
 
   // Kept out of the memo above because it depends on the sessions fetch, which
   // lands later than `games` and would otherwise rebuild every histogram with
@@ -310,6 +357,32 @@ export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
             />
           ))}
         </div>
+      </StatsSection>
+
+      <StatsSection title="Average Rating">
+        <TabBar
+          tabs={AVERAGE_TABS}
+          value={averageBy}
+          onChange={setAverageBy}
+          tone="page"
+          className="mb-3 gap-4 border-b border-divider"
+          tabClassName="text-xs"
+        />
+        {averageRows.length === 0 ? (
+          <p className="text-sm text-muted">Nothing here has {MIN_RATED_GAMES} rated games yet.</p>
+        ) : (
+          <>
+            <div className="space-y-2.5">
+              {averageRows.map((row) => (
+                <AverageRow key={row.label} row={row} />
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-subtle">
+              S is 4, F is 0. Unrated games are left out, and so is anything with fewer than{" "}
+              {MIN_RATED_GAMES} rated.
+            </p>
+          </>
+        )}
       </StatsSection>
 
       {stats.decades.length > 0 && (
