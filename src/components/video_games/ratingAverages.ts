@@ -6,8 +6,8 @@ import { MAX_RATING_SCORE, RATINGS, ratingScore } from "../../lib/games.ts";
 /** A bucket needs this many RATED games before its average is shown. */
 export const MIN_RATED_GAMES = 3;
 
-/** How many rows a dimension shows, matching the count-based "Top Genres". */
-export const AVERAGE_ROW_LIMIT = 10;
+/** Rows shown at each end of a ranking too long to show whole. */
+export const ENDS_SIZE = 5;
 
 export type RatingAverage = {
   label: string;
@@ -16,7 +16,7 @@ export type RatingAverage = {
   rated: number;
 };
 
-/** One bucket per key a game yields. A game in two genres counts toward both. */
+/** One bucket per key a game yields, best first. A game in two genres counts toward both. */
 export function averageRatingBy(games: Game[], keysOf: (game: Game) => string[]): RatingAverage[] {
   const totals = new Map<string, { sum: number; rated: number }>();
   for (const game of games) {
@@ -41,15 +41,25 @@ export function averageRatingBy(games: Game[], keysOf: (game: Game) => string[])
       // A tie goes to the larger sample, the more trustworthy of two equal
       // averages, then to the label so the order is stable across renders.
       .sort((a, b) => b.average - a.average || b.rated - a.rated || a.label.localeCompare(b.label))
-      .slice(0, AVERAGE_ROW_LIMIT)
   );
 }
 
-/** "1990s" for a 1990s release; null when the date is missing or implausible. */
-export function decadeOf(releaseDate: string): string | null {
-  const year = parseInt(releaseDate.slice(0, 4));
-  if (isNaN(year) || year < 1970) return null;
-  return `${Math.floor(year / 10) * 10}s`;
+export type RankingEnds = {
+  highest: RatingAverage[];
+  /** Empty when the whole ranking fits in `highest`. */
+  lowest: RatingAverage[];
+  /** How many rows sit between the two ends and are not shown. */
+  skipped: number;
+};
+
+/** The top and bottom `size` rows of a best-first ranking, or all of it if it fits. */
+export function rankingEnds(ranked: RatingAverage[], size = ENDS_SIZE): RankingEnds {
+  if (ranked.length <= size * 2) return { highest: ranked, lowest: [], skipped: 0 };
+  return {
+    highest: ranked.slice(0, size),
+    lowest: ranked.slice(-size),
+    skipped: ranked.length - size * 2,
+  };
 }
 
 /** The grade an average rounds to, for coloring its bar. */

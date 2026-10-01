@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Game, Rating } from "../../lib/games.ts";
+import { decadeOf } from "../../lib/baseGame.ts";
 import {
-  AVERAGE_ROW_LIMIT,
   MIN_RATED_GAMES,
   averageRatingBy,
-  decadeOf,
   nearestRating,
+  rankingEnds,
+  type RatingAverage,
 } from "./ratingAverages.ts";
 
 // Run with `npm test`.
@@ -86,18 +87,50 @@ test("ties go to the larger sample, then alphabetically", () => {
   );
 });
 
-test(`shows at most ${AVERAGE_ROW_LIMIT} rows`, () => {
-  const games = Array.from({ length: AVERAGE_ROW_LIMIT + 2 }, (_, i) =>
-    Array.from({ length: MIN_RATED_GAMES }, () => game("Good", { system: `S${i}` }))
-  ).flat();
-  assert.equal(averageRatingBy(games, bySystem).length, AVERAGE_ROW_LIMIT);
+test("an empty key is dropped, and a game with no genres adds nothing", () => {
+  const games = [
+    ...Array.from({ length: 3 }, () => game("Good", { system: "" })),
+    ...Array.from({ length: 3 }, () => game("Perfect", { genres: [] })),
+  ];
+  assert.deepEqual(
+    averageRatingBy(games, bySystem).map((r) => r.label),
+    ["Nintendo Switch"]
+  );
+  assert.deepEqual(averageRatingBy(games, byGenre), []);
+});
+
+test("an empty or all-unrated library has no rows", () => {
+  assert.deepEqual(averageRatingBy([], bySystem), []);
+  assert.deepEqual(averageRatingBy([game(""), game(""), game("")], bySystem), []);
+});
+
+// --- rankingEnds ------------------------------------------------------------
+
+const ranked = (n: number): RatingAverage[] =>
+  Array.from({ length: n }, (_, i) => ({ label: `R${i + 1}`, average: 4 - i * 0.1, rated: 3 }));
+const labels = (rows: RatingAverage[]) => rows.map((r) => r.label);
+
+test("a ranking that fits in two ends is shown whole, unsplit", () => {
+  const ends = rankingEnds(ranked(10), 5);
+  assert.equal(ends.highest.length, 10);
+  assert.deepEqual(ends.lowest, []);
+  assert.equal(ends.skipped, 0);
+});
+
+test("a longer ranking keeps both ends, best first, and counts the middle", () => {
+  const ends = rankingEnds(ranked(13), 5);
+  assert.deepEqual(labels(ends.highest), ["R1", "R2", "R3", "R4", "R5"]);
+  assert.deepEqual(labels(ends.lowest), ["R9", "R10", "R11", "R12", "R13"]);
+  assert.equal(ends.skipped, 3);
 });
 
 test("decadeOf buckets by release year and rejects missing dates", () => {
   assert.equal(decadeOf("1998-11-21"), "1990s");
   assert.equal(decadeOf("2000"), "2000s");
+  assert.equal(decadeOf("1970-01-01"), "1970s");
+  assert.equal(decadeOf("1969-12-31"), null);
   assert.equal(decadeOf(""), null);
-  assert.equal(decadeOf("1958-01-01"), null);
+  assert.equal(decadeOf("TBA"), null);
 });
 
 test("nearestRating rounds to a grade and clamps to the scale", () => {
