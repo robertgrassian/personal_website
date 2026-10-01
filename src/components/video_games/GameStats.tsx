@@ -381,6 +381,22 @@ export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
         </div>
       </StatsSection>
 
+      {stats.decades.length > 0 && (
+        <StatsSection title="Release Era">
+          <div className="space-y-2.5">
+            {stats.decades.map((d) => (
+              <BarRow
+                key={d.decade}
+                label={d.decade}
+                value={d.count}
+                pct={(d.count / maxDecadeCount) * 100}
+                color="var(--stats-decades)"
+              />
+            ))}
+          </div>
+        </StatsSection>
+      )}
+
       <StatsSection title="Average Rating">
         <TabBar
           tabs={AVERAGE_TABS}
@@ -434,22 +450,6 @@ export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
           </>
         )}
       </StatsSection>
-
-      {stats.decades.length > 0 && (
-        <StatsSection title="Release Era">
-          <div className="space-y-2.5">
-            {stats.decades.map((d) => (
-              <BarRow
-                key={d.decade}
-                label={d.decade}
-                value={d.count}
-                pct={(d.count / maxDecadeCount) * 100}
-                color="var(--stats-decades)"
-              />
-            ))}
-          </div>
-        </StatsSection>
-      )}
     </div>
   );
 }
