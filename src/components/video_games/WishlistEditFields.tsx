@@ -125,8 +125,8 @@ export function WishlistEditFields({
     <>
       {/* inert while the remove confirm is up. See GameEditFields: the sheet
           covers this region but cannot make it unreachable by Tab, and one
-          attribute on the region covers a field added later. "Played?" below is
-          the exception, being the sheet's own sibling. */}
+          attribute on the region covers a field added later. The Save row
+          below is the exception, being the sheet's own sibling. */}
       <div inert={confirmingRemove}>
         <label className="mt-5 flex items-center gap-2 text-sm text-shelf-text cursor-pointer">
           <input
@@ -185,50 +185,51 @@ export function WishlistEditFields({
           </p>
         )}
 
-        {/* Always present, so there is one place to look for "did this save?".
-          Disabled until something is actually pending. */}
-        <div className="mt-6 border-t border-shelf-border pt-4">
-          <Button variant="primary" onClick={save} disabled={!canSave}>
-            Save
-          </Button>
-          {/* Not while the remove confirm is up: it renders the same error
-            itself, and the sheet covers this line anyway. */}
-          {error && !confirmingRemove && (
-            <p role="alert" className="mt-2 text-xs text-shelf-danger">
-              {error}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-4 border-t border-shelf-border pt-3">
         {/* One button for both cases. "Played?" is the question the wishlist
             can answer; everything that follows from it (which console, how
             was it, when did you play) belongs to the library form, which
-            already asks all three. */}
-        {/* Outlined, not filled: this surface's one fill belongs to the Save
-            above. */}
-        <Button onClick={onPlayed} disabled={isPending || confirmingRemove}>
+            already asks all three. Outlined, not filled: this surface's one
+            fill belongs to Save. */}
+        <Button onClick={onPlayed} disabled={isPending} className="mt-4 block">
           Played?
         </Button>
+      </div>
 
-        <ConfirmStep
-          triggerLabel="Remove"
-          triggerClassName="mt-3 block"
-          confirmLabel="Remove"
-          layout="sheet"
-          onConfirmingChange={setConfirmingRemove}
-          onConfirm={remove}
-          disabled={isPending}
-          // The sheet covers the error line in the Save block above, so a
-          // failed remove has to report itself inside the sheet instead.
-          error={confirmingRemove ? error : null}
-          prompt={
-            <>
-              Remove <span className="font-medium">{item.name}</span> from the wishlist?
-            </>
-          }
-        />
+      {/* Same footer as GameEditFields: Save and Remove share a row, with
+          ml-auto keeping the destructive one away from the one pressed
+          constantly. Outside the inert region because the remove sheet is
+          its sibling, so Save is disabled individually instead. Nothing in
+          here may be `relative`, or the sheet re-anchors to this row. */}
+      <div className="mt-5 border-t border-shelf-border pt-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="primary" onClick={save} disabled={!canSave || confirmingRemove}>
+            Save
+          </Button>
+          <ConfirmStep
+            triggerLabel="Remove"
+            triggerClassName="ml-auto"
+            confirmLabel="Remove"
+            layout="sheet"
+            onConfirmingChange={setConfirmingRemove}
+            onConfirm={remove}
+            disabled={isPending}
+            // The sheet covers the error line below, so a failed remove has
+            // to report itself inside the sheet instead.
+            error={confirmingRemove ? error : null}
+            prompt={
+              <>
+                Remove <span className="font-medium">{item.name}</span> from the wishlist?
+              </>
+            }
+          />
+        </div>
+        {/* Not while the remove confirm is up: it renders the same error
+            itself, and the sheet covers this line anyway. */}
+        {error && !confirmingRemove && (
+          <p role="alert" className="mt-2 text-xs text-shelf-danger">
+            {error}
+          </p>
+        )}
       </div>
     </>
   );
