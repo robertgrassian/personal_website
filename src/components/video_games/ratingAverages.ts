@@ -1,5 +1,5 @@
-import type { Game, Rating } from "../../lib/games.ts";
-import { RATINGS } from "../../lib/games.ts";
+import type { Game } from "../../lib/games.ts";
+import { MAX_RATING_SCORE, RATINGS, ratingScore } from "../../lib/games.ts";
 
 // Pure: no React. GameStats memoizes these; ratingAverages.test.ts runs them.
 
@@ -8,15 +8,6 @@ export const MIN_RATED_GAMES = 3;
 
 /** How many rows a dimension shows, matching the count-based "Top Genres". */
 export const AVERAGE_ROW_LIMIT = 10;
-
-// Derived from RATINGS' order (best first) rather than written out, so adding a
-// grade rescales this instead of silently scoring it as undefined.
-const SCORE_BY_RATING = new Map<Rating, number>(
-  RATINGS.map((r, i) => [r.name, RATINGS.length - 1 - i])
-);
-
-/** The top of the scale, which a bar's width is measured against. */
-export const MAX_SCORE = RATINGS.length - 1;
 
 export type RatingAverage = {
   label: string;
@@ -31,9 +22,8 @@ export function averageRatingBy(games: Game[], keysOf: (game: Game) => string[])
   for (const game of games) {
     // An unrated game is no evidence either way, so it is skipped rather than
     // scored as zero, which would make a genre you have not rated look bad.
-    if (game.rating === "") continue;
-    const score = SCORE_BY_RATING.get(game.rating);
-    if (score === undefined) continue;
+    const score = ratingScore(game.rating);
+    if (score === null) continue;
     // A Set so a duplicated genre on one game cannot count that game twice.
     for (const key of new Set(keysOf(game))) {
       if (!key) continue;
@@ -64,6 +54,6 @@ export function decadeOf(releaseDate: string): string | null {
 
 /** The grade an average rounds to, for coloring its bar. */
 export function nearestRating(average: number): (typeof RATINGS)[number] {
-  const index = MAX_SCORE - Math.round(average);
+  const index = MAX_RATING_SCORE - Math.round(average);
   return RATINGS[Math.min(Math.max(index, 0), RATINGS.length - 1)];
 }

@@ -2,12 +2,11 @@
 
 import { useMemo, useState } from "react";
 import type { Game } from "@/lib/games";
-import { RATINGS, UNRATED_LABEL, systemLabel } from "@/lib/games";
+import { MAX_RATING_SCORE, RATINGS, UNRATED_LABEL, systemLabel } from "@/lib/games";
 import { formatDayShort, type PlaySession } from "@/lib/sessions";
 import { compareIso } from "./pipeline";
 import { TabBar } from "@/components/ui/TabBar";
 import {
-  MAX_SCORE,
   MIN_RATED_GAMES,
   averageRatingBy,
   decadeOf,
@@ -73,7 +72,7 @@ function AverageRow({ row }: { row: RatingAverage }) {
       <div className="flex-1 h-2 rounded-full bg-divider overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${(row.average / MAX_SCORE) * 100}%`, background: grade.color }}
+          style={{ width: `${(row.average / MAX_RATING_SCORE) * 100}%`, background: grade.color }}
         />
       </div>
       <span
