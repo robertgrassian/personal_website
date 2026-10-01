@@ -18,7 +18,9 @@ from app.services import igdb as igdb_service
 from app.services import users as users_service
 from app.services.igdb import IgdbGameFacts
 
-NOW = datetime(2026, 9, 1, tzinfo=UTC)
+# Real time, not a fixed date: refresh_stale_rows reads the real clock, so a
+# pinned NOW turned every "fresh" row stale 30 days after it was written.
+NOW = datetime.now(UTC)
 
 # Bound at import, which is BEFORE conftest's autouse stub_catalog_refresh
 # replaces the module attribute. This module is the one place that exercises

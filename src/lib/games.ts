@@ -34,6 +34,18 @@ export const RATINGS = [
 export type Rating = (typeof RATINGS)[number]["name"];
 export type RatingLetter = (typeof RATINGS)[number]["letter"];
 
+// The numeric scale for averaging, S=4 down to F=0. Derived from RATINGS' order
+// so adding a grade rescales it. Shared by the stats panel and its SQL tab.
+const RATING_SCORES = new Map<Rating, number>(
+  RATINGS.map((r, i) => [r.name, RATINGS.length - 1 - i])
+);
+export const MAX_RATING_SCORE = RATINGS.length - 1;
+
+/** null for an unrated game. */
+export function ratingScore(rating: Rating | ""): number | null {
+  return rating === "" ? null : (RATING_SCORES.get(rating) ?? null);
+}
+
 // Excludes S, which gets RatingRibbon instead of RatingBadge.
 export type BadgeRank = Exclude<RatingLetter, "S">;
 

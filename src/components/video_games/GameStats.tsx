@@ -1,13 +1,38 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { Game } from "@/lib/games";
-import { RATINGS, UNRATED_LABEL, systemLabel } from "@/lib/games";
+import { MAX_RATING_SCORE, RATINGS, UNRATED_LABEL, systemLabel } from "@/lib/games";
+import { decadeOf } from "@/lib/baseGame";
 import { formatDayShort, type PlaySession } from "@/lib/sessions";
 import { compareIso } from "./pipeline";
+import { TabBar } from "@/components/ui/TabBar";
+import { ChevronDownIcon } from "@/components/Icon";
+import {
+  MIN_RATED_GAMES,
+  averageRatingBy,
+  nearestRating,
+  rankingEnds,
+  type RatingAverage,
+} from "./ratingAverages";
 
 // How many rows "Recently Started" shows before deferring to the full history.
 const RECENT_LIMIT = 5;
+
+const AVERAGE_TABS = [
+  { value: "genre", label: "Genre" },
+  { value: "system", label: "Platform" },
+  { value: "decade", label: "Era" },
+] as const;
+type AverageDimension = (typeof AVERAGE_TABS)[number]["value"];
+
+// Each tab borrows its count chart's color. Coloring by nearest grade was
+// tried and dropped: S and C are both amber, so a 3.6 and a 0.7 matched.
+const AVERAGE_COLORS: Record<AverageDimension, string | undefined> = {
+  genre: "var(--stats-genres)",
+  system: undefined,
+  decade: "var(--stats-decades)",
+};
 
 type GameStatsProps = {
   games: Game[];
@@ -22,12 +47,14 @@ type GameStatsProps = {
 
 function BarRow({
   label,
-  count,
+  value,
+  valueTitle,
   pct,
   color,
 }: {
   label: string;
-  count: number;
+  value: ReactNode;
+  valueTitle?: string;
   pct: number;
   color?: string;
 }) {
@@ -37,14 +64,41 @@ function BarRow({
         {label}
       </span>
       <div className="flex-1 h-2 rounded-full bg-divider overflow-hidden">
+        {/* min-w keeps a 0% bar (an all-F average) visible as a dot. */}
         <div
-          className="h-full rounded-full transition-all duration-500"
+          className="h-full min-w-2 rounded-full transition-all duration-500"
           style={{ width: `${pct}%`, background: color ?? "var(--link)" }}
         />
       </div>
-      <span className="w-8 shrink-0 text-right text-sm tabular-nums text-muted">{count}</span>
+      <span className="w-8 shrink-0 text-right text-sm tabular-nums text-muted" title={valueTitle}>
+        {value}
+      </span>
     </div>
   );
+}
+
+function AverageRows({ rows, color }: { rows: RatingAverage[]; color?: string }) {
+  return (
+    <div className="space-y-2.5">
+      {rows.map((row) => {
+        const grade = nearestRating(row.average);
+        return (
+          <BarRow
+            key={row.label}
+            label={row.label}
+            value={row.average.toFixed(1)}
+            valueTitle={`${row.rated} rated games, nearest grade ${grade.letter}`}
+            pct={(row.average / MAX_RATING_SCORE) * 100}
+            color={color}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function SubHeading({ children }: { children: ReactNode }) {
+  return <p className="mb-2 text-xs font-medium text-muted">{children}</p>;
 }
 
 function StatCard({
@@ -139,11 +193,8 @@ export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
 
     const decadeMap = new Map<string, number>();
     for (const game of games) {
-      const y = parseInt(game.releaseDate?.slice(0, 4) ?? "");
-      if (!isNaN(y) && y >= 1970) {
-        const decade = `${Math.floor(y / 10) * 10}s`;
-        decadeMap.set(decade, (decadeMap.get(decade) ?? 0) + 1);
-      }
+      const decade = decadeOf(game.releaseDate ?? "");
+      if (decade) decadeMap.set(decade, (decadeMap.get(decade) ?? 0) + 1);
     }
     const decades = [...decadeMap.entries()]
       .map(([decade, count]) => ({ decade, count }))
@@ -160,8 +211,26 @@ export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
       systems,
       genres,
       decades,
+      averages: {
+        genre: averageRatingBy(games, (g) => g.genres),
+        system: averageRatingBy(games, (g) => [systemLabel(g.system)]),
+        decade: averageRatingBy(games, (g) => {
+          const decade = decadeOf(g.releaseDate ?? "");
+          return decade ? [decade] : [];
+        }),
+      } satisfies Record<AverageDimension, RatingAverage[]>,
     };
   }, [games]);
+
+  const [averageBy, setAverageBy] = useState<AverageDimension>("genre");
+  const [showMiddle, setShowMiddle] = useState(false);
+  // Collapsed again on every tab switch, in the handler rather than an effect,
+  // so the new tab never renders a frame expanded.
+  const chooseAverageBy = (dimension: AverageDimension) => {
+    setAverageBy(dimension);
+    setShowMiddle(false);
+  };
+  const averageEnds = rankingEnds(stats.averages[averageBy]);
 
   // Kept out of the memo above because it depends on the sessions fetch, which
   // lands later than `games` and would otherwise rebuild every histogram with
@@ -291,7 +360,7 @@ export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
             <BarRow
               key={s.name}
               label={systemLabel(s.name)}
-              count={s.count}
+              value={s.count}
               pct={(s.count / maxSystemCount) * 100}
             />
           ))}
@@ -304,7 +373,7 @@ export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
             <BarRow
               key={g.name}
               label={g.name}
-              count={g.count}
+              value={g.count}
               pct={(g.count / maxGenreCount) * 100}
               color="var(--stats-genres)"
             />
@@ -319,7 +388,7 @@ export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
               <BarRow
                 key={d.decade}
                 label={d.decade}
-                count={d.count}
+                value={d.count}
                 pct={(d.count / maxDecadeCount) * 100}
                 color="var(--stats-decades)"
               />
@@ -327,6 +396,60 @@ export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
           </div>
         </StatsSection>
       )}
+
+      <StatsSection title="Average Rating">
+        <TabBar
+          tabs={AVERAGE_TABS}
+          value={averageBy}
+          onChange={chooseAverageBy}
+          tone="page"
+          className="mb-3 gap-4 border-b border-divider"
+          tabClassName="text-xs"
+        />
+        {averageEnds.highest.length === 0 ? (
+          <p className="text-sm text-muted">Nothing here has {MIN_RATED_GAMES} rated games yet.</p>
+        ) : (
+          <>
+            {/* Split only when the ranking is too long to show whole; a short
+                one under two headings would read as two different lists. */}
+            {averageEnds.lowest.length > 0 && <SubHeading>Highest rated</SubHeading>}
+            <AverageRows rows={averageEnds.highest} color={AVERAGE_COLORS[averageBy]} />
+            {averageEnds.lowest.length > 0 && (
+              <>
+                {/* The toggle sits above the rows it reveals, so it stays put
+                    under the finger in both directions. */}
+                <button
+                  type="button"
+                  aria-expanded={showMiddle}
+                  onClick={() => setShowMiddle((shown) => !shown)}
+                  className="my-4 flex w-full items-center gap-3 text-xs text-subtle hover:text-link cursor-pointer"
+                >
+                  <span className="flex-1 border-t border-dashed border-divider" />
+                  <span className="flex items-center gap-1">
+                    {showMiddle ? "Hide" : "Show more"}
+                    <ChevronDownIcon
+                      aria-hidden
+                      className={`h-3.5 w-3.5 transition-transform ${showMiddle ? "rotate-180" : ""}`}
+                    />
+                  </span>
+                  <span className="flex-1 border-t border-dashed border-divider" />
+                </button>
+                {showMiddle && (
+                  <div className="mb-6">
+                    <AverageRows rows={averageEnds.middle} color={AVERAGE_COLORS[averageBy]} />
+                  </div>
+                )}
+                <SubHeading>Lowest rated</SubHeading>
+                <AverageRows rows={averageEnds.lowest} color={AVERAGE_COLORS[averageBy]} />
+              </>
+            )}
+            <p className="mt-4 text-xs text-subtle">
+              S is 4, F is 0. Unrated games are left out, and so is anything with fewer than{" "}
+              {MIN_RATED_GAMES} rated.
+            </p>
+          </>
+        )}
+      </StatsSection>
     </div>
   );
 }

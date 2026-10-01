@@ -7,7 +7,7 @@
 
 import type { Game, Filters, Rating } from "@/lib/games";
 import { RATINGS, UNRATED_LABEL } from "@/lib/games";
-import { type BaseGame, baseGameGenres } from "@/lib/baseGame";
+import { type BaseGame, baseGameGenres, decadeOf } from "@/lib/baseGame";
 import type { WishlistGame, WishlistFilters } from "@/lib/wishlist";
 import type { GroupBy, SortOrder } from "./libraryConfig";
 
@@ -80,11 +80,8 @@ function sharedGroupKeys(game: BaseGame, groupBy: GroupBy): string[] | null {
       return [game.system || "Unknown"];
     case "genre":
       return baseGameGenres(game);
-    case "decade": {
-      const year = parseInt(game.releaseDate.slice(0, 4));
-      if (isNaN(year) || year < 1970) return ["Unknown"];
-      return [`${Math.floor(year / 10) * 10}s`];
-    }
+    case "decade":
+      return [decadeOf(game.releaseDate) ?? "Unknown"];
     default:
       return null;
   }
