@@ -126,7 +126,8 @@ export function WishlistEditFields({
       {/* inert while the remove confirm is up. See GameEditFields: the sheet
           covers this region but cannot make it unreachable by Tab, and one
           attribute on the region covers a field added later. The Save row
-          below is the exception, being the sheet's own sibling. */}
+          below is the exception, being the sheet's own sibling, so Save is
+          disabled individually instead. */}
       <div inert={confirmingRemove}>
         <label className="mt-5 flex items-center gap-2 text-sm text-shelf-text cursor-pointer">
           <input
@@ -190,16 +191,13 @@ export function WishlistEditFields({
             was it, when did you play) belongs to the library form, which
             already asks all three. Outlined, not filled: this surface's one
             fill belongs to Save. */}
-        <Button onClick={onPlayed} disabled={isPending} className="mt-4 block">
+        <Button onClick={onPlayed} disabled={isPending} className="mt-5">
           Played?
         </Button>
       </div>
 
-      {/* Same footer as GameEditFields: Save and Remove share a row, with
-          ml-auto keeping the destructive one away from the one pressed
-          constantly. Outside the inert region because the remove sheet is
-          its sibling, so Save is disabled individually instead. Nothing in
-          here may be `relative`, or the sheet re-anchors to this row. */}
+      {/* Same footer as GameEditFields: ml-auto keeps Remove away from Save.
+          Nothing in here may be `relative`, or the sheet re-anchors to this row. */}
       <div className="mt-5 border-t border-shelf-border pt-3">
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="primary" onClick={save} disabled={!canSave || confirmingRemove}>

@@ -41,7 +41,7 @@ type ConfirmStepProps = {
    *  using it must pass the error here or a failed remove looks like nothing
    *  happened. */
   error?: string | null;
-  /** Extra classes for the trigger, for the callers that need `mt-3 block`. */
+  /** Extra layout classes for the trigger (e.g. `ml-auto` in a footer row). */
   triggerClassName?: string;
   /** "danger" paints both halves red, for an action that destroys a row.
    *  "neutral" is the same two steps in the ordinary button colors, for one
