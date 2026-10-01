@@ -410,9 +410,7 @@ export function GameStats({ games, sessions, onSeeAllPlayed }: GameStatsProps) {
                 >
                   <span className="flex-1 border-t border-dashed border-divider" />
                   <span className="flex items-center gap-1">
-                    {showMiddle
-                      ? `Hide the ${averageEnds.middle.length} in between`
-                      : `${averageEnds.middle.length} more in between`}
+                    {showMiddle ? "Hide" : "Show more"}
                     <ChevronDownIcon
                       aria-hidden
                       className={`h-3.5 w-3.5 transition-transform ${showMiddle ? "rotate-180" : ""}`}
