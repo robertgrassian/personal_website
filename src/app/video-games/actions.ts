@@ -301,13 +301,20 @@ export async function addGame(
     return { ok: false, message: "Invalid add request." };
   }
 
-  const calls = editCalls(edits);
+  // Only the session, whatever arrives: a Server Action is callable directly,
+  // so the type alone does not keep the other edit fields out.
+  const sessionOnly = { session: edits.session };
+  // Validated before the create, so bad dates are refused with nothing added.
+  const calls = editCalls(sessionOnly);
   if (calls === null) return { ok: false, message: "Invalid add request." };
 
-  // Validated before the create, so bad dates are refused with nothing added.
   return writeApplied(
-    () => createThenApply(() => createMyGame(normalized), calls, "Added to your library"),
-    sessionEditTags(edits)
+    () =>
+      createThenApply(() => createMyGame(normalized), calls, {
+        landed: "Added to your library",
+        rest: "the play dates",
+      }),
+    sessionEditTags(sessionOnly)
   );
 }
 
@@ -350,12 +357,6 @@ export async function deleteWishlistItem(itemId: number): Promise<MutateResult> 
   );
 }
 
-/** Promote a wishlist entry into the library ("" system = use the stored one).
- *
- *  The one write that purges two of the caller's own tags: promote MOVES a row
- *  between resources, so the wishlist loses an entry and the library gains one.
- *  Tagging it games-only would leave the promoted row visibly still on the
- *  wishlist. */
 /** Everything one press of Save can change about a library entry. Every field
  *  is optional and only the present ones are written, so a Save that touched
  *  only the rating still costs one API call. `session` logs a playthrough;
@@ -457,25 +458,37 @@ async function runInOrder(gameId: number, calls: EditCall[]): Promise<WriteOutco
  *  both have this shape: a session lives in another table, so it cannot ride
  *  in the POST and needs the id the 201 carries.
  *
- *  Once the row lands, every failure is a partial prefixed with `landed`,
+ *  Once the row lands, every failure is a partial that leads with `landed`,
  *  never a plain failure: the row is really there, and a retry would 409 (add)
  *  or 404 on a wishlist item that no longer exists (promote). */
 async function createThenApply(
   create: () => Promise<CreatedGameResult>,
   calls: EditCall[],
-  landed: string
+  wording: { landed: string; rest: string }
 ): Promise<WriteOutcome> {
   const created = await create();
   if (!created.ok) return { result: created, applied: false };
   if (calls.length === 0) return { result: { ok: true }, applied: true };
 
-  const partial = (message: string): WriteOutcome => ({
-    result: { ok: false, message: `${landed}, but the rest could not be saved. ${message}` },
+  const { landed, rest } = wording;
+  const failure = (message: string): WriteOutcome => ({
+    result: { ok: false, message },
     applied: true,
   });
-  if (created.gameId === null) return partial("Open it from your library to finish.");
-  const { result } = await runInOrder(created.gameId, calls);
-  return result.ok ? { result: { ok: true }, applied: true } : partial(result.message);
+  if (created.gameId === null) {
+    return failure(
+      `${landed}, but ${rest} could not be saved. Open it from your library to finish.`
+    );
+  }
+  const { result, applied } = await runInOrder(created.gameId, calls);
+  if (result.ok) return { result, applied: true };
+  // A failure after an earlier call landed already says so, and "could not be
+  // saved" would contradict it.
+  return failure(
+    applied
+      ? `${landed}. ${result.message}`
+      : `${landed}, but ${rest} could not be saved. ${result.message}`
+  );
 }
 
 /** One press of Save on a library entry. */
@@ -560,11 +573,10 @@ export async function promoteAndSave(
 
   return writeApplied(
     () =>
-      createThenApply(
-        () => promoteMyWishlistItem(itemId, trimmedSystem),
-        calls,
-        "Moved to the library"
-      ),
+      createThenApply(() => promoteMyWishlistItem(itemId, trimmedSystem), calls, {
+        landed: "Moved to the library",
+        rest: "the rest",
+      }),
     // wishlistTag on top of a normal Save: a promote MOVES a row, so the
     // wishlist loses an entry as the library gains one.
     [...sessionEditTags(edits), wishlistTag]

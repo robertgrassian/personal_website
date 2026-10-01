@@ -79,14 +79,16 @@ class TestFieldsForNewCatalogRow:
 
         return wire
 
-    def fields(self, *, igdb_id=1051, name="Chrono Trigger", system=None, from_client=None, **kw):
+    def fields(
+        self, *, igdb_id=1051, name="Chrono Trigger", system=None, payload_genres=None, **kw
+    ):
         return catalog_sourcing.fields_for_new_catalog_row(
             fake_db(),
             user_id=uuid.uuid4(),
             igdb_id=igdb_id,
             name=name,
             system=system,
-            genres=from_client if from_client is not None else ["Role-playing (RPG)"],
+            genres=payload_genres if payload_genres is not None else ["Role-playing (RPG)"],
             release_date=kw.get("release_date"),
             image_url=kw.get("image_url"),
         )
@@ -103,7 +105,7 @@ class TestFieldsForNewCatalogRow:
         stub(found=[])
         out = self.fields(
             name="anything",
-            from_client=["Nonsense"],
+            payload_genres=["Nonsense"],
             release_date=date(2001, 1, 1),
             image_url="https://images.igdb.com/igdb/image/upload/t_cover_big/co0000.jpg",
         )
@@ -158,7 +160,7 @@ class TestFieldsForNewCatalogRow:
     def test_an_existing_private_row_keeps_the_payload(self, stub, calls):
         # Private, so the payload is safe to hand on even if the row vanished.
         stub(existing=object(), found=["Role-Playing"])
-        assert self.source(igdb_id=None, from_client=["Farm Life Sim"]) == ["Farm Life Sim"]
+        assert self.source(igdb_id=None, payload_genres=["Farm Life Sim"]) == ["Farm Life Sim"]
         assert calls == []
 
     def test_a_wikipedia_miss_falls_back_to_igdbs_genres(self, stub):
@@ -166,18 +168,18 @@ class TestFieldsForNewCatalogRow:
         says "Role-playing (RPG)" and the catalog stores the same spelling
         every Wikipedia-sourced row uses."""
         stub(found=[])
-        assert self.source(from_client=["Nonsense"]) == ["Role-Playing"]
+        assert self.source(payload_genres=["Nonsense"]) == ["Role-Playing"]
 
     def test_a_hand_entered_game_keeps_the_typed_genres(self, stub, calls):
         # A private catalog row is the caller's to name; overriding it would be
         # the silent discard this path exists to avoid.
         stub(found=["Simulation"])
-        assert self.source(igdb_id=None, from_client=["Farm Life Sim"]) == ["Farm Life Sim"]
+        assert self.source(igdb_id=None, payload_genres=["Farm Life Sim"]) == ["Farm Life Sim"]
         assert calls == []
 
     def test_a_hand_entered_game_with_no_genres_is_looked_up(self, stub, calls):
         stub(found=["Puzzle"])
-        assert self.source(igdb_id=None, name="Obscure Thing", from_client=[]) == ["Puzzle"]
+        assert self.source(igdb_id=None, name="Obscure Thing", payload_genres=[]) == ["Puzzle"]
         assert calls == ["Obscure Thing"]
 
     def test_an_all_dropped_lookup_still_falls_back(self, stub):
@@ -200,15 +202,15 @@ class TestFieldsForNewCatalogRow:
         """The hole this closes: hand-typed rows were the only ones skipping
         normalize_genre, so prod held "Beat 'em up" next to "Shoot 'em Up"."""
         stub(found=["Simulation"])
-        assert self.source(igdb_id=None, from_client=["beat 'em up"]) == ["Beat 'em Up"]
+        assert self.source(igdb_id=None, payload_genres=["beat 'em up"]) == ["Beat 'em Up"]
         assert calls == []
 
     def test_a_genre_the_normalizer_rejects_is_kept_as_typed(self, stub):
         """Casing is corrected; values are not dropped. THEME_VALUES deliberately
         does not bite here, because silently discarding what the caller sent is
-        the failure this from_client exists to avoid."""
+        the failure the fallback exists to avoid."""
         stub(found=[])
-        assert self.source(igdb_id=None, from_client=["Iyashikei"]) == ["Iyashikei"]
+        assert self.source(igdb_id=None, payload_genres=["Iyashikei"]) == ["Iyashikei"]
 
     # --- platforms ---------------------------------------------------------
     # The regression these exist for: both add paths dropped `platforms` on the
@@ -227,7 +229,7 @@ class TestFieldsForNewCatalogRow:
         # There is no canonical platform list for a game IGDB has never heard
         # of, so this is the right answer rather than a gap.
         stub(platforms=["Nintendo Switch"])
-        assert self.fields(igdb_id=None, from_client=["Farm Life Sim"]).platforms == []
+        assert self.fields(igdb_id=None, payload_genres=["Farm Life Sim"]).platforms == []
         assert igdb_calls == []
 
     def test_a_game_igdb_lists_no_platforms_for_stores_none(self, stub):
