@@ -472,7 +472,12 @@ PeopleView` exists so a tab without that pipeline cannot fall into the `view ===
     whose one Save creates the row (the "one-Save model" `CLAUDE.md` says new owner forms
     adopt), with system, optional rating and an optional first session. The system suggestions
     are the game's platforms, the ones the user already owns listed first.
-  - **Not interested:** a quieter text button below the two.
+  - **Not interested: deliberately distinct from the two adds**, since it is a different kind of
+    act (dismissing, not acquiring). The adds sit side by side as the card's primary row
+    (`primary` for Add to played, `secondary` for Add to wishlist); Not interested sits apart
+    below a divider, as a `ghost` button with an icon, so it never reads as a third option of the
+    same kind or catches a tap meant for an add. Not `danger`: nothing is destroyed, and it has an
+    undo.
   - After any of them the card closes and the next render drops the game: the add writes
     revalidate `gamesTag` or `wishlistTag`, which this read carries, and the anti-join does the
     rest.
