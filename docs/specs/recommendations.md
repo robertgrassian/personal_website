@@ -11,7 +11,7 @@ Played and Wishlist: a short **Upcoming** row and a longer **Released** section.
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | Who gets them       | Every user past the eligibility threshold (below).                                                                                          |
 | Who sees them       | Everyone. A public tab on the existing cached public read path. Recommendations are not viewer-dependent, so one cached payload serves all. |
-| Feedback in v1      | **Add to wishlist** and **Not interested**, owner only.                                                                                     |
+| Feedback in v1      | On the detail card's back, owner only: **Add to wishlist**, **Add to played**, and a quieter **Not interested**.                            |
 | LLM                 | **None, in any role.** Ranking is deterministic math; explanations are templated from the nearest rated games.                              |
 | Where the math runs | **Offline**, in a nightly batch job, never in the API function. See [Why offline](#why-offline).                                            |
 | Algorithm family    | **Content-based**, not collaborative filtering. See [Why content-based](#why-content-based).                                                |
@@ -406,6 +406,8 @@ makes a wishlist add or a dismissal take effect at once instead of the next nigh
 - `DELETE /api/library/me/recommendations/dismissals/{igdb_id}`, for the undo.
 - **Add to wishlist** reuses `POST /me/wishlist` with `name` and `igdbId`. Since 2026-09-23 a new
   IGDB row trusts nothing from the payload but the id, so the server needs nothing new.
+- **Add to played** reuses `POST /me/games` the same way, plus the `system` it requires and the
+  optional `rating` and first play session the card's form collects.
 
 Both new endpoints go in the Bruno collection (`api/bruno/`); `test_bruno_collection.py` fails
 otherwise.
@@ -446,6 +448,12 @@ PeopleView` exists so a tab without that pipeline cannot fall into the `view ===
   `cardKind` as `view === "wishlist" ? "wishlist" : "game"`, so without this a recommendation
   would open as a library game, with its IGDB id taken as a `played_games.id`: the wrong game's
   card, or none.
+- **A tap flips the case into the detail card**, the same flight every other case does.
+  `GameDetailCard`'s `CardSubject` gains a fourth member, `{ kind: "recommendation"; rec }`; a
+  recommendation already fits `BaseGame`, which is what the card's shared surfaces read. The back
+  shows the game's info (release date, genres, platforms) and the "Because you liked …" line, then
+  the owner's actions. A visitor's card is the same card with the action region not rendered,
+  exactly as a visitor's library card is today.
 - **Layout:** an **Upcoming** shelf on top, then one shelf per taste mode headed "Because you
   liked …", rendered with the **active theme's shelf group** (`SHELF_GROUPS`). A recommendation
   fits `GameCaseInput` with `id` set to `igdbId` and `system` set to `""`, so the shelf, the
@@ -455,8 +463,19 @@ PeopleView` exists so a tab without that pipeline cannot fall into the `view ===
   - `needs_ratings`: "Rate N more games to get recommendations."
   - `pending`: "Your first recommendations arrive overnight."
   - `ready` but empty: "Nothing new to recommend right now. Check back tomorrow."
-- **Actions, owner only:** **Add to wishlist** and **Not interested**, both of which create a row
-  and so gate on `useIsConfirmedOwner`, never `useIsLikelyOwner`.
+- **Actions on the card's back, owner only.** All three create a row, so all gate on
+  `useIsConfirmedOwner`, never `useIsLikelyOwner`.
+  - **Add to wishlist:** one tap, no form. The entry starts with no system, unstarred and without
+    notes, all editable afterwards from its own card.
+  - **Add to played:** opens the add form on the card, because a library row needs a `system`.
+    This is the existing `promote` path's shape: `GameEditFields` already renders a draft form
+    whose one Save creates the row (the "one-Save model" `CLAUDE.md` says new owner forms
+    adopt), with system, optional rating and an optional first session. The system suggestions
+    are the game's platforms, the ones the user already owns listed first.
+  - **Not interested:** a quieter text button below the two.
+  - After any of them the card closes and the next render drops the game: the add writes
+    revalidate `gamesTag` or `wishlistTag`, which this read carries, and the anti-join does the
+    rest.
 - **Undo for a dismissal.** The dismiss action revalidates, and the re-rendered read no longer
   contains the game, so the undo cannot be drawn from props. `RecommendationsView` keeps each
   dismissed recommendation in client state, keyed by its position, and renders an **Undo** in that
@@ -502,15 +521,10 @@ things live" table.
 2. **Persist.** The migration (four tables), the hand-made role and environment, the pool and
    feature-cache fetcher, `run.py`, the workflow.
 3. **Read and tab.** The endpoint, `fetchRecommendations`, the tab, empty states.
-4. **Feedback.** Dismiss and undo, add to wishlist.
+4. **Feedback.** The recommendation card subject, Add to wishlist, Add to played, dismiss and undo.
 
 ## Open questions
 
-- **What a tap does.** `GameCase` opens the detail card through `LibraryCardContext`, and the
-  recommendations view now has its own provider (`kind: "recommendation"`), so either answer is
-  safe. Either its `openCard` does nothing and the two actions sit beside each case, or the card
-  gets a read-only recommendation face carrying the actions. The second matches the rule that the
-  card is the owner edit surface; the first is far less work. Decide at the start of phase 3.
 - **IGDB terms.** Confirm that a cached copy of IGDB data and any required attribution fit their
   terms, as the catalog already relies on.
 
