@@ -537,7 +537,12 @@ def _platform_names(row: dict) -> list[str]:
 
 # Appended to the catalog queries (add and refresh), not the search: the picker
 # shows one year per result, and that stays the game-level first release.
-_RELEASE_DATE_FIELDS = "release_dates.date, release_dates.platform.name"
+_RELEASE_DATE_FIELDS = "release_dates.date, release_dates.platform.name, release_dates.status.name"
+
+# Release statuses that are not a release. A cancelled port with a date would
+# otherwise show a day that never comes. Early Access counts, matching
+# first_release_date.
+_NOT_A_RELEASE = frozenset({"Alpha", "Beta", "Cancelled"})
 
 
 def _platform_release_dates(row: dict) -> dict[str, str | None]:
@@ -551,7 +556,7 @@ def _platform_release_dates(row: dict) -> dict[str, str | None]:
     out: dict[str, str | None] = {}
     for release in row.get("release_dates") or []:
         name = (release.get("platform") or {}).get("name")
-        if not name:
+        if not name or (release.get("status") or {}).get("name") in _NOT_A_RELEASE:
             continue
         ts = release.get("date")
         iso = datetime.fromtimestamp(ts, tz=UTC).date().isoformat() if ts else None

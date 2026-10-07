@@ -134,6 +134,16 @@ def _genres_to_write(fetched: list[str]) -> list[str] | None:
     return shaped or None
 
 
+def _release_dates_to_write(
+    meta: GameMetadata, fetched: dict[str, str | None]
+) -> dict[str, str | None] | None:
+    """IGDB's per-platform dates, or None when empty (must not blank a known
+    map) or unchanged."""
+    if not fetched or fetched == meta.platform_release_dates:
+        return None
+    return fetched
+
+
 def _cover_to_write(meta: GameMetadata, fetched: str) -> str | None:
     """A cover only when the row has none.
 
@@ -193,8 +203,9 @@ def _refresh_row(work: Session, meta: GameMetadata, deadline: float) -> bool:
         platforms=_platforms_to_write(work, meta, facts.platforms) if facts else None,
         image_url=_cover_to_write(meta, facts.cover_url) if facts else None,
         genres=_genres_to_write(wiki_genres),
-        # Empty means IGDB listed no releases, which must not blank a known map.
-        platform_release_dates=(facts.platform_release_dates or None) if facts else None,
+        platform_release_dates=_release_dates_to_write(meta, facts.platform_release_dates)
+        if facts
+        else None,
     )
 
 

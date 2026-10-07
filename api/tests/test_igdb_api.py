@@ -35,6 +35,9 @@ FULL_IGDB_ROW = {
     "platforms": [{"id": 37, "name": "Nintendo 3DS"}],
     "genres": [{"id": 31, "name": "Adventure"}, {"id": 9, "name": "Puzzle"}],
     "cover": {"id": 1, "url": "//images.igdb.com/igdb/image/upload/t_thumb/co3p0j.jpg"},
+    "release_dates": [
+        {"id": 7, "date": 1385078400, "platform": {"id": 37, "name": "Nintendo 3DS"}},
+    ],
 }
 
 
@@ -574,9 +577,10 @@ def test_fetch_catalog_game_parses_igdbs_record(igdb_env) -> None:
         platforms=["Nintendo 3DS"],
         genres=["Adventure", "Puzzle"],
         cover_url="https://images.igdb.com/igdb/image/upload/t_cover_big/co3p0j.jpg",
-        platform_release_dates={},
+        platform_release_dates={"Nintendo 3DS": "2013-11-22"},
     )
     assert "where id = 1022;" in igdb_env["last_body"]
+    assert "release_dates.platform.name" in igdb_env["last_body"]
 
 
 @requires_db

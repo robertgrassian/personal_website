@@ -44,6 +44,16 @@ class TestPlatformReleaseDates:
         for releases in ([undated, dated], [dated, undated]):
             assert _platform_release_dates({"release_dates": releases}) == {"Xbox": "2027-01-01"}
 
+    def test_cancelled_and_prerelease_entries_are_not_releases(self):
+        release = _release("Nintendo Switch 2", date(2026, 1, 1))
+        for status in ("Cancelled", "Alpha", "Beta"):
+            row = {"release_dates": [{**release, "status": {"id": 1, "name": status}}]}
+            assert _platform_release_dates(row) == {}
+        early = {**release, "status": {"id": 1, "name": "Early Access"}}
+        assert _platform_release_dates({"release_dates": [early]}) == {
+            "Nintendo Switch 2": "2026-01-01"
+        }
+
     def test_missing_or_nameless_data_is_skipped(self):
         assert _platform_release_dates({}) == {}
         assert _platform_release_dates({"release_dates": None}) == {}

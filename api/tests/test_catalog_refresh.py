@@ -265,6 +265,12 @@ class TestRefreshStaleRows:
 
         assert stub_repo["applied"][0]["platform_release_dates"] == dates
 
+    def test_unchanged_release_dates_are_not_rewritten(self):
+        dates = {"Nintendo Switch 2": "2026-10-22"}
+        row = make_row(platform_release_dates=dict(dates))
+        assert catalog_refresh._release_dates_to_write(row, dates) is None
+        assert catalog_refresh._release_dates_to_write(row, {}) is None
+
     def test_a_failed_lookup_still_counts_as_an_attempt(
         self, stub_repo, monkeypatch: pytest.MonkeyPatch
     ):
