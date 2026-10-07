@@ -134,7 +134,12 @@ def stub_igdb_lookup(
 
     def fetch(db, igdb_id: int) -> igdb_service.IgdbCatalogGame:
         return igdb_games.get(igdb_id) or igdb_service.IgdbCatalogGame(
-            name=f"IGDB game {igdb_id}", release_date=None, platforms=[], genres=[], cover_url=""
+            name=f"IGDB game {igdb_id}",
+            release_date=None,
+            platforms=[],
+            genres=[],
+            cover_url="",
+            platform_release_dates={},
         )
 
     monkeypatch.setattr(igdb_service, "fetch_catalog_game", fetch)

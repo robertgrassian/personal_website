@@ -51,6 +51,7 @@ def find_or_create_metadata(
     release_date: date | None,
     image_url: str | None,
     platforms: list[str],
+    platform_release_dates: dict[str, str | None],
 ) -> GameMetadata:
     """The catalog row for a game, creating it if this is the first time anyone
     has added it.
@@ -79,6 +80,7 @@ def find_or_create_metadata(
         release_date=release_date,
         image_url=image_url,
         platforms=platforms,
+        platform_release_dates=platform_release_dates,
         # Only private rows have an owner. Stamping a creator on a shared row
         # would make whoever happened to add it first look like its author.
         created_by_user_id=None if igdb_id is not None else user_id,

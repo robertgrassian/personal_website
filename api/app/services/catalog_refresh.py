@@ -193,6 +193,8 @@ def _refresh_row(work: Session, meta: GameMetadata, deadline: float) -> bool:
         platforms=_platforms_to_write(work, meta, facts.platforms) if facts else None,
         image_url=_cover_to_write(meta, facts.cover_url) if facts else None,
         genres=_genres_to_write(wiki_genres),
+        # Empty means IGDB listed no releases, which must not blank a known map.
+        platform_release_dates=(facts.platform_release_dates or None) if facts else None,
     )
 
 

@@ -574,6 +574,7 @@ def test_fetch_catalog_game_parses_igdbs_record(igdb_env) -> None:
         platforms=["Nintendo 3DS"],
         genres=["Adventure", "Puzzle"],
         cover_url="https://images.igdb.com/igdb/image/upload/t_cover_big/co3p0j.jpg",
+        platform_release_dates={},
     )
     assert "where id = 1022;" in igdb_env["last_body"]
 

@@ -64,6 +64,7 @@ class TestFieldsForNewCatalogRow:
                     platforms=list(platforms or []),
                     genres=["Role-playing (RPG)"],
                     cover_url="https://images.igdb.com/igdb/image/upload/t_cover_big/co2mkh.jpg",
+                    platform_release_dates={},
                 )
                 if igdb is ...
                 else igdb
@@ -343,6 +344,7 @@ class TestPreviewCatalogEntry:
                 platforms=["Windows"],
                 genres=["Role-playing (RPG)"],
                 cover_url="",
+                platform_release_dates={},
             ),
         )
         stored = catalog_sourcing.fields_for_new_catalog_row(

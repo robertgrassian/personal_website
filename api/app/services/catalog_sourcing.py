@@ -59,6 +59,7 @@ class _NewCatalogFields(NamedTuple):
     release_date: date | None
     image_url: str | None
     platforms: list[str]
+    platform_release_dates: dict[str, str | None]
 
 
 def fields_for_new_catalog_row(
@@ -91,7 +92,12 @@ def fields_for_new_catalog_row(
     That is the common case, and it costs nothing.
     """
     from_client = _NewCatalogFields(
-        name=name, genres=genres, release_date=release_date, image_url=image_url, platforms=[]
+        name=name,
+        genres=genres,
+        release_date=release_date,
+        image_url=image_url,
+        platforms=[],
+        platform_release_dates={},
     )
     if me_repo.find_metadata(db, user_id=user_id, igdb_id=igdb_id, name=name) is not None:
         # Not the payload for a shared row, even as values to be discarded: if
@@ -121,6 +127,7 @@ def fields_for_new_catalog_row(
         release_date=game.release_date,
         image_url=game.cover_url or None,
         platforms=platforms,
+        platform_release_dates=game.platform_release_dates,
     )
 
 
@@ -150,6 +157,7 @@ def catalog_row_for_add(
         release_date=sourced.release_date,
         image_url=sourced.image_url,
         platforms=sourced.platforms,
+        platform_release_dates=sourced.platform_release_dates,
     )
 
 

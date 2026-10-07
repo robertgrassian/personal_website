@@ -39,7 +39,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -63,7 +63,16 @@ class GameMetadata(Base):
     # every user.
     platforms: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
     genres: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
+    # The FIRST release on any platform, which is what a game-level date means.
     release_date: Mapped[date | None] = mapped_column(Date)
+    # IGDB platform name -> ISO date of that platform's earliest release, or
+    # null where IGDB lists the platform with no date yet (announced, TBD). An
+    # entry's own `system` reads from here, because a port can ship years after
+    # the original. Empty for hand-entered rows and rows not yet re-sourced, and
+    # read as "fall back to release_date" (services/users.py, release_date_for).
+    platform_release_dates: Mapped[dict[str, str | None]] = mapped_column(
+        JSONB, server_default=text("'{}'::jsonb")
+    )
     image_url: Mapped[str | None] = mapped_column(Text)
     # NULL on shared rows, set on private ones. ON DELETE SET NULL rather than
     # CASCADE: a deleted account must not take a catalog row with it, since

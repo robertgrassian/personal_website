@@ -81,6 +81,19 @@ def _iso_or_empty(d: date | None) -> str:
     return d.isoformat() if d is not None else ""
 
 
+def release_date_for(meta: GameMetadata, system: str | None) -> str:
+    """The release date on the console this entry names, else the game's first.
+
+    A system IGDB lists as undated is "" rather than the fallback: an announced
+    port must not show the original's date as if it were already out.
+    """
+    # None on a row not yet flushed: the '{}' default is the server's.
+    dates = meta.platform_release_dates or {}
+    if system and system in dates:
+        return dates[system] or ""
+    return _iso_or_empty(meta.release_date)
+
+
 def _require_profile(db: Session, username: str):
     profile = users_repo.get_profile_by_username(db, username)
     if profile is None:
@@ -107,7 +120,7 @@ def to_game_read(game: PlayedGame, meta: GameMetadata, play_state: PlayState) ->
         rating=game.rating or "",
         genres=list(meta.genres),
         platforms=list(meta.platforms),
-        release_date=_iso_or_empty(meta.release_date),
+        release_date=release_date_for(meta, game.system),
         image_url=meta.image_url or "",
         igdb_id=meta.igdb_id,
         last_played=play_state.last_played,
@@ -130,7 +143,7 @@ def to_wishlist_read(item: WishlistGame, meta: GameMetadata) -> WishlistGameRead
         system=item.system or "",
         genres=list(meta.genres),
         platforms=list(meta.platforms),
-        release_date=_iso_or_empty(meta.release_date),
+        release_date=release_date_for(meta, item.system),
         image_url=meta.image_url or "",
         igdb_id=meta.igdb_id,
         starred=item.starred,
