@@ -496,6 +496,7 @@ class IgdbGameFacts:
     release_date: date | None
     platforms: list[str]
     cover_url: str
+    platform_release_dates: dict[str, str | None]
 
 
 def _fetch_one_game(
@@ -534,6 +535,37 @@ def _platform_names(row: dict) -> list[str]:
     return sorted(p["name"] for p in row.get("platforms") or [] if p.get("name"))
 
 
+# Appended to the catalog queries (add and refresh), not the search: the picker
+# shows one year per result, and that stays the game-level first release.
+_RELEASE_DATE_FIELDS = "release_dates.date, release_dates.platform.name, release_dates.status.name"
+
+# Release statuses that are not a release. A cancelled port with a date would
+# otherwise show a day that never comes. Early Access counts, matching
+# first_release_date.
+_NOT_A_RELEASE = frozenset({"Alpha", "Beta", "Cancelled"})
+
+
+def _platform_release_dates(row: dict) -> dict[str, str | None]:
+    """IGDB platform name -> ISO date of its earliest release, or None when
+    every release IGDB lists for it is undated (TBD).
+
+    Earliest across regions, the same rule first_release_date applies to the
+    whole game. None is kept rather than dropped: it is what stops an unreleased
+    port reading as the original's date (see release_date_for in users.py).
+    """
+    out: dict[str, str | None] = {}
+    for release in row.get("release_dates") or []:
+        name = (release.get("platform") or {}).get("name")
+        if not name or (release.get("status") or {}).get("name") in _NOT_A_RELEASE:
+            continue
+        ts = release.get("date")
+        iso = datetime.fromtimestamp(ts, tz=UTC).date().isoformat() if ts else None
+        current = out.get(name)
+        if name not in out or (iso is not None and (current is None or iso < current)):
+            out[name] = iso
+    return out
+
+
 def is_platform_name(db: Session, name: str) -> bool | None:
     """Whether `name` is exactly one of IGDB's platform names, or None when the
     platform list is unavailable. Rides on the search path's 12-hour cache, so
@@ -562,6 +594,7 @@ class IgdbCatalogGame:
     platforms: list[str]
     genres: list[str]
     cover_url: str
+    platform_release_dates: dict[str, str | None]
 
 
 def fetch_catalog_game(db: Session, igdb_id: int) -> IgdbCatalogGame | None:
@@ -586,8 +619,8 @@ def fetch_catalog_game(db: Session, igdb_id: int) -> IgdbCatalogGame | None:
         rows = _run_query(
             db,
             settings,
-            "fields name, first_release_date, platforms.name, genres.name, cover.url;"
-            f" where id = {int(igdb_id)}; limit 1;",
+            "fields name, first_release_date, platforms.name, genres.name, cover.url,"
+            f" {_RELEASE_DATE_FIELDS}; where id = {int(igdb_id)}; limit 1;",
         )
         # _parse_results drops a row missing its name, which is a miss here too:
         # there would be nothing to call the game.
@@ -603,6 +636,7 @@ def fetch_catalog_game(db: Session, igdb_id: int) -> IgdbCatalogGame | None:
             platforms=_platform_names(rows[0]),
             genres=game.genres,
             cover_url=game.cover_url,
+            platform_release_dates=_platform_release_dates(rows[0]),
         )
     except (ValueError, KeyError, TypeError, AttributeError) as exc:
         # A 200 that is not the shape asked for: non-JSON, a dict, a null where
@@ -628,7 +662,7 @@ def lookup_game_facts(db: Session, igdb_id: int, *, timeout: float) -> IgdbGameF
     row = _fetch_one_game(
         db,
         igdb_id,
-        "fields first_release_date, platforms.name, cover.url;",
+        f"fields first_release_date, platforms.name, cover.url, {_RELEASE_DATE_FIELDS};",
         "Catalog refresh lookup",
         deadline_timeout=timeout,
     )
@@ -642,4 +676,5 @@ def lookup_game_facts(db: Session, igdb_id: int, *, timeout: float) -> IgdbGameF
         release_date=(datetime.fromtimestamp(release_ts, tz=UTC).date() if release_ts else None),
         platforms=_platform_names(row),
         cover_url=_upgrade_cover_url((row.get("cover") or {}).get("url") or ""),
+        platform_release_dates=_platform_release_dates(row),
     )

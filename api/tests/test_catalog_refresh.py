@@ -224,7 +224,10 @@ class TestRefreshStaleRows:
             igdb_service,
             "lookup_game_facts",
             lambda db, igdb_id, *, timeout: IgdbGameFacts(
-                release_date=date(2026, 10, 1), platforms=[], cover_url=""
+                release_date=date(2026, 10, 1),
+                platforms=[],
+                cover_url="",
+                platform_release_dates={},
             ),
         )
         monkeypatch.setattr(genre_service, "lookup_one", lambda name, *, timeout: [])
@@ -237,8 +240,36 @@ class TestRefreshStaleRows:
                 "platforms": None,
                 "image_url": None,
                 "genres": None,
+                "platform_release_dates": None,
             }
         ]
+
+    def test_per_platform_release_dates_are_written(
+        self, stub_repo, monkeypatch: pytest.MonkeyPatch
+    ):
+        row = make_row(refreshed_at=NOW - timedelta(days=31))
+        dates = {"PC (Microsoft Windows)": "2025-11-13", "Nintendo Switch 2": "2026-10-22"}
+        monkeypatch.setattr(
+            igdb_service,
+            "lookup_game_facts",
+            lambda db, igdb_id, *, timeout: IgdbGameFacts(
+                release_date=date(2025, 11, 13),
+                platforms=[],
+                cover_url="",
+                platform_release_dates=dates,
+            ),
+        )
+        monkeypatch.setattr(genre_service, "lookup_one", lambda name, *, timeout: [])
+
+        refresh_stale_rows(FakeSession(), [row])
+
+        assert stub_repo["applied"][0]["platform_release_dates"] == dates
+
+    def test_unchanged_release_dates_are_not_rewritten(self):
+        dates = {"Nintendo Switch 2": "2026-10-22"}
+        row = make_row(platform_release_dates=dict(dates))
+        assert catalog_refresh._release_dates_to_write(row, dates) is None
+        assert catalog_refresh._release_dates_to_write(row, {}) is None
 
     def test_a_failed_lookup_still_counts_as_an_attempt(
         self, stub_repo, monkeypatch: pytest.MonkeyPatch
@@ -253,7 +284,13 @@ class TestRefreshStaleRows:
 
         assert [claimed_id for claimed_id, _ in stub_repo["claimed"]] == [row.id]
         assert stub_repo["applied"] == [
-            {"release_date": None, "platforms": None, "image_url": None, "genres": None}
+            {
+                "release_date": None,
+                "platforms": None,
+                "image_url": None,
+                "genres": None,
+                "platform_release_dates": None,
+            }
         ]
 
     def test_nothing_due_makes_no_calls_at_all(self, stub_repo, monkeypatch: pytest.MonkeyPatch):
@@ -273,7 +310,9 @@ class TestRefreshStaleRows:
         def slow_igdb(db, igdb_id, *, timeout):
             # Stand in for IGDB eating the whole budget.
             monkeypatch.setattr(time, "monotonic", lambda: float("inf"))
-            return IgdbGameFacts(release_date=None, platforms=[], cover_url="")
+            return IgdbGameFacts(
+                release_date=None, platforms=[], cover_url="", platform_release_dates={}
+            )
 
         monkeypatch.setattr(igdb_service, "lookup_game_facts", slow_igdb)
         monkeypatch.setattr(
@@ -340,7 +379,10 @@ class TestRequestSessionIsolation:
             igdb_service,
             "lookup_game_facts",
             lambda db, igdb_id, *, timeout: IgdbGameFacts(
-                release_date=date(2026, 10, 1), platforms=[], cover_url=""
+                release_date=date(2026, 10, 1),
+                platforms=[],
+                cover_url="",
+                platform_release_dates={},
             ),
         )
         monkeypatch.setattr(genre_service, "lookup_one", lambda name, *, timeout: [])
