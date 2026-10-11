@@ -90,7 +90,12 @@ type DateFieldProps = {
 };
 
 /** One captioned date input. Shared with the stop-playing editor, so a date
- *  reads and behaves the same wherever a playthrough's dates are entered. */
+ *  reads and behaves the same wherever a playthrough's dates are entered.
+ *
+ *  Clear rides in the caption line. In a row of its own under the fields it
+ *  appeared the moment a date was set and grew the card by 30px mid-edit,
+ *  which on a phone pushed the buttons below the fold only after the first
+ *  interaction. */
 export function DateField({
   label,
   value,
@@ -161,18 +166,10 @@ type SessionDateFieldsProps = {
 // draft. The checkbox that used to sit below the fields was a second way to
 // answer a question already on the screen.
 export function SessionDateFields({ draft, disabled }: SessionDateFieldsProps) {
-  const { startDate, stillPlaying, problem } = draft;
-  // The "To" field keeps a date already typed while it is hidden, so picking
-  // "Played it before" again puts it back.
-  const endDate = stillPlaying ? "" : draft.endDate;
+  const { startDate, endDate, stillPlaying, problem } = draft;
   const problemId = useId();
   const describedBy = problem === null ? undefined : problemId;
 
-  // Clear rode in a row of its own under the fields, which appeared the moment
-  // a date was set and grew the card by 30px mid-edit. On a phone that pushed
-  // the buttons below the fold only AFTER the first interaction, so the card
-  // looked like it fit right up until it did not. In the caption line the
-  // control costs no height at all and the card stops resizing under the user.
   return (
     <div className="mt-2">
       <div className="flex flex-wrap items-end gap-2">
@@ -186,7 +183,8 @@ export function SessionDateFields({ draft, disabled }: SessionDateFieldsProps) {
         />
         {/* Dropped from the layout rather than greyed out: "Playing it now"
             should show one date, not one date beside a disabled box asking
-            when something that has not ended ended. */}
+            when something that has not ended ended. The draft keeps a date
+            already typed, so picking "Played it before" again puts it back. */}
         {!stillPlaying && (
           <DateField
             label="To"

@@ -1,6 +1,7 @@
 "use client";
 
-import { useId } from "react";
+import { useEffect, useId, useRef } from "react";
+import { localToday } from "@/lib/games";
 import { formatDayShort } from "@/lib/dates";
 import { Button } from "@/components/ui/Button";
 import { DateField, FixedDate } from "./SessionDateFields";
@@ -10,6 +11,7 @@ import { DateField, FixedDate } from "./SessionDateFields";
 export function stopDateProblem(stopDate: string, startDate: string): string | null {
   if (stopDate === "") return "Add the date you finished.";
   if (stopDate < startDate) return "The end date is before the start date.";
+  if (stopDate > localToday()) return "The end date is in the future.";
   return null;
 }
 
@@ -38,12 +40,30 @@ export function FinishingPlaythrough({
   onUndo,
   disabled,
 }: FinishingPlaythroughProps) {
+  const titleId = useId();
   const problemId = useId();
   const problem = stopDateProblem(stopDate, startDate);
+
+  // The button that staged this unmounted under the keyboard, so focus lands
+  // here rather than on <body>. The group, not the date input: focusing the
+  // input would open a picker or keyboard on a phone uninvited.
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.focus();
+  }, []);
+
   return (
-    <div className="rounded-md border border-link p-3">
+    <div
+      ref={ref}
+      role="group"
+      aria-labelledby={titleId}
+      tabIndex={-1}
+      className="rounded-md border border-link p-3 focus:outline-none"
+    >
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-shelf-text">Finishing this playthrough</p>
+        <p id={titleId} className="text-sm font-medium text-shelf-text">
+          Finishing this playthrough
+        </p>
         <Button variant="ghost" onClick={onUndo} disabled={disabled}>
           Keep Playing
         </Button>

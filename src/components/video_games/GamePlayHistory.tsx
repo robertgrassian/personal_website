@@ -1,11 +1,13 @@
 "use client";
 
+import { useRef, useState } from "react";
+
 import { formatSessionRange, sessionLengthDays, type PlaySession } from "@/lib/sessions";
 import { PlayedFields } from "./PlayedFields";
 import type { PlayDraft } from "./usePlayDraft";
 import { localToday } from "@/lib/games";
 import { Button } from "@/components/ui/Button";
-import { FinishingPlaythrough } from "./StopPlayingControl";
+import { FinishingPlaythrough } from "./FinishingPlaythrough";
 
 type GamePlayHistoryProps = {
   // Newest first, narrowed by the caller out of the library's sessions, which
@@ -54,6 +56,19 @@ export function GamePlayHistory({
   onStopDateChange,
   disabled,
 }: GamePlayHistoryProps) {
+  // "Add another playthrough" pressed while a stop is staged. Cleared by Keep
+  // Playing, so staging again starts from the short form.
+  const [addWhileFinishing, setAddWhileFinishing] = useState(false);
+  // Which control should take focus once it mounts, because the one that was
+  // pressed has just unmounted. Read in ref callbacks, which run on mount.
+  const focusNext = useRef<"stop" | "add" | null>(null);
+  const focusIf = (which: "stop" | "add") => (el: HTMLElement | null) => {
+    if (el && focusNext.current === which) {
+      focusNext.current = null;
+      el.focus();
+    }
+  };
+
   const rows: PlaySession[] =
     openSession === null || sessions.some((s) => s.id === openSession.id)
       ? sessions
@@ -69,7 +84,11 @@ export function GamePlayHistory({
     stopDate === null ? (
       <li key={session.id} className={`flex items-center justify-between gap-3 ${rowClass}`}>
         <span className="min-w-0 text-sm text-shelf-text">{formatSessionRange(session)}</span>
-        <Button onClick={() => onStopDateChange(localToday())} disabled={disabled}>
+        <Button
+          ref={focusIf("stop")}
+          onClick={() => onStopDateChange(localToday())}
+          disabled={disabled}
+        >
           Stop Playing
         </Button>
       </li>
@@ -79,16 +98,21 @@ export function GamePlayHistory({
           startDate={session.startDate}
           stopDate={stopDate}
           onStopDateChange={onStopDateChange}
-          onUndo={() => onStopDateChange(null)}
+          onUndo={() => {
+            focusNext.current = "stop";
+            setAddWhileFinishing(false);
+            onStopDateChange(null);
+          }}
           disabled={disabled}
         />
       </li>
     );
 
   // While finishing, an untouched "None" chooser reads as a second question
-  // the stop still needs answered, so it steps aside. Never once a choice is
-  // made: hiding a pending playthrough would hide part of what Save commits.
-  const showAdd = stopDate === null || play.choice !== "no";
+  // the stop still needs answered, so it collapses to a link. Never once a
+  // choice is made: hiding a pending playthrough would hide part of what Save
+  // commits.
+  const showAdd = stopDate === null || play.choice !== "no" || addWhileFinishing;
 
   return (
     <>
@@ -112,8 +136,8 @@ export function GamePlayHistory({
         </ol>
       )}
 
-      {showAdd && (
-        <>
+      {showAdd ? (
+        <div ref={focusIf("add")} tabIndex={-1} className="focus:outline-none">
           {/* Not "Add a Session": session is the database's word, and no
               user-facing copy in the library uses it. */}
           <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-shelf-label">
@@ -130,7 +154,19 @@ export function GamePlayHistory({
               disabled={disabled}
             />
           </div>
-        </>
+        </div>
+      ) : (
+        <Button
+          variant="ghost"
+          onClick={() => {
+            focusNext.current = "add";
+            setAddWhileFinishing(true);
+          }}
+          disabled={disabled}
+          className="mt-4"
+        >
+          Add another playthrough
+        </Button>
       )}
     </>
   );

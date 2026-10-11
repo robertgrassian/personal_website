@@ -15,7 +15,7 @@ import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
 import { PlayedFields } from "./PlayedFields";
 import { GamePlayHistory } from "./GamePlayHistory";
-import { stopDateProblem } from "./StopPlayingControl";
+import { stopDateProblem } from "./FinishingPlaythrough";
 import { usePlayDraft } from "./usePlayDraft";
 import { GameNotesFace } from "./GameNotes";
 import type { NoteDraft } from "./useGameNote";
@@ -113,6 +113,10 @@ export function GameEditFields({
   // open. Holds the end date the stop will save, null when none is staged; it
   // opens on today and the history face lets you move it back.
   const [stopDate, setStopDate] = useState<string | null>(null);
+  // A stop staged on a session that has since closed (a stale cache, a retry)
+  // has nothing left to close or to show, so it is dropped rather than left
+  // keeping Save live for a write it would skip. Adjusted during render.
+  if (stopDate !== null && openSessionId === null) setStopDate(null);
   const stopPending = stopDate !== null;
   const stopProblem =
     stopDate === null || promoting ? null : stopDateProblem(stopDate, subject.game.playingSince);
@@ -391,6 +395,10 @@ export function GameEditFields({
                 Playing since{" "}
                 <span className="font-medium">{formatDayShort(subject.game.playingSince)}</span>
               </>
+            ) : stopProblem !== null ? (
+              // Save is disabled for this, so the reason has to be on this
+              // face too, not only on the one that shows the field.
+              <span className="text-shelf-danger">{stopProblem} Fix it under play history.</span>
             ) : (
               <>
                 Finishing{" "}
@@ -399,7 +407,7 @@ export function GameEditFields({
                     id: openSessionId,
                     gameId: subject.game.id,
                     startDate: subject.game.playingSince,
-                    endDate: stopDate || localToday(),
+                    endDate: stopDate,
                   })}
                 </span>{" "}
                 when you save.
