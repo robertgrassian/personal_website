@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { localToday, type Game, type Rating } from "@/lib/games";
+import { formatDayShort } from "@/lib/dates";
 import type { WishlistGame } from "@/lib/wishlist";
 import {
   deleteGame,
@@ -14,11 +15,11 @@ import { useServerAction } from "./useServerAction";
 import { RatingPicker } from "./RatingPicker";
 import { PlayedFields } from "./PlayedFields";
 import { GamePlayHistory } from "./GamePlayHistory";
-import { StopPlayingControl } from "./StopPlayingControl";
+import { stopDateProblem } from "./StopPlayingControl";
 import { usePlayDraft } from "./usePlayDraft";
 import { GameNotesFace } from "./GameNotes";
 import type { NoteDraft } from "./useGameNote";
-import type { PlaySession } from "@/lib/sessions";
+import { formatSessionRange, type PlaySession } from "@/lib/sessions";
 import { Button } from "@/components/ui/Button";
 import { SuggestInput } from "./SuggestInput";
 import { RequiredField } from "./RequiredField";
@@ -109,8 +110,12 @@ export function GameEditFields({
   // Staged, not written on the press, like every other edit here. Staging the
   // stop first is also what makes a second open session legal: editCalls closes
   // before it inserts, so the 409 rule only bites while the open one is staying
-  // open.
-  const [stopPending, setStopPending] = useState(false);
+  // open. Holds the end date the stop will save, null when none is staged; it
+  // opens on today and the history face lets you move it back.
+  const [stopDate, setStopDate] = useState<string | null>(null);
+  const stopPending = stopDate !== null;
+  const stopProblem =
+    stopDate === null || promoting ? null : stopDateProblem(stopDate, subject.game.playingSince);
 
   // The play draft for BOTH kinds. A promote has no row for a session to belong
   // to until promoteAndSave creates one, and an existing game's session is a
@@ -149,7 +154,12 @@ export function GameEditFields({
       sessionDraft.dirty ||
       stopPending ||
       noteDirty;
-  const canSave = hasChanges && !systemMissing && sessionDraft.problem === null && !isPending;
+  const canSave =
+    hasChanges &&
+    !systemMissing &&
+    sessionDraft.problem === null &&
+    stopProblem === null &&
+    !isPending;
 
   const save = () => {
     if (promoting) {
@@ -173,12 +183,12 @@ export function GameEditFields({
     // or note entered there commit together. editCalls orders them: rating and
     // system first, then the stop, then the new session, then the note.
     const session = sessionDraft.value;
-    const stopping = stopPending && openSessionId !== null;
+    const stopping = stopDate !== null && openSessionId !== null;
     const edits = {
       ...(ratingDirty ? { rating: ratingDraft } : {}),
       ...(systemDirty ? { system: systemDraft } : {}),
       ...(session ? { session } : {}),
-      ...(stopping ? { stopSessionId: openSessionId, stopDate: localToday() } : {}),
+      ...(stopping ? { stopSessionId: openSessionId, stopDate } : {}),
       ...(note && noteDirty ? { note: note.value } : {}),
     };
     run(
@@ -194,7 +204,7 @@ export function GameEditFields({
         // with nowhere to flow back from need clearing.
         onSuccess: () => {
           play.reset();
-          setStopPending(false);
+          setStopDate(null);
           if (noteDirty) note?.markSaved();
         },
       }
@@ -318,9 +328,13 @@ export function GameEditFields({
           <GamePlayHistory
             sessions={sessions}
             play={play}
-            hasOpenSession={openSessionId !== null}
-            stopPending={stopPending}
-            onStopPendingChange={setStopPending}
+            openSession={
+              openSessionId === null
+                ? null
+                : { id: openSessionId, startDate: subject.game.playingSince }
+            }
+            stopDate={stopDate}
+            onStopDateChange={setStopDate}
             disabled={isPending}
           />
         )}
@@ -372,14 +386,32 @@ export function GameEditFields({
         </div>
         {playing && (
           <p className="mt-4 text-sm text-shelf-text">
-            Playing since <span className="font-medium">{subject.game.playingSince}</span>
+            {stopDate === null ? (
+              <>
+                Playing since{" "}
+                <span className="font-medium">{formatDayShort(subject.game.playingSince)}</span>
+              </>
+            ) : (
+              <>
+                Finishing{" "}
+                <span className="font-medium">
+                  {formatSessionRange({
+                    id: openSessionId,
+                    gameId: subject.game.id,
+                    startDate: subject.game.playingSince,
+                    endDate: stopDate || localToday(),
+                  })}
+                </span>{" "}
+                when you save.
+              </>
+            )}
           </p>
         )}
 
         {/* Both kinds offer the same button, with the same label: a library
             game with nothing logged shows it too, so "view or add" is already
             what it says on an empty history. Stop Playing stages the close and
-            opens the face that shows it staged. Neither writes on the press, so
+            opens the face that shows its dates. Neither writes on the press, so
             Save still owns every write. Notes share this row rather than taking
             one of their own, so they cost this face no height. */}
         <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -391,19 +423,24 @@ export function GameEditFields({
               Notes
             </Button>
           )}
-          {playing && (
-            <StopPlayingControl
-              stopPending={stopPending}
-              onChange={(pending) => {
-                setStopPending(pending);
-                // Staging it moves to the face that shows it beside the
-                // sessions it changes. Undoing does not navigate: you are
-                // already looking at the thing you undid.
-                if (pending) onOpenHistory();
-              }}
-              disabled={isPending}
-            />
-          )}
+          {playing &&
+            (stopDate === null ? (
+              <Button
+                onClick={() => {
+                  // Staging it moves to the face where its dates can be seen
+                  // and changed, in place of the row it closes.
+                  setStopDate(localToday());
+                  onOpenHistory();
+                }}
+                disabled={isPending}
+              >
+                Stop Playing
+              </Button>
+            ) : (
+              <Button variant="ghost" onClick={() => setStopDate(null)} disabled={isPending}>
+                Keep Playing
+              </Button>
+            ))}
         </div>
       </div>
 
