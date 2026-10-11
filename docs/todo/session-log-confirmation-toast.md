@@ -30,3 +30,8 @@ logged a closed past session changes nothing visible beyond the date fields clea
 appearing in a list you may have scrolled past. There is no success text and no live region, so the
 honest read is "did that do anything?". Deliberately not solved with a one-off here, because this item owns
 the site-wide primitive.
+
+**The before-Save half of the same problem** came from the staged "Stop Playing" item, closed
+2026-10-11 when the stop became an editable From/To row: a pending change made on the face you are
+not looking at is invisible until you go back to it. A count on the Save button ("Save 2 changes")
+would cover every face at once, and wants deciding alongside this rather than separately.

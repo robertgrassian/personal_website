@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { localToday } from "@/lib/games";
 import { Button } from "@/components/ui/Button";
 import { fieldClass } from "./formStyles";
@@ -78,6 +78,76 @@ function useNativeValueSync(value: string, onChange: (value: string) => void) {
   return ref;
 }
 
+type DateFieldProps = {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  min?: string;
+  disabled: boolean;
+  // Off where an empty date is never a valid answer, such as a stop's end date.
+  clearable: boolean;
+  problemId?: string;
+};
+
+/** One captioned date input. Shared with the stop-playing editor, so a date
+ *  reads and behaves the same wherever a playthrough's dates are entered.
+ *
+ *  Clear rides in the caption line. In a row of its own under the fields it
+ *  appeared the moment a date was set and grew the card by 30px mid-edit,
+ *  which on a phone pushed the buttons below the fold only after the first
+ *  interaction. */
+export function DateField({
+  label,
+  value,
+  onChange,
+  min,
+  disabled,
+  clearable,
+  problemId,
+}: DateFieldProps) {
+  const ref = useNativeValueSync(value, onChange);
+  const id = useId();
+  return (
+    <div className={fieldColumnClass}>
+      <div className={captionRowClass}>
+        <label htmlFor={id}>{label}</label>
+        {clearable && !disabled && value !== "" && (
+          <Button variant="ghost" onClick={() => onChange("")} className={clearButtonClass}>
+            Clear
+          </Button>
+        )}
+      </div>
+      <input
+        id={id}
+        ref={ref}
+        type="date"
+        value={value}
+        min={min || undefined}
+        max={localToday()}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        aria-invalid={problemId !== undefined}
+        aria-describedby={problemId}
+        className={dateInputClass}
+      />
+    </div>
+  );
+}
+
+/** The caption-and-value column of a date that is shown but not editable,
+ *  aligned with a DateField beside it. */
+export function FixedDate({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className={fieldColumnClass}>
+      <div className={captionRowClass}>{label}</div>
+      {/* Border kept, transparent, so the text sits on the input's baseline. */}
+      <p className="border border-transparent py-1 text-base pointer-fine:text-sm text-shelf-text">
+        {children}
+      </p>
+    </div>
+  );
+}
+
 type SessionDateFieldsProps = {
   // The whole draft rather than a field at a time: this renders every control
   // that can change it, so threading six props through would only give the two
@@ -96,85 +166,36 @@ type SessionDateFieldsProps = {
 // draft. The checkbox that used to sit below the fields was a second way to
 // answer a question already on the screen.
 export function SessionDateFields({ draft, disabled }: SessionDateFieldsProps) {
-  const { startDate, stillPlaying, problem } = draft;
-  // The "To" field keeps a date already typed while it is hidden, so picking
-  // "Played it before" again puts it back.
-  const endDate = stillPlaying ? "" : draft.endDate;
-  const startRef = useNativeValueSync(startDate, draft.setStartDate);
-  const endRef = useNativeValueSync(endDate, draft.setEndDate);
-  const startId = useId();
-  const endId = useId();
+  const { startDate, endDate, stillPlaying, problem } = draft;
   const problemId = useId();
-
-  // Clear rode in a row of its own under the fields, which appeared the moment
-  // a date was set and grew the card by 30px mid-edit. On a phone that pushed
-  // the buttons below the fold only AFTER the first interaction, so the card
-  // looked like it fit right up until it did not. In the caption line the
-  // control costs no height at all and the card stops resizing under the user.
-  const clearable = !disabled;
+  const describedBy = problem === null ? undefined : problemId;
 
   return (
     <div className="mt-2">
       <div className="flex flex-wrap items-end gap-2">
-        <div className={fieldColumnClass}>
-          <div className={captionRowClass}>
-            <label htmlFor={startId}>From</label>
-            {clearable && startDate !== "" && (
-              <Button
-                variant="ghost"
-                onClick={() => draft.setStartDate("")}
-                className={clearButtonClass}
-              >
-                Clear
-              </Button>
-            )}
-          </div>
-          <input
-            id={startId}
-            ref={startRef}
-            type="date"
-            value={startDate}
-            max={localToday()}
-            disabled={disabled}
-            onChange={(e) => draft.setStartDate(e.target.value)}
-            aria-invalid={problem !== null}
-            aria-describedby={problem === null ? undefined : problemId}
-            className={dateInputClass}
-          />
-        </div>
-        <div
-          className={fieldColumnClass}
-          // Dropped from the layout rather than greyed out: "Playing it now"
-          // should show one date, not one date beside a disabled box asking
-          // when something that has not ended ended.
-          hidden={stillPlaying}
-        >
-          <div className={captionRowClass}>
-            <label htmlFor={endId}>To</label>
-            {clearable && endDate !== "" && (
-              <Button
-                variant="ghost"
-                onClick={() => draft.setEndDate("")}
-                className={clearButtonClass}
-              >
-                Clear
-              </Button>
-            )}
-          </div>
-          <input
-            id={endId}
-            ref={endRef}
-            type="date"
+        <DateField
+          label="From"
+          value={startDate}
+          onChange={draft.setStartDate}
+          disabled={disabled}
+          clearable
+          problemId={describedBy}
+        />
+        {/* Dropped from the layout rather than greyed out: "Playing it now"
+            should show one date, not one date beside a disabled box asking
+            when something that has not ended ended. The draft keeps a date
+            already typed, so picking "Played it before" again puts it back. */}
+        {!stillPlaying && (
+          <DateField
+            label="To"
             value={endDate}
-            min={startDate || undefined}
-            max={localToday()}
+            onChange={draft.setEndDate}
+            min={startDate}
             disabled={disabled}
-            onChange={(e) => draft.setEndDate(e.target.value)}
-            aria-invalid={problem !== null}
-            aria-describedby={problem === null ? undefined : problemId}
-            className={dateInputClass}
+            clearable
+            problemId={describedBy}
           />
-        </div>
+        )}
       </div>
       {/* Only the error. The standing hint this replaced described a rule the
           form does not enforce, and held a line open under the fields for it in

@@ -45,11 +45,6 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       cases. **Promote to Bugs if the doc's focus-loss path reproduces.**
       [Details](docs/todo/shelf-recut-remount.md)
 
-- [ ] **Rethink the staged "Stop Playing" notice and its Undo, both too easy to miss.** The stop is
-      the one pending edit with no control still showing its state, so bigger text is not the
-      answer. Decide with **Show a confirmation toast after logging a session**.
-      [Details](docs/todo/stop-playing-staged-notice.md)
-
 - [ ] **A site email address for feedback, so people without a GitHub account can report bugs and
       ideas.** `/privacy` already publishes `rgrassian@gmail.com` twice, so an address exists: what
       is missing is one that is not a personal inbox, and any link to it from the library.
