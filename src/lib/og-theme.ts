@@ -44,12 +44,9 @@ export const OG = {
   // live in shelf-themes.css. They are copied rather than imported for the same
   // reason the accent hexes are: Satori has no browser, so no var() resolves.
   shelfBg: "#080706", // --shelf-bg, built-in
-  // --shelf-wood as it RENDERS: in dark mode the built-in theme lays an 18%
-  // black --shelf-shade over the timber, which is 0.82 of it, and Satori
-  // composites no background layers.
-  shelfPlank: "#58381d",
-  // The lip under the plank. The OG image is a single flat shelf rather than
-  // the real carcass, so these are its own values with no token behind them.
-  shelfEdge: "#8b5e3c",
-  shelfEdgeBottom: "#37251a",
+  shelfWood: "#5c3d24", // --shelf-wood
+  shelfWoodLit: "#6a472a", // --shelf-wood-lit
+  shelfCarcass: "#3d2716", // --shelf-carcass
+  // --shelf-shade (dark): the 18% black laid over every wooden piece.
+  shelfShade: "linear-gradient(rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.18))",
 } as const;

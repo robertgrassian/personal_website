@@ -102,7 +102,8 @@ Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were
   token block.**
 - **The shelf's wood grain is baked, not inlined, and both halves of that are load-bearing.**
   The profiles in `scripts/wood-grain/tiles/` are the source of truth; `npm run grain` renders them
-  to `public/shelf/*.webp`, which are committed. **To tweak the grain, edit a profile and re-run it**
+  to `public/shelf/*.webp`, plus PNG copies in `public/shelf/og/` for the library's OG image
+  (Satori cannot decode WebP), all committed. **To tweak the grain, edit a profile and re-run it**
   (~2s for all three; `npm run grain -- grain-h` bakes just one). Every layer paints one
   colour at `gain × field + offset` alpha; the validator rejects an unknown or missing field rather
   than defaulting it, so a typo is loud. Three things were tried and are wrong, so do not re-propose
@@ -180,7 +181,7 @@ Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were
   design rather than shipping an empty library
 - `npm run lint` — Run ESLint
 - `npm run grain` — Re-bake the shelf's wood-grain tiles after editing a profile in
-  `scripts/wood-grain/tiles/`. Writes `public/shelf/*.webp`, which are committed; no build step
+  `scripts/wood-grain/tiles/`. Writes `public/shelf/*.webp` and `public/shelf/og/*.png`, which are committed; no build step
   runs this. ~2s for all three; pass a name (`npm run grain -- grain-h`) to bake one.
   See the wood-grain convention above before changing how it works
 - `npm test` — Frontend tests (`node --test`, runs TypeScript directly; no test runner dependency)
