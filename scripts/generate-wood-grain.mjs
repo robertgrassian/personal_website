@@ -37,6 +37,7 @@ import { ringField } from "./wood-grain/rings.mjs";
 
 const TILES_DIR = "scripts/wood-grain/tiles";
 const OUT = "public/shelf";
+const OG_OUT = "public/shelf/og";
 
 // ── validation ────────────────────────────────────────────────────────────
 //
@@ -296,5 +297,14 @@ if (isCli) {
 
     fs.writeFileSync(path.join(OUT, `${name}.webp`), buf);
     console.log(`${name}.webp  ${w}x${h}  ${(buf.length / 1024).toFixed(0)}KB`);
+
+    // The same tile for the OG image: Satori cannot decode WebP, and the
+    // share card should wear the grain the shelf does, not an imitation.
+    const png = await sharp(bytes, { raw: { width: w, height: h, channels: 4 } })
+      .png({ compressionLevel: 9 })
+      .toBuffer();
+    fs.mkdirSync(OG_OUT, { recursive: true });
+    fs.writeFileSync(path.join(OG_OUT, `${name}.png`), png);
+    console.log(`og/${name}.png  ${(png.length / 1024).toFixed(0)}KB`);
   }
 }

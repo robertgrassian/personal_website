@@ -1,7 +1,10 @@
 // Preview at: /video-games/opengraph-image
 // Dynamically generated OG image for the Game Library page.
-// Title section on a dark background, game cases sitting on a walnut shelf plank.
+// Title section on a dark background, featured games in one bay of the
+// built-in bookcase, drawn from the same baked grain tiles the shelf wears.
 import { ImageResponse } from "next/og";
+import fs from "fs";
+import path from "path";
 import { getGames } from "@/lib/libraryApi";
 import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 import { OG } from "@/lib/og-theme";
@@ -19,37 +22,43 @@ const FEATURED_GAMES = [
   "Super Smash Bros Ultimate",
   "Starfox Adventures",
 ];
-const COVER_W = 158;
-const COVER_H = 210; // ~3:4 ratio, matching IGDB's t_cover_big format
-const COVER_GAP = 8;
-const PADDING_X = 23;
 
-// How much plank is visible above the tops of the cases — matches the feel
-// of the actual game library shelf where a strip of wood shows above the covers.
-const PLANK_OVERHANG = 24;
+// The shelf-themes.css built-in measurements, scaled from its 96px cover to
+// this one so the case keeps the shelf's proportions at share-card size.
+const COVER_W = 136;
+const COVER_H = 181; // ~3:4, matching IGDB's t_cover_big
+const K = COVER_W / 96;
+const px = (n: number) => Math.round(n * K);
 
-// Grain background for the plank. This is the OG image's own wood, and the
-// only stacked-gradient grain left in the repo: the shelf itself draws grain
-// with an SVG filter now (shelf-themes.css), and Satori runs no filters.
-// CSS variables resolved to their dark-mode values.
-const PLANK_BACKGROUND = [
-  // Fine grain rhythm 1 — tight 9px repeat
-  "repeating-linear-gradient(90deg, rgba(255,255,255,0.06) 0px, transparent 1px, transparent 2px, rgba(255,255,255,0.03) 3px, transparent 4px, transparent 9px)",
-  // Fine grain rhythm 2 — wider 15px repeat
-  "repeating-linear-gradient(90deg, rgba(0,0,0,0.12) 0px, transparent 1px, transparent 5px, rgba(0,0,0,0.08) 6px, transparent 7px, transparent 15px)",
-  // Broad warm and dark bands across the width
-  "linear-gradient(90deg, transparent 0%, rgba(255,180,80,0.04) 10%, transparent 20%, rgba(0,0,0,0.06) 35%, transparent 45%, rgba(255,180,80,0.03) 60%, transparent 70%, rgba(0,0,0,0.07) 85%, transparent 100%)",
-  // Large knot hint
-  "radial-gradient(ellipse 60px 30px at 25% 60%, rgba(0,0,0,0.08) 0%, transparent 70%)",
-  // Small knot hint
-  "radial-gradient(ellipse 40px 20px at 72% 35%, rgba(0,0,0,0.06) 0%, transparent 70%)",
-  // Base color — solid gradient as the bottommost layer (multi-layer backgrounds
-  // don't support a plain color value)
-  `linear-gradient(${OG.shelfPlank}, ${OG.shelfPlank})`,
-].join(", ");
+const GAP = px(12); // --shelf-gap
+const STILE_W = px(25); // --shelf-stile-w
+const ROW_TOP = px(18); // --shelf-row-top
+const CROWN_H = px(17);
+const PLINTH_H = px(19);
+const FLOOR_H = px(7); // --shelf-floor
+// The real case leaves air between the end covers and the uprights.
+const ROW_AIR = px(10);
+const BAY_H = ROW_TOP + COVER_H;
+const SHADOW_OUT = px(3); // the contact shadow's reach past each cover edge
 
-// Async is fine here — Next.js awaits metadata image route handlers, and
-// getGames() is now async (it may fetch from the library API).
+// Satori cannot decode WebP, so `npm run grain` writes PNG copies of each
+// tile beside the ones the shelf uses. Read from disk for the same reason as
+// the root OG image: there is no server to resolve a /public URL at build time.
+function grainTile(name: "grain-h" | "grain-v" | "grain-back"): string {
+  const buffer = fs.readFileSync(path.join(process.cwd(), `public/shelf/og/${name}.png`));
+  return `url(data:image/png;base64,${buffer.toString("base64")})`;
+}
+
+// The size for every gradient layer. Satori draws nothing for a gradient
+// sized `auto`, the CSS default, so a size list must never use it.
+const FILL = "100% 100%";
+
+// --shelf-band-h / --shelf-band-v: broad lighting across a piece.
+const BAND_H =
+  "linear-gradient(0deg, transparent 4%, rgba(255, 205, 145, 0.09) 22%, transparent 40%, rgba(0, 0, 0, 0.13) 58%, transparent 76%, rgba(255, 205, 145, 0.09) 92%)";
+const BAND_V =
+  "linear-gradient(90deg, transparent 4%, rgba(255, 205, 145, 0.09) 20%, transparent 38%, rgba(0, 0, 0, 0.13) 56%, transparent 74%, rgba(255, 205, 145, 0.09) 92%)";
+
 export default async function OGImage() {
   // The OG image for /video-games specifically, so the owner is pinned.
   // /video-games/u/[username] has no OG image of its own yet.
@@ -61,6 +70,59 @@ export default async function OGImage() {
     (g) => g?.imageUrl
   ) as (typeof games)[number][];
 
+  // Sized to the covers that actually resolved, so a missing one shrinks the
+  // case rather than leaving a gap in it.
+  const coverCount = Math.max(coverGames.length, 1);
+  const BAY_W = coverCount * COVER_W + (coverCount - 1) * GAP + 2 * ROW_AIR;
+  const INSET = Math.round(BAY_W * 0.014); // --shelf-inset
+
+  const grainH = grainTile("grain-h");
+  const grainV = grainTile("grain-v");
+  const grainBack = grainTile("grain-back");
+  // Each tile at its CSS size (512x56, 56x512, 384x512), scaled like the rest.
+  const sizeH = `${FILL}, ${px(512)}px ${px(56)}px, ${FILL}`;
+  const sizeV = `${FILL}, ${px(56)}px ${px(512)}px, ${FILL}`;
+
+  // Crown and plinth: the horizontal-grain boards above and below the bay.
+  const board = (height: number) => ({
+    height,
+    display: "flex",
+    backgroundColor: OG.shelfWood,
+    backgroundImage: `${OG.shelfShade}, ${grainH}, ${BAND_H}`,
+    backgroundSize: sizeH,
+  });
+  const stile = (side: "left" | "right") => ({
+    position: "absolute" as const,
+    top: 0,
+    bottom: 0,
+    [side]: 0,
+    width: STILE_W,
+    backgroundColor: OG.shelfWoodLit,
+    backgroundImage: `${OG.shelfShade}, ${grainV}, ${BAND_V}`,
+    backgroundSize: sizeV,
+    boxShadow:
+      side === "left"
+        ? "inset -3px 0 6px -3px rgba(0, 0, 0, 0.55), inset 2px 0 0 rgba(255, 255, 255, 0.06)"
+        : "inset 3px 0 6px -3px rgba(0, 0, 0, 0.55), inset -2px 0 0 rgba(255, 255, 255, 0.06)",
+  });
+  // Satori resolves a polygon's % x against the element's height and ignores
+  // calc(), so every vertex is spelled out in px.
+  // The bay's side walls: trapezoids from the opening back to the inset panel.
+  const wall = (side: "left" | "right") => ({
+    position: "absolute" as const,
+    top: 0,
+    bottom: 0,
+    [side]: STILE_W,
+    width: INSET,
+    backgroundColor: OG.shelfWood,
+    backgroundImage: `${OG.shelfShade}, linear-gradient(${side === "left" ? 90 : 270}deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.66)), ${grainV}`,
+    backgroundSize: `${FILL}, ${FILL}, ${px(56)}px ${px(512)}px`,
+    clipPath:
+      side === "left"
+        ? `polygon(0px 0px, 0px ${BAY_H}px, ${INSET}px ${BAY_H - FLOOR_H}px, ${INSET}px 0px)`
+        : `polygon(${INSET}px 0px, ${INSET}px ${BAY_H}px, 0px ${BAY_H - FLOOR_H}px, 0px 0px)`,
+  });
+
   return new ImageResponse(
     <div
       style={{
@@ -68,10 +130,14 @@ export default async function OGImage() {
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        background: OG.shelfBg,
+        alignItems: "center",
+        backgroundColor: OG.shelfBg,
+        // --shelf-room-light (dark)
+        backgroundImage:
+          "radial-gradient(110% 55% at 50% -8%, rgba(255, 222, 176, 0.045) 0%, rgba(255, 222, 176, 0) 62%)",
       }}
     >
-      {/* ── Title — fills all space above the shelf ── */}
+      {/* ── Title — fills all space above the case ── */}
       <div
         style={{
           flex: 1,
@@ -114,27 +180,69 @@ export default async function OGImage() {
         </div>
       </div>
 
-      {/* ── Shelf plank — grain texture, taller than the cases so a strip of
-          wood is visible above them, same as the real game library shelf ── */}
+      {/* ── The case: crown, one bay, plinth. Satori has no z-index, so paint
+          order is document order, which is what decides the stacking below. ── */}
       <div
         style={{
-          height: COVER_H + PLANK_OVERHANG,
+          width: BAY_W + 2 * STILE_W,
           display: "flex",
           flexDirection: "column",
-          justifyContent: "flex-end",
-          background: PLANK_BACKGROUND,
-          boxShadow: "inset 0 2px 4px rgba(255,255,255,0.04), inset 0 -2px 6px rgba(0,0,0,0.3)",
+          backgroundColor: OG.shelfCarcass,
+          boxShadow: "0 24px 46px -20px rgba(0, 0, 0, 0.75)",
         }}
       >
         <div
           style={{
+            ...board(CROWN_H),
+            // The CSS also drops a shadow below the crown, but the bay paints
+            // over it here, so only the top highlight is kept.
+            boxShadow: "inset 0 1px 0 rgba(255, 240, 215, 0.22)",
+          }}
+        />
+
+        <div
+          style={{
+            position: "relative",
+            height: BAY_H,
             display: "flex",
-            flexDirection: "row",
-            paddingLeft: PADDING_X,
-            paddingRight: PADDING_X,
-            gap: COVER_GAP,
+            justifyContent: "center",
+            alignItems: "flex-end",
+            gap: GAP,
           }}
         >
+          {/* Back panel: the same timber in the shadow of the crown, with a
+              little bounce off the floor at the bottom. */}
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: FLOOR_H,
+              left: STILE_W + INSET,
+              right: STILE_W + INSET,
+              backgroundColor: OG.shelfWood,
+              backgroundImage: `${OG.shelfShade}, linear-gradient(180deg, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.56) 34%, rgba(0, 0, 0, 0.47) 100%), linear-gradient(0deg, rgba(255, 240, 220, 0.07) 0%, rgba(255, 240, 220, 0) 22%), ${grainBack}`,
+              backgroundSize: `${FILL}, ${FILL}, ${FILL}, ${px(384)}px ${px(512)}px`,
+            }}
+          />
+          <div style={wall("left")} />
+          <div style={wall("right")} />
+          {/* The visible strip of shelf floor in front of the back panel. */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: STILE_W,
+              right: STILE_W,
+              height: FLOOR_H,
+              backgroundColor: OG.shelfWood,
+              backgroundImage: `${OG.shelfShade}, linear-gradient(180deg, rgba(0, 0, 0, 0.52), rgba(255, 240, 215, 0.1)), ${grainH}`,
+              backgroundSize: `${FILL}, ${FILL}, ${px(512)}px ${px(56)}px`,
+              clipPath: `polygon(0px ${FLOOR_H}px, ${BAY_W}px ${FLOOR_H}px, ${BAY_W - INSET}px 0px, ${INSET}px 0px)`,
+            }}
+          />
+          <div style={stile("left")} />
+          <div style={stile("right")} />
+
           {coverGames.map((game) => (
             <img
               key={game.name}
@@ -149,18 +257,35 @@ export default async function OGImage() {
             />
           ))}
         </div>
+
+        <div
+          style={{
+            ...board(PLINTH_H),
+            position: "relative",
+            justifyContent: "center",
+            gap: GAP,
+            boxShadow: "inset 0 1px 0 rgba(0, 0, 0, 0.4), inset 0 -1px 0 rgba(255, 240, 215, 0.12)",
+          }}
+        >
+          {/* Each cover's contact shadow falls onto the plinth it stands on,
+              so it is drawn here, after the plinth's own paint. */}
+          {coverGames.map((game) => (
+            <div
+              key={game.name}
+              style={{
+                width: COVER_W + 2 * SHADOW_OUT,
+                height: px(8),
+                margin: `0 -${SHADOW_OUT}px`,
+                backgroundImage:
+                  "radial-gradient(ellipse at 50% 0%, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 72%)",
+              }}
+            />
+          ))}
+        </div>
       </div>
 
-      {/* ── Front edge / lip ── */}
-      <div
-        style={{
-          height: 7,
-          background: `linear-gradient(to bottom, ${OG.shelfEdge} 0%, ${OG.shelfEdgeBottom} 100%)`,
-        }}
-      />
-
-      {/* ── Bottom gap — raises the shelf off the edge of the image ── */}
-      <div style={{ height: 48, display: "flex" }} />
+      {/* ── Bottom gap — raises the case off the edge of the image ── */}
+      <div style={{ height: 44, display: "flex" }} />
     </div>,
     { ...size }
   );
