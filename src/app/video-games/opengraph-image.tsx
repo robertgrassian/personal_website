@@ -37,10 +37,9 @@ const CROWN_H = px(17);
 const PLINTH_H = px(19);
 const FLOOR_H = px(7); // --shelf-floor
 // The real case leaves air between the end covers and the uprights.
-const ROW_AIR = 14;
-const BAY_W = FEATURED_GAMES.length * COVER_W + (FEATURED_GAMES.length - 1) * GAP + 2 * ROW_AIR;
+const ROW_AIR = px(10);
 const BAY_H = ROW_TOP + COVER_H;
-const INSET = Math.round(BAY_W * 0.014); // --shelf-inset
+const SHADOW_OUT = px(3); // the contact shadow's reach past each cover edge
 
 // Satori cannot decode WebP, so `npm run grain` writes PNG copies of each
 // tile beside the ones the shelf uses. Read from disk for the same reason as
@@ -55,10 +54,10 @@ function grainTile(name: "grain-h" | "grain-v" | "grain-back"): string {
 const FILL = "100% 100%";
 
 // --shelf-band-h / --shelf-band-v: broad lighting across a piece.
-const BAND_STOPS =
-  "transparent 4%, rgba(255, 205, 145, 0.09) 22%, transparent 40%, rgba(0, 0, 0, 0.13) 58%, transparent 76%, rgba(255, 205, 145, 0.09) 92%";
-const BAND_H = `linear-gradient(0deg, ${BAND_STOPS})`;
-const BAND_V = `linear-gradient(90deg, ${BAND_STOPS})`;
+const BAND_H =
+  "linear-gradient(0deg, transparent 4%, rgba(255, 205, 145, 0.09) 22%, transparent 40%, rgba(0, 0, 0, 0.13) 58%, transparent 76%, rgba(255, 205, 145, 0.09) 92%)";
+const BAND_V =
+  "linear-gradient(90deg, transparent 4%, rgba(255, 205, 145, 0.09) 20%, transparent 38%, rgba(0, 0, 0, 0.13) 56%, transparent 74%, rgba(255, 205, 145, 0.09) 92%)";
 
 export default async function OGImage() {
   // The OG image for /video-games specifically, so the owner is pinned.
@@ -70,6 +69,12 @@ export default async function OGImage() {
   const coverGames = FEATURED_GAMES.map((name) => byName.get(name)).filter(
     (g) => g?.imageUrl
   ) as (typeof games)[number][];
+
+  // Sized to the covers that actually resolved, so a missing one shrinks the
+  // case rather than leaving a gap in it.
+  const coverCount = Math.max(coverGames.length, 1);
+  const BAY_W = coverCount * COVER_W + (coverCount - 1) * GAP + 2 * ROW_AIR;
+  const INSET = Math.round(BAY_W * 0.014); // --shelf-inset
 
   const grainH = grainTile("grain-h");
   const grainV = grainTile("grain-v");
@@ -97,9 +102,11 @@ export default async function OGImage() {
     backgroundSize: sizeV,
     boxShadow:
       side === "left"
-        ? "inset -3px 0 6px -3px rgba(0, 0, 0, 0.55)"
-        : "inset 3px 0 6px -3px rgba(0, 0, 0, 0.55)",
+        ? "inset -3px 0 6px -3px rgba(0, 0, 0, 0.55), inset 2px 0 0 rgba(255, 255, 255, 0.06)"
+        : "inset 3px 0 6px -3px rgba(0, 0, 0, 0.55), inset -2px 0 0 rgba(255, 255, 255, 0.06)",
   });
+  // Satori resolves a polygon's % x against the element's height and ignores
+  // calc(), so every vertex is spelled out in px.
   // The bay's side walls: trapezoids from the opening back to the inset panel.
   const wall = (side: "left" | "right") => ({
     position: "absolute" as const,
@@ -112,8 +119,8 @@ export default async function OGImage() {
     backgroundSize: `${FILL}, ${FILL}, ${px(56)}px ${px(512)}px`,
     clipPath:
       side === "left"
-        ? `polygon(0 0, 0 100%, 100% calc(100% - ${FLOOR_H}px), 100% 0)`
-        : `polygon(100% 0, 100% 100%, 0 calc(100% - ${FLOOR_H}px), 0 0)`,
+        ? `polygon(0px 0px, 0px ${BAY_H}px, ${INSET}px ${BAY_H - FLOOR_H}px, ${INSET}px 0px)`
+        : `polygon(${INSET}px 0px, ${INSET}px ${BAY_H}px, 0px ${BAY_H - FLOOR_H}px, 0px 0px)`,
   });
 
   return new ImageResponse(
@@ -187,7 +194,9 @@ export default async function OGImage() {
         <div
           style={{
             ...board(CROWN_H),
-            boxShadow: "inset 0 1px 0 rgba(255, 240, 215, 0.22), 0 4px 9px rgba(0, 0, 0, 0.4)",
+            // The CSS also drops a shadow below the crown, but the bay paints
+            // over it here, so only the top highlight is kept.
+            boxShadow: "inset 0 1px 0 rgba(255, 240, 215, 0.22)",
           }}
         />
 
@@ -228,7 +237,7 @@ export default async function OGImage() {
               backgroundColor: OG.shelfWood,
               backgroundImage: `${OG.shelfShade}, linear-gradient(180deg, rgba(0, 0, 0, 0.52), rgba(255, 240, 215, 0.1)), ${grainH}`,
               backgroundSize: `${FILL}, ${FILL}, ${px(512)}px ${px(56)}px`,
-              clipPath: `polygon(0 100%, 100% 100%, calc(100% - ${INSET}px) 0, ${INSET}px 0)`,
+              clipPath: `polygon(0px ${FLOOR_H}px, ${BAY_W}px ${FLOOR_H}px, ${BAY_W - INSET}px 0px, ${INSET}px 0px)`,
             }}
           />
           <div style={stile("left")} />
@@ -264,9 +273,9 @@ export default async function OGImage() {
             <div
               key={game.name}
               style={{
-                width: COVER_W + 6,
+                width: COVER_W + 2 * SHADOW_OUT,
                 height: px(8),
-                margin: "0 -3px",
+                margin: `0 -${SHADOW_OUT}px`,
                 backgroundImage:
                   "radial-gradient(ellipse at 50% 0%, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 72%)",
               }}

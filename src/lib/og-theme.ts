@@ -39,10 +39,10 @@ export const OG = {
   // ── Page background ────────────────────────────────────────────────────────
   pageDark: "#0a0a0a", // --background (dark)
 
-  // ── Shelf (dark mode values for the ACTIVE shelf theme) ────────────────────
-  // These follow ACTIVE_SHELF_THEME in src/lib/shelfTheme.ts, whose dark values
-  // live in shelf-themes.css. They are copied rather than imported for the same
-  // reason the accent hexes are: Satori has no browser, so no var() resolves.
+  // ── Shelf (dark mode values for the built-in theme) ────────────────────────
+  // The library OG image draws the built-in bookcase whatever ACTIVE_SHELF_THEME
+  // says. These are copied from shelf-themes.css rather than imported for the
+  // same reason the accent hexes are: Satori has no browser, so no var() resolves.
   shelfBg: "#080706", // --shelf-bg, built-in
   shelfWood: "#5c3d24", // --shelf-wood
   shelfWoodLit: "#6a472a", // --shelf-wood-lit
