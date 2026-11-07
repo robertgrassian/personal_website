@@ -30,6 +30,10 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 ## Backlog / Ideas
 
+- [ ] **An in-season produce tracker at `/produce`: what's in season in your state this month, and
+      checking off what you've eaten.** Spec awaiting review: `docs/specs/produce.md` (decisions
+      D1 to D9). Second app on the site, so it settles **Decide the routing/namespace strategy**.
+
 - [ ] **A wine library at `/wine`: a log of bottles I've had, a label lookup for the wine shop, and
       stats on what I like.** First step is a phased tech spec in `docs/specs/`. The shelf machinery
       is game-typed; touches **Decide the routing/namespace strategy**.
