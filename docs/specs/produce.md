@@ -1,6 +1,7 @@
 # Tech spec: in-season produce tracker
 
-Status: **proposed**, 2026-11-07. Not started. Awaiting review of [Decisions for review](#decisions-for-review).
+Status: **proposed**, 2026-11-07. Not started. D2, D3 and D5 agreed 2026-11-07; the rest await
+review in [Decisions for review](#decisions-for-review).
 
 A page that shows what fruit, vegetables and herbs are in season where you are, this month, and
 lets you check off what you've eaten. Whimsical and hand-drawn in look, with no AI art anywhere.
@@ -11,24 +12,26 @@ Open `/produce`, land on your state's page (located from your IP, changeable), a
 month's produce in four groups: **at its peak**, **just arrived**, **last chance**, and **also
 around**. Tap anything for its season across the year. Tap **I ate this** to stamp it. A small
 basket counts how many of this month's in-season items you've tried this year. Browsing works for
-everyone, logged in or not. Tracking works logged out on the device and logged in across devices.
+everyone, logged in or not. Tracking needs signing in, with **the same login as the rest of the
+site**: one account covers the game library and the produce tracker.
 
 ## Decisions for review
 
 Each has a recommendation. The rest of the spec assumes the recommendation, so a different answer
 means editing the section it points to.
 
-| #   | Question                          | Recommendation                                                                                                                                                                                                                                                    | Section                           |
-| --- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| D1  | Route                             | **`/produce`**, with per-state pages at `/produce/[state]` (`/produce/ny`). `/in-season` reads nicer but is longer and less obvious in a URL bar.                                                                                                                 | [Routes](#routes)                 |
-| D2  | Where seasonality data comes from | **Our own curated dataset** in typed TS modules, cross-referenced from public sources, with a validator test. There is no open API (below).                                                                                                                       | [Data](#data)                     |
-| D3  | Regional granularity              | **Data keyed by region; a region is a group of states; URLs are by state.** v1 ships two regions: **Northeast** (Robert lives in NYC) and **California**. Other states get an honest "not covered yet" page.                                                      | [Regions](#regions)               |
-| D4  | Time granularity                  | **Month**, with four levels: out, available, **peak**, and from **storage**. Half-month (what Seasonal Food Guide uses) doubles curation for little visible gain.                                                                                                 | [Season strings](#season-strings) |
-| D5  | Tracking identity                 | **Hybrid**: logged out tracks in `localStorage` with honest "saved on this device" copy; logged in tracks in Postgres; signing in offers to bring the device's checks over. Login-only is the simpler fallback if guest mode feels like scope creep.              | [Tracking](#tracking)             |
-| D6  | What "eaten" means                | **Per calendar year.** One row per (user, item, year), so the page answers "this year" and "ever" from the same data, and the basket resets each January.                                                                                                         | [Data model](#data-model-phase-4) |
-| D7  | Is the log public                 | **Private in v1.** Owner-only `/me` reads, never cached, no cache tags. A public "Robert has tried 41 things this year" is a cheap later phase.                                                                                                                   | [API](#api-phase-4)               |
-| D8  | Art direction                     | **Ship the page on code-drawn hand-drawn chrome with no per-item art, and run an art spike in parallel** (pixel sprites vs. ink drawings, six items each, drawn by Robert). Each item has an `art` slot that falls back to a lettered "seed packet" until filled. | [Look and feel](#look-and-feel)   |
-| D9  | Item blurbs                       | **Optional field, blank by default, written by Robert over time.** Not AI-drafted, to keep with the spirit of no AI art. Nothing renders when it's blank.                                                                                                         | [Catalog](#catalog)               |
+| #   | Question                          | Recommendation                                                                                                                                                                                                                                                    | Section                                           |
+| --- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| D1  | Route                             | **`/produce`**, with per-state pages at `/produce/[state]` (`/produce/ny`). `/in-season` reads nicer but is longer and less obvious in a URL bar.                                                                                                                 | [Routes](#routes)                                 |
+| D2  | Where seasonality data comes from | **Agreed.** **Our own curated dataset** in typed TS modules, cross-referenced from public sources, with a validator test. There is no open API (below).                                                                                                           | [Data](#data)                                     |
+| D3  | Regional granularity              | **Agreed.** **Data keyed by region; a region is a group of states; URLs are by state.** v1 ships two regions: **Northeast** (Robert lives in NYC) and **California**. Other states get an honest "not covered yet" page.                                          | [Regions](#regions)                               |
+| D4  | Time granularity                  | **Month**, with four levels: out, available, **peak**, and from **storage**. Half-month (what Seasonal Food Guide uses) doubles curation for little visible gain.                                                                                                 | [Season strings](#season-strings)                 |
+| D5  | Tracking identity                 | **Agreed: login-only, on one site-wide login.** No device storage and no Supabase anonymous sign-in in v1. Device tracking for guests stays an optional later phase. Sign-in, onboarding and account settings move out from under `/video-games` first.           | [Tracking](#tracking)                             |
+| D6  | What "eaten" means                | **Per calendar year.** One row per (user, item, year), so the page answers "this year" and "ever" from the same data, and the basket resets each January.                                                                                                         | [Data model](#data-model-phase-4)                 |
+| D7  | Is the log public                 | **Private in v1.** Owner-only `/me` reads, never cached, no cache tags. A public "Robert has tried 41 things this year" is a cheap later phase.                                                                                                                   | [API](#api-phase-4)                               |
+| D8  | Art direction                     | **Ship the page on code-drawn hand-drawn chrome with no per-item art, and run an art spike in parallel** (pixel sprites vs. ink drawings, six items each, drawn by Robert). Each item has an `art` slot that falls back to a lettered "seed packet" until filled. | [Look and feel](#look-and-feel)                   |
+| D9  | Item blurbs                       | **Optional field, blank by default, written by Robert over time.** Not AI-drafted, to keep with the spirit of no AI art. Nothing renders when it's blank.                                                                                                         | [Catalog](#catalog)                               |
+| D10 | Google consent-screen app name    | **Rename it from "Video Game Library" to a site-level name and re-verify, as its own step that blocks nothing.** Until then, a produce sign-in shows Google's consent screen naming the game library. Pick the new name.                                          | [Site-wide identity](#site-wide-identity-phase-3) |
 
 ## Why no API
 
@@ -258,39 +261,98 @@ as UI, not whimsy.
 
 ## Tracking
 
-### Why hybrid, and why not a long-lived cookie
+**Login-only, on the site's one login (D5, agreed 2026-11-07).** A signed-out visitor who taps
+**I ate this** gets a small "Sign in to keep track" prompt that goes to sign-in and comes back to
+the same page. Supabase auth is already one `auth.users` row and one session cookie for the whole
+domain, so a produce account and a game-library account are the same account. What isn't
+site-wide yet is the screens around it, which [Site-wide identity](#site-wide-identity-phase-3)
+fixes first.
 
-| Option                             | Durable                                                                                                                                                                                          | Cost                                                                                                                                                                                                             |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `localStorage` only                | **No on Safari.** WebKit deletes all script-writable storage (localStorage, IndexedDB, JS-set cookies) after 7 days of Safari use without visiting the site. A monthly visitor loses everything. | Free                                                                                                                                                                                                             |
-| Own anonymous cookie + server rows | Yes (a server-set HttpOnly cookie isn't capped)                                                                                                                                                  | A new identity concept in FastAPI and an **unauthenticated write endpoint** that spam bots will find                                                                                                             |
-| Supabase anonymous sign-in         | Yes, and it upgrades to a real account by linking an email                                                                                                                                       | The visitor becomes "signed in" site-wide: `AuthButton`, `/library` and `/onboarding` would all need an `is_anonymous` branch. Supabase recommends CAPTCHA for it. Abandoned anonymous users need a cleanup job. |
-| Login only                         | Yes                                                                                                                                                                                              | Logged-out visitors can't try the best part                                                                                                                                                                      |
-| **Hybrid (recommended)**           | On the device until sign-in, then yes                                                                                                                                                            | Two storage backends behind one hook                                                                                                                                                                             |
+### Options considered, so they aren't re-proposed
 
-The hybrid is honest about the Safari limit in its copy ("Saved on this device. Sign in to keep it
-for good.") rather than pretending a cookie fixes it.
+| Option                             | Durable                                                                                                                                                                                          | Why not, for v1                                                                                                            |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `localStorage` / long-lived cookie | **No on Safari.** WebKit deletes all script-writable storage (localStorage, IndexedDB, JS-set cookies) after 7 days of Safari use without visiting the site. A monthly visitor loses everything. | Not durable. Kept as the optional guest phase, with honest "saved on this device" copy                                     |
+| Own anonymous cookie + server rows | Yes (a server-set HttpOnly cookie isn't capped)                                                                                                                                                  | A second identity concept beside Supabase, and an **unauthenticated write endpoint** that spam bots will find              |
+| Supabase anonymous sign-in         | Until the cookie is lost, then unrecoverable                                                                                                                                                     | See below                                                                                                                  |
+| Hybrid (device, then account)      | On the device until sign-in, then yes                                                                                                                                                            | Two storage backends and an import step for a guest mode nobody has asked for yet. This is what the optional phase becomes |
+| **Login-only (chosen)**            | Yes                                                                                                                                                                                              | Signed-out visitors can browse but not track. Accepted                                                                     |
 
-### One hook, two backends (Phase 3)
+**Supabase anonymous sign-in, in detail**, since it looked like the natural fit for one login.
+`signInAnonymously()` creates a real `auth.users` row with `is_anonymous = true` and a normal
+session; the JWT has the ordinary `authenticated` role plus an `is_anonymous` claim. Linking an
+email (`updateUser`) or Google (`linkIdentity`, which needs manual linking enabled) later makes it
+permanent under the same user id. Declined because:
 
-`useTastings(year)` returns `{ tastings: Map<slug, eatenOn>, mark(slug), unmark(slug), source }`.
-Components never know which backend they're on.
+- **It doesn't avoid a merge.** Linking fails when the identity already belongs to an
+  account, which is exactly the returning user on a new device. That user signs into the real
+  account and the anonymous user's rows have to be migrated: the same merge the hybrid needs.
+- **It changes what "has a session" means everywhere.** `AuthButton`, the pre-paint `data-authed`
+  flag, the `/library` resolver and `/onboarding` would all need an `is_anonymous` branch, and so
+  would FastAPI's `CurrentUser`. Without that guard, `POST /me/profile` lets an anonymous session
+  claim a username and a game library. Every future feature inherits the check.
+- **Abuse and cleanup.** It creates users from an unauthenticated click: it must be lazy (first
+  tap, never page load), Supabase recommends a CAPTCHA on it, and abandoned anonymous users need a
+  scheduled delete.
+- **Not reliably durable.** An anonymous user can't sign back in, so a lost session cookie loses
+  the data for good. Whether Safari's 7-day cap reaches the session cookie depends on whether it
+  was last written by the server (middleware refreshes it) or by browser JS. Unverified.
 
-- **Device backend:** key `produce:v1:tastings`, value `{ "2026": { "ramps": "2026-04-18" } }`.
-  Read through `useSyncExternalStore` with a **server snapshot of "nothing"**, so the static HTML
-  and the first client render agree, then the checks appear. Every read and write is wrapped in
-  try/catch: private windows and blocked storage throw.
-- **Account backend (Phase 4):** fetched from the browser with the Supabase session's JWT, the way
-  `useViewerRelationship.ts` does it, because the page is static and identical for every viewer.
-  Writes go through Server Actions → `meApi.ts`, like every other owner write. Optimistic UI,
-  rolled back on failure.
+It fits when guests are the main audience and their data has to live on a server. Here, guests
+browse and members track.
 
-### Bringing device checks into an account
+### The client side (Phase 4)
 
-On the first signed-in load with device data present, show a small prompt: "Bring over the 6
-things you checked off on this device?" **Prompt, don't auto-import**: on a shared computer, the
-device's checks may be someone else's. Yes → one bulk import (union; the earlier date wins on a
-clash) → clear the device copy. No → clear it.
+`useTastings(year)` returns `{ status, tastings: Map<slug, eatenOn>, mark(slug), unmark(slug) }`,
+with `status` one of `signed-out`, `loading`, `ready`. Components never fetch directly, so the
+optional guest phase can add a device backend behind the same hook without touching them.
+
+- **Read:** from the browser with the Supabase session's JWT, the way `useViewerRelationship.ts`
+  does it, because the page is static and identical for every viewer. Starts `loading` so no stamp
+  flashes on or off; signed out (no session) skips the request.
+- **Write:** Server Actions → `meApi.ts`, like every other owner write. Optimistic, rolled back on
+  failure.
+
+## Site-wide identity (Phase 3)
+
+Supabase auth is site-wide; the screens around it are game-library pages. This phase makes them
+the site's, before produce needs them. No new backend.
+
+What's there today, and what changes:
+
+| Today                                                                                                                                           | After                                                                                                                                                                                   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/video-games/start` is both the sign-in page and the game library's pitch. `SignInPanel`'s Google button hardcodes `next=/library`.            | **A top-level `/sign-in`** renders `SignInPanel` with a `next` taken from its query string. `/video-games/start` **stays** (see below) and renders the same panel with `next=/library`. |
+| The magic-link form sets no redirect, so an emailed link always lands on `/library`.                                                            | The magic link carries `next` too. Check the Supabase email template uses the redirect URL it's given before relying on it.                                                             |
+| `/auth/callback` and `/auth/confirm` already accept a guarded `next`, but send failures to `/video-games/start`.                                | Failures go to `/sign-in?error=…&next=…`.                                                                                                                                               |
+| `/onboarding` says "choose the handle for your game library", bounces signed-out users to `/video-games/start`, and always ends at the library. | Neutral copy (a username is your name across the site, and your game library's address). Accepts `next`, with the same guard, and ends there. Signed out goes to `/sign-in`.            |
+| Settings live at `/video-games/account`, linked from the library's menu.                                                                        | **`/account`**, with a permanent redirect from the old URL in `next.config.ts`. `AuthButton`'s menu links it.                                                                           |
+| `AuthButton`'s sign-in item links `/video-games/start`.                                                                                         | Links `/sign-in?next=<current path>`.                                                                                                                                                   |
+
+**Where `next` gets lost today, and must not:** sign-in → callback → (no profile) onboarding →
+library. Onboarding is the hop that drops it. Every hop in the new chain passes `next` along, and
+every one reuses the existing guard (a local path: starts with `/`, not `//`). Extract that guard
+into one tested function in `src/lib/` rather than keeping the two copies in the auth routes.
+
+**`/video-games/start` does not move.** It's the "App homepage" in Google's OAuth consent screen,
+and `APP_NAME` ("Video Game Library") must match the console's App name or brand verification
+fails (the comments in `src/lib/appName.ts` and `video-games/start/page.tsx` explain the history).
+Moving or renaming either is a Google console change plus re-verification.
+
+**D10, the consent-screen name.** Until it changes, someone signing in from `/produce` sees Google
+say they're signing into "Video Game Library". It's cosmetic, and nothing in this spec blocks on
+it. The proper fix, as a separate step whenever convenient:
+
+1. Pick a site-level app name.
+2. Make a public page that names it and describes both apps (the homepage is a candidate, though
+   Google rejected a page that didn't explain the app once already).
+3. Change the console's App name and homepage, and re-verify.
+
+Confirm in Google's docs whether the old branding stays live during review before starting.
+
+**Exit:** signing in from `/produce/ny` as a brand-new user goes Google → onboarding →
+back to `/produce/ny`; the same for an existing user skips onboarding; the magic link does the
+same; the old account URL redirects; `/video-games/start` is unchanged.
 
 ## Data model (Phase 4)
 
@@ -311,15 +373,9 @@ catalog is a TS module the Python function can't import, and an unknown slug in 
 log harms nothing. The client ignores slugs it doesn't know, so a slug that's been retired just
 stops showing up.
 
-**It hangs off `profiles`, so tracking requires onboarding.** That forces two fixes to auth
-surfaces that are site-wide in principle but game-library-flavored in practice, both in Phase 4:
-
-- `/onboarding` copy says "choose the handle for your game library" and always redirects to the
-  library. It needs a `next` parameter (**validated as a same-origin path**, or it's an open
-  redirect) and neutral copy.
-- The sign-in entry is `/video-games/start`. Produce needs to start sign-in with `next=/produce/…`.
-  The builder first reads `src/app/auth/*` to see whether a `next` survives the OAuth round trip,
-  and adds it if not.
+**It hangs off `profiles`, so tracking requires onboarding**, which is why Phase 3 makes
+onboarding return you to where you started. A signed-in user with no profile who taps **I ate
+this** goes to `/onboarding?next=/produce/…`.
 
 ## API (Phase 4)
 
@@ -328,12 +384,11 @@ which these endpoints make slightly untrue. Renaming it touches `apiPrefix.ts`, 
 `next.config.ts` and the middleware matcher in lockstep, and isn't worth it for one app. Revisit
 if a third app arrives (noted in the routing backlog entry).
 
-| Method + path                               | Body / result                                           | Notes                                |
-| ------------------------------------------- | ------------------------------------------------------- | ------------------------------------ |
-| `GET /me/produce/tastings?year=2026`        | `[{ slug, year, eatenOn }]`                             | Never cached, no tag (owner-only)    |
-| `PUT /me/produce/tastings/{year}/{slug}`    | `{ eatenOn? }` → the row                                | Idempotent upsert                    |
-| `DELETE /me/produce/tastings/{year}/{slug}` | 204                                                     | 204 even if absent                   |
-| `POST /me/produce/tastings/import`          | `[{ slug, year, eatenOn }]` (≤ 500) → `{ imported: n }` | Union; `LEAST(eaten_on)` on conflict |
+| Method + path                               | Body / result               | Notes                             |
+| ------------------------------------------- | --------------------------- | --------------------------------- |
+| `GET /me/produce/tastings?year=2026`        | `[{ slug, year, eatenOn }]` | Never cached, no tag (owner-only) |
+| `PUT /me/produce/tastings/{year}/{slug}`    | `{ eatenOn? }` → the row    | Idempotent upsert                 |
+| `DELETE /me/produce/tastings/{year}/{slug}` | 204                         | 204 even if absent                |
 
 Standard layers: `routers/produce.py` → `services/produce.py` → `repositories/produce.py`.
 **Every new endpoint needs a Bruno request** in `api/bruno/`, or `test_bruno_collection.py` fails.
@@ -350,7 +405,7 @@ Top to bottom, mobile first:
 2. **Month scrubber**: twelve hand-lettered months, the current one circled by rough.js.
    Scrubbing changes the groups, not the URL.
 3. **Category chips**: All, Fruit, Vegetables, Herbs. Client-side filter.
-4. **The basket** (Phase 3+): "You've tried 7 of the 31 things in season this month."
+4. **The basket** (Phase 4+): "You've tried 7 of the 31 things in season this month."
 5. **Four groups**: At its peak, Just arrived, Last chance, Also around. Empty groups hide.
 6. **Cards** in a grid: art or seed packet, name, a tiny 12-cell season strip. Tried items get an
    ink stamp.
@@ -358,7 +413,7 @@ Top to bottom, mobile first:
 **Card detail** opens in the site's dialog chrome (`ModalFrame` → `ModalShell`, so the mobile
 viewport work comes for free; read `docs/mobile-viewport.md` before touching its position): big
 art, `aka`, blurb if any, the full season strip with month labels, and the **I ate this** stamp
-button (Phase 3+).
+button (Phase 4+). Signed out, it reads **Sign in to keep track**.
 
 **Accessibility:** the season strip is never color alone. Peak and storage get a pattern, and the
 strip has a text label like "Peak June to August, available May to September". All user-facing copy
@@ -375,9 +430,10 @@ directly, as the library's does), and the covered state pages in `sitemap.ts`.
 
 ## Phases
 
-Each phase is one PR, sized for one agent session. Phases 1 to 3 need no backend.
+Each phase is one PR, sized for one agent session. Phases 1 to 3 need no backend
+changes. Phase 3 can run in parallel with 1 and 2.
 
-0. **Review this spec.** Answer D1 to D9. **Art spike** starts and runs in parallel with 1 to 3.
+0. **Review this spec.** Answer D1, D4 and D6 to D10. **Art spike** starts and runs in parallel with 1 to 3.
 1. **Data foundation.** `src/lib/produce/` as above: catalog, regions, states, `season.ts`, the
    validator, the Northeast and California season files with sources. No UI.
    **Exit:** `npm test` green; Robert has spot-checked ten items per region.
@@ -386,16 +442,24 @@ Each phase is one PR, sized for one agent session. Phases 1 to 3 need no backend
    uncovered-state page, homepage tile, OG image, sitemap.
    **Exit:** deployed on a preview; geo redirect verified there; screenshots at phone and desktop,
    light and dark.
-3. **Device tracking.** `useTastings` with the device backend, stamp button, stamps on cards,
-   basket, the "saved on this device" copy.
-   **Exit:** checks survive reload; private window doesn't crash.
-4. **Account tracking.** Migration, API + Bruno, Server Actions, account backend, import prompt,
-   onboarding `next` + neutral copy, sign-in entry from `/produce`.
-   **Exit:** pytest green incl. cascade on account deletion; sign in from `/produce` lands back
-   on `/produce/{state}` with checks imported.
+3. **Site-wide identity.** `/sign-in`, `/account` + redirect, `next` through every hop
+   including onboarding, neutral onboarding copy, the shared `next` guard, `AuthButton` links.
+   See [Site-wide identity](#site-wide-identity-phase-3) for the exit criteria.
+4. **Account tracking.** Migration, API + Bruno, Server Actions, `useTastings`, stamp button,
+   stamps on cards, basket, the signed-out "Sign in to keep track" prompt.
+   **Exit:** pytest green incl. cascade on account deletion; signed out, tapping the stamp and
+   signing in lands back on `/produce/{state}`; a stamp made on the phone shows on desktop.
 5. **Art.** The spike's winner, filled in item by item. Can land in many small PRs; the fallback
    means any subset ships.
 6. **More regions.** One region per PR, by the curation process. Parallelizable across agents.
+7. **Optional: guest tracking on the device.** Only if signed-out visitors bounce off the sign-in
+   prompt. A device backend behind `useTastings` (`localStorage` key `produce:v1:tastings`, read
+   through `useSyncExternalStore` with an empty server snapshot, every access in try/catch),
+   "Saved on this device. Sign in to keep it for good." copy, and on first signed-in load a
+   **prompt** (not auto-import: a shared computer's checks may be someone else's) to import via
+   `POST /me/produce/tastings/import` (≤ 500 rows, union, earlier `eaten_on` wins).
+
+Separately, whenever convenient: **D10**, the consent-screen rename and re-verification.
 
 ## Testing
 
@@ -404,12 +468,15 @@ Each phase is one PR, sized for one agent session. Phases 1 to 3 need no backend
 - `data.test.ts`: the validator.
 - A test for the middleware's state resolution as a pure function (cookie beats geo, unknown
   codes fall through, non-US falls through), extracted so it doesn't need a request.
-- pytest: repository upsert/delete/import (including the earlier-date-wins rule), router auth
+- The `next` guard (Phase 3): local paths pass; `//evil.com`, `https://evil.com`, `@evil.com`
+  and empty fall back to the default.
+- pytest: repository upsert and delete, router auth
   (401 without a JWT), the cascade on account deletion.
 
 ## Docs to update when this lands
 
-- `.claude/CLAUDE.md`: Routes table (`/produce`, `/produce/[state]`), Where-things-live rows for
+- `.claude/CLAUDE.md`: Routes table (`/produce`, `/produce/[state]`, `/sign-in`, `/account`,
+  and `/video-games/start` re-described as the game library's pitch page), Where-things-live rows for
   `src/lib/produce/`, the produce page, and tracking.
 - `docs/architecture.md`: a third flow: static data + per-viewer browser read.
 - `api/README.md`: `produce_tastings` in the data model.
@@ -435,3 +502,4 @@ Each phase is one PR, sized for one agent session. Phases 1 to 3 need no backend
 - Notes, ratings or photos per tasting.
 - Non-US regions.
 - Half-month precision. D4.
+- Supabase anonymous sign-in, and guest tracking before Phase 7. See [Tracking](#tracking).
