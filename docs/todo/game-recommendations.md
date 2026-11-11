@@ -13,5 +13,7 @@ content-based. Candidates must come from IGDB, since `game_metadata` holds only 
 already owns. scikit-learn is too large for the deployed function, so the math runs in a nightly
 GitHub Actions job writing a `recommendations` table.
 
-_Start with phase 1 of the spec_, a notebook plus the leave-one-out evaluation harness. It answers
-whether clustering into taste modes beats plain nearest neighbours before any migration or UI exists.
+_Phase 1 in progress_ on draft PR #224 (branch `recommender/phase1-notebook`): the snapshot and
+version resolution are done, featurization is next. Status and resume steps live in
+[`api/recommender/README.md`](../../api/recommender/README.md). Phase 1 answers whether clustering
+into taste modes beats plain nearest neighbours before any migration or UI exists.

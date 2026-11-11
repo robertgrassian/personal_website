@@ -64,3 +64,7 @@ api/scripts/.igdb_platforms.json
 
 # local-only notes: setup rituals with credentials in them
 docs/*.local.md
+
+# recommender: the library + IGDB snapshot the notebook and harness read
+api/recommender/snapshot/
+api/notebooks/.ipynb_checkpoints/

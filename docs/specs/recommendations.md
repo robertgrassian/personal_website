@@ -1,6 +1,7 @@
 # Tech spec: game recommendations
 
-Status: **proposed**, 2026-10-03, hardened the same day. Not started.
+Status: **phase 1 in progress** (draft PR #224). Proposed 2026-10-03. Where the work stands and how
+to resume it: [`api/recommender/README.md`](../../api/recommender/README.md).
 
 "Based on the games you've played and liked, you should try …", as a third library tab beside
 Played and Wishlist: a short **Upcoming** row and a longer **Released** section.
@@ -51,20 +52,20 @@ left out of the taste model.
 
 IGDB fields, all on the `games` endpoint `services/igdb.py` already queries:
 
-| Field                                                                     | Use                                                                        |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `genres`, `themes`                                                        | Multi-hot feature blocks; genre names also kept for display                |
-| `player_perspectives`, `game_modes`                                       | Multi-hot                                                                  |
-| `keywords`                                                                | TF-IDF block: the richest signal and the noisiest                          |
-| `involved_companies.company` (where `developer`)                          | Multi-hot, sparse                                                          |
-| `franchises`, `collections`                                               | Multi-hot, sparse; franchise also drives the MMR cap                       |
-| `first_release_date`                                                      | Era feature, and the released / upcoming split                             |
-| `similar_games`                                                           | Candidate generation only, never a feature                                 |
-| `total_rating`, `total_rating_count`                                      | Quality prior for released games                                           |
-| `hypes`                                                                   | Quality prior for upcoming games                                           |
-| `platforms.name`                                                          | Candidate filter, and display                                              |
-| `game_type`                                                               | Keep main games, standalone expansions, remakes, remasters, expanded games |
-| `remakes`, `remasters`, `expanded_games`, `version_parent`, `parent_game` | Exclude other versions of games already owned, in both directions          |
+| Field                                                                                         | Use                                                                        |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `genres`, `themes`                                                                            | Multi-hot feature blocks; genre names also kept for display                |
+| `player_perspectives`, `game_modes`                                                           | Multi-hot                                                                  |
+| `keywords`                                                                                    | TF-IDF block: the richest signal and the noisiest                          |
+| `involved_companies.company` (where `developer`)                                              | Multi-hot, sparse                                                          |
+| `franchises`, `collections`                                                                   | Multi-hot, sparse; franchise also drives the MMR cap                       |
+| `first_release_date`                                                                          | Era feature, and the released / upcoming split                             |
+| `similar_games`                                                                               | Candidate generation only, never a feature                                 |
+| `total_rating`, `total_rating_count`                                                          | Quality prior for released games                                           |
+| `hypes`                                                                                       | Quality prior for upcoming games                                           |
+| `platforms.name`                                                                              | Candidate filter, and display                                              |
+| `game_type`                                                                                   | Keep main games, standalone expansions, remakes, remasters, expanded games |
+| `remakes`, `remasters`, `expanded_games`, `version_parent`, `parent_game`, `ports`, `bundles` | Exclude other versions of games already owned, in both directions          |
 
 ## Data model
 
@@ -237,6 +238,11 @@ Per user, the pipeline then selects from the pool locally, dropping:
   `version_parent` (editions such as "Game of the Year", often `game_type` 0); a candidate whose
   `parent_game` is in the library; a candidate listed in a library game's `remakes`, `remasters`
   or `expanded_games`; and a candidate whose own `remakes` or `remasters` include a library game
+- **ports and bundles in the library, resolved to their main games.** IGDB links these only from
+  the main game's side (`ports`, `bundles`), so a library holding the PC port of Minecraft has no
+  field pointing at Minecraft. The snapshot searches for the main games, repeating because a bundle
+  can hold a port; the library entry then stands for them in the filters above, the taste model and
+  the harness, and a bundle's DLC is dropped. `recommender/versions.py`.
 - released games with `total_rating_count < 5`, too obscure for a trustworthy prior
 
 ### 5. Score
