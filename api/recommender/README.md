@@ -21,6 +21,15 @@ The spec settles the shape of the answer:
 - **Offline.** scikit-learn is too large for the deployed function, so a nightly GitHub Actions job
   writes a table that the API only reads. Nothing in `app/` imports this package.
 
+## Tracking
+
+- **Backlog entry:** "A Recommendations tab beside Played and Wishlist" in `TODO.md`, detail in
+  [`docs/todo/game-recommendations.md`](../../docs/todo/game-recommendations.md). Edit it only
+  through the `proj-todo` skill (`CLAUDE.md` requires that). When a phase lands, update the entry's
+  status line; when all four have shipped, the skill removes the entry.
+- **Phases 1 to 4:** the spec's [Phases](../../docs/specs/recommendations.md#phases) section.
+- **This README's Status section** is the one to keep current as steps finish.
+
 ## Status
 
 **Phase 1 of 4, in progress** (draft PR #224, branch `recommender/phase1-notebook`). Phase 1 proves
