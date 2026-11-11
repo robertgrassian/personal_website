@@ -1,6 +1,7 @@
 # Tech spec: game recommendations
 
-Status: **proposed**, 2026-10-03, hardened the same day. Not started.
+Status: **phase 1 in progress** (draft PR #224). Proposed 2026-10-03. Where the work stands and how
+to resume it: [`api/recommender/README.md`](../../api/recommender/README.md).
 
 "Based on the games you've played and liked, you should try …", as a third library tab beside
 Played and Wishlist: a short **Upcoming** row and a longer **Released** section.

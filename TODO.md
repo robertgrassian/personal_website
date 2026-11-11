@@ -37,7 +37,7 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 - [ ] **A Recommendations tab beside Played and Wishlist: an Upcoming row and a Released section.**
       Content-based, not collaborative (too few users); candidates from IGDB; computed by a nightly
-      batch job, never in the API function. Spec: `docs/specs/recommendations.md`.
+      batch job, never in the API function. Phase 1 in progress on draft PR #224.
       [Details](docs/todo/game-recommendations.md)
 
 - [ ] **A music app at `/music`: a decade's albums as a wall of sleeves, walked genre by genre
