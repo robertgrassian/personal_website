@@ -1,7 +1,9 @@
 # Tech spec: in-season produce tracker
 
-Status: **proposed**, 2026-11-07. Not started. D2, D3 and D5 agreed 2026-11-07; the rest await
-review in [Decisions for review](#decisions-for-review).
+Status: **agreed**, 2026-11-10. Every decision below is settled except D10 (a name, which blocks
+nothing). The spec was checked against the code on 2026-11-10 and corrected where the code
+disagreed; those corrections are marked **Checked** so they are not undone. Build order, branches
+and who builds what are in [Phases](#phases).
 
 A page that shows what fruit, vegetables and herbs are in season where you are, this month, and
 lets you check off what you've eaten. Whimsical and hand-drawn in look, with no AI art anywhere.
@@ -13,25 +15,41 @@ month's produce in four groups: **at its peak**, **just arrived**, **last chance
 around**. Tap anything for its season across the year. Tap **I ate this** to stamp it. A small
 basket counts how many of this month's in-season items you've tried this year. Browsing works for
 everyone, logged in or not. Tracking needs signing in, with **the same login as the rest of the
-site**: one account covers the game library and the produce tracker.
+site**: one account covers the game library and the produce tracker. Signing in is all it takes:
+no username, no onboarding step.
 
-## Decisions for review
+## One login, many apps
 
-Each has a recommendation. The rest of the spec assumes the recommendation, so a different answer
-means editing the section it points to.
+The principle the identity work follows, agreed 2026-11-10. This site is one account and a set of
+small apps. Signing in gets you an account for the **site**. Each app may keep its own data for
+you, and creating that data is the app's own step, taken when you ask for it:
 
-| #   | Question                          | Recommendation                                                                                                                                                                                                                                                    | Section                                           |
-| --- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| D1  | Route                             | **`/produce`**, with per-state pages at `/produce/[state]` (`/produce/ny`). `/in-season` reads nicer but is longer and less obvious in a URL bar.                                                                                                                 | [Routes](#routes)                                 |
-| D2  | Where seasonality data comes from | **Agreed.** **Our own curated dataset** in typed TS modules, cross-referenced from public sources, with a validator test. There is no open API (below).                                                                                                           | [Data](#data)                                     |
-| D3  | Regional granularity              | **Agreed.** **Data keyed by region; a region is a group of states; URLs are by state.** v1 ships two regions: **Northeast** (Robert lives in NYC) and **California**. Other states get an honest "not covered yet" page.                                          | [Regions](#regions)                               |
-| D4  | Time granularity                  | **Month**, with four levels: out, available, **peak**, and from **storage**. Half-month (what Seasonal Food Guide uses) doubles curation for little visible gain.                                                                                                 | [Season strings](#season-strings)                 |
-| D5  | Tracking identity                 | **Agreed: login-only, on one site-wide login.** No device storage and no Supabase anonymous sign-in in v1. Device tracking for guests stays an optional later phase. Sign-in, onboarding and account settings move out from under `/video-games` first.           | [Tracking](#tracking)                             |
-| D6  | What "eaten" means                | **Per calendar year.** One row per (user, item, year), so the page answers "this year" and "ever" from the same data, and the basket resets each January.                                                                                                         | [Data model](#data-model-phase-4)                 |
-| D7  | Is the log public                 | **Private in v1.** Owner-only `/me` reads, never cached, no cache tags. A public "Robert has tried 41 things this year" is a cheap later phase.                                                                                                                   | [API](#api-phase-4)                               |
-| D8  | Art direction                     | **Ship the page on code-drawn hand-drawn chrome with no per-item art, and run an art spike in parallel** (pixel sprites vs. ink drawings, six items each, drawn by Robert). Each item has an `art` slot that falls back to a lettered "seed packet" until filled. | [Look and feel](#look-and-feel)                   |
-| D9  | Item blurbs                       | **Optional field, blank by default, written by Robert over time.** Not AI-drafted, to keep with the spirit of no AI art. Nothing renders when it's blank.                                                                                                         | [Catalog](#catalog)                               |
-| D10 | Google consent-screen app name    | **Rename it from "Video Game Library" to a site-level name and re-verify, as its own step that blocks nothing.** Until then, a produce sign-in shows Google's consent screen naming the game library. Pick the new name.                                          | [Site-wide identity](#site-wide-identity-phase-3) |
+- The **game library's** per-user data is a profile: a username, a public library, a follow
+  graph. You get one by choosing **Create a profile**, never as a side effect of signing in.
+- The **produce tracker's** per-user data is a private list of tastings. It needs nothing but
+  the account.
+
+A signed-in visitor with no game-library profile is a normal, complete state. They see Robert's
+library at `/video-games` like anyone else, with a **Create a profile** button where a signed-out
+visitor sees the sign-up pitch.
+
+## Decisions
+
+All agreed (D2, D3, D5 on 2026-11-07; the rest 2026-11-10) except D10.
+
+| #   | Question                                  | Decision                                                                                                                                                                                                                                                                                          | Section                                           |
+| --- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| D1  | Route                                     | **Agreed.** **`/produce`**, with per-state pages at `/produce/[state]` (`/produce/ny`). `/in-season` reads nicer but is longer and less obvious in a URL bar.                                                                                                                                     | [Routes](#routes)                                 |
+| D2  | Where seasonality data comes from         | **Agreed.** **Our own curated dataset** in typed TS modules, cross-referenced from public sources, with a validator test. There is no open API (below).                                                                                                                                           | [Data](#data)                                     |
+| D3  | Regional granularity                      | **Agreed.** **Data keyed by region; a region is a group of states; URLs are by state.** v1 ships two regions: **Northeast** (Robert lives in NYC) and **California**. Other states get an honest "not covered yet" page.                                                                          | [Regions](#regions)                               |
+| D4  | Time granularity                          | **Agreed.** **Month**, with four levels: out, available, **peak**, and from **storage**. Half-month (what Seasonal Food Guide uses) doubles curation for little visible gain.                                                                                                                     | [Season strings](#season-strings)                 |
+| D5  | Tracking identity                         | **Agreed: login-only, on one site-wide login.** No device storage and no Supabase anonymous sign-in in v1. Device tracking for guests stays an optional later phase. Sign-in and account settings move out from under `/video-games` first.                                                       | [Tracking](#tracking)                             |
+| D6  | What "eaten" means                        | **Agreed.** **Per calendar year.** One row per (user, item, year), so the page answers "this year" and "ever" from the same data, and the basket resets each January.                                                                                                                             | [Data model](#data-model-phase-4)                 |
+| D7  | Is the log public                         | **Agreed.** **Private in v1.** Owner-only `/me` reads, never cached, no cache tags. A public "Robert has tried 41 things this year" is a cheap later phase.                                                                                                                                       | [API](#api-phase-4)                               |
+| D8  | Art direction                             | **Agreed.** **Ship the page on code-drawn hand-drawn chrome with no per-item art, and run an art spike in parallel** (pixel sprites vs. ink drawings, six items each, drawn by Robert). Each item has an `art` slot that falls back to a lettered "seed packet" until filled.                     | [Look and feel](#look-and-feel)                   |
+| D9  | Item blurbs                               | **Agreed.** **Optional field, blank by default, written by Robert over time.** Not AI-drafted, to keep with the spirit of no AI art. Nothing renders when it's blank.                                                                                                                             | [Catalog](#catalog)                               |
+| D10 | Google consent-screen app name            | **Open, blocks nothing.** **Rename it from "Video Game Library" to a site-level name and re-verify, as its own step that blocks nothing.** Until then, a produce sign-in shows Google's consent screen naming the game library. Pick the new name.                                                | [Site-wide identity](#site-wide-identity-phase-3) |
+| D11 | Does tracking need a game-library profile | **Agreed: no.** `produce_tastings` keys on the auth user, not on `profiles`. Requiring a profile would make every produce user pick a username, get a public empty game library, auto-follow Robert, and take one of the 100 `MAX_USERS` slots. See [One login, many apps](#one-login-many-apps). | [Data model](#data-model-phase-4)                 |
 
 ## Why no API
 
@@ -58,11 +76,12 @@ All static, all in the repo, no database. The browse page needs no backend at al
 ```
 src/lib/produce/
   catalog.ts          every item: slug, name, category, art, blurb
-  regions.ts          regions, which states each covers, time zone, sources
+  types.ts            Produce, Region, UsState
   states.ts           all 50 states + DC: code, name, region id or null
-  seasons/
-    northeast.ts      slug → season string, for one region
+  regions/
+    northeast.ts      ONE region, whole: name, time zone, sources, slug → season string
     california.ts
+    index.ts          id → Region
   season.ts           pure functions over season strings (status, arriving, leaving)
   season.test.ts
   data.test.ts        the validator (below)
@@ -99,6 +118,7 @@ export type Region = {
   name: string; // "the Northeast"
   timeZone: string; // "America/New_York": decides what "this month" means
   sources: { title: string; url: string }[];
+  seasons: Record<string, string>; // slug → season string, below
 };
 // states.ts
 export type UsState = { code: string; name: string; region: string | null };
@@ -108,6 +128,12 @@ v1 Northeast covers **NY, NJ, CT, MA, RI, VT, NH, ME, PA**. California covers **
 state has `region: null` until a region is curated for it. Regions are an internal grouping: users
 only ever see their state, plus a quiet "season data for the Northeast" line under it. That way a
 state can later get its own region file without any URL changing.
+
+**One file per region, sources included.** A region's curation is then a one-file change, so two
+regions can be curated by two agents at once without touching the same file. The catalog is the
+only shared file, and a curator may only append to it.
+
+State codes are stored uppercase (`NY`) and appear lowercase in URLs (`/produce/ny`).
 
 ### Season strings
 
@@ -121,11 +147,19 @@ One 12-character string per item per region, January first:
 | `s`  | Local, from storage (apples in February, potatoes) |
 
 ```ts
-// seasons/northeast.ts
-export const northeast: Record<string, string> = {
-  strawberry: ".....PPa....",
-  apple: "ssss...aPPPs",
-  ramps: "...aP.......",
+// regions/northeast.ts
+export const northeast: Region = {
+  id: "northeast",
+  name: "the Northeast",
+  timeZone: "America/New_York",
+  sources: [
+    /* at least two, each a title and a URL */
+  ],
+  seasons: {
+    strawberry: ".....PPa....",
+    apple: "ssss...aPPPs",
+    ramps: "...aP.......",
+  },
 };
 ```
 
@@ -137,11 +171,12 @@ line, and the alphabet makes the validator trivial.
 Fails the test run if:
 
 - a season string isn't 12 chars from `.aPs`, or is all `.`;
-- a season file names a slug not in the catalog;
-- a catalog slug isn't kebab-case, or is duplicated;
+- a region names a slug not in the catalog, or a catalog item appears in no region;
+- a catalog slug doesn't match `^[a-z0-9]+(-[a-z0-9]+)*$`, is over 64 chars, or is duplicated;
 - a state names a region that doesn't exist, or a region has no states;
 - the state list isn't exactly the 50 states + DC;
-- a region has fewer than two sources;
+- a region has fewer than two sources, a source URL that isn't `https://`, or a time zone
+  `Intl.DateTimeFormat` rejects;
 - an `art` path doesn't exist under `public/`.
 
 ### Season logic (`season.ts`)
@@ -161,14 +196,27 @@ Leaving (and not peak or arriving) → **Last chance**. Remaining available or s
 around**. Each item lands in exactly one group, and the tests assert that. Wrap-around is the bug
 magnet: citrus `PPa.......aP` must be "arriving" in November and "leaving" in March.
 
+Edge cases the tests pin down, because each has two defensible answers:
+
+- **"In" means any character but `.`**, storage included. So apples `ssss...aPPPs` are "leaving"
+  in April, from storage, which is true and useful.
+- **A one-month season** (`....P.......`) is both arriving and leaving. The order above decides:
+  peak wins, then arriving.
+- **A year-round item** (no `.`) is never arriving or leaving.
+- `groupFor(season, month)` is the one exported function the page calls, returning the group or
+  `null` for out of season. The three predicates stay exported for the tests.
+
 ### Curation process (per region)
 
-An agent can do this, one region per PR:
+An agent can do this, one region per PR. **Web research is expected here** (agreed 2026-11-10
+as an exception to the usual ask-don't-search preference): the sources are the point.
 
 1. Pull the region's states' extension and agriculture-department harvest calendars plus SNAP-Ed
    and Seasonal Food Guide as cross-checks. Record them in `sources`.
 2. Where sources disagree, take the majority, and widen to `a` rather than claim `P`.
-3. Robert spot-checks ten items he knows from that region's markets before merge. **This is the
+3. Never fill a month from memory alone. An item with no source support is left out of the
+   region and listed in the PR description as "wanted, unsourced".
+4. Robert spot-checks ten items he knows from that region's markets before merge. **This is the
    review gate for data, and the PR description lists the ten.**
 
 ## Routes
@@ -183,8 +231,10 @@ is its own app, not part of the game library, so it does not go under `/video-ga
 
 ### Resolving the state (middleware, Phase 2)
 
-`src/middleware.ts` already runs on every page, so the redirect costs no extra hop. For
-`/produce` only:
+`src/middleware.ts` already runs on every page, so the redirect costs no extra hop. The decision
+is a pure function, `resolveProduceState({ cookie, country, region })`, returning a state code or
+`null`, so it is tested without a request. For the exact path `/produce` only, and **before**
+`updateSession`, so a redirect does not pay for a Supabase round trip it throws away:
 
 1. A `produce_state` cookie holding a valid code → **307** to `/produce/{code}`.
 2. Otherwise, if `x-vercel-ip-country` is `US` and `x-vercel-ip-country-region` is a known state →
@@ -192,8 +242,17 @@ is its own app, not part of the game library, so it does not go under `/video-ga
 3. Otherwise fall through and render the static picker page. This covers local dev (Vercel sets
    no geo headers locally), non-US visitors, and VPNs.
 
-The cookie is written **only when someone explicitly picks a state** (a Server Action, a plain
-non-HttpOnly cookie, 400 days, `SameSite=Lax`), so a guess from geolocation is never pinned.
+Geolocation redirects to **any** valid state, covered or not: a Texan lands on `/produce/tx` and
+its honest "not covered yet" page, which is where the links to covered states are.
+
+`/produce/NY` (uppercase) redirects to `/produce/ny` in the same middleware branch. Without it,
+`dynamicParams = false` makes a hand-typed uppercase code a 404.
+
+The cookie is written **only when someone explicitly picks a state** (a Server Action, 400 days,
+`SameSite=Lax`), so a guess from geolocation is never pinned. **A Server Action and not
+`document.cookie`**, although nothing about the value is secret: Safari caps a script-written
+cookie at 7 days, and a server-set one is not capped. The picker is a list of plain links to
+`/produce/{code}`; the action runs on the "tap to change" control, which is the explicit pick.
 Visiting `/produce/ca` directly never redirects: a shared link shows what was shared.
 
 Why a redirect to a state URL and not reading geo inside the page: reading headers in a Server
@@ -208,10 +267,16 @@ plan. If they don't, step 2 is skipped and everyone gets the picker, which is fi
 A page built at deploy time would show the deploy's month forever. So:
 
 - `export const revalidate = 3600`. The server render computes `currentMonth(region.timeZone)`
-  and passes it to the client as a prop. Worst case, the page flips over at most an hour late.
+  and passes it to the client as a prop.
 - The month scrubber is client state **initialized from that prop**. The client never computes
   "now" during render: a client-computed month would mismatch the server HTML near midnight in
   another time zone (the hydration-mismatch class of bug already in the backlog).
+- **Checked: the hour is not a bound, so the client corrects after mount.** ISR serves the stale
+  page to the first visitor after expiry and regenerates behind them. On a page nobody has opened
+  since the 12th, the first visitor on the 3rd of next month gets last month. So one effect, after
+  hydration, computes `currentMonth(region.timeZone, new Date())` and, if it differs from the prop
+  and the visitor has not touched the scrubber, moves the scrubber to it. An effect cannot
+  mismatch hydration. ISR stays so the corrected case is rare rather than monthly.
 - The whole year's data for the region ships with the page (~100 × 12 chars), so scrubbing months
   needs no fetch.
 
@@ -233,6 +298,15 @@ current month, underlines, the stamp. Two constraints the builder must know:
 - **Use rough.js's `generator` with a fixed `seed` per element, and render path data on the
   server.** Unseeded, it's random per render, so server and client paths differ (hydration
   mismatch) and borders wobble on every re-render.
+- **Checked: rough.js stays out of the browser bundle.** Path strings are generated in Server
+  Components (or at module scope of a server-only file) and handed down as props. Import it from
+  a file that imports `server-only` so a client import fails the build.
+- **Checked: the server does not know how big a card is,** and a rough border is drawn in
+  pixels. Draw each border in a fixed `viewBox` and stretch it over the card with
+  `preserveAspectRatio="none"` and `vector-effect: non-scaling-stroke`, so the line keeps its
+  weight while the shape follows the card. Generate a small set of variants (about six seeds) and
+  assign one per card by a hash of the slug, so a hundred cards are not a hundred paths and
+  neighbours do not match.
 - **Not an SVG displacement filter** (`feTurbulence` + `feDisplacementMap`), the obvious
   alternative. The shelf learned that per-pixel filters re-rasterize on every zoom step and
   blanked the library for a second each time (see the wood-grain convention in CLAUDE.md).
@@ -247,7 +321,7 @@ The page must not wait on 100 drawings. Every item renders its `art` if present,
 **lettered seed packet**: name in Caveat, a category glyph, a rough.js border, a tint from the
 category. That is the Phase 2 look, and it should be good enough to ship on its own.
 
-**Art spike (parallel to Phases 1 to 3, Robert-led, time-boxed):** draw the same six items
+**Art spike (Robert-led, time-boxed, blocks nothing):** draw the same six items
 (strawberry, carrot, apple, ramps, tomato, basil) two ways and pick one:
 
 | Option               | How                                                                                                           | Cost per item | Notes                                                                                                                            |
@@ -263,10 +337,10 @@ as UI, not whimsy.
 
 **Login-only, on the site's one login (D5, agreed 2026-11-07).** A signed-out visitor who taps
 **I ate this** gets a small "Sign in to keep track" prompt that goes to sign-in and comes back to
-the same page. Supabase auth is already one `auth.users` row and one session cookie for the whole
-domain, so a produce account and a game-library account are the same account. What isn't
-site-wide yet is the screens around it, which [Site-wide identity](#site-wide-identity-phase-3)
-fixes first.
+the same page, with no step in between. Supabase auth is already one `auth.users` row and one
+session cookie for the whole domain, so a produce account and a game-library account are the same
+account. What isn't site-wide yet is the screens around it, which
+[Site-wide identity](#site-wide-identity-phase-3) fixes first.
 
 ### Options considered, so they aren't re-proposed
 
@@ -311,33 +385,62 @@ optional guest phase can add a device backend behind the same hook without touch
   does it, because the page is static and identical for every viewer. Starts `loading` so no stamp
   flashes on or off; signed out (no session) skips the request.
 - **Write:** Server Actions → `meApi.ts`, like every other owner write. Optimistic, rolled back on
-  failure.
+  failure. `mark` sends today's date **in the region's time zone**, computed in the browser; see
+  the data model for why the server cannot default it.
+- **The page needs its own sign-in and sign-out control.** `AuthButton` lives in the library's
+  header menu, and it is also what keeps the pre-paint `data-authed` flag honest after a
+  sign-out. Phase 3 makes it usable outside the library; Phase 4 mounts it on the produce page.
+- **Checked: writes are refused on preview deploys.** A preview reaches production's API, so
+  `meApi.ts` blocks every write there (`targetsForeignEnvironmentApi`). Tracking is therefore
+  verified locally (`npm run dev:full`) and then in production, never on a preview.
 
 ## Site-wide identity (Phase 3)
 
 Supabase auth is site-wide; the screens around it are game-library pages. This phase makes them
-the site's, before produce needs them. No new backend.
+the site's, and makes "signed in, no game-library profile" a state the site is comfortable in
+([One login, many apps](#one-login-many-apps)). No backend changes.
 
-What's there today, and what changes:
+What's there today (checked 2026-11-10), and what changes:
 
-| Today                                                                                                                                           | After                                                                                                                                                                                   |
-| ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/video-games/start` is both the sign-in page and the game library's pitch. `SignInPanel`'s Google button hardcodes `next=/library`.            | **A top-level `/sign-in`** renders `SignInPanel` with a `next` taken from its query string. `/video-games/start` **stays** (see below) and renders the same panel with `next=/library`. |
-| The magic-link form sets no redirect, so an emailed link always lands on `/library`.                                                            | The magic link carries `next` too. Check the Supabase email template uses the redirect URL it's given before relying on it.                                                             |
-| `/auth/callback` and `/auth/confirm` already accept a guarded `next`, but send failures to `/video-games/start`.                                | Failures go to `/sign-in?error=…&next=…`.                                                                                                                                               |
-| `/onboarding` says "choose the handle for your game library", bounces signed-out users to `/video-games/start`, and always ends at the library. | Neutral copy (a username is your name across the site, and your game library's address). Accepts `next`, with the same guard, and ends there. Signed out goes to `/sign-in`.            |
-| Settings live at `/video-games/account`, linked from the library's menu.                                                                        | **`/account`**, with a permanent redirect from the old URL in `next.config.ts`. `AuthButton`'s menu links it.                                                                           |
-| `AuthButton`'s sign-in item links `/video-games/start`.                                                                                         | Links `/sign-in?next=<current path>`.                                                                                                                                                   |
+| Today                                                                                                                                                      | After                                                                                                                                                                                                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/video-games/start` is both the sign-in page and the game library's pitch. `SignInPanel` lives beside it and its Google button hardcodes `next=/library`. | **A top-level `/sign-in`** renders `SignInPanel` with a `next` from its query string. The panel moves to `src/components/auth/` and takes `next` as a prop. `/video-games/start` **stays** (below) and passes `next="/onboarding"`: that page's button says "Start your library". |
+| `/auth/callback` and `/auth/confirm` accept a guarded `next` (two copies of the guard), default to `/library`, and send failures to `/video-games/start`.  | Both call one `safeNextPath()`. Default stays `/library`. Failures go to `/sign-in?error=…&next=…`, and `/sign-in` shows the message.                                                                                                                                             |
+| `/library` sends a signed-in user with no profile to `/onboarding`.                                                                                        | Sends them to `/video-games`, the same place as a signed-out visitor. Nobody is pushed into onboarding.                                                                                                                                                                           |
+| `SignupCta` on `/video-games` is hidden from anyone signed in, so a signed-in visitor with no profile is offered nothing.                                  | They see **Create a profile**, linking `/onboarding`. See "The Create a profile button" below.                                                                                                                                                                                    |
+| `/onboarding` bounces signed-out users to `/video-games/start` and ends at the new library.                                                                | Signed out goes to `/sign-in?next=/onboarding`. Otherwise unchanged: it **is** the game library's create-a-profile step, so its copy and its destination are already right, and it needs no `next`.                                                                               |
+| Settings live at `/video-games/account`, styled with shelf tokens, linked from the library's menu and from `/privacy`.                                     | **`/account`**, on the site's own tokens (`foreground`, `subtle`, `divider`), with a permanent redirect from the old URL in `next.config.ts`. Both links updated. "Finish setting up your library" becomes "Create a game library profile".                                       |
+| `AuthButton`'s sign-in item links `/video-games/start`, and its header comment says the library is the only app with sign-in.                              | Links `/sign-in?next=<current path>`. Comment corrected. It must work mounted outside `LibraryPage`, since Phase 4 puts it on the produce page.                                                                                                                                   |
+| The magic-link form (development only, never rendered in production) sets no redirect, and the email template hardcodes `/auth/confirm` with no `next`.    | Carries `next` too, so the whole chain can be exercised locally where there is no Google provider: `emailRedirectTo` plus `{{ .RedirectTo }}` in `supabase/templates/magic_link.html`. Verify in Mailpit.                                                                         |
 
-**Where `next` gets lost today, and must not:** sign-in → callback → (no profile) onboarding →
-library. Onboarding is the hop that drops it. Every hop in the new chain passes `next` along, and
-every one reuses the existing guard (a local path: starts with `/`, not `//`). Extract that guard
-into one tested function in `src/lib/` rather than keeping the two copies in the auth routes.
+**The `next` guard.** `safeNextPath(raw, fallback)` in `src/lib/nextPath.ts`, tested. A value
+passes only if it starts with a single `/`, and contains no backslash and no control character.
+The backslash rule is new: browsers read `/\evil.com` as `//evil.com`. The two route handlers
+are safe from that today only because they prepend an absolute origin; `/sign-in` hands `next`
+to the browser as a relative URL, where it would not be.
+
+**`next` rides in the OAuth `redirectTo`** (`…/auth/callback?next=/produce/ny`,
+`encodeURIComponent`-ed), which is how `next=/library` already travels. **Manual check before
+this ships, Robert:** in the Supabase dashboard, Authentication → URL Configuration, the Redirect
+URLs entry for the callback must be a pattern (`https://rgrassian.com/auth/callback**`), not the
+exact `…?next=/library`. `SignInPanel`'s own comment records the failure mode: an unlisted URL
+makes Supabase fall back silently to the Site URL, landing people on the homepage with an
+unexchanged `?code` and no session.
+
+**The Create a profile button.** The page HTML is identical for every viewer, and the pre-paint
+flag only knows a session exists, not whether it has a profile. So: a small client component,
+rendered beside `SignupCta` and marked `data-hide-anon`, that renders nothing until a browser read
+of `GET /me/profile` (the `useViewerRelationship` pattern) answers 404. It appears a beat after
+load, only for the one kind of visitor it is for. `SignupCta` itself is untouched: its wording is
+part of what Google's brand review read.
 
 **`/video-games/start` does not move.** It's the "App homepage" in Google's OAuth consent screen,
 and `APP_NAME` ("Video Game Library") must match the console's App name or brand verification
 fails (the comments in `src/lib/appName.ts` and `video-games/start/page.tsx` explain the history).
 Moving or renaming either is a Google console change plus re-verification.
+
+**`/sign-in` is `noindex`** and stays out of `sitemap.ts`. Its heading is "Sign in", with one line
+saying the account works across the site. No app name, until D10 picks one.
 
 **D10, the consent-screen name.** Until it changes, someone signing in from `/produce` sees Google
 say they're signing into "Video Game Library". It's cosmetic, and nothing in this spec blocks on
@@ -350,9 +453,17 @@ it. The proper fix, as a separate step whenever convenient:
 
 Confirm in Google's docs whether the old branding stays live during review before starting.
 
-**Exit:** signing in from `/produce/ny` as a brand-new user goes Google → onboarding →
-back to `/produce/ny`; the same for an existing user skips onboarding; the magic link does the
-same; the old account URL redirects; `/video-games/start` is unchanged.
+**Exit:**
+
+- From `/sign-in?next=/about`, signing in lands on `/about`, for a brand-new user and an existing
+  one alike. No onboarding either way.
+- From `/video-games/start`, a brand-new user lands on `/onboarding` and then their new library;
+  an existing user lands on their library.
+- `/library` as a signed-in user with no profile shows Robert's library with **Create a
+  profile**; signed out shows the sign-up pitch; with a profile, neither.
+- A failed sign-in lands on `/sign-in` with the message and `next` intact.
+- `/video-games/account` redirects to `/account`. `/video-games/start` renders as before.
+- `next=//evil.com`, `next=/\evil.com` and `next=https://evil.com` all land on `/library`.
 
 ## Data model (Phase 4)
 
@@ -360,22 +471,38 @@ One table, one Alembic migration.
 
 ### `produce_tastings`
 
-| Column         | Type                                       | Notes                                         |
-| -------------- | ------------------------------------------ | --------------------------------------------- |
-| `user_id`      | `uuid` FK `profiles` **ON DELETE CASCADE** | Account deletion takes it, like the rest      |
-| `produce_slug` | `text`                                     | CHECK kebab-case, ≤ 64 chars                  |
-| `year`         | `smallint`                                 | CHECK 2020..2100                              |
-| `eaten_on`     | `date`                                     | Defaults to today in the caller's region zone |
-| `created_at`   | `timestamptz`                              |                                               |
+| Column         | Type                                         | Notes                                                |
+| -------------- | -------------------------------------------- | ---------------------------------------------------- |
+| `user_id`      | `uuid` FK `auth.users` **ON DELETE CASCADE** | The account, not a game-library profile (D11)        |
+| `produce_slug` | `text`                                       | CHECK `^[a-z0-9]+(-[a-z0-9]+)*$`, ≤ 64 chars         |
+| `year`         | `smallint`                                   | CHECK `year = extract(year from eaten_on)`           |
+| `eaten_on`     | `date`                                       | **Required**, sent by the client. CHECK ≥ 2020-01-01 |
+| `created_at`   | `timestamptz`                                |                                                      |
 
-PK `(user_id, produce_slug, year)`. **The API does not validate slugs against the catalog**: the
-catalog is a TS module the Python function can't import, and an unknown slug in your own private
-log harms nothing. The client ignores slugs it doesn't know, so a slug that's been retired just
-stops showing up.
+PK `(user_id, produce_slug, year)`.
 
-**It hangs off `profiles`, so tracking requires onboarding**, which is why Phase 3 makes
-onboarding return you to where you started. A signed-in user with no profile who taps **I ate
-this** goes to `/onboarding?next=/produce/…`.
+**The FK to `auth.users` lives in the migration only, not on the SQLAlchemy model**, exactly as
+`profiles.id` does it (migration `f985740c0df9`, and the comment on `Profile.id`): `auth.users`
+belongs to GoTrue and stays out of our metadata, and `env.py`'s `include_object` filter keeps
+autogenerate from proposing to drop it. Account deletion already deletes the auth user and lets
+the cascade do the rest, including for an account that never made a profile, so tastings need no
+new deletion code. A test proves it.
+
+**Checked: the server cannot default `eaten_on`.** The old draft said "defaults to today in the
+caller's region zone", but the API does not know the caller's region, and its own "today" is UTC.
+At 8pm on December 31 in New York that is already January 1, which would file the tasting under
+the wrong year. So the client sends the date, and the API checks it: it must match the `year` in
+the path, and be no later than tomorrow (UTC), which allows every time zone and refuses the far
+future.
+
+**The API does not validate slugs against the catalog**: the catalog is a TS module the Python
+function can't import, and an unknown slug in your own private log harms nothing. The client
+ignores slugs it doesn't know, so a slug that's been retired just stops showing up.
+
+**So the table needs its own ceiling.** Anyone with a Google account can now write rows without
+passing the 100-profile cap, and the slug is free text. A user is capped at **1,000 tastings in
+total** (the service counts before an insert and answers 409), on top of the 60 writes a minute
+every write route already gets. A full catalog every year for a decade fits.
 
 ## API (Phase 4)
 
@@ -384,14 +511,18 @@ which these endpoints make slightly untrue. Renaming it touches `apiPrefix.ts`, 
 `next.config.ts` and the middleware matcher in lockstep, and isn't worth it for one app. Revisit
 if a third app arrives (noted in the routing backlog entry).
 
-| Method + path                               | Body / result               | Notes                             |
-| ------------------------------------------- | --------------------------- | --------------------------------- |
-| `GET /me/produce/tastings?year=2026`        | `[{ slug, year, eatenOn }]` | Never cached, no tag (owner-only) |
-| `PUT /me/produce/tastings/{year}/{slug}`    | `{ eatenOn? }` → the row    | Idempotent upsert                 |
-| `DELETE /me/produce/tastings/{year}/{slug}` | 204                         | 204 even if absent                |
+| Method + path                               | Body / result               | Notes                                   |
+| ------------------------------------------- | --------------------------- | --------------------------------------- |
+| `GET /me/produce/tastings?year=2026`        | `[{ slug, year, eatenOn }]` | Never cached, no tag (owner-only)       |
+| `PUT /me/produce/tastings/{year}/{slug}`    | `{ eatenOn }` → the row     | Idempotent upsert. 409 at the 1,000 cap |
+| `DELETE /me/produce/tastings/{year}/{slug}` | 204                         | 204 even if absent                      |
 
 Standard layers: `routers/produce.py` → `services/produce.py` → `repositories/produce.py`.
-**Every new endpoint needs a Bruno request** in `api/bruno/`, or `test_bruno_collection.py` fails.
+`PUT` and `DELETE` carry **`WRITE_GUARDS`** in their decorators, like every mutating route:
+omitting it fails silently (`core/guards.py`). None of the three requires a profile: they take
+`CurrentUser` and nothing else. **Every new endpoint needs a Bruno request** in `api/bruno/`, or
+`test_bruno_collection.py` fails; `{year}` and `{slug}` need entries in that test's placeholder
+map.
 
 Server Actions in `src/app/produce/actions.ts`, mirroring `video-games/actions.ts`. **No
 `revalidateTag`**: nothing about tastings is cached.
@@ -404,7 +535,8 @@ Top to bottom, mobile first:
    change) and the quiet "season data for the Northeast" line.
 2. **Month scrubber**: twelve hand-lettered months, the current one circled by rough.js.
    Scrubbing changes the groups, not the URL.
-3. **Category chips**: All, Fruit, Vegetables, Herbs. Client-side filter.
+3. **Category chips**: All, then one per category **that this region actually has**. Client-side
+   filter.
 4. **The basket** (Phase 4+): "You've tried 7 of the 31 things in season this month."
 5. **Four groups**: At its peak, Just arrived, Last chance, Also around. Empty groups hide.
 6. **Cards** in a grid: art or seed packet, name, a tiny 12-cell season strip. Tried items get an
@@ -422,33 +554,61 @@ follows the no-em-dash rule.
 **Uncovered state page:** "We don't have season data for Texas yet." plus links to the covered
 states. Honest, not a guess from another region.
 
+**Nav:** a fourth link, "In Season", in `Nav.tsx` (its comment already says the bar has room for
+one). Active on anything under `/produce`.
+
 **Homepage tile:** the grid is `grid-cols-3` with exactly three tiles. A fourth needs a layout
-decision (2×2, or 4 across on desktop). Decide in Phase 2 with a screenshot of each.
+decision (2×2, or 4 across on desktop). Build 2×2 on phones and 4 across from `sm` up, and put a
+screenshot of each in the PR for Robert to overrule.
 
 **Also in Phase 2:** an OG image for `/produce` (Satori can't read the page's CSS, so draw it
-directly, as the library's does), and the covered state pages in `sitemap.ts`.
+directly, as the library's does), the covered state pages in `sitemap.ts`, and `/privacy`: the
+page now reads an approximate location from the request to pick a state (never stored) and sets
+one preference cookie when you choose a state yourself. The privacy page is user-facing Markdown,
+so the no-em-dash rule applies.
 
 ## Phases
 
-Each phase is one PR, sized for one agent session. Phases 1 to 3 need no backend
-changes. Phase 3 can run in parallel with 1 and 2.
+Each phase is one branch and one draft PR. Phases 1 to 3 need no backend changes.
 
-0. **Review this spec.** Answer D1, D4 and D6 to D10. **Art spike** starts and runs in parallel with 1 to 3.
-1. **Data foundation.** `src/lib/produce/` as above: catalog, regions, states, `season.ts`, the
-   validator, the Northeast and California season files with sources. No UI.
-   **Exit:** `npm test` green; Robert has spot-checked ten items per region.
-2. **Browse page.** Routes, middleware redirect + picker, ISR month, `produce.css` both schemes,
-   rough.js chrome, seed-packet fallback, scrubber, chips, groups, card detail (no tracking),
-   uncovered-state page, homepage tile, OG image, sitemap.
+| Phase | What                | Branch                     | Depends on | Built by                                              |
+| ----- | ------------------- | -------------------------- | ---------- | ----------------------------------------------------- |
+| 1a    | Data foundation     | `produce/phase-1-data`     | this spec  | One agent (Opus)                                      |
+| 1b    | Two regions curated | same branch                | 1a         | Two agents at once (Opus, web research), one a region |
+| 2     | Browse page         | `produce/phase-2-browse`   | 1a, 1b     | One agent (Opus), stacked on the Phase 1 branch       |
+| 3     | Site-wide identity  | `identity/site-wide-login` | this spec  | One agent (Opus), in parallel with 1 and 2            |
+| 4     | Account tracking    | `produce/phase-4-tracking` | 2, 3       | Not started until Robert has seen 2 on a preview      |
+
+The orchestrating session reviews every diff, runs `npm test`, `npm run lint` and a type check
+before a PR opens, and does not merge anything: merging is Robert's.
+
+0. **Review this spec.** Done 2026-11-10. **Art spike** starts whenever Robert likes and blocks
+   nothing.
+1. **Data foundation.**
+   - **1a:** `src/lib/produce/` as above: types, the catalog (about 100 items, names and
+     categories only), states, `season.ts` and its tests, the validator, and the two region files
+     as **empty shells that the validator accepts only while a `DRAFT` flag is set**, so 1a is
+     green on its own and 1b cannot be forgotten: the flag is deleted in 1b and the validator
+     then demands real data. No UI.
+   - **1b:** each region file filled by the [curation process](#curation-process-per-region).
+     Sources cited in the file.
+     **Exit:** `npm test` green; the PR lists ten items per region for Robert to spot-check.
+2. **Browse page.** Routes, middleware redirect + picker, ISR month with the client correction,
+   `produce.css` both schemes, rough.js chrome, seed-packet fallback, scrubber, chips, groups,
+   card detail (no tracking), uncovered-state page, nav link, homepage tile, OG image, sitemap,
+   privacy copy.
    **Exit:** deployed on a preview; geo redirect verified there; screenshots at phone and desktop,
    light and dark.
-3. **Site-wide identity.** `/sign-in`, `/account` + redirect, `next` through every hop
-   including onboarding, neutral onboarding copy, the shared `next` guard, `AuthButton` links.
-   See [Site-wide identity](#site-wide-identity-phase-3) for the exit criteria.
+3. **Site-wide identity.** Everything in [Site-wide identity](#site-wide-identity-phase-3),
+   including its exit list.
 4. **Account tracking.** Migration, API + Bruno, Server Actions, `useTastings`, stamp button,
-   stamps on cards, basket, the signed-out "Sign in to keep track" prompt.
-   **Exit:** pytest green incl. cascade on account deletion; signed out, tapping the stamp and
-   signing in lands back on `/produce/{state}`; a stamp made on the phone shows on desktop.
+   stamps on cards, basket, the signed-out "Sign in to keep track" prompt, `AuthButton` on the
+   page.
+   **Exit:** pytest green **with `DATABASE_URL` set** (two thirds of the suite skips silently
+   without it), including the cascade on account deletion for a user with no profile and the
+   1,000 cap; signed out, tapping the stamp and signing in lands back on `/produce/{state}` with
+   no onboarding; a stamp made on the phone shows on desktop. Verified locally and in production,
+   not on a preview (writes are refused there).
 5. **Art.** The spike's winner, filled in item by item. Can land in many small PRs; the fallback
    means any subset ships.
 6. **More regions.** One region per PR, by the curation process. Parallelizable across agents.
@@ -459,36 +619,57 @@ changes. Phase 3 can run in parallel with 1 and 2.
    **prompt** (not auto-import: a shared computer's checks may be someone else's) to import via
    `POST /me/produce/tastings/import` (≤ 500 rows, union, earlier `eaten_on` wins).
 
-Separately, whenever convenient: **D10**, the consent-screen rename and re-verification.
+### Manual steps, Robert's
+
+Things no agent can do, in the order they come up:
+
+1. **Before Phase 3 merges:** the Supabase Redirect URLs pattern, described under
+   [Site-wide identity](#site-wide-identity-phase-3).
+2. **Before Phase 1 merges:** spot-check ten items per region.
+3. **On Phase 2's preview:** confirm the geo redirect from a phone off wifi.
+4. **Phase 4:** the migration reaches production through CD (`docs/deployment.md`); nothing to
+   run by hand, but it is the first schema change since `game_notes`, so watch the deploy.
+5. **Whenever convenient:** D10, the consent-screen rename and re-verification.
 
 ## Testing
 
-- `season.test.ts`: status, arriving and leaving including wrap-around, one-group-per-item,
-  `currentMonth` across a time-zone boundary (23:30 UTC on Jan 31 is still January in Los Angeles).
+- `season.test.ts`: status, arriving and leaving including wrap-around, the three edge cases
+  under [Season logic](#season-logic-seasonts), one-group-per-item across every item and month of
+  every shipped region, `currentMonth` across a time-zone boundary (07:30 UTC on Feb 1 is still
+  January in Los Angeles).
 - `data.test.ts`: the validator.
-- A test for the middleware's state resolution as a pure function (cookie beats geo, unknown
-  codes fall through, non-US falls through), extracted so it doesn't need a request.
-- The `next` guard (Phase 3): local paths pass; `//evil.com`, `https://evil.com`, `@evil.com`
-  and empty fall back to the default.
-- pytest: repository upsert and delete, router auth
-  (401 without a JWT), the cascade on account deletion.
+- The middleware's `resolveProduceState` as a pure function: cookie beats geo, unknown codes fall
+  through, non-US falls through, an uncovered state still resolves.
+- `safeNextPath` (Phase 3): local paths pass; `//evil.com`, `/\evil.com`, `https://evil.com`,
+  `@evil.com`, a value with a newline, and empty all fall back to the default.
+- pytest (Phase 4): repository upsert and delete, router auth (401 without a JWT), a user with no
+  profile can write and read, the year/date mismatch is refused, the 1,000 cap, the cascade on
+  account deletion.
 
 ## Docs to update when this lands
 
+Each phase updates what it changes, in its own PR.
+
 - `.claude/CLAUDE.md`: Routes table (`/produce`, `/produce/[state]`, `/sign-in`, `/account`,
-  and `/video-games/start` re-described as the game library's pitch page), Where-things-live rows for
-  `src/lib/produce/`, the produce page, and tracking.
+  `/library`'s no-profile row, and `/video-games/start` re-described as the game library's pitch
+  page), Where-things-live rows for `src/lib/produce/`, the produce page, and tracking. The
+  convention that auth stays top-level gains `/sign-in` and `/account`, and one line for
+  [One login, many apps](#one-login-many-apps): new per-user tables key on the auth user.
 - `docs/architecture.md`: a third flow: static data + per-viewer browser read.
 - `api/README.md`: `produce_tastings` in the data model.
 - `README.md`: one line on what the produce page is.
+- `/privacy`: Phase 2's location and cookie lines, Phase 3's account link, Phase 4's "what we
+  store" line for tastings.
 - The routing-strategy backlog entry: a second app has arrived, and option (a) held.
 
 ## Open questions
 
 - **Which Northeast states really share a calendar.** Maine and New Jersey differ by weeks. If the
   spot-check says the Northeast is too wide, split it (Phase 6 machinery already supports it).
-- **Calendar year vs. season year for D6.** Citrus runs December to March, so Jan 1 resets the
-  basket mid-season. Calendar year is simpler and matches "this year"; flagged in case it bugs you.
+- **D10**, the site-level app name.
+
+Settled and recorded so it isn't reopened: calendar year for D6, although citrus runs December to
+March and so the basket resets mid-season. Simpler, and it matches "this year".
 
 ## Explicitly not in v1
 
@@ -498,7 +679,8 @@ Separately, whenever convenient: **D10**, the consent-screen rename and re-verif
 - **Where to buy.** Probably v2 at most. The USDA Local Food Portal API (farmers markets, CSAs,
   farm stands by location, key on application) makes "markets near you" feasible; "who has ramps
   this week" is not.
-- A public log or follows. D7.
+- A public log or follows. D7. When it comes it needs a username, and asks for a game-library
+  profile (or a site-level handle) at that point, not before.
 - Notes, ratings or photos per tasting.
 - Non-US regions.
 - Half-month precision. D4.
