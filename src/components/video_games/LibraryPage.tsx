@@ -269,7 +269,7 @@ export async function LibraryPage({
                     pre-paint flag — the same mechanism AuthButton uses, so the
                     menu never reshuffles a beat after paint. The page itself
                     re-checks the session server-side; this flag is display only. */}
-                <MenuItem href="/video-games/account" data-hide-anon="">
+                <MenuItem href="/account" data-hide-anon="">
                   Account
                 </MenuItem>
                 <AuthButton />

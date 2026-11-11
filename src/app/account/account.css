@@ -1,0 +1,25 @@
+/* /account renders on the site's tokens, but its delete control is built from
+   the library's ConfirmStep, Button and inputClass, which read --shelf-*
+   tokens that only .shelf-theme defines. This supplies exactly the ones they
+   read, mapped onto the site palette. The danger reds are the shelf's own. */
+.account-controls {
+  --shelf-text: var(--foreground);
+  --shelf-text-muted: var(--subtle);
+  --shelf-border: var(--subtle);
+  --shelf-input: color-mix(in srgb, var(--foreground) 5%, var(--background));
+  --shelf-input-border: var(--divider);
+  --shelf-input-text: var(--foreground);
+  --shelf-input-ring: var(--link);
+  --shelf-danger: #dc2626;
+  --shelf-danger-text: var(--shelf-danger);
+  --shelf-danger-border: var(--shelf-danger);
+  --shelf-danger-surface: transparent;
+  --shelf-danger-tint: rgba(220, 38, 38, 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+  .account-controls {
+    --shelf-danger: #f87171;
+    --shelf-danger-tint: rgba(248, 113, 113, 0.16);
+  }
+}

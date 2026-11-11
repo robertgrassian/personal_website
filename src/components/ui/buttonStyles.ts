@@ -65,9 +65,9 @@ const variantClass: Record<ButtonVariant, string> = {
     "rounded-md border border-shelf-border text-shelf-text " +
     `hover:bg-shelf-input transition-colors cursor-pointer ${disabledClass}`,
 
-  // Shelf tokens, not red-600/red-400: this renders on the account page's light
-  // shelf AND on the detail card's dark scrim, and a `dark:` pairing cannot
-  // tell those apart.
+  // Shelf tokens, not red-600/red-400: this renders on a light shelf AND on the
+  // detail card's dark scrim, and a `dark:` pairing cannot tell those apart.
+  // Off the shelf (/account), the surface must define the tokens itself.
   //
   // Surface and text are tokens because they have to differ per surface. On a
   // solid shelf this is an outline: transparent behind red text. On the detail
