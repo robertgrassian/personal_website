@@ -3,6 +3,9 @@ import type { Produce } from "./types.ts";
 // Every item any covered region grows. Region curators may append here but never rename or remove
 // a slug: tastings key on it. Slugs are singular unless the item is only ever named in the plural
 // (ramps, garlic scapes, brussels sprouts, the leafy "greens").
+//
+// Granularity: anything a shopper names and buys as its own thing is its own item (zucchini is
+// not summer squash, a pluot is not a plum). Colours and cultivars of one thing are not.
 export const CATALOG: readonly Produce[] = [
   // Fruit
   { slug: "apple", name: "Apples", category: "fruit" },
@@ -14,7 +17,7 @@ export const CATALOG: readonly Produce[] = [
   { slug: "blueberry", name: "Blueberries", category: "fruit" },
   { slug: "cantaloupe", name: "Cantaloupe", aka: ["Muskmelon"], category: "fruit" },
   { slug: "cherimoya", name: "Cherimoyas", category: "fruit" },
-  { slug: "cherry", name: "Cherries", category: "fruit" },
+  { slug: "cherry", name: "Cherries", aka: ["Sweet cherries"], category: "fruit" },
   { slug: "concord-grape", name: "Concord grapes", category: "fruit" },
   { slug: "cranberry", name: "Cranberries", category: "fruit" },
   { slug: "currant", name: "Currants", category: "fruit" },
@@ -33,25 +36,24 @@ export const CATALOG: readonly Produce[] = [
   { slug: "meyer-lemon", name: "Meyer lemons", category: "fruit" },
   { slug: "nectarine", name: "Nectarines", category: "fruit" },
   { slug: "olive", name: "Olives", category: "fruit" },
-  {
-    slug: "orange",
-    name: "Oranges",
-    aka: ["Navel oranges", "Valencia oranges"],
-    category: "fruit",
-  },
+  { slug: "navel-orange", name: "Navel oranges", category: "fruit" },
   { slug: "pawpaw", name: "Pawpaws", category: "fruit" },
   { slug: "peach", name: "Peaches", category: "fruit" },
   { slug: "pear", name: "Pears", category: "fruit" },
   { slug: "persimmon", name: "Persimmons", category: "fruit" },
-  { slug: "plum", name: "Plums", aka: ["Pluots"], category: "fruit" },
+  { slug: "plum", name: "Plums", category: "fruit" },
+  { slug: "pluot", name: "Pluots", category: "fruit" },
   { slug: "pomegranate", name: "Pomegranates", category: "fruit" },
   { slug: "pomelo", name: "Pomelos", category: "fruit" },
   { slug: "quince", name: "Quince", category: "fruit" },
   { slug: "raspberry", name: "Raspberries", category: "fruit" },
+  { slug: "sour-cherry", name: "Sour cherries", aka: ["Tart cherries"], category: "fruit" },
   { slug: "strawberry", name: "Strawberries", category: "fruit" },
+  { slug: "valencia-orange", name: "Valencia oranges", category: "fruit" },
   { slug: "watermelon", name: "Watermelon", category: "fruit" },
 
   // Vegetables
+  { slug: "acorn-squash", name: "Acorn squash", category: "vegetable" },
   { slug: "artichoke", name: "Artichokes", category: "vegetable" },
   { slug: "arugula", name: "Arugula", aka: ["Rocket"], category: "vegetable" },
   { slug: "asparagus", name: "Asparagus", category: "vegetable" },
@@ -61,6 +63,7 @@ export const CATALOG: readonly Produce[] = [
   { slug: "broccoli", name: "Broccoli", category: "vegetable" },
   { slug: "broccoli-rabe", name: "Broccoli rabe", aka: ["Rapini"], category: "vegetable" },
   { slug: "brussels-sprouts", name: "Brussels sprouts", category: "vegetable" },
+  { slug: "butternut-squash", name: "Butternut squash", category: "vegetable" },
   { slug: "cabbage", name: "Cabbage", category: "vegetable" },
   { slug: "carrot", name: "Carrots", category: "vegetable" },
   { slug: "cauliflower", name: "Cauliflower", category: "vegetable" },
@@ -71,6 +74,7 @@ export const CATALOG: readonly Produce[] = [
   { slug: "collard-greens", name: "Collard greens", category: "vegetable" },
   { slug: "cucumber", name: "Cucumbers", category: "vegetable" },
   { slug: "dandelion-greens", name: "Dandelion greens", category: "vegetable" },
+  { slug: "delicata-squash", name: "Delicata squash", category: "vegetable" },
   { slug: "eggplant", name: "Eggplant", category: "vegetable" },
   { slug: "fava-bean", name: "Fava beans", aka: ["Broad beans"], category: "vegetable" },
   { slug: "fennel", name: "Fennel", category: "vegetable" },
@@ -79,15 +83,16 @@ export const CATALOG: readonly Produce[] = [
   { slug: "garlic-scapes", name: "Garlic scapes", category: "vegetable" },
   { slug: "green-bean", name: "Green beans", aka: ["String beans"], category: "vegetable" },
   { slug: "horseradish", name: "Horseradish", category: "vegetable" },
+  { slug: "kabocha-squash", name: "Kabocha squash", category: "vegetable" },
   { slug: "kale", name: "Kale", category: "vegetable" },
   { slug: "kohlrabi", name: "Kohlrabi", category: "vegetable" },
   { slug: "leek", name: "Leeks", category: "vegetable" },
   { slug: "lettuce", name: "Lettuce", category: "vegetable" },
   { slug: "mustard-greens", name: "Mustard greens", category: "vegetable" },
+  { slug: "napa-cabbage", name: "Napa cabbage", category: "vegetable" },
   { slug: "okra", name: "Okra", category: "vegetable" },
   { slug: "onion", name: "Onions", category: "vegetable" },
   { slug: "parsnip", name: "Parsnips", category: "vegetable" },
-  { slug: "pea", name: "Peas", aka: ["Snap peas", "Snow peas"], category: "vegetable" },
   { slug: "potato", name: "Potatoes", category: "vegetable" },
   { slug: "pumpkin", name: "Pumpkins", category: "vegetable" },
   { slug: "radicchio", name: "Radicchio", category: "vegetable" },
@@ -97,11 +102,15 @@ export const CATALOG: readonly Produce[] = [
   { slug: "rutabaga", name: "Rutabaga", aka: ["Swede"], category: "vegetable" },
   { slug: "scallion", name: "Scallions", aka: ["Green onions"], category: "vegetable" },
   { slug: "shallot", name: "Shallots", category: "vegetable" },
+  { slug: "shelling-pea", name: "Shelling peas", aka: ["English peas"], category: "vegetable" },
+  { slug: "snap-pea", name: "Snap peas", aka: ["Sugar snap peas"], category: "vegetable" },
+  { slug: "snow-pea", name: "Snow peas", category: "vegetable" },
+  { slug: "spaghetti-squash", name: "Spaghetti squash", category: "vegetable" },
   { slug: "spinach", name: "Spinach", category: "vegetable" },
   {
     slug: "summer-squash",
     name: "Summer squash",
-    aka: ["Zucchini", "Yellow squash"],
+    aka: ["Yellow squash", "Pattypan"],
     category: "vegetable",
   },
   { slug: "sunchoke", name: "Sunchokes", aka: ["Jerusalem artichokes"], category: "vegetable" },
@@ -111,12 +120,7 @@ export const CATALOG: readonly Produce[] = [
   { slug: "tomato", name: "Tomatoes", category: "vegetable" },
   { slug: "turnip", name: "Turnips", category: "vegetable" },
   { slug: "watercress", name: "Watercress", category: "vegetable" },
-  {
-    slug: "winter-squash",
-    name: "Winter squash",
-    aka: ["Butternut", "Acorn squash", "Delicata"],
-    category: "vegetable",
-  },
+  { slug: "zucchini", name: "Zucchini", category: "vegetable" },
 
   // Herbs
   { slug: "basil", name: "Basil", category: "herb" },
