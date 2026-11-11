@@ -420,12 +420,12 @@ are safe from that today only because they prepend an absolute origin; `/sign-in
 to the browser as a relative URL, where it would not be.
 
 **`next` rides in the OAuth `redirectTo`** (`…/auth/callback?next=/produce/ny`,
-`encodeURIComponent`-ed), which is how `next=/library` already travels. **Manual check before
-this ships, Robert:** in the Supabase dashboard, Authentication → URL Configuration, the Redirect
-URLs entry for the callback must be a pattern (`https://rgrassian.com/auth/callback**`), not the
-exact `…?next=/library`. `SignInPanel`'s own comment records the failure mode: an unlisted URL
-makes Supabase fall back silently to the Site URL, landing people on the homepage with an
-unexchanged `?code` and no session.
+`encodeURIComponent`-ed), which is how `next=/library` already travels. **Checked 2026-11-10:** the
+Supabase Redirect URLs are `https://rgrassian.com/**` and `https://www.rgrassian.com/**`, which
+match any path and query, so nothing needs changing for production. **No preview domain is
+listed**, so Google sign-in on a preview falls back to the Site URL, as it already does today
+(`SignInPanel`'s comment records that failure mode). This phase is therefore verified locally,
+through the development-only magic link, and then in production, not on a preview.
 
 **The Create a profile button.** The page HTML is identical for every viewer, and the pre-paint
 flag only knows a session exists, not whether it has a profile. So: a small client component,
@@ -623,8 +623,8 @@ before a PR opens, and does not merge anything: merging is Robert's.
 
 Things no agent can do, in the order they come up:
 
-1. **Before Phase 3 merges:** the Supabase Redirect URLs pattern, described under
-   [Site-wide identity](#site-wide-identity-phase-3).
+1. **After Phase 3 deploys:** sign in with Google once from `/sign-in?next=/about` in production.
+   It cannot be tried on a preview ([Site-wide identity](#site-wide-identity-phase-3)).
 2. **Before Phase 1 merges:** spot-check ten items per region.
 3. **On Phase 2's preview:** confirm the geo redirect from a phone off wifi.
 4. **Phase 4:** the migration reaches production through CD (`docs/deployment.md`); nothing to
