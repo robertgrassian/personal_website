@@ -25,6 +25,20 @@ dev = [
     "pytest>=8.4",
     "httpx>=0.28",
 ]
+# The offline recommender (api/recommender/), never installed by the deployed
+# function: scikit-learn and friends are well over 100MB. Not default groups,
+# so install with `uv sync --group recommender --group notebook`.
+recommender = [
+    "numpy>=2.3",
+    "scipy>=1.16",
+    "scikit-learn>=1.7",
+]
+# Exploration only: the Jupyter kernel VS Code runs cells in, plus plotting.
+notebook = [
+    "ipykernel>=6.30",
+    "matplotlib>=3.10",
+    "pandas>=2.3",
+]
 
 [tool.uv]
 # Not an installable package — a deployable app. Keeps `uv export` from

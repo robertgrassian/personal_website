@@ -23,6 +23,9 @@
 /api/tests/
 /api/bruno/
 /api/scripts/
+# The recommender runs offline (GitHub Actions, locally); no function imports it.
+/api/recommender/
+/api/notebooks/
 
 # Frontend tooling. npm run grain is manual and bakes to public/shelf/*.webp,
 # which are committed; check-dev-ports only runs under predev:full.
