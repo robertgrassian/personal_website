@@ -193,10 +193,10 @@ export async function fetchMyProfile(): Promise<MyProfile | null> {
   });
   if (res.ok) return res.data;
   // Checked before the status map below, not after: a hop that timed out also
-  // carries status 0, and reading that as "signed out" would send a signed-in
-  // owner to onboarding because the API was slow. Unknown is not absent.
+  // carries status 0, and reading that as "signed out" would treat a signed-in
+  // owner as profile-less because the API was slow. Unknown is not absent.
   if (res.unreachable) throw new Error(`GET /me/profile did not answer: ${res.message}`);
-  // 404 = no profile yet → onboarding. 0 = no token, i.e. signed out.
+  // 404 = no game library profile. 0 = no token, i.e. signed out.
   if (res.status === 404 || res.status === 0) return null;
   // Anything else is the API being unwell, which the caller should not paper
   // over as "not onboarded".
