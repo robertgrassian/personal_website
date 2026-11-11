@@ -8,6 +8,7 @@ import { type EmailOtpType } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requestOrigin } from "@/lib/requestOrigin";
+import { safeNextPath, signInPath } from "@/lib/nextPath";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -16,17 +17,9 @@ export async function GET(request: NextRequest) {
   // Redirect to the host the request came in on (not request.url's normalized
   // origin), so the session cookie just set by verifyOtp stays valid.
   const origin = requestOrigin(request);
-  // Where to send the user after a successful sign-in. Defaults to /library,
-  // the resolver that picks the right destination for any account state: own
-  // library, onboarding, or the public shelf.
-  //
-  // Open-redirect guard: only accept a local path. Without it, `next=@evil.com`
-  // would make `${origin}${next}` resolve to another host, and `//evil.com`
-  // is a protocol-relative URL to another host — both must be rejected. The
-  // shipped email template never sets `next`, so this is defense-in-depth.
-  const nextParam = searchParams.get("next");
-  const next =
-    nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/library";
+  // Where to send the user after a successful sign-in. The dev magic-link form
+  // carries `next` through emailRedirectTo; /library covers a link without it.
+  const next = safeNextPath(searchParams.get("next"), "/library");
 
   if (token_hash && type) {
     const supabase = await createClient();
@@ -37,5 +30,5 @@ export async function GET(request: NextRequest) {
   }
 
   // Invalid or expired link → a friendly error page rather than a raw 4xx.
-  return NextResponse.redirect(`${origin}/video-games/start?error=link_invalid`);
+  return NextResponse.redirect(`${origin}${signInPath(next, "link_invalid")}`);
 }

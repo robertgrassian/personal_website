@@ -1,5 +1,5 @@
-// OAuth callback (Route Handler). The Google sign-in flow (signInWithOAuth on
-// the login page) sends the user to Google, then back here with a `code`.
+// OAuth callback (Route Handler). The Google sign-in flow (signInWithOAuth in
+// SignInPanel) sends the user to Google, then back here with a `code`.
 // exchangeCodeForSession trades that code — together with the PKCE verifier
 // @supabase/ssr stashed in a cookie — for a session, and because this runs in
 // a Route Handler the server client CAN write the httpOnly session cookies.
@@ -10,6 +10,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requestOrigin } from "@/lib/requestOrigin";
+import { safeNextPath, signInPath } from "@/lib/nextPath";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -18,15 +19,9 @@ export async function GET(request: NextRequest) {
   // valid (see requestOrigin). In prod this resolves to the real domain.
   const origin = requestOrigin(request);
 
-  // Open-redirect guard, identical to /auth/confirm: only a local path is
-  // accepted for post-login navigation.
-  //
-  // Falls back to /library, the resolver that picks the right destination for
-  // any account state. The sign-in button sends next=/library explicitly; this
-  // default covers a callback that arrives without it.
-  const nextParam = searchParams.get("next");
-  const next =
-    nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/library";
+  // The sign-in button always sends `next`; /library covers a callback that
+  // arrives without one.
+  const next = safeNextPath(searchParams.get("next"), "/library");
 
   if (code) {
     const supabase = await createClient();
@@ -37,6 +32,6 @@ export async function GET(request: NextRequest) {
   }
 
   // Missing code, or the exchange failed (expired/replayed code, provider
-  // error) → back to login with a friendly flag.
-  return NextResponse.redirect(`${origin}/video-games/start?error=oauth_failed`);
+  // error) → back to sign-in with a friendly flag, still headed for `next`.
+  return NextResponse.redirect(`${origin}${signInPath(next, "oauth_failed")}`);
 }

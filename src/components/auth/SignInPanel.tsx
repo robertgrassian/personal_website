@@ -1,10 +1,14 @@
 "use client";
 
-// The sign-in half of the landing page (page.tsx renders the prose above it).
-// Split out as its own client component for two reasons: the parent stays a
-// server component so it can export `metadata` (client components cannot), and
-// useSearchParams — needed to read the ?error flag the auth routes bounce back
-// with — only works in a client component, behind a Suspense boundary.
+// The sign-in controls, rendered by /sign-in and by the game library's pitch
+// page (/video-games/start). Each caller passes `next`, the local path to land
+// on afterwards; it rides through Supabase to the /auth/* handlers, which
+// re-check it with safeNextPath.
+//
+// A client component apart from those pages for two reasons: they stay server
+// components so they can export `metadata`, and useSearchParams (for the
+// ?error flag the auth routes bounce back with) only works in a client
+// component, behind a Suspense boundary.
 //
 // Two sign-in paths, gated by environment:
 //   - Production: "Continue with Google" (OAuth) — the only sign-in method for
@@ -27,7 +31,7 @@ const inputClass =
   "rounded-md border border-divider bg-background px-3 py-2 text-foreground " +
   "placeholder:text-subtle focus:border-link focus:outline-none";
 
-function GoogleSignIn() {
+function GoogleSignIn({ next }: { next: string }) {
   const [pending, setPending] = useState(false);
 
   async function signInWithGoogle() {
@@ -37,18 +41,20 @@ function GoogleSignIn() {
     // code for a session). window.location.origin keeps it correct across
     // localhost, preview, and prod without hardcoding a domain.
     //
-    // next=/library, not /onboarding: /library is the resolver that knows all
-    // three post-sign-in destinations (own library, onboarding, public shelf),
-    // so signing in lands you in your own library. /onboarding also forwards an
-    // already-onboarded user, but it is a step in the flow rather than the
-    // router for it.
+    // Signing in never routes through onboarding by itself: /library sends a
+    // profile-less user to the public shelf. The game library's pitch page is
+    // the one caller that passes /onboarding, because its button means "start
+    // your library", and /onboarding forwards anyone who already has one.
     //
-    // This URL must be in Supabase's Redirect URLs allow-list. When it is not,
-    // Supabase silently falls back to the project's Site URL, which sends people
-    // to the homepage with an unexchanged ?code and no session.
+    // This URL must be in Supabase's Redirect URLs allow-list, as a pattern
+    // (`…/auth/callback**`) since `next` varies. When it is not, Supabase
+    // silently falls back to the project's Site URL, which sends people to the
+    // homepage with an unexchanged ?code and no session.
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback?next=/library` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+      },
     });
     // On success the browser is already navigating to Google; only re-enable
     // the button if kicking off the redirect itself failed.
@@ -68,7 +74,7 @@ function GoogleSignIn() {
   );
 }
 
-function MagicLinkForm() {
+function MagicLinkForm({ next }: { next: string }) {
   const [email, setEmail] = useState("");
   // A small state machine beats three booleans: exactly one status at a time.
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
@@ -84,7 +90,14 @@ function MagicLinkForm() {
       // Local dev signs up brand-new emails on the spot. The MAX_USERS cap is
       // enforced later, at profile creation, not here.
       email,
-      options: { shouldCreateUser: true },
+      options: {
+        shouldCreateUser: true,
+        // Already carries a query string, because supabase/templates/magic_link.html
+        // appends `&token_hash=…` to it. Must pass the allow-list in
+        // supabase/config.toml, or Supabase substitutes the bare Site URL and
+        // the emailed link comes out malformed.
+        emailRedirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}`,
+      },
     });
 
     if (error) {
@@ -158,7 +171,7 @@ function AuthError() {
   );
 }
 
-export function SignInPanel() {
+export function SignInPanel({ next }: { next: string }) {
   return (
     <div>
       {/* No fallback height: the error is absent on every normal visit, so
@@ -169,16 +182,16 @@ export function SignInPanel() {
         <AuthError />
       </Suspense>
 
-      <GoogleSignIn />
+      <GoogleSignIn next={next} />
 
       {/* Dev-only escape hatch; never rendered (and never invocable) in prod. */}
-      {IS_DEV && <MagicLinkForm />}
+      {IS_DEV && <MagicLinkForm next={next} />}
 
       {/* No data-disclosure line under the button. Google's brand review does
           not ask for one, and in-app disclosure is only required for sensitive
           or restricted scopes; this requests basic profile and email. What the
-          app reads is covered by the privacy policy linked at the foot of the
-          page. If the scopes ever widen, that changes. */}
+          app reads is covered by the privacy policy, which every page rendering
+          this panel links. If the scopes ever widen, that changes. */}
     </div>
   );
 }

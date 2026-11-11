@@ -3,7 +3,7 @@ import Link from "next/link";
 import { APP_NAME } from "@/lib/appName";
 import { LIBRARY_OWNER_USERNAME } from "@/lib/games";
 import { userLibraryPath } from "@/lib/profile";
-import { SignInPanel } from "./SignInPanel";
+import { SignInPanel } from "@/components/auth/SignInPanel";
 
 // The product's front door, and the URL configured as "App homepage" in
 // Google's OAuth consent screen.
@@ -14,6 +14,8 @@ import { SignInPanel } from "./SignInPanel";
 // this page was a bare sign-in form headed "Sign in" and failed on both
 // counts. So the name and the purpose are the page's own content here, and
 // signing in is a section within it rather than the whole of it.
+//
+// Not the site's sign-in page either: that is /sign-in, which any app links.
 //
 // Deliberately NOT the site's entry point: /library still resolves signed-out
 // visitors to /video-games (Robert's shelf, the public demo) and signed-in
@@ -59,7 +61,9 @@ export default function StartPage() {
       <div className="mt-8">
         <h2 className="text-lg font-semibold text-foreground">Start your library</h2>
         <div className="mt-4 max-w-sm">
-          <SignInPanel />
+          {/* The heading above promises a library, so a new account goes
+              straight to onboarding, which forwards anyone already set up. */}
+          <SignInPanel next="/onboarding" />
         </div>
       </div>
 
