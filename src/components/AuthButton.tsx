@@ -1,12 +1,11 @@
 "use client";
 
-// Sign-in / sign-out control for the game library header.
-//
-// It lives in the library rather than the global nav on purpose: the portfolio
-// (/, /about, /resume) is static content with no accounts, and the game
-// library is the only app here with sign-in. The auth *infrastructure* stays
-// site-wide (one session cookie on the domain, middleware refresh, /auth/*
-// handlers) so a future app can share the session — only the surfaces moved.
+// Sign-in / sign-out control, mounted by each app page that has accounts
+// rather than in the global nav: the portfolio (/, /about, /resume) is static
+// content with nothing to sign into. The session itself is site-wide (one
+// cookie on the domain, middleware refresh, /auth/* handlers, /sign-in), so
+// nothing here may assume which app is hosting it. Sign-in returns the visitor
+// to the page they were on.
 //
 // This reflects the session for DISPLAY only. It is never a security boundary
 // — every protected read/write is authorized server-side by FastAPI verifying
@@ -18,13 +17,14 @@
 // paint, since onAuthStateChange cannot fire before hydration.
 //
 // This component also maintains that flag for the page, which is why it still
-// subscribes despite no longer rendering from session state. SignupCta reads the
-// same flag and has no subscription of its own; both are rendered by LibraryPage,
-// so it is always mounted alongside. That the subscription now lives inside a
-// collapsed menu changes nothing: LibraryHeaderMenu renders its children only
-// when open, but this pair sits in the header's always-mounted slot.
+// subscribes despite no longer rendering from session state. Anything else on
+// the page marked data-hide-authed/data-hide-anon (SignupCta, the Account menu
+// row) relies on this subscription, so a page using those markers should mount
+// this too. In the library it sits in LibraryHeaderMenu's always-mounted slot,
+// so a collapsed menu does not unsubscribe it.
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { signInPath } from "@/lib/nextPath";
 import { createClient } from "@/lib/supabase/client";
 import { setAuthFlag } from "@/lib/authFlag";
 import { forgetOwnedLibrary, forgetOwnedLibraryForOtherUser } from "@/lib/ownedLibrary";
@@ -33,6 +33,9 @@ import { MenuItem } from "@/components/ui/MenuItem";
 
 export function AuthButton() {
   const router = useRouter();
+  // Path only, no query string: useSearchParams would need a Suspense
+  // boundary, and would drop this control out of a static page's HTML.
+  const pathname = usePathname();
 
   // Keeps the pre-paint flag honest: the inline script runs once, so a sign-out,
   // an expiry, or a sign-in in another tab would otherwise leave it stale.
@@ -72,7 +75,7 @@ export function AuthButton() {
   // wrapper box. Only one is ever displayed, so spacing is unaffected.
   return (
     <>
-      <MenuItem href="/video-games/start" data-hide-authed="">
+      <MenuItem href={signInPath(pathname)} data-hide-authed="">
         Sign in
       </MenuItem>
       <MenuItem onClick={signOut} data-hide-anon="">

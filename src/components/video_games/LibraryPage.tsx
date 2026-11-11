@@ -33,6 +33,7 @@ import {
   FollowCountLinksFallback,
 } from "@/components/video_games/FollowCountLinks";
 import { SignupCta } from "@/components/video_games/SignupCta";
+import { CreateProfileCta } from "@/components/video_games/CreateProfileCta";
 import { LibraryHeaderMenu } from "@/components/video_games/LibraryHeaderMenu";
 import { MenuItem } from "@/components/ui/MenuItem";
 import { NEW_ISSUE_URL } from "@/lib/feedback";
@@ -78,7 +79,8 @@ function debugOwnerAllowed(ownerUsername: string): boolean {
 // may be async functions and `await` data before rendering.
 type LibraryPageProps = {
   username: string;
-  // Show the logged-out sign-up pitch. Only /video-games sets this: that page
+  // Show the logged-out sign-up pitch, and Create a profile to a signed-in
+  // viewer without one. Only /video-games sets this: that page
   // is the public demo shelf and the URL Google's OAuth brand verification
   // points at. A user's own /video-games/u/{username} is not a marketing surface.
   showSignupCta?: boolean;
@@ -169,7 +171,7 @@ export async function LibraryPage({
             this is the cheapest 24px of the ~170 that came back. */}
         <div className="max-w-7xl mx-auto px-6 py-6 sm:py-12">
           {/* The sign-in/out control lives here rather than the global nav: the
-              portfolio has no accounts, the library is the only app that does.
+              portfolio has no accounts, so each app with them mounts its own.
               items-start keeps the menu button aligned to the heading's first
               line when a long display name wraps.
               One row at every width. This used to stack into a column on
@@ -276,7 +278,15 @@ export async function LibraryPage({
               </LibraryHeaderMenu>
             </div>
           </div>
-          {showSignupCta && <SignupCta />}
+          {/* One slot, two audiences, never both on screen: SignupCta for
+              signed-out visitors (CSS), CreateProfileCta for signed-in ones
+              with no profile (a 404 from /me/profile). */}
+          {showSignupCta && (
+            <>
+              <SignupCta />
+              <CreateProfileCta />
+            </>
+          )}
 
           {/* Owns the CRT slot: whether the set shows with nothing playing,
               and whether its label opens the manage panel, are both questions
