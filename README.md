@@ -13,6 +13,7 @@ FastAPI service over Postgres behind it.
 - **About** — Bio, photos, and social links
 - **Resume** — Work experience (Harness, Split Software, Cisco), education (UC Berkeley), and skills
 - **Game Library** — See below
+- **In Season** — What fruit, vegetables and herbs are in season in your state this month, from a hand-curated dataset (`/produce`)
 
 A sticky site-wide nav links all sections. The homepage is nav-free: it has its
 own tile navigation.
