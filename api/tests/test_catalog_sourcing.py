@@ -305,7 +305,9 @@ class TestPreviewCatalogEntry:
         """The add will reuse this row untouched, so previewing a fresh
         Wikipedia answer would show genres the game is not going to get."""
         row = SimpleNamespace(
-            genres=["Role-Playing", "Time Travel"], release_date=date(1995, 3, 11)
+            genres=["Role-Playing", "Time Travel"],
+            release_date=date(1995, 3, 11),
+            platform_release_dates={},
         )
         monkeypatch.setattr(catalog_sourcing.me_repo, "find_metadata", lambda db, **kw: row)
         monkeypatch.setattr(
@@ -314,6 +316,52 @@ class TestPreviewCatalogEntry:
         out = self.preview()
         assert out.genres == ["Role-Playing", "Time Travel"]
         assert out.release_date == date(1995, 3, 11)
+
+    def test_an_existing_row_carries_its_platform_dates(self, monkeypatch):
+        dates = {"PC (Microsoft Windows)": "2025-11-13", "Nintendo Switch 2": None}
+        row = SimpleNamespace(
+            genres=["Mystery"], release_date=date(2025, 11, 13), platform_release_dates=dates
+        )
+        monkeypatch.setattr(catalog_sourcing.me_repo, "find_metadata", lambda db, **kw: row)
+        assert self.preview().platform_release_dates == dates
+
+    def test_a_new_row_takes_platform_dates_from_igdb(self, monkeypatch):
+        dates = {"Nintendo Switch 2": "2026-10-27"}
+        monkeypatch.setattr(catalog_sourcing.me_repo, "find_metadata", lambda db, **kw: None)
+        monkeypatch.setattr(catalog_sourcing.genre_service, "lookup_one", lambda name: [])
+        monkeypatch.setattr(
+            catalog_sourcing.igdb_service,
+            "fetch_catalog_game",
+            lambda db, igdb_id: igdb_service.IgdbCatalogGame(
+                name="The Seance of Blake Manor",
+                release_date=date(2025, 10, 27),
+                platforms=["Nintendo Switch 2"],
+                genres=[],
+                cover_url="",
+                platform_release_dates=dates,
+            ),
+        )
+        assert self.preview().platform_release_dates == dates
+
+    def test_an_igdb_failure_still_previews(self, monkeypatch):
+        def down(db, igdb_id):
+            raise igdb_service.IgdbUpstreamError("down")
+
+        monkeypatch.setattr(catalog_sourcing.me_repo, "find_metadata", lambda db, **kw: None)
+        monkeypatch.setattr(catalog_sourcing.genre_service, "lookup_one", lambda name: [])
+        monkeypatch.setattr(catalog_sourcing.igdb_service, "fetch_catalog_game", down)
+        out = self.preview()
+        assert out.platform_release_dates == {}
+        assert out.release_date == date(1995, 3, 11)
+
+    def test_a_private_row_never_asks_igdb(self, monkeypatch):
+        def explode(db, igdb_id):
+            raise AssertionError("no igdb_id, nothing to ask IGDB about")
+
+        monkeypatch.setattr(catalog_sourcing.me_repo, "find_metadata", lambda db, **kw: None)
+        monkeypatch.setattr(catalog_sourcing.genre_service, "lookup_one", lambda name: [])
+        monkeypatch.setattr(catalog_sourcing.igdb_service, "fetch_catalog_game", explode)
+        assert self.preview(igdb_id=None).platform_release_dates == {}
 
     def test_a_new_row_is_previewed_from_wikipedia(self, monkeypatch):
         monkeypatch.setattr(catalog_sourcing.me_repo, "find_metadata", lambda db, **kw: None)

@@ -286,10 +286,10 @@ def preview_catalog_entry(
     answer would be showing something the add will not store. Nothing here
     writes, beyond the rate-limit counter charged below.
 
-    One place it does NOT follow the add: it never asks IGDB, so for a new IGDB
-    row it answers from the payload's name, genres and date where the add uses
-    IGDB's. The two agree because the form posts a search result verbatim; an
-    extra IGDB call per preview would buy nothing for that client.
+    For a new IGDB row it answers genres and the game-level date from the
+    payload where the add uses IGDB's; the two agree because the form posts a
+    search result verbatim. The per-platform dates are the exception: a search
+    result has no such field, so they come from IGDB, best effort.
     """
     rate_limit.enforce(
         db,
@@ -302,7 +302,11 @@ def preview_catalog_entry(
     )
     existing = me_repo.find_metadata(db, user_id=user.id, igdb_id=igdb_id, name=name)
     if existing is not None:
-        return CatalogPreview(genres=existing.genres, release_date=existing.release_date)
+        return CatalogPreview(
+            genres=existing.genres,
+            release_date=existing.release_date,
+            platform_release_dates=existing.platform_release_dates or {},
+        )
     # Same reason as the add path: do not hold a transaction open across the
     # lookup. rate_limit.enforce above commits its own, and find_metadata
     # reopened one.
@@ -314,4 +318,23 @@ def preview_catalog_entry(
         # one of them.
         genres=_sourced_genres(igdb_id=igdb_id, name=name, fallback=_shaped_genres(genres)),
         release_date=release_date,
+        platform_release_dates=_previewed_release_dates(db, igdb_id),
     )
+
+
+def _previewed_release_dates(db: Session, igdb_id: int | None) -> dict[str, str | None]:
+    """IGDB's per-platform dates for a game with no catalog row yet, or {}.
+
+    {} only costs the popover the game-level date, so an IGDB failure here must
+    not fail the preview the way it fails an add.
+    """
+    if igdb_id is None:
+        return {}
+    try:
+        game = igdb_service.fetch_catalog_game(db, igdb_id)
+    except (igdb_service.IgdbNotConfiguredError, igdb_service.IgdbUpstreamError):
+        return {}
+    finally:
+        # The token read may have opened a transaction; do not leave it open.
+        db.rollback()
+    return game.platform_release_dates if game else {}

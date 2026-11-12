@@ -144,6 +144,18 @@ export interface NewGame {
 export interface CatalogPreview {
   genres: string[];
   releaseDate: string | null; // ISO date or null
+  // IGDB platform name -> that platform's ISO date, or null when IGDB lists it undated.
+  platformReleaseDates: Record<string, string | null>;
+}
+
+// The date an entry on `system` would show. Mirrors release_date_for in
+// api/app/services/users.py: an undated platform is null rather than the
+// game-level date, so an announced port never reads as already out.
+export function previewReleaseDate(preview: CatalogPreview, system: string): string | null {
+  if (system && Object.hasOwn(preview.platformReleaseDates, system)) {
+    return preview.platformReleaseDates[system];
+  }
+  return preview.releaseDate;
 }
 
 // Today's date in the browser's (or server's) local timezone as YYYY-MM-DD.

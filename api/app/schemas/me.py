@@ -226,6 +226,9 @@ class CatalogPreview(CamelModel):
 
     genres: list[str]
     release_date: date | None
+    # Per platform, so the form can show the typed system's date without a
+    # refetch per keystroke. Same shape as game_metadata.platform_release_dates.
+    platform_release_dates: dict[str, str | None]
 
 
 class WishlistPromote(CamelModel):
