@@ -1036,7 +1036,13 @@ def test_add_game_minimal_manual_entry(fresh_user_with_game) -> None:
 
 def _igdb_game(name: str, **overrides) -> IgdbCatalogGame:
     """An IGDB record for the stub, with the fields a test does not care about empty."""
-    fields = {"release_date": None, "platforms": [], "genres": [], "cover_url": ""}
+    fields = {
+        "release_date": None,
+        "platforms": [],
+        "genres": [],
+        "cover_url": "",
+        "platform_release_dates": {},
+    }
     return IgdbCatalogGame(name=name, **{**fields, **overrides})
 
 

@@ -50,6 +50,7 @@ def apply_refresh(
     platforms: list[str] | None = None,
     genres: list[str] | None = None,
     image_url: str | None = None,
+    platform_release_dates: dict[str, str | None] | None = None,
 ) -> bool:
     """Write the values a refresh actually resolved. True if anything changed.
 
@@ -69,6 +70,7 @@ def apply_refresh(
             ("platforms", platforms),
             ("genres", genres),
             ("image_url", image_url),
+            ("platform_release_dates", platform_release_dates),
         )
         if value is not None
     }

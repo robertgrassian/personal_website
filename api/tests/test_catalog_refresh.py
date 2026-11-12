@@ -42,6 +42,7 @@ def make_row(**overrides) -> GameMetadata:
         "platforms": ["PC (Microsoft Windows)"],
         "release_date": date(2026, 5, 6),
         "image_url": "https://images.igdb.com/cover.jpg",
+        "platform_release_dates": {"PC (Microsoft Windows)": "2026-05-06"},
         "refreshed_at": NOW,
     }
     return GameMetadata(**{**defaults, **overrides})
@@ -128,6 +129,28 @@ class TestIsDue:
         row.refreshed_at = NOW - timedelta(days=2)
         assert catalog_refresh.is_due(row, NOW) is True
 
+    def test_an_undated_recorded_port_uses_the_short_interval(self):
+        # The delayed-port case: out on PC, the Switch 2 version still undated.
+        row = make_row(
+            platform_release_dates={
+                "PC (Microsoft Windows)": "2025-11-13",
+                "Nintendo Switch 2": None,
+            },
+            refreshed_at=NOW - timedelta(days=2),
+        )
+        assert catalog_refresh.is_due(row, NOW, {"Nintendo Switch 2"}) is True
+        # Nobody records the undated platform, so it is no hole for this read.
+        assert catalog_refresh.is_due(row, NOW, {"PC (Microsoft Windows)"}) is False
+
+    def test_a_system_missing_from_the_map_is_not_a_hole(self):
+        # It may never match an IGDB name, and the fallback date still shows.
+        row = make_row(refreshed_at=NOW - timedelta(days=2))
+        assert catalog_refresh.is_due(row, NOW, {"Custom Arcade"}) is False
+
+    def test_an_empty_release_date_map_uses_the_short_interval(self):
+        row = make_row(platform_release_dates={}, refreshed_at=NOW - timedelta(days=2))
+        assert catalog_refresh.is_due(row, NOW) is True
+
     def test_a_freshly_added_row_is_not_due(self):
         # The column defaults to now() on insert, and that is true rather than
         # convenient: the add path sources genres and platforms on the way in.
@@ -138,22 +161,22 @@ class TestDueRows:
     def test_incomplete_rows_are_refreshed_before_merely_old_ones(self):
         old = make_row(id=1, refreshed_at=NOW - timedelta(days=900))
         incomplete = make_row(id=2, release_date=None, refreshed_at=NOW - timedelta(days=2))
-        picked = catalog_refresh._due_rows([old, incomplete], NOW)
+        picked = catalog_refresh._due_rows([old, incomplete], NOW, {})
         assert [row.id for row in picked] == [2, 1]
 
     def test_oldest_check_first_within_a_group(self):
         newer = make_row(id=1, refreshed_at=NOW - timedelta(days=40))
         older = make_row(id=2, refreshed_at=NOW - timedelta(days=100))
-        picked = catalog_refresh._due_rows([newer, older], NOW)
+        picked = catalog_refresh._due_rows([newer, older], NOW, {})
         assert [row.id for row in picked] == [2, 1]
 
     def test_the_cap_bounds_one_read(self):
         rows = [make_row(id=i, refreshed_at=NOW - timedelta(days=100 + i)) for i in range(10)]
-        picked = catalog_refresh._due_rows(rows, NOW)
+        picked = catalog_refresh._due_rows(rows, NOW, {})
         assert len(picked) == catalog_refresh.MAX_ROWS_PER_READ
 
     def test_a_library_with_nothing_due_picks_nothing(self):
-        assert catalog_refresh._due_rows([make_row(), make_row(id=2)], NOW) == []
+        assert catalog_refresh._due_rows([make_row(), make_row(id=2)], NOW, {}) == []
 
 
 class TestPlatformsToWrite:
@@ -224,12 +247,15 @@ class TestRefreshStaleRows:
             igdb_service,
             "lookup_game_facts",
             lambda db, igdb_id, *, timeout: IgdbGameFacts(
-                release_date=date(2026, 10, 1), platforms=[], cover_url=""
+                release_date=date(2026, 10, 1),
+                platforms=[],
+                cover_url="",
+                platform_release_dates={},
             ),
         )
         monkeypatch.setattr(genre_service, "lookup_one", lambda name, *, timeout: [])
 
-        refresh_stale_rows(FakeSession(), [row])
+        refresh_stale_rows(FakeSession(), [(row, None)])
 
         assert stub_repo["applied"] == [
             {
@@ -237,8 +263,36 @@ class TestRefreshStaleRows:
                 "platforms": None,
                 "image_url": None,
                 "genres": None,
+                "platform_release_dates": None,
             }
         ]
+
+    def test_per_platform_release_dates_are_written(
+        self, stub_repo, monkeypatch: pytest.MonkeyPatch
+    ):
+        row = make_row(refreshed_at=NOW - timedelta(days=31))
+        dates = {"PC (Microsoft Windows)": "2025-11-13", "Nintendo Switch 2": "2026-10-22"}
+        monkeypatch.setattr(
+            igdb_service,
+            "lookup_game_facts",
+            lambda db, igdb_id, *, timeout: IgdbGameFacts(
+                release_date=date(2025, 11, 13),
+                platforms=[],
+                cover_url="",
+                platform_release_dates=dates,
+            ),
+        )
+        monkeypatch.setattr(genre_service, "lookup_one", lambda name, *, timeout: [])
+
+        refresh_stale_rows(FakeSession(), [(row, None)])
+
+        assert stub_repo["applied"][0]["platform_release_dates"] == dates
+
+    def test_unchanged_release_dates_are_not_rewritten(self):
+        dates = {"Nintendo Switch 2": "2026-10-22"}
+        row = make_row(platform_release_dates=dict(dates))
+        assert catalog_refresh._release_dates_to_write(row, dates) is None
+        assert catalog_refresh._release_dates_to_write(row, {}) is None
 
     def test_a_failed_lookup_still_counts_as_an_attempt(
         self, stub_repo, monkeypatch: pytest.MonkeyPatch
@@ -249,11 +303,17 @@ class TestRefreshStaleRows:
         monkeypatch.setattr(igdb_service, "lookup_game_facts", lambda db, igdb_id, *, timeout: None)
         monkeypatch.setattr(genre_service, "lookup_one", lambda name, *, timeout: [])
 
-        refresh_stale_rows(FakeSession(), [row])
+        refresh_stale_rows(FakeSession(), [(row, None)])
 
         assert [claimed_id for claimed_id, _ in stub_repo["claimed"]] == [row.id]
         assert stub_repo["applied"] == [
-            {"release_date": None, "platforms": None, "image_url": None, "genres": None}
+            {
+                "release_date": None,
+                "platforms": None,
+                "image_url": None,
+                "genres": None,
+                "platform_release_dates": None,
+            }
         ]
 
     def test_nothing_due_makes_no_calls_at_all(self, stub_repo, monkeypatch: pytest.MonkeyPatch):
@@ -262,7 +322,7 @@ class TestRefreshStaleRows:
             raise AssertionError("a fresh library must not reach a third party")
 
         monkeypatch.setattr(igdb_service, "lookup_game_facts", explode)
-        refresh_stale_rows(FakeSession(), [make_row(), make_row(id=2)])
+        refresh_stale_rows(FakeSession(), [(make_row(), None), (make_row(id=2), None)])
         assert stub_repo["claimed"] == []
 
     def test_a_spent_budget_drops_the_genre_leg_rather_than_the_row(
@@ -273,7 +333,9 @@ class TestRefreshStaleRows:
         def slow_igdb(db, igdb_id, *, timeout):
             # Stand in for IGDB eating the whole budget.
             monkeypatch.setattr(time, "monotonic", lambda: float("inf"))
-            return IgdbGameFacts(release_date=None, platforms=[], cover_url="")
+            return IgdbGameFacts(
+                release_date=None, platforms=[], cover_url="", platform_release_dates={}
+            )
 
         monkeypatch.setattr(igdb_service, "lookup_game_facts", slow_igdb)
         monkeypatch.setattr(
@@ -282,7 +344,7 @@ class TestRefreshStaleRows:
             lambda name, *, timeout: pytest.fail("Wikipedia must not be called past the budget"),
         )
 
-        refresh_stale_rows(FakeSession(), [row])
+        refresh_stale_rows(FakeSession(), [(row, None)])
 
         assert stub_repo["applied"][0]["genres"] is None
 
@@ -294,7 +356,7 @@ class TestRefreshStaleRows:
 
         monkeypatch.setattr(catalog_refresh.catalog_repo, "claim_for_refresh", broken)
 
-        refresh_stale_rows(FakeSession(), [row])  # must not raise
+        refresh_stale_rows(FakeSession(), [(row, None)])  # must not raise
 
         assert stub_repo["applied"] == []
 
@@ -314,7 +376,7 @@ class TestClaiming:
         )
         row = make_row(release_date=None, refreshed_at=NOW - timedelta(days=2))
 
-        refresh_stale_rows(FakeSession(), [row])
+        refresh_stale_rows(FakeSession(), [(row, None)])
 
         assert stub_repo["applied"] == []
 
@@ -326,7 +388,7 @@ class TestClaiming:
         monkeypatch.setattr(igdb_service, "lookup_game_facts", lambda db, igdb_id, *, timeout: None)
         monkeypatch.setattr(genre_service, "lookup_one", lambda name, *, timeout: [])
 
-        refresh_stale_rows(FakeSession(), [row])
+        refresh_stale_rows(FakeSession(), [(row, None)])
 
         assert stub_repo["claimed"] == [(row.id, seen)]
 
@@ -340,13 +402,16 @@ class TestRequestSessionIsolation:
             igdb_service,
             "lookup_game_facts",
             lambda db, igdb_id, *, timeout: IgdbGameFacts(
-                release_date=date(2026, 10, 1), platforms=[], cover_url=""
+                release_date=date(2026, 10, 1),
+                platforms=[],
+                cover_url="",
+                platform_release_dates={},
             ),
         )
         monkeypatch.setattr(genre_service, "lookup_one", lambda name, *, timeout: [])
         request_session = FakeSession()
 
-        refresh_stale_rows(request_session, [row])
+        refresh_stale_rows(request_session, [(row, None)])
 
         assert request_session.expired == [row.id]
 
@@ -360,7 +425,7 @@ class TestRequestSessionIsolation:
         monkeypatch.setattr(genre_service, "lookup_one", lambda name, *, timeout: [])
         request_session = FakeSession()
 
-        refresh_stale_rows(request_session, [row])
+        refresh_stale_rows(request_session, [(row, None)])
 
         assert request_session.expired == []
 
@@ -378,7 +443,7 @@ class TestRequestSessionIsolation:
         rollbacks = []
         request_session.rollback = lambda: rollbacks.append(1)
 
-        refresh_stale_rows(request_session, [row])
+        refresh_stale_rows(request_session, [(row, None)])
 
         assert rollbacks == []
 
@@ -403,7 +468,7 @@ class TestDeadlineIsPushedIntoTheCalls:
         monkeypatch.setattr(igdb_service, "lookup_game_facts", igdb)
         monkeypatch.setattr(genre_service, "lookup_one", wiki)
 
-        refresh_stale_rows(FakeSession(), [row])
+        refresh_stale_rows(FakeSession(), [(row, None)])
 
         budget = catalog_refresh.BUDGET.total_seconds()
         assert 0 < handed["igdb"] <= budget
@@ -437,7 +502,8 @@ class TestWiring:
 
         games = users_service.get_user_games(FakeSession(), "rgrassian")
 
-        assert seen["rows"] == [meta]
+        # Paired with the entry's console, so an undated port counts as a hole.
+        assert seen["rows"] == [(meta, "Nintendo Switch")]
         assert games[0].name == "Hades II"
 
     def test_the_wishlist_read_refreshes_the_rows_it_loaded(self, monkeypatch: pytest.MonkeyPatch):
@@ -458,5 +524,5 @@ class TestWiring:
 
         wishlist = users_service.get_user_wishlist(FakeSession(), "rgrassian")
 
-        assert seen["rows"] == [meta]
+        assert seen["rows"] == [(meta, None)]
         assert wishlist[0].name == "Hades II"

@@ -81,6 +81,19 @@ def _iso_or_empty(d: date | None) -> str:
     return d.isoformat() if d is not None else ""
 
 
+def release_date_for(meta: GameMetadata, system: str | None) -> str:
+    """The release date on the console this entry names, else the game's first.
+
+    A system IGDB lists as undated is "" rather than the fallback: an announced
+    port must not show the original's date as if it were already out.
+    """
+    # None on a row not yet flushed: the '{}' default is the server's.
+    dates = meta.platform_release_dates or {}
+    if system and system in dates:
+        return dates[system] or ""
+    return _iso_or_empty(meta.release_date)
+
+
 def _require_profile(db: Session, username: str):
     profile = users_repo.get_profile_by_username(db, username)
     if profile is None:
@@ -107,7 +120,7 @@ def to_game_read(game: PlayedGame, meta: GameMetadata, play_state: PlayState) ->
         rating=game.rating or "",
         genres=list(meta.genres),
         platforms=list(meta.platforms),
-        release_date=_iso_or_empty(meta.release_date),
+        release_date=release_date_for(meta, game.system),
         image_url=meta.image_url or "",
         igdb_id=meta.igdb_id,
         last_played=play_state.last_played,
@@ -130,7 +143,7 @@ def to_wishlist_read(item: WishlistGame, meta: GameMetadata) -> WishlistGameRead
         system=item.system or "",
         genres=list(meta.genres),
         platforms=list(meta.platforms),
-        release_date=_iso_or_empty(meta.release_date),
+        release_date=release_date_for(meta, item.system),
         image_url=meta.image_url or "",
         igdb_id=meta.igdb_id,
         starred=item.starred,
@@ -160,7 +173,7 @@ def get_user_games(db: Session, username: str) -> list[GameRead]:
     # Before the DTOs are built, so anything re-sourced lands in THIS response
     # rather than one revalidation later. Usually a no-op: it works off the
     # rows already loaded and only reaches the network when one is due.
-    catalog_refresh.refresh_stale_rows(db, [meta for _, meta in entries])
+    catalog_refresh.refresh_stale_rows(db, [(meta, game.system) for game, meta in entries])
     sessions_by_game: dict[int, list[PlaySession]] = defaultdict(list)
     for session in users_repo.list_play_sessions(db, [g.id for g, _ in entries]):
         sessions_by_game[session.game_id].append(session)
@@ -197,7 +210,7 @@ def get_user_wishlist(db: Session, username: str) -> list[WishlistGameRead]:
     # Refreshed like the library, and the wishlist is where it earns the most:
     # a game added before its release date was announced is the case this
     # exists for. See services/catalog_refresh.py.
-    catalog_refresh.refresh_stale_rows(db, [meta for _, meta in entries])
+    catalog_refresh.refresh_stale_rows(db, [(meta, item.system) for item, meta in entries])
     return [to_wishlist_read(item, meta) for item, meta in entries]
 
 

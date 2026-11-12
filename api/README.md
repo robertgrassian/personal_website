@@ -163,6 +163,13 @@ NULL`) are skipped, and the game's **name** is never overwritten: IGDB's title
   catalog row (`fetch_catalog_game` in `app/services/igdb.py`), so it is populated on the way
   in; `scripts/backfill_platforms.py` is the repair tool for rows that predate that, and is
   re-runnable because it reads the ids straight out of `game_metadata.igdb_id`.
+- **`game_metadata.release_date` vs `platform_release_dates`.** The first is the game's
+  first release on any platform. The second maps each IGDB platform name to that
+  platform's earliest release (`null` when announced but undated), and is what an entry's
+  `releaseDate` actually reads, keyed by its `system`: a Switch 2 port a year after the PC
+  original shows the Switch 2 date. A system missing from the map falls back to
+  `release_date` (`release_date_for` in `app/services/users.py`). Filled by the add path
+  and the catalog refresh; `scripts/backfill_release_dates.py` catches up older rows.
 - **Both columns speak IGDB's platform vocabulary**, since migration `d1a83f6c25e7`. Before
   it, systems were typed by hand and the same console appeared under several names — 18 rows
   said `PS5` and 7 said `PlayStation 5`, so PlayStation 5 rendered as two separate shelves
