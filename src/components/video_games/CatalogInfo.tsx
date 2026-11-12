@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { InfoIcon } from "@/components/Icon";
-import type { CatalogPreview, NewGame } from "@/lib/games";
+import { previewReleaseDate, type CatalogPreview, type NewGame } from "@/lib/games";
 import type { NewWishlistItem } from "@/lib/wishlist";
 import { previewGameCatalog } from "@/app/video-games/actions";
 import { formatDayShort } from "@/lib/dates";
@@ -62,6 +62,9 @@ export function CatalogInfo({ game }: CatalogInfoProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.igdbId, game.name]);
 
+  // Derived each render, so it follows the System field without a refetch.
+  const releaseDate = preview && previewReleaseDate(preview, game.system);
+
   return (
     <>
       <button
@@ -115,7 +118,7 @@ export function CatalogInfo({ game }: CatalogInfoProps) {
                 <dt className="text-[10px] uppercase tracking-wide text-shelf-label">
                   Release date
                 </dt>
-                <dd>{preview.releaseDate ? formatDayShort(preview.releaseDate) : "Not known"}</dd>
+                <dd>{releaseDate ? formatDayShort(releaseDate) : "Not known"}</dd>
               </div>
             </dl>
           )}

@@ -19,7 +19,9 @@ params:query {
 
 docs {
   What the shared catalog row for this game holds, or would hold if it were added
-  right now: `genres` and `releaseDate`.
+  right now: `genres`, `releaseDate`, and `platformReleaseDates` (IGDB platform name
+  to that platform's date, or null when undated). The form picks the date for the
+  typed system from the map client-side, so editing the system never refetches.
 
   A GET rather than part of the add response, because the add form shows these
   before anything is created. It exists because those values belong to the catalog,
@@ -38,7 +40,9 @@ docs {
   Pass the `name`, `genres` and `releaseDate` the client already has from IGDB.
   For a new IGDB row the add re-fetches all three from IGDB rather than trusting
   them, and this preview does not, so it matches the add only when they are passed
-  through from a search result unedited, as the form does.
+  through from a search result unedited, as the form does. `platformReleaseDates`
+  is the exception: a search result has no such field, so for a new IGDB row it
+  is fetched from IGDB, and is `{}` when IGDB cannot answer.
 
   Watch the query parameter names. CamelModel's camelCase convention covers SCHEMA
   fields, not bare query params, so `igdbId` and `releaseDate` only work because
@@ -49,7 +53,7 @@ docs {
   Another GET that writes, in this case rate-limit counters, since it can call out
   to Wikipedia. Blocked on preview deploys for that reason.
 
-  - 200 `{"genres": [...], "releaseDate": "..."}`
+  - 200 `{"genres": [...], "releaseDate": "...", "platformReleaseDates": {...}}`
   - 401 not logged in
   - 429 over the per-minute lookup budget
   - 503 writes disabled on this environment

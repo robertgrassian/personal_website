@@ -43,7 +43,7 @@ def client(monkeypatch, captured):
 
     def fake_preview(db, user, **kwargs):
         captured.update(kwargs)
-        return CatalogPreview(genres=["Role-Playing"], release_date=None)
+        return CatalogPreview(genres=["Role-Playing"], release_date=None, platform_release_dates={})
 
     monkeypatch.setattr(catalog_sourcing, "preview_catalog_entry", fake_preview)
     return TestClient(app)
