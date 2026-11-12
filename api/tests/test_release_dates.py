@@ -47,12 +47,18 @@ class TestPlatformReleaseDates:
     def test_cancelled_and_prerelease_entries_are_undated(self):
         # Kept as None, not dropped: dropped would fall back to the original's date.
         release = _release("Nintendo Switch 2", date(2026, 1, 1))
-        for status in ("Cancelled", "Alpha", "Beta"):
+        for status in ("Cancelled", "Alpha", "Beta", "Early Access"):
             row = {"release_dates": [{**release, "status": {"id": 1, "name": status}}]}
             assert _platform_release_dates(row) == {"Nintendo Switch 2": None}
-        early = {**release, "status": {"id": 1, "name": "Early Access"}}
-        assert _platform_release_dates({"release_dates": [early]}) == {
-            "Nintendo Switch 2": "2026-01-01"
+
+    def test_the_full_release_beats_an_earlier_early_access(self):
+        early = {
+            **_release("PC (Microsoft Windows)", date(2024, 8, 5)),
+            "status": {"id": 1, "name": "Early Access"},
+        }
+        full = _release("PC (Microsoft Windows)", date(2026, 8, 5))
+        assert _platform_release_dates({"release_dates": [early, full]}) == {
+            "PC (Microsoft Windows)": "2026-08-05"
         }
 
     def test_a_real_release_beats_a_cancelled_one(self):
