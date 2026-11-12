@@ -309,7 +309,7 @@ current month, underlines, the stamp. Two constraints the builder must know:
   neighbours do not match.
 - **Not an SVG displacement filter** (`feTurbulence` + `feDisplacementMap`), the obvious
   alternative. The shelf learned that per-pixel filters re-rasterize on every zoom step and
-  blanked the library for a second each time (see the wood-grain convention in CLAUDE.md).
+  blanked the library for a second each time (see `scripts/wood-grain/README.md`).
   Path data has no such cost.
 
 Accent color follows the site's switch: `--link`, `--accent-glow`, no literals. Page surface tokens
