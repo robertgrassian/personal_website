@@ -44,3 +44,17 @@ test("missing or empty falls back", () => {
   assert.equal(safeNextPath(undefined, FALLBACK), FALLBACK);
   assert.equal(safeNextPath("", FALLBACK), FALLBACK);
 });
+
+test("the auth hops are not a destination", () => {
+  for (const raw of [
+    "/auth/callback",
+    "/auth/confirm?next=/about",
+    "/sign-in",
+    "/sign-in?next=/x",
+  ]) {
+    assert.equal(safeNextPath(raw, FALLBACK), FALLBACK, raw);
+  }
+  // A path that merely starts with the same letters is fine.
+  assert.equal(safeNextPath("/sign-in-help", FALLBACK), "/sign-in-help");
+  assert.equal(safeNextPath("/authors", FALLBACK), "/authors");
+});

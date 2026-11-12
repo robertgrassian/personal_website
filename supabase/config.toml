@@ -176,14 +176,14 @@ site_url = "http://127.0.0.1:3000"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 # The /auth/* entries are globs because both sign-in paths carry a varying ?next=. The magic-link
 # template appends &token_hash=… to the redirect, so a rejected one (Supabase then substitutes
-# site_url, which has no query string) produces a broken link. Both local hosts, since the dev
-# server answers on either and the session cookie is per host.
+# site_url, which has no query string) produces a broken link. 127.0.0.1 passes on any port by
+# matching site_url's host; localhost needs the port wildcard, for when Next moves off a busy 3000.
 additional_redirect_urls = [
   "https://127.0.0.1:3000",
   "http://127.0.0.1:3000/auth/confirm**",
   "http://127.0.0.1:3000/auth/callback**",
-  "http://localhost:3000/auth/confirm**",
-  "http://localhost:3000/auth/callback**",
+  "http://localhost:*/auth/confirm**",
+  "http://localhost:*/auth/callback**",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600

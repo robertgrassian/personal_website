@@ -6,8 +6,8 @@
 //   `@evil.com`) is either absolute or rewrites the host once appended to an
 //   origin.
 // - No backslash: browsers normalize `\` to `/` in URLs, so `/\evil.com` is
-//   read as `//evil.com`. The route handlers prepend an origin and were safe
-//   from this, but /sign-in hands `next` to the browser as a relative URL.
+//   read as `//evil.com`. Every sink today prepends an absolute origin, which
+//   makes this defense in depth; it is what keeps a future relative use safe.
 // - No control characters: browsers strip tab and newline from URLs, so
 //   `/\t/evil.com` collapses to `//evil.com` after this check has passed.
 export function safeNextPath(raw: string | null | undefined, fallback: string): string {
@@ -15,6 +15,9 @@ export function safeNextPath(raw: string | null | undefined, fallback: string): 
   if (!raw.startsWith("/") || raw.startsWith("//")) return fallback;
   if (raw.includes("\\")) return fallback;
   if (/[\u0000-\u001f\u007f]/.test(raw)) return fallback;
+  // The auth hops themselves are never a destination: landing on a handler
+  // with no code reports a sign-in failure that did not happen.
+  if (/^\/(auth\/|sign-in(?:[/?#]|$))/.test(raw)) return fallback;
   return raw;
 }
 
