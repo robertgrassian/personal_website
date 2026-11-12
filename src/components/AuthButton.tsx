@@ -1,12 +1,11 @@
 "use client";
 
-// Sign-in / sign-out control for the game library header.
-//
-// It lives in the library rather than the global nav on purpose: the portfolio
-// (/, /about, /resume) is static content with no accounts, and the game
-// library is the only app here with sign-in. The auth *infrastructure* stays
-// site-wide (one session cookie on the domain, middleware refresh, /auth/*
-// handlers) so a future app can share the session — only the surfaces moved.
+// Sign-in / sign-out control, mounted by each app page that has accounts
+// rather than in the global nav: the portfolio (/, /about, /resume) is static
+// content with nothing to sign into. The session itself is site-wide (one
+// cookie on the domain, middleware refresh, /auth/* handlers, /sign-in), so
+// nothing here may assume which app is hosting it. Sign-in returns the visitor
+// to the page they were on.
 //
 // This reflects the session for DISPLAY only. It is never a security boundary
 // — every protected read/write is authorized server-side by FastAPI verifying
@@ -17,51 +16,25 @@
 // render-nothing-until-known guard, which was correct but popped in a beat after
 // paint, since onAuthStateChange cannot fire before hydration.
 //
-// This component also maintains that flag for the page, which is why it still
-// subscribes despite no longer rendering from session state. SignupCta reads the
-// same flag and has no subscription of its own; both are rendered by LibraryPage,
-// so it is always mounted alongside. That the subscription now lives inside a
-// collapsed menu changes nothing: LibraryHeaderMenu renders its children only
-// when open, but this pair sits in the header's always-mounted slot.
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+// The flag is kept current by AuthFlagSync, not here: this control lives in a menu that unmounts
+// it when closed, so it cannot hold a subscription.
+import { usePathname, useRouter } from "next/navigation";
+import { signInPath } from "@/lib/nextPath";
 import { createClient } from "@/lib/supabase/client";
-import { setAuthFlag } from "@/lib/authFlag";
-import { forgetOwnedLibrary, forgetOwnedLibraryForOtherUser } from "@/lib/ownedLibrary";
 // Shared with the other rows of the header menu, so the list stays one look.
 import { MenuItem } from "@/components/ui/MenuItem";
 
 export function AuthButton() {
   const router = useRouter();
-
-  // Keeps the pre-paint flag honest: the inline script runs once, so a sign-out,
-  // an expiry, or a sign-in in another tab would otherwise leave it stale.
-  useEffect(() => {
-    const supabase = createClient();
-    // INITIAL_SESSION fires on mount with the current cookie session, so this
-    // both corrects the script's guess and tracks changes after.
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthFlag(Boolean(session));
-      // Same staleness problem, one level up: the cached "this library is
-      // mine" answer (src/lib/ownedLibrary.ts) belongs to the session that
-      // earned it. Losing the session drops it, and so does replacing it with
-      // another account's — a switch fires SIGNED_IN, never a sign-out, so
-      // checking only for absence would let one user's entry survive into the
-      // next user's page. Signing in does not seed it: only /me/relationship
-      // can say whose library this is.
-      if (session) forgetOwnedLibraryForOtherUser(session.user.id);
-      else forgetOwnedLibrary();
-    });
-    return () => subscription.unsubscribe();
-  }, []);
+  // Path only, no query string: useSearchParams would need a Suspense
+  // boundary, and would drop this control out of a static page's HTML.
+  const pathname = usePathname();
 
   async function signOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
     // data-authed needs no manual clearing: signOut fires an auth state change,
-    // and the subscription above swaps this back to "Sign in".
+    // and AuthFlagSync swaps the page back to its signed-out half.
     //
     // Refresh Server Components so server-rendered auth-dependent UI
     // re-evaluates with the now-absent session.
@@ -72,7 +45,7 @@ export function AuthButton() {
   // wrapper box. Only one is ever displayed, so spacing is unaffected.
   return (
     <>
-      <MenuItem href="/video-games/start" data-hide-authed="">
+      <MenuItem href={signInPath(pathname)} data-hide-authed="">
         Sign in
       </MenuItem>
       <MenuItem onClick={signOut} data-hide-anon="">

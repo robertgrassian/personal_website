@@ -1,6 +1,7 @@
 "use client";
 
-// The interactive half of /video-games/account: the delete control.
+// The interactive half of /account: the delete control. Its library-built
+// controls read --shelf-* tokens, which page.tsx supplies via account.css.
 //
 // Two things have to happen on success and neither is optional. The Server
 // Action deletes the auth user and everything that cascades from it, but the
@@ -23,7 +24,7 @@ import { inputClass } from "@/components/video_games/formStyles";
 import { createClient } from "@/lib/supabase/client";
 
 type AccountPanelProps = {
-  /** Null for a signed-in user who never finished onboarding. They still have
+  /** Null for a signed-in user with no game library profile. They still have
    *  a deletable account, just no library and no handle to type. */
   username: string | null;
   /** True when `username` is null because the library API did not answer,
@@ -67,7 +68,7 @@ export function AccountPanel({
   const { isPending, error, run } = useServerAction();
   const [typed, setTyped] = useState("");
 
-  // Someone who never onboarded has no username to type, so the word stands in.
+  // Someone with no profile has no username to type, so the word stands in.
   const phrase = username ?? "delete";
   const matches = typed.trim().toLowerCase() === phrase.toLowerCase();
 
@@ -113,7 +114,7 @@ export function AccountPanel({
               </span>
             )}
             <span className="mt-3 block">
-              Type <span className="font-semibold text-shelf-text">{phrase}</span> to confirm.
+              Type <span className="font-semibold text-foreground">{phrase}</span> to confirm.
             </span>
             <input
               type="text"

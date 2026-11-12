@@ -111,7 +111,7 @@ export default function PrivacyPolicy() {
           <p className="mt-3">
             Your data is kept while your account exists. You can delete it yourself at any time from
             your{" "}
-            <Link href="/video-games/account" className={proseLink}>
+            <Link href="/account" className={proseLink}>
               account page
             </Link>
             . Deletion is immediate: it removes your profile, your sign-in record, and all library

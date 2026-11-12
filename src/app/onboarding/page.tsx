@@ -1,11 +1,12 @@
 // Onboarding resolver + username picker (Server Component).
 //
-// Self-resolving so /auth/confirm can always land here (the "authenticated but
-// no profile yet" state):
-//   - not signed in        → /login
+// The game library's create-a-profile step, reached from Create a profile and
+// from the sign-in on /video-games/start. Self-resolving:
+//   - not signed in        → /sign-in, returning here
 //   - signed in, onboarded → /video-games/u/{username} (nothing to do here)
 //   - signed in, no profile→ render the username picker
 import { redirect } from "next/navigation";
+import { signInPath } from "@/lib/nextPath";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import { fetchMyProfile } from "@/lib/meApi";
 import { userLibraryPath } from "@/lib/profile";
@@ -24,14 +25,14 @@ function suggestUsername(email: string | undefined): string {
 
 export default async function OnboardingPage() {
   // Same degradation as /library: unconfigured means nobody is signed in.
-  if (!isSupabaseConfigured()) redirect("/video-games/start");
+  if (!isSupabaseConfigured()) redirect(signInPath("/onboarding"));
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/video-games/start");
+  if (!user) redirect(signInPath("/onboarding"));
 
   // Already has a profile? Then onboarding is done — send them to their
   // library, the same place a successful submission lands.

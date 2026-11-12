@@ -57,6 +57,9 @@ const nextConfig: NextConfig = {
       // holding a cached answer. There is no ranking to preserve here, so
       // permanence buys nothing and costs future freedom.
       { source: "/u/:username", destination: "/video-games/u/:username", permanent: false },
+      // Account settings moved to the top level: the account is the site's,
+      // shared by every app, not the game library's.
+      { source: "/video-games/account", destination: "/account", permanent: true },
     ];
   },
   async rewrites() {

@@ -3,7 +3,11 @@
 //
 //   logged out              → /video-games (Robert's shelf, the public demo)
 //   logged in, onboarded    → /video-games/u/{your-username}
-//   logged in, no profile   → /onboarding
+//   logged in, no profile   → /video-games, same as logged out
+//
+// A profile-less account is a complete state, not an unfinished sign-up: one
+// login serves every app on the site, and a game library profile is made only
+// when asked for, via the Create a profile button on /video-games.
 //
 // Why a whole route for a redirect: reading cookies in a page opts that page
 // into dynamic rendering, rebuilt per request instead of served static from
@@ -35,9 +39,9 @@ export default async function LibraryResolverPage() {
   if (!user) redirect("/video-games");
 
   const profile = await fetchMyProfile();
-  // Authenticated but never picked a username — finish that first. Onboarding
-  // sends them back into their own library when it completes.
-  if (!profile) redirect("/onboarding");
+  // Signed in without a game library profile: the public shelf, which offers
+  // them Create a profile.
+  if (!profile) redirect("/video-games");
 
   // redirect() throws NEXT_REDIRECT, so nothing after this line runs and the
   // component never actually returns JSX.

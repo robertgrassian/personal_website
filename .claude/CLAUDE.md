@@ -59,7 +59,7 @@ Docs ownership, so the same fact does not drift across four files: **`api/README
 | Dialog chrome                              | `ModalFrame.tsx` (backdrop, scroll lock, focus, Escape) → `ModalShell.tsx` (the conventional panel), `ModalBackdrop.tsx`                                                                                                                                                                              |
 | "Currently playing" CRT                    | `src/components/crt/CrtTv.tsx` + `crt.css`, wrapped by `CurrentlyPlayingSection.tsx`, which owns the owner-only manage panel. A tap on the screen opens the game's detail card; swipes, arrow keys and the dots change channel                                                                        |
 | Can this viewer edit?                      | `FollowControls.tsx` (two hooks), `useViewerRelationship.ts`, `ownedLibrary.ts`                                                                                                                                                                                                                       |
-| Auth (browser/server/middleware)           | `src/lib/supabase/`, `src/app/auth/*`, `src/app/onboarding/`                                                                                                                                                                                                                                          |
+| Auth (browser/server/middleware)           | `src/lib/supabase/`, `src/app/auth/*`, `src/app/sign-in/` + `src/components/auth/SignInPanel.tsx`, `src/lib/nextPath.ts` (the `next` guard), `src/app/account/`, `src/app/onboarding/`                                                                                                                |
 | Shelf wood grain (re-theming)              | `scripts/wood-grain/tiles/*.mjs` (source) → `npm run grain` → `public/shelf/*.webp` (committed). Noise in `wood-grain/turbulence.mjs`, rings in `wood-grain/rings.mjs`                                                                                                                                |
 | Library styles                             | `video-games.css` (shared chrome), `shelf-themes.css` (per-theme surfaces), both in `src/app/video-games/`; site tokens in `src/app/globals.css`                                                                                                                                                      |
 | Mobile keyboard / viewport behavior        | [`docs/mobile-viewport.md`](../docs/mobile-viewport.md); `keyboardBand.ts`, `useModalChrome.ts`                                                                                                                                                                                                       |
@@ -73,19 +73,20 @@ Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were
 
 ## Routes
 
-| Route                           | What it is                                                                                                 |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `/`                             | Hero photo + frosted-glass tile grid. No nav bar; the tiles are the nav                                    |
-| `/about`, `/resume`, `/privacy` | Bio and photo grid; work history + PDF; privacy policy                                                     |
-| `/video-games`                  | Robert's library at its stable URL, and the logged-out demo                                                |
-| `/video-games/u/[username]`     | Anyone's library. Same `LibraryPage` shell, different username                                             |
-| `/video-games/start`            | Sign-in pitch                                                                                              |
-| `/video-games/account`          | Account settings (today: delete account)                                                                   |
-| `/currently-playing`            | Standalone CRT, no shelves                                                                                 |
-| `/produce`                      | Sends you to your state (cookie, then IP) in middleware; otherwise a static state picker                   |
-| `/produce/[state]`              | What is in season there. Static, revalidated hourly; uncovered states say so                               |
-| `/library`                      | Redirect-only resolver: logged out → `/video-games`, onboarded → their library, no profile → `/onboarding` |
-| `/onboarding`, `/auth/*`        | Username picker; OAuth callback + magic-link confirm route handlers                                        |
+| Route                           | What it is                                                                                                                   |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `/`                             | Hero photo + frosted-glass tile grid. No nav bar; the tiles are the nav                                                      |
+| `/about`, `/resume`, `/privacy` | Bio and photo grid; work history + PDF; privacy policy                                                                       |
+| `/video-games`                  | Robert's library at its stable URL, and the logged-out demo                                                                  |
+| `/video-games/u/[username]`     | Anyone's library. Same `LibraryPage` shell, different username                                                               |
+| `/video-games/start`            | The game library's pitch page and Google's OAuth "App homepage". Signs in with `next=/onboarding`; do not move or retitle it |
+| `/sign-in`                      | The site's sign-in page, `noindex`. Returns to `?next=` (guarded by `safeNextPath`), default `/library`                      |
+| `/account`                      | Account settings (today: delete account), on site tokens. `/video-games/account` redirects here                              |
+| `/currently-playing`            | Standalone CRT, no shelves                                                                                                   |
+| `/produce`                      | Sends you to your state (cookie, then IP) in middleware; otherwise a static state picker                                     |
+| `/produce/[state]`              | What is in season there. Static, revalidated hourly; uncovered states say so                                                 |
+| `/library`                      | Redirect-only resolver: onboarded → their library; logged out or no profile → `/video-games`                                 |
+| `/onboarding`, `/auth/*`        | Create a game library profile (username picker); OAuth callback + magic-link confirm route handlers                          |
 
 ## Conventions
 
@@ -94,7 +95,11 @@ Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were
 - **Use `ggp` instead of `git push` when pushing branches.**
 - **Never use em dashes (—) in user-facing text.** This covers anything a visitor can read or hear: JSX text, button and heading copy, `aria-label`s, `alt` text, `metadata` titles and descriptions, error messages, placeholder copy. Use a colon when the second half explains the first, a comma for an aside, or split into two sentences. Code comments are exempt, and so is the `—` used as a "no value" placeholder in table-like output. Applies to Markdown that ships as a page (`/privacy`), not to `TODO.md` or docs.
 - **Routes use kebab-case, never snake_case** (`/video-games`, `/currently-playing`, `/video-games/start`). Renamed from underscores 2026-07-28; the old URLs are kept alive by permanent redirects in `next.config.ts`, which must stay. Note this is a _URL_ convention — `src/components/video_games/` and snake_case SQL column names (`currently_playing`) are deliberately untouched.
-- **The game library owns the `/video-games` prefix.** Everything belonging to it nests there, including per-user libraries at `/video-games/u/[username]` (moved off a top-level `/u/` 2026-07-29, redirect in `next.config.ts`). New library surfaces go under that prefix rather than at the top level. Auth is the deliberate exception: `/onboarding` and `/auth/*` stay top-level because identity is site-wide, not the library's.
+- **The game library owns the `/video-games` prefix.** Everything belonging to it nests there, including per-user libraries at `/video-games/u/[username]` (moved off a top-level `/u/` 2026-07-29, redirect in `next.config.ts`). New library surfaces go under that prefix rather than at the top level. Auth is the deliberate exception: `/sign-in`, `/account`, `/onboarding` and `/auth/*` stay top-level because identity is site-wide, not the library's.
+- **One login, many apps.** Signing in creates a site account and nothing else, and never forces
+  onboarding: a signed-in visitor with no game library profile is a complete state (`/library`
+  sends them to `/video-games`, which offers Create a profile). An app's per-user data is made
+  when the visitor asks for it. New per-user tables key on the auth user, not on `profiles`.
 - **The shelf is a theme, not a layout.** `ACTIVE_SHELF_THEME` in `src/lib/shelfTheme.ts` picks
   between the groups in `src/components/video_games/shelves/`, and `LibraryPage` stamps
   `data-shelf-theme` beside `shelf-theme`. A theme owns exactly two things: how ONE group of

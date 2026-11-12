@@ -57,6 +57,14 @@ export function isKnownOwnLibrary(ownerUsername: string): boolean {
   return readStored()?.username === ownerUsername;
 }
 
+// "Has this browser confirmed that this account owns SOME library?" Lets the
+// Create a profile button skip its /me/profile read for an account that
+// plainly has one. Profiles are never deleted apart from their auth user, so
+// a yes for this user id stays true; a wrong one would only hide that button.
+export function isKnownLibraryOwner(userId: string): boolean {
+  return readStored()?.userId === userId;
+}
+
 // Called only with an answer the API just gave, so the cache cannot invent one.
 export function rememberOwnedLibrary(ownerUsername: string, userId: string): void {
   try {
