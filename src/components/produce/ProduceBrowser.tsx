@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { caveat } from "@/lib/fonts";
-import { CATEGORY_LABELS, type ProduceItem } from "@/lib/produce/browse";
+import type { ProduceItem } from "@/lib/produce/browse";
+import { CATEGORY_LABELS } from "@/lib/produce/categories";
 import type { ProduceCategory } from "@/lib/produce/types";
 import {
   GROUP_IDS,
@@ -107,7 +108,7 @@ export function ProduceBrowser({
             </li>
           ))}
         </ol>
-        <p className="produce-count">
+        <p className="produce-count" aria-live="polite">
           <span>
             {filterLabel ?? "Everything"} in season in {MONTH_NAMES[month]}: {total}
           </span>

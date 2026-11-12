@@ -425,11 +425,15 @@
 
 @media (prefers-reduced-motion: reduce) {
   .produce-packet,
-  .produce-month {
+  .produce-month,
+  .produce-state-links a {
     transition: none;
   }
   .produce-packet:hover {
     transform: rotate(var(--tilt, 0deg));
+  }
+  .produce-state-links a:hover {
+    transform: none;
   }
 }
 

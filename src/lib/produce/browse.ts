@@ -1,4 +1,5 @@
 import { produceBySlug } from "./catalog.ts";
+import { CATEGORY_ORDER } from "./categories.ts";
 import type { Produce, ProduceCategory, Region } from "./types.ts";
 
 // What the browse page ships to the client: a catalog entry joined with its season in one region.
@@ -7,20 +8,6 @@ export type ProduceItem = Produce & {
   season: string;
   // Which of the hand-drawn borders this card wears.
   variant: number;
-};
-
-export const CATEGORY_ORDER: readonly ProduceCategory[] = [
-  "fruit",
-  "vegetable",
-  "herb",
-  "mushroom",
-];
-
-export const CATEGORY_LABELS: Readonly<Record<ProduceCategory, string>> = {
-  fruit: "Fruit",
-  vegetable: "Vegetables",
-  herb: "Herbs",
-  mushroom: "Mushrooms",
 };
 
 // FNV-1a: stable across runtimes and releases, so a card keeps its border between deploys.

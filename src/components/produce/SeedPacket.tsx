@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import Image from "next/image";
 import { caveat } from "@/lib/fonts";
 import type { ProduceItem } from "@/lib/produce/browse";
-import { CATEGORY_LABELS } from "@/lib/produce/browse";
+import { CATEGORY_LABELS } from "@/lib/produce/categories";
 import type { ProduceSketch } from "@/lib/produce/sketch";
 import { BORDER_VIEWBOX } from "@/lib/produce/sketchBoxes";
 import { RoughFrame, RoughGlyph } from "./RoughFrame";

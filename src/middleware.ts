@@ -20,6 +20,13 @@ export async function middleware(request: NextRequest) {
   return await updateSession(request);
 }
 
+// Same URL with a new path, so a shared link's query string survives the redirect.
+function withPath(request: NextRequest, pathname: string): URL {
+  const url = request.nextUrl.clone();
+  url.pathname = pathname;
+  return url;
+}
+
 const UPPERCASE_STATE_PATH = /^\/produce\/([A-Za-z]{2})$/;
 
 // Reading geo here instead of in the page keeps all 51 state pages static:
@@ -36,13 +43,13 @@ function produceRedirect(request: NextRequest): NextResponse | null {
     // null renders the static picker.
     if (code === null) return null;
     // 307, not permanent: the answer depends on who is asking.
-    return NextResponse.redirect(new URL(produceStatePath(code), request.url), 307);
+    return NextResponse.redirect(withPath(request, produceStatePath(code)), 307);
   }
 
   // dynamicParams = false would 404 a hand-typed /produce/NY.
   const match = UPPERCASE_STATE_PATH.exec(pathname);
   if (match && match[1] !== match[1].toLowerCase() && stateByCode(match[1])) {
-    return NextResponse.redirect(new URL(produceStatePath(match[1]), request.url), 308);
+    return NextResponse.redirect(withPath(request, produceStatePath(match[1])), 308);
   }
 
   return null;

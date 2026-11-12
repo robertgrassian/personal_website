@@ -15,7 +15,8 @@ export function SeasonStrip({
   labelled?: boolean;
 }) {
   return (
-    <div
+    // A span: the strip sits inside a card <button>, where a div is invalid HTML.
+    <span
       role="img"
       aria-label={seasonLabel(season)}
       className={`produce-strip ${labelled ? "produce-strip--labelled" : ""}`}
@@ -30,7 +31,7 @@ export function SeasonStrip({
           {labelled && <span className="produce-strip-label">{name.slice(0, 3)}</span>}
         </span>
       ))}
-    </div>
+    </span>
   );
 }
 
