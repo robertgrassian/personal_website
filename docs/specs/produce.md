@@ -37,19 +37,19 @@ visitor sees the sign-up pitch.
 
 All agreed (D2, D3, D5 on 2026-11-07; the rest 2026-11-10) except D10.
 
-| #   | Question                                  | Decision                                                                                                                                                                                                                                                                                          | Section                                           |
-| --- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| D1  | Route                                     | **Agreed.** **`/produce`**, with per-state pages at `/produce/[state]` (`/produce/ny`). `/in-season` reads nicer but is longer and less obvious in a URL bar.                                                                                                                                     | [Routes](#routes)                                 |
-| D2  | Where seasonality data comes from         | **Agreed.** **Our own curated dataset** in typed TS modules, cross-referenced from public sources, with a validator test. There is no open API (below).                                                                                                                                           | [Data](#data)                                     |
-| D3  | Regional granularity                      | **Agreed.** **Data keyed by region; a region is a group of states; URLs are by state.** v1 ships two regions: **Northeast** (Robert lives in NYC) and **California**. Other states get an honest "not covered yet" page.                                                                          | [Regions](#regions)                               |
-| D4  | Time granularity                          | **Agreed.** **Month**, with four levels: out, available, **peak**, and from **storage**. Half-month (what Seasonal Food Guide uses) doubles curation for little visible gain.                                                                                                                     | [Season strings](#season-strings)                 |
-| D5  | Tracking identity                         | **Agreed: login-only, on one site-wide login.** No device storage and no Supabase anonymous sign-in in v1. Device tracking for guests stays an optional later phase. Sign-in and account settings move out from under `/video-games` first.                                                       | [Tracking](#tracking)                             |
-| D6  | What "eaten" means                        | **Agreed.** **Per calendar year.** One row per (user, item, year), so the page answers "this year" and "ever" from the same data, and the basket resets each January.                                                                                                                             | [Data model](#data-model-phase-4)                 |
-| D7  | Is the log public                         | **Agreed.** **Private in v1.** Owner-only `/me` reads, never cached, no cache tags. A public "Robert has tried 41 things this year" is a cheap later phase.                                                                                                                                       | [API](#api-phase-4)                               |
-| D8  | Art direction                             | **Agreed.** **Ship the page on code-drawn hand-drawn chrome with no per-item art, and run an art spike in parallel** (pixel sprites vs. ink drawings, six items each, drawn by Robert). Each item has an `art` slot that falls back to a lettered "seed packet" until filled.                     | [Look and feel](#look-and-feel)                   |
-| D9  | Item blurbs                               | **Agreed.** **Optional field, blank by default, written by Robert over time.** Not AI-drafted, to keep with the spirit of no AI art. Nothing renders when it's blank.                                                                                                                             | [Catalog](#catalog)                               |
-| D10 | Google consent-screen app name            | **Open, blocks nothing.** **Rename it from "Video Game Library" to a site-level name and re-verify, as its own step that blocks nothing.** Until then, a produce sign-in shows Google's consent screen naming the game library. Pick the new name.                                                | [Site-wide identity](#site-wide-identity-phase-3) |
-| D11 | Does tracking need a game-library profile | **Agreed: no.** `produce_tastings` keys on the auth user, not on `profiles`. Requiring a profile would make every produce user pick a username, get a public empty game library, auto-follow Robert, and take one of the 100 `MAX_USERS` slots. See [One login, many apps](#one-login-many-apps). | [Data model](#data-model-phase-4)                 |
+| #   | Question                                  | Decision                                                                                                                                                                                                                                                                                                                                                                                               | Section                                           |
+| --- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| D1  | Route                                     | **Agreed.** **`/produce`**, with per-state pages at `/produce/[state]` (`/produce/ny`). `/in-season` reads nicer but is longer and less obvious in a URL bar.                                                                                                                                                                                                                                          | [Routes](#routes)                                 |
+| D2  | Where seasonality data comes from         | **Agreed.** **Our own curated dataset** in typed TS modules, cross-referenced from public sources, with a validator test. There is no open API (below).                                                                                                                                                                                                                                                | [Data](#data)                                     |
+| D3  | Regional granularity                      | **Agreed.** **Data keyed by region; a region is a group of states; URLs are by state.** v1 ships two regions: **Northeast** (Robert lives in NYC) and **California**. Other states get an honest "not covered yet" page.                                                                                                                                                                               | [Regions](#regions)                               |
+| D4  | Time granularity                          | **Agreed.** **Month**, with four levels: out, available, **peak**, and from **storage**. Half-month (what Seasonal Food Guide uses) doubles curation for little visible gain.                                                                                                                                                                                                                          | [Season strings](#season-strings)                 |
+| D5  | Tracking identity                         | **Agreed: login-only, on one site-wide login.** No device storage and no Supabase anonymous sign-in in v1. Device tracking for guests stays an optional later phase. Sign-in and account settings move out from under `/video-games` first.                                                                                                                                                            | [Tracking](#tracking)                             |
+| D6  | What "eaten" means                        | **Agreed.** **Per calendar year.** One row per (user, item, year), so the page answers "this year" and "ever" from the same data, and the basket resets each January.                                                                                                                                                                                                                                  | [Data model](#data-model-phase-4)                 |
+| D7  | Is the log public                         | **Agreed.** **Private in v1.** Owner-only `/me` reads, never cached, no cache tags. A public "Robert has tried 41 things this year" is a cheap later phase.                                                                                                                                                                                                                                            | [API](#api-phase-4)                               |
+| D8  | Art direction                             | **Page look agreed; art source open, decided when Phase 5 starts.** Ship the page on code-drawn hand-drawn chrome with no per-item art. Each item has an `art` slot that falls back to a lettered "seed packet" until filled. What fills it is undecided: Robert leans away from drawing it himself and towards stock photos, and public-domain botanical illustration is recorded as the alternative. | [Look and feel](#look-and-feel)                   |
+| D9  | Item blurbs                               | **Agreed.** **Optional field, blank by default, written by Robert over time.** Not AI-drafted, to keep with the spirit of no AI art. Nothing renders when it's blank.                                                                                                                                                                                                                                  | [Catalog](#catalog)                               |
+| D10 | Google consent-screen app name            | **Open, blocks nothing.** **Rename it from "Video Game Library" to a site-level name and re-verify, as its own step that blocks nothing.** Until then, a produce sign-in shows Google's consent screen naming the game library. Pick the new name.                                                                                                                                                     | [Site-wide identity](#site-wide-identity-phase-3) |
+| D11 | Does tracking need a game-library profile | **Agreed: no.** `produce_tastings` keys on the auth user, not on `profiles`. Requiring a profile would make every produce user pick a username, get a public empty game library, auto-follow Robert, and take one of the 100 `MAX_USERS` slots. See [One login, many apps](#one-login-many-apps).                                                                                                      | [Data model](#data-model-phase-4)                 |
 
 ## Why no API
 
@@ -315,22 +315,37 @@ current month, underlines, the stamp. Two constraints the builder must know:
 Accent color follows the site's switch: `--link`, `--accent-glow`, no literals. Page surface tokens
 live in a new `src/app/produce/produce.css` under `[data-app="produce"]`, defined for both schemes.
 
-### Per-item art: decoupled, then a spike
+### Per-item art: decoupled, source decided later
 
-The page must not wait on 100 drawings. Every item renders its `art` if present, otherwise a
+The page must not wait on 127 images. Every item renders its `art` if present, otherwise a
 **lettered seed packet**: name in Caveat, a category glyph, a rough.js border, a tint from the
-category. That is the Phase 2 look, and it should be good enough to ship on its own.
+category. That is the Phase 2 look, and it ships on its own.
 
-**Art spike (Robert-led, time-boxed, blocks nothing):** draw the same six items
-(strawberry, carrot, apple, ramps, tomato, basil) two ways and pick one:
+**What fills the slot is open, and is decided when Phase 5 starts, not before** (Robert,
+2026-11-12). The original plan, an art spike of Robert's own pixel sprites or ink drawings, is
+dropped: he would rather not draw it. `art` is an image path, so nothing built before Phase 5
+depends on the choice. The two options on the table:
 
-| Option               | How                                                                                                           | Cost per item | Notes                                                                                                                            |
-| -------------------- | ------------------------------------------------------------------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **A. Pixel sprites** | 32×32 in Piskel or Aseprite, exported PNG, rendered with `image-rendering: pixelated`. Sources committed.     | ~15 min       | Most achievable for a non-illustrator. Leans "pixel farm". Clashes a little with rough.js chrome; may want pixel chrome instead. |
-| **B. Ink drawings**  | Pen on paper or iPad, scanned, cleaned, traced to SVG (potrace) so lines take `currentColor` in both schemes. | ~30 min       | Most whimsical and most personal. SVG means ink on paper in light, chalk in dark, for free.                                      |
+| Option                                      | Fit with kraft paper and chalkboard                                                              | Coverage                                                                        | Licensing                                            |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| **A. Stock photos** (Robert's first lean)   | Clashes as-is: photos read as a grocery app and their backgrounds fight the dark scheme          | Easy for common items; hard for ramps, garlic scapes, pawpaws                   | Needs one consistent free license, often attribution |
+| **B. Public-domain botanical illustration** | Matches the hand-made look; vintage seed-catalog art sits on a seed-packet card almost literally | Strong for fruit, patchy for vegetables and herbs, hard for the same rare items | Public domain, no attribution required               |
+
+Notes for whoever picks this up:
+
+- **Sources for B, recalled and not yet verified:** the USDA Pomological Watercolor Collection
+  (about 7,500 watercolors of fruit, roughly 1890 to 1940, almost no vegetables), and the
+  Biodiversity Heritage Library and similar archives for scanned seed catalogs and botanical
+  plates. **Confirm each source's license and coverage before committing to it.**
+- **If A wins, restyle the card to frame a photo** (taped to the packet, say) rather than
+  dropping it in, and cut out or standardize backgrounds so both color schemes hold.
+- **Either way the fallback stays**, so any subset ships, and a mix is possible: illustration
+  where one exists, the seed packet elsewhere.
+- Each item needs its source and license recorded beside the image, and the validator should
+  check that an `art` file has one.
 
 Ruled out: **AI art** in any form. **Emoji sets** (Twemoji, Noto, OpenMoji) as the shipped art,
-because they cover maybe 30 of the 100 items (no ramps, kohlrabi, fennel or garlic scapes) and read
+because they cover maybe 30 of the items (no ramps, kohlrabi, fennel or garlic scapes) and read
 as UI, not whimsy.
 
 ## Tracking
@@ -582,8 +597,7 @@ Each phase is one branch and one draft PR. Phases 1 to 3 need no backend changes
 The orchestrating session reviews every diff, runs `npm test`, `npm run lint` and a type check
 before a PR opens, and does not merge anything: merging is Robert's.
 
-0. **Review this spec.** Done 2026-11-10. **Art spike** starts whenever Robert likes and blocks
-   nothing.
+0. **Review this spec.** Done 2026-11-10.
 1. **Data foundation.**
    - **1a:** `src/lib/produce/` as above: types, the catalog (about 100 items, names and
      categories only), states, `season.ts` and its tests, the validator, and the two region files
@@ -609,7 +623,8 @@ before a PR opens, and does not merge anything: merging is Robert's.
    1,000 cap; signed out, tapping the stamp and signing in lands back on `/produce/{state}` with
    no onboarding; a stamp made on the phone shows on desktop. Verified locally and in production,
    not on a preview (writes are refused there).
-5. **Art.** The spike's winner, filled in item by item. Can land in many small PRs; the fallback
+5. **Art.** Starts by choosing the source ([Per-item art](#per-item-art-decoupled-source-decided-later)),
+   then fills items in one by one. Can land in many small PRs; the fallback
    means any subset ships.
 6. **More regions.** One region per PR, by the curation process. Parallelizable across agents.
 7. **Optional: guest tracking on the device.** Only if signed-out visitors bounce off the sign-in
