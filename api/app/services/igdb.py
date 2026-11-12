@@ -540,9 +540,10 @@ def _platform_names(row: dict) -> list[str]:
 _RELEASE_DATE_FIELDS = "release_dates.date, release_dates.platform.name, release_dates.status.name"
 
 # Release statuses whose date is not a release date: a cancelled port would
-# otherwise show a day that never comes. Early Access counts, matching
-# first_release_date.
-_NOT_A_RELEASE = frozenset({"Alpha", "Beta", "Cancelled"})
+# otherwise show a day that never comes. Early Access is excluded because
+# first_release_date excludes it, and the two must agree (Palworld would
+# otherwise show 2024 on PS5 and its 2026 1.0 date everywhere else).
+_NOT_A_RELEASE = frozenset({"Alpha", "Beta", "Cancelled", "Early Access"})
 
 
 def _platform_release_dates(row: dict) -> dict[str, str | None]:

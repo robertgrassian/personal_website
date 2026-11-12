@@ -50,8 +50,9 @@ A URL typed inline lands in shell history and in `ps`; read it from a variable
 or a password manager rather than pasting it.
 
 Preview is the default and prints every row it would touch, so a production run
-is always a select before an update. Re-run backfill_platforms.py afterwards:
-the skip list should shrink to the genuine IGDB gaps.
+is always a select before an update. Re-run backfill_platforms.py afterwards
+(its skip list should shrink to the genuine IGDB gaps), then
+backfill_release_dates.py, since a repointed row's date map is cleared.
 """
 
 import argparse
@@ -92,6 +93,7 @@ REPOINTS: dict[str, tuple[int, ...]] = {
     "Hollow Knight": (14593,),
     "Super Smash Bros. Brawl": (1628,),  # Wii
     "Metroid Dread": (15698,),  # Switch
+    "Minecraft": (121,),  # Java Edition; the stored id was a Windows 10/Bedrock row
     "Luigi's Mansion": (2485,),  # one row covers both GameCube and 3DS
     # Split releases: the base row, then the ports, so a recorded console that
     # only the port lists still resolves.
@@ -352,6 +354,8 @@ def apply_plan(session, plan: RowPlan) -> None:
         plan.row.name = plan.new_name
         plan.row.platforms = plan.igdb["platforms"]
         plan.row.release_date = plan.igdb["release_date"]
+        # The variant's map; backfill_release_dates.py refills it from the new id.
+        plan.row.platform_release_dates = {}
         if plan.igdb["image_url"]:
             plan.row.image_url = plan.igdb["image_url"]
         return
@@ -445,7 +449,10 @@ def run(apply_changes: bool) -> None:
         for plan in plans:
             apply_plan(session, plan)
         session.commit()
-        print(f"\nApplied. {len(plans)} rows fixed. Re-run backfill_platforms.py now.")
+        print(
+            f"\nApplied. {len(plans)} rows fixed."
+            " Re-run backfill_platforms.py, then backfill_release_dates.py."
+        )
 
 
 def main() -> None:
