@@ -26,7 +26,7 @@ const sections = [
   },
   {
     href: "/produce",
-    title: "In Season",
+    title: "Produce Tracker",
     description: "What's growing near you this month",
   },
 ];
