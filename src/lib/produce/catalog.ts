@@ -5,7 +5,8 @@ import type { Produce } from "./types.ts";
 // (ramps, garlic scapes, brussels sprouts, the leafy "greens").
 //
 // Granularity: anything a shopper names and buys as its own thing is its own item (zucchini is
-// not summer squash, a pluot is not a plum). Colours and cultivars of one thing are not.
+// not summer squash, a pluot is not a plum). Colours and cultivars of one thing are not, with
+// Sungolds the deliberate exception: the site owner seeks them out by name.
 export const CATALOG: readonly Produce[] = [
   // Fruit
   { slug: "apple", name: "Apples", category: "fruit" },
@@ -69,6 +70,7 @@ export const CATALOG: readonly Produce[] = [
   { slug: "cauliflower", name: "Cauliflower", category: "vegetable" },
   { slug: "celeriac", name: "Celeriac", aka: ["Celery root"], category: "vegetable" },
   { slug: "celery", name: "Celery", category: "vegetable" },
+  { slug: "cherry-tomato", name: "Cherry tomatoes", category: "vegetable" },
   { slug: "chard", name: "Chard", aka: ["Swiss chard"], category: "vegetable" },
   { slug: "chile-pepper", name: "Chile peppers", aka: ["Hot peppers"], category: "vegetable" },
   { slug: "collard-greens", name: "Collard greens", category: "vegetable" },
@@ -82,6 +84,7 @@ export const CATALOG: readonly Produce[] = [
   { slug: "garlic", name: "Garlic", category: "vegetable" },
   { slug: "garlic-scapes", name: "Garlic scapes", category: "vegetable" },
   { slug: "green-bean", name: "Green beans", aka: ["String beans"], category: "vegetable" },
+  { slug: "heirloom-tomato", name: "Heirloom tomatoes", category: "vegetable" },
   { slug: "horseradish", name: "Horseradish", category: "vegetable" },
   { slug: "kabocha-squash", name: "Kabocha squash", category: "vegetable" },
   { slug: "kale", name: "Kale", category: "vegetable" },
@@ -113,11 +116,17 @@ export const CATALOG: readonly Produce[] = [
     aka: ["Yellow squash", "Pattypan"],
     category: "vegetable",
   },
+  { slug: "sungold-tomato", name: "Sungold tomatoes", category: "vegetable" },
   { slug: "sunchoke", name: "Sunchokes", aka: ["Jerusalem artichokes"], category: "vegetable" },
   { slug: "sweet-corn", name: "Sweet corn", category: "vegetable" },
   { slug: "sweet-potato", name: "Sweet potatoes", category: "vegetable" },
   { slug: "tomatillo", name: "Tomatillos", category: "vegetable" },
-  { slug: "tomato", name: "Tomatoes", category: "vegetable" },
+  {
+    slug: "tomato",
+    name: "Tomatoes",
+    aka: ["Slicing tomatoes", "Beefsteak"],
+    category: "vegetable",
+  },
   { slug: "turnip", name: "Turnips", category: "vegetable" },
   { slug: "watercress", name: "Watercress", category: "vegetable" },
   { slug: "zucchini", name: "Zucchini", category: "vegetable" },
