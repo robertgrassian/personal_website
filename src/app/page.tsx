@@ -24,6 +24,11 @@ const sections = [
     title: "Resume",
     description: "Work history, skills, and experience",
   },
+  {
+    href: "/produce",
+    title: "Produce Tracker",
+    description: "What's growing near you this month",
+  },
 ];
 
 export default function Home() {
@@ -57,7 +62,8 @@ export default function Home() {
 
       {/* Tiles pinned to the bottom of the viewport */}
       <div className="relative z-10 pl-[calc(1rem+var(--safe-left))] pr-[calc(1rem+var(--safe-right))] pb-[calc(2rem+var(--safe-bottom))] sm:pl-[calc(1.5rem+var(--safe-left))] sm:pr-[calc(1.5rem+var(--safe-right))] sm:pb-[calc(3rem+var(--safe-bottom))]">
-        <div className="max-w-3xl mx-auto grid grid-cols-3 gap-3 sm:gap-4">
+        {/* 2x2 on phones, where four columns would leave each title one word wide; one row from sm. */}
+        <div className="max-w-4xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           {sections.map((s) => (
             // backdrop-blur-sm + bg-white/10 = frosted glass effect over the photo
             // `group` lets the h2 inside respond to the Link's hover state
@@ -69,7 +75,7 @@ export default function Home() {
               className="group flex flex-col items-center justify-center p-3 sm:p-5 rounded-lg border border-white/20 bg-white/10 backdrop-blur-sm hover:bg-white/20 hover:border-white/40 transition-all duration-200 text-center"
             >
               <h2 className="text-sm sm:text-base font-semibold text-white">{s.title}</h2>
-              {/* Description hidden on mobile — 3 narrow columns leave no room for wrapping text */}
+              {/* Description hidden on mobile, where the tiles are too short for a second line */}
               <p className="mt-1 text-xs sm:text-sm text-white/65 leading-snug hidden sm:block">
                 {s.description}
               </p>

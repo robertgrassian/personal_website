@@ -1,4 +1,6 @@
 import type { MetadataRoute } from "next";
+import { produceStatePath } from "@/lib/produce/resolveState";
+import { COVERED_STATES } from "@/lib/produce/states";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
@@ -21,5 +23,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: "https://rgrassian.com/video-games/start",
       lastModified: new Date(),
     },
+    {
+      url: "https://rgrassian.com/produce",
+      lastModified: new Date(),
+    },
+    // Covered states only: an uncovered state's page is a pointer elsewhere, not content.
+    ...COVERED_STATES.map((s) => ({
+      url: `https://rgrassian.com${produceStatePath(s.code)}`,
+      lastModified: new Date(),
+    })),
   ];
 }

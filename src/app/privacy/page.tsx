@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 // Last substantive change to this policy. Bump when the content changes.
-const LAST_UPDATED = "August 7, 2026";
+const LAST_UPDATED = "November 10, 2026";
 
 // Inline prose-link styling: muted by default, accent + underline on hover.
 // Consistent with the link treatment elsewhere on the site, and theme-aware
@@ -45,6 +45,11 @@ export default function PrivacyPolicy() {
             <li>
               <span className="text-foreground">Content you create.</span> Your username and display
               name, plus the games, play sessions, ratings, and wishlist entries you add.
+            </li>
+            <li>
+              <span className="text-foreground">Approximate location, on the produce page.</span> To
+              pick which state&apos;s produce to show, the page reads the approximate location your
+              request comes from. It is used for that one redirect and never stored.
             </li>
           </ul>
         </section>
@@ -95,7 +100,9 @@ export default function PrivacyPolicy() {
           <h2 className="text-xl font-semibold text-foreground">Cookies</h2>
           <p className="mt-3">
             Signing in sets a secure session cookie so you stay logged in between page loads. It is
-            used only for authentication. There are no advertising or tracking cookies.
+            used only for authentication. If you choose a state yourself on the produce page, one
+            more cookie remembers that choice so the page opens there next time. There are no
+            advertising or tracking cookies.
           </p>
         </section>
 

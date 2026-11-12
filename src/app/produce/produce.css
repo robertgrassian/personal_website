@@ -1,0 +1,620 @@
+/* The produce page's surface. Light is kraft paper and ink; dark is a farmers-market chalkboard.
+   Everything is scoped to [data-app="produce"], which src/app/produce/layout.tsx stamps, so none
+   of it reaches the rest of the site.
+
+   Accent comes only from the site's --link, never a literal. On kraft the light --link measures
+   about 3:1, enough for a focus ring or an underline but not for body text, so links here are
+   ink-coloured with an accent underline rather than accent-coloured. */
+
+[data-app="produce"] {
+  --p-paper: #d9c39d;
+  --p-ink: #2b2117; /* 8.3:1 on paper */
+  --p-ink-soft: #5b4934; /* 5.0:1 on paper */
+  --p-packet: #f3e9d2;
+  --p-shadow: rgba(74, 52, 26, 0.18);
+  --p-tint-fruit: #eab7a3;
+  --p-tint-vegetable: #c3d6a0;
+  --p-tint-herb: #aed2c3;
+  --p-tint-mushroom: #d6c09c;
+  --accent-glow: color-mix(in srgb, var(--link) 28%, transparent);
+  --p-texture:
+    radial-gradient(ellipse at 12% 0%, rgba(255, 255, 255, 0.28), transparent 55%),
+    radial-gradient(ellipse at 92% 85%, rgba(92, 60, 24, 0.14), transparent 55%),
+    repeating-linear-gradient(97deg, rgba(92, 60, 24, 0.035) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(4deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 13px);
+
+  /* ModalShell and IconButton paint with the game library's --shelf-* tokens. Pointing them at
+     this palette here lets the detail dialog reuse the shared chrome without forking it. */
+  --shelf-bg: var(--p-packet);
+  --shelf-border: var(--p-ink);
+  --shelf-text: var(--p-ink);
+  --shelf-text-muted: var(--p-ink-soft);
+  --shelf-input: color-mix(in srgb, var(--p-ink) 10%, transparent);
+  --shelf-input-ring: var(--link);
+  --shelf-danger: #a3271b;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-app="produce"] {
+    --p-paper: #1f2a26;
+    --p-ink: #ece6d6; /* chalk, 11.8:1 on slate */
+    --p-ink-soft: #b5b0a2; /* 6.8:1 */
+    --p-packet: #28352f;
+    --p-shadow: rgba(0, 0, 0, 0.35);
+    --p-tint-fruit: rgba(236, 140, 120, 0.24);
+    --p-tint-vegetable: rgba(170, 210, 120, 0.2);
+    --p-tint-herb: rgba(120, 205, 180, 0.2);
+    --p-tint-mushroom: rgba(214, 180, 136, 0.22);
+    /* Chalk dust: wiped smudges, not paper fibre. */
+    --p-texture:
+      radial-gradient(ellipse at 18% 8%, rgba(255, 255, 255, 0.07), transparent 50%),
+      radial-gradient(ellipse at 78% 55%, rgba(255, 255, 255, 0.04), transparent 45%),
+      radial-gradient(ellipse at 35% 98%, rgba(255, 255, 255, 0.05), transparent 40%);
+    --shelf-danger: #f08a7a;
+  }
+}
+
+/* ── Surface and page frame ─────────────────────────────────────────────── */
+
+.produce-surface {
+  min-height: calc(100dvh - var(--nav-offset));
+  background-color: var(--p-paper);
+  background-image: var(--p-texture);
+  color: var(--p-ink);
+}
+
+/* Safe areas on the sides: the page is edge to edge under viewport-fit=cover, which a phone in
+   landscape puts under the notch. */
+.produce-main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 2rem calc(1rem + var(--safe-right)) calc(4rem + var(--safe-bottom))
+    calc(1rem + var(--safe-left));
+}
+
+@media (width >= 40rem) {
+  .produce-main {
+    padding-top: 3rem;
+    padding-left: calc(1.5rem + var(--safe-left));
+    padding-right: calc(1.5rem + var(--safe-right));
+  }
+}
+
+[data-app="produce"] :focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 3px;
+}
+
+.produce-soft {
+  color: var(--p-ink-soft);
+}
+
+/* ── Hand-drawn strokes ─────────────────────────────────────────────────── */
+
+.produce-rough {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  fill: none;
+  stroke: currentColor;
+}
+
+/* Keeps the line weight in screen pixels while the path stretches to its box. */
+.produce-rough path {
+  vector-effect: non-scaling-stroke;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.produce-underline {
+  top: auto;
+  bottom: -0.12em;
+  height: 0.22em;
+}
+
+/* Absolutely placed so the SVG's intrinsic 300x150 cannot stretch the window it sits in. */
+.produce-glyph {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 100%;
+  height: 70%;
+  fill: none;
+  stroke: currentColor;
+}
+
+.produce-glyph path {
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── Heading and state sticker ──────────────────────────────────────────── */
+
+.produce-title {
+  position: relative;
+  display: inline-block;
+  font-size: clamp(3rem, 12vw, 5rem);
+  line-height: 1;
+}
+
+.produce-sticker-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 1.5rem;
+}
+
+.produce-sticker {
+  position: relative;
+  display: inline-block;
+  padding: 0.25rem 1.1rem 0.35rem;
+  font-size: 1.75rem;
+  line-height: 1.1;
+  background: var(--p-packet);
+  box-shadow: 2px 3px 0 var(--p-shadow);
+  transform: rotate(-2deg);
+}
+
+.produce-change summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-decoration-color: var(--link);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.produce-change summary::-webkit-details-marker {
+  display: none;
+}
+
+.produce-change-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.produce-change-form select,
+.produce-change-form button {
+  min-height: 2.5rem;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  border: 1.5px solid var(--p-ink);
+  border-radius: 0.375rem;
+}
+
+.produce-change-form select {
+  background: var(--p-packet);
+  color: var(--p-ink);
+}
+
+.produce-change-form button {
+  background: var(--p-ink);
+  color: var(--p-paper);
+  cursor: pointer;
+}
+
+.produce-region-line {
+  flex-basis: 100%;
+  font-size: 0.8125rem;
+  color: var(--p-ink-soft);
+}
+
+/* ── Month scrubber ─────────────────────────────────────────────────────── */
+
+/* Six by two on a phone, one row from sm: twelve in a row would be 26px targets at 320px. */
+.produce-months {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.25rem;
+  max-width: 48rem;
+  list-style: none;
+}
+
+@media (width >= 40rem) {
+  .produce-months {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+}
+
+.produce-month {
+  position: relative;
+  width: 100%;
+  min-height: 2.75rem;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--p-ink-soft);
+  background: none;
+  border: 0;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 150ms;
+}
+
+.produce-month:hover {
+  background: var(--accent-glow);
+}
+
+.produce-month[aria-pressed="true"] {
+  color: var(--p-ink);
+}
+
+/* The real month, while another is being viewed: a dot, so it is not only a colour. */
+.produce-month[aria-current="date"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0.1rem;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--link);
+  transform: translateX(-50%);
+}
+
+.produce-circle {
+  inset: 0.05rem -0.15rem;
+  width: auto;
+  height: auto;
+}
+
+.produce-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--p-ink-soft);
+}
+
+.produce-back,
+.produce-state-list a {
+  color: var(--p-ink);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--link);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+/* ── Category chips and the key ─────────────────────────────────────────── */
+
+.produce-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+/* Unequal radii on each corner read as a hand-drawn oval rather than a pill. */
+.produce-chip {
+  min-height: 2.5rem;
+  padding: 0 1rem;
+  font-size: 0.875rem;
+  color: var(--p-ink);
+  background: transparent;
+  border: 1.5px solid var(--p-ink);
+  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  cursor: pointer;
+}
+
+.produce-chip:hover {
+  background: var(--accent-glow);
+}
+
+.produce-chip[aria-pressed="true"] {
+  background: var(--p-ink);
+  color: var(--p-paper);
+}
+
+.produce-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin-top: 1rem;
+  font-size: 0.75rem;
+  color: var(--p-ink-soft);
+  list-style: none;
+}
+
+.produce-key li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.produce-key .produce-cell {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+/* ── Groups and packets ─────────────────────────────────────────────────── */
+
+.produce-group-heading {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding-right: 0.5rem;
+  font-size: 2.25rem;
+  line-height: 1.1;
+}
+
+.produce-group-count {
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.875rem;
+  color: var(--p-ink-soft);
+}
+
+.produce-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem 1rem;
+  margin-top: 1.5rem;
+  list-style: none;
+}
+
+@media (width >= 40rem) {
+  .produce-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.75rem 1.25rem;
+  }
+}
+
+@media (width >= 48rem) {
+  .produce-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (width >= 64rem) {
+  .produce-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.produce-grid > li {
+  display: flex;
+}
+
+[data-category="fruit"] {
+  --tint: var(--p-tint-fruit);
+}
+[data-category="vegetable"] {
+  --tint: var(--p-tint-vegetable);
+}
+[data-category="herb"] {
+  --tint: var(--p-tint-herb);
+}
+[data-category="mushroom"] {
+  --tint: var(--p-tint-mushroom);
+}
+
+.produce-packet {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 0.7rem 0.75rem 0.85rem;
+  font: inherit;
+  text-align: left;
+  color: var(--p-ink);
+  background: var(--p-packet);
+  border: 0;
+  box-shadow: 2px 3px 0 var(--p-shadow);
+  transform: rotate(var(--tilt, 0deg));
+  transition: transform 200ms ease;
+  cursor: pointer;
+}
+
+.produce-packet:hover {
+  transform: rotate(0deg) translateY(-3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .produce-packet,
+  .produce-month,
+  .produce-state-links a {
+    transition: none;
+  }
+  .produce-packet:hover {
+    transform: rotate(var(--tilt, 0deg));
+  }
+  .produce-state-links a:hover {
+    transform: none;
+  }
+}
+
+/* The dashed fold across the top of a seed packet. */
+.produce-packet-flap {
+  margin: 0 0.1rem 0.55rem;
+  padding-bottom: 0.4rem;
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--p-ink-soft);
+  border-bottom: 1.5px dashed color-mix(in srgb, var(--p-ink) 35%, transparent);
+}
+
+.produce-window {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 2 / 1;
+  background: var(--tint);
+  border-radius: 2px;
+}
+
+.produce-window--large {
+  aspect-ratio: 16 / 9;
+}
+
+.produce-window--large .produce-glyph {
+  height: 60%;
+}
+
+.produce-packet-name {
+  margin: 0.5rem 0.1rem 0.6rem;
+  font-size: 1.5rem;
+  line-height: 1.05;
+}
+
+/* ── Season strip ───────────────────────────────────────────────────────── */
+
+.produce-strip {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 2px;
+  margin-top: auto;
+  padding: 0 0.1rem 6px;
+}
+
+.produce-strip-month {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Four statuses, four patterns: readable in greyscale, never colour alone. */
+.produce-cell {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--p-ink) 60%, transparent);
+  border-radius: 1px;
+}
+
+.produce-cell[data-status="out"] {
+  border-color: color-mix(in srgb, var(--p-ink) 22%, transparent);
+}
+
+.produce-cell[data-status="available"] {
+  background: color-mix(in srgb, var(--p-ink) 30%, transparent);
+}
+
+.produce-cell[data-status="peak"] {
+  background: var(--p-ink);
+  border-color: var(--p-ink);
+}
+
+.produce-cell[data-status="storage"] {
+  background: repeating-linear-gradient(-45deg, var(--p-ink) 0 1.2px, transparent 1.2px 3.5px);
+}
+
+/* A caret under the month being viewed. */
+.produce-cell[data-viewing]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 2px);
+  border: 3px solid transparent;
+  border-top: 0;
+  border-bottom: 4px solid var(--p-ink);
+  transform: translateX(-50%);
+}
+
+.produce-strip--labelled .produce-cell {
+  height: 1.1rem;
+}
+
+.produce-strip-label {
+  margin-top: 7px;
+  font-size: 0.625rem;
+  color: var(--p-ink-soft);
+}
+
+/* ── Detail dialog ──────────────────────────────────────────────────────── */
+
+.produce-detail {
+  padding-top: 0.75rem;
+  color: var(--p-ink);
+}
+
+.produce-detail-heading {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--p-ink-soft);
+}
+
+/* ── Picker and uncovered page ──────────────────────────────────────────── */
+
+.produce-picker-heading {
+  margin-top: 2.5rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--p-ink-soft);
+}
+
+.produce-state-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  list-style: none;
+}
+
+.produce-state-links a {
+  display: inline-block;
+  padding: 0.3rem 1rem 0.4rem;
+  font-size: 1.4rem;
+  line-height: 1.1;
+  color: var(--p-ink);
+  text-decoration: none;
+  background: var(--p-packet);
+  border: 1.5px solid var(--p-ink);
+  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  box-shadow: 2px 3px 0 var(--p-shadow);
+  transition: transform 150ms;
+}
+
+.produce-state-links a:hover {
+  transform: translateY(-2px) rotate(-1deg);
+}
+
+.produce-state-list {
+  columns: 2;
+  column-gap: 1.5rem;
+  margin-top: 1rem;
+  font-size: 0.9375rem;
+  line-height: 2;
+  list-style: none;
+}
+
+@media (width >= 40rem) {
+  .produce-state-list {
+    columns: 3;
+  }
+}
+
+@media (width >= 64rem) {
+  .produce-state-list {
+    columns: 4;
+  }
+}
+
+.produce-uncovered {
+  margin-top: 2.5rem;
+  max-width: 40rem;
+}
+
+.produce-empty {
+  margin-top: 2.5rem;
+  font-size: 1.1rem;
+  color: var(--p-ink-soft);
+}

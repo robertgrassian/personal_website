@@ -20,6 +20,7 @@ const links: { href: string; label: string; activePaths?: string[] }[] = [
   { href: "/about", label: "About" },
   { href: "/library", label: "Game Library", activePaths: ["/library", "/video-games"] },
   { href: "/resume", label: "Resume" },
+  { href: "/produce", label: "In Season" },
 ];
 
 export function Nav() {
@@ -36,11 +37,11 @@ export function Nav() {
       {/* Everything scales down only below `sm`, from when the auth control
           still lived here and pushed the row past a phone's width. Kept after
           it moved into the library: the smaller phone type reads fine and
-          leaves room for a fourth link later. The bar's height is fixed by
+          leaves room for the fourth link, In Season. The bar's height is fixed by
           --nav-height, so type size changes nothing for GameShelves/StatsPanel,
           which offset their sticky position by --nav-offset: that height plus
           the safe-area padding above it. */}
-      <div className="px-4 sm:px-6 h-[var(--nav-height)] flex items-center justify-between gap-3">
+      <div className="px-4 sm:px-6 h-[var(--nav-height)] flex items-center justify-between gap-2 sm:gap-3">
         {/* Site name — two-line display with Caveat, links back to home */}
         <Link
           href="/"
@@ -52,7 +53,8 @@ export function Nav() {
         </Link>
 
         {/* Page links — active route gets the accent color */}
-        <ul className="flex items-center gap-3 sm:gap-6 list-none">
+        {/* gap-2 below sm: with four links, gap-3 overflowed a 320px phone by 12px. */}
+        <ul className="flex items-center gap-2 sm:gap-6 list-none">
           {links.map(({ href, label, activePaths }) => (
             <li key={href}>
               <Link
