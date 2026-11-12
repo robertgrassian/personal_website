@@ -16,11 +16,13 @@ import { caveat } from "../lib/fonts";
 // startsWith, so /video-games also catches /video-games/u/{username} and
 // /video-games/start. A third entry for /u/ was needed while those pages lived
 // at the top level.
-const links: { href: string; label: string; activePaths?: string[] }[] = [
+// `shortLabel` replaces the label on phones narrower than 380px, where the full row of four
+// does not fit.
+const links: { href: string; label: string; shortLabel?: string; activePaths?: string[] }[] = [
   { href: "/about", label: "About" },
   { href: "/library", label: "Game Library", activePaths: ["/library", "/video-games"] },
   { href: "/resume", label: "Resume" },
-  { href: "/produce", label: "In Season" },
+  { href: "/produce", label: "Produce Tracker", shortLabel: "Produce" },
 ];
 
 export function Nav() {
@@ -37,7 +39,7 @@ export function Nav() {
       {/* Everything scales down only below `sm`, from when the auth control
           still lived here and pushed the row past a phone's width. Kept after
           it moved into the library: the smaller phone type reads fine and
-          leaves room for the fourth link, In Season. The bar's height is fixed by
+          leaves room for the fourth link, Produce Tracker. The bar's height is fixed by
           --nav-height, so type size changes nothing for GameShelves/StatsPanel,
           which offset their sticky position by --nav-offset: that height plus
           the safe-area padding above it. */}
@@ -55,10 +57,12 @@ export function Nav() {
         {/* Page links — active route gets the accent color */}
         {/* gap-2 below sm: with four links, gap-3 overflowed a 320px phone by 12px. */}
         <ul className="flex items-center gap-2 sm:gap-6 list-none">
-          {links.map(({ href, label, activePaths }) => (
+          {links.map(({ href, label, shortLabel, activePaths }) => (
             <li key={href}>
               <Link
                 href={href}
+                // Names the link in full for screen readers whichever span is showing.
+                aria-label={shortLabel ? label : undefined}
                 // startsWith handles nested routes (e.g. /video-games/start)
                 className={`text-xs sm:text-sm whitespace-nowrap transition-colors duration-150 ${
                   (activePaths ?? [href]).some((p) => pathname.startsWith(p))
@@ -66,7 +70,14 @@ export function Nav() {
                     : "text-subtle hover:text-link"
                 }`}
               >
-                {label}
+                {shortLabel ? (
+                  <>
+                    <span className="min-[380px]:hidden">{shortLabel}</span>
+                    <span className="hidden min-[380px]:inline">{label}</span>
+                  </>
+                ) : (
+                  label
+                )}
               </Link>
             </li>
           ))}
