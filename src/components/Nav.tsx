@@ -20,8 +20,8 @@ import { caveat } from "../lib/fonts";
 // does not fit.
 const links: { href: string; label: string; shortLabel?: string; activePaths?: string[] }[] = [
   { href: "/about", label: "About" },
-  { href: "/library", label: "Game Library", activePaths: ["/library", "/video-games"] },
   { href: "/resume", label: "Resume" },
+  { href: "/library", label: "Game Library", activePaths: ["/library", "/video-games"] },
   { href: "/produce", label: "Produce Tracker", shortLabel: "Produce" },
 ];
 
