@@ -1,10 +1,10 @@
 import type { Region } from "../types.ts";
 
-// Built from the NY, CT, NJ and PA state charts plus the Seasonal Food Guide (one vote, its NY/NJ/CT/MA/PA
-// majority). A month is in when most sources that list the item have it, or one short when NY and CT both
-// do. `P` means every source agrees, never at either end of a run of four months or more; herbs never get
-// one, since the state charts only list "herbs". `s` needs a majority of the NY, CT and PA charts,
-// the only ones that mark storage. Generic rows ("winter squash", "peas") stand in for each variety.
+// Built from the NY, CT, NJ, PA and MA state charts plus the Seasonal Food Guide (one vote, its state
+// majority, leaving out MA where the MA chart lists the item). A month is in when most sources that list the
+// item have it, or one short when NY and CT both do. `P` means every source agrees, never at either end of a
+// run of four months or more; herbs never get one. `s` needs a majority of the NY, CT and PA charts, the
+// only ones that mark storage. Generic rows ("winter squash", "peas") stand in for each variety.
 export const northeast: Region = {
   id: "northeast",
   name: "the Northeast",
@@ -25,6 +25,11 @@ export const northeast: Region = {
     {
       title: "Pennsylvania Department of Agriculture: PA Preferred Seasonal Produce Calendar",
       url: "https://www.pa.gov/content/dam/copapwp-pagov/en/pda/documents/business-industry/pa_preferred/documents/SeasonalCalendar-2022.pdf",
+    },
+    {
+      title:
+        "Massachusetts Department of Agricultural Resources: Massachusetts-Grown Produce Availability Calendar",
+      url: "https://www.mass.gov/doc/produce-availability-chart/download",
     },
     {
       title: "Penn State Extension: Harvest Calendar",
@@ -64,47 +69,49 @@ export const northeast: Region = {
     apple: "ssss..aPPPas",
     apricot: "......aaa...",
     blackberry: "......aa....",
-    blueberry: "......Paa...",
-    cantaloupe: ".......PP...",
+    blueberry: "......Pa....",
+    cantaloupe: ".......Pa...",
     cherry: ".....Pa.....",
     "concord-grape": ".......aPa..",
-    cranberry: ".........aaa",
+    cranberry: ".........PPa",
     currant: ".....aaa....",
     gooseberry: ".....aa.....",
     grape: ".......aPa..",
     honeydew: "......aaaa..",
     nectarine: "......aPP...",
     pawpaw: "........aa..",
-    peach: "......PPP...",
-    pear: ".......Paas.",
+    peach: "......aPP...",
+    pear: ".......aaas.",
     plum: "......aPP...",
     pluot: ".......aa...",
     quince: ".........aa.",
-    raspberry: "......aaPa..",
+    raspberry: "......PaP...",
     "sour-cherry": ".....aP.....",
     strawberry: ".....Pa.....",
     watermelon: ".......aaa..",
     // Vegetables
     "acorn-squash": "ss.....aPPas",
-    arugula: "....PP..Pa..",
+    arugula: "....aPaaPa..",
     asparagus: "....Pa......",
     beet: ".....aPPPaa.",
     "bell-pepper": "......aPPa..",
-    "bok-choy": ".....a.aPP..",
-    broccoli: ".....P..aPP.",
+    "bok-choy": ".....aaaPa..",
+    broccoli: ".....aaaaPa.",
     "broccoli-rabe": "....aaaaaaa.",
     "brussels-sprouts": "........aPP.",
     "butternut-squash": "ss.....aPPas",
     cabbage: "sss..aaaaPas",
     carrot: "sss...aPPPas",
-    cauliflower: ".......aaPa.",
+    cauliflower: ".......aaaa.",
     celeriac: ".......aaaa.",
     celery: ".......PPa..",
-    chard: "....aPPPPPa.",
+    chard: "....aaPPPa..",
+    // The three tomato rows keep an August peak against the MA chart, whose tomato bars start in
+    // September while the other five sources start in July.
     "cherry-tomato": "......aPPa..",
     "chile-pepper": "......aPPa..",
     "collard-greens": "....aaPPPPa.",
-    cucumber: "......aPPa..",
+    cucumber: "......aPaa..",
     "dandelion-greens": "...aaa..aaa.",
     "delicata-squash": "ss.....aPPas",
     eggplant: "......aPPa..",
@@ -113,13 +120,13 @@ export const northeast: Region = {
     fiddleheads: "...aa.......",
     garlic: ".....aPaaass",
     "garlic-scapes": "....aa......",
-    "green-bean": "......aPPa..",
+    "green-bean": "......aPaa..",
     "heirloom-tomato": ".......PPa..",
     horseradish: "aaaa.....aaa",
     "kabocha-squash": "ss.....aPPas",
     kale: ".....aaaPPa.",
     kohlrabi: ".....aaaaa..",
-    leek: ".......aaPaa",
+    leek: ".......aaPas",
     lettuce: "....aPaaPa..",
     "mustard-greens": "...aaPaaPPa.",
     "napa-cabbage": "....aa..aaa.",
@@ -136,10 +143,10 @@ export const northeast: Region = {
     scallion: "....aPPPPa..",
     shallot: "s....aa....s",
     "shelling-pea": "....aPa..a..",
-    "snap-pea": "....aPa..a..",
+    "snap-pea": "....aPa.aa..",
     "snow-pea": "....aPa..a..",
     "spaghetti-squash": "ss.....aPPas",
-    spinach: "...aPP..PP..",
+    spinach: "...aPP..aa..",
     "summer-squash": ".....aPPa...",
     "sungold-tomato": "......aPPa..",
     "sweet-corn": "......aPPa..",
