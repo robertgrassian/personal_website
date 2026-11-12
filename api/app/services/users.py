@@ -173,7 +173,7 @@ def get_user_games(db: Session, username: str) -> list[GameRead]:
     # Before the DTOs are built, so anything re-sourced lands in THIS response
     # rather than one revalidation later. Usually a no-op: it works off the
     # rows already loaded and only reaches the network when one is due.
-    catalog_refresh.refresh_stale_rows(db, [meta for _, meta in entries])
+    catalog_refresh.refresh_stale_rows(db, [(meta, game.system) for game, meta in entries])
     sessions_by_game: dict[int, list[PlaySession]] = defaultdict(list)
     for session in users_repo.list_play_sessions(db, [g.id for g, _ in entries]):
         sessions_by_game[session.game_id].append(session)
@@ -210,7 +210,7 @@ def get_user_wishlist(db: Session, username: str) -> list[WishlistGameRead]:
     # Refreshed like the library, and the wishlist is where it earns the most:
     # a game added before its release date was announced is the case this
     # exists for. See services/catalog_refresh.py.
-    catalog_refresh.refresh_stale_rows(db, [meta for _, meta in entries])
+    catalog_refresh.refresh_stale_rows(db, [(meta, item.system) for item, meta in entries])
     return [to_wishlist_read(item, meta) for item, meta in entries]
 
 

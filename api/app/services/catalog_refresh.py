@@ -22,6 +22,7 @@ write revalidates the tag. Bulk repair is still scripts/backfill_*.py.
 
 import logging
 import time
+from collections.abc import Collection, Iterable
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
@@ -59,23 +60,33 @@ MIN_LEG = 0.3
 WIKIPEDIA_CALLS = 2
 
 
-def is_incomplete(meta: GameMetadata) -> bool:
+def is_incomplete(meta: GameMetadata, systems: Collection[str] = ()) -> bool:
     """Whether the catalog is missing something IGDB or Wikipedia could answer.
+
+    ``systems`` are the consoles the loaded entries record for this row. One
+    IGDB lists as undated is a hole: it is the announced port waiting for a
+    date. A system absent from a non-empty map is not, since it may never match.
 
     Permanently true for a few rows: platforms stays empty on a variant row (see
     _platforms_to_write), and IGDB has no cover for plenty of games.
     """
-    return not (meta.release_date and meta.genres and meta.platforms and meta.image_url)
+    if not (meta.release_date and meta.genres and meta.platforms and meta.image_url):
+        return True
+    dates = meta.platform_release_dates or {}
+    # Empty: added while IGDB timed out, or not yet backfilled.
+    return not dates or any(system in dates and dates[system] is None for system in systems)
 
 
-def is_due(meta: GameMetadata, now: datetime) -> bool:
+def is_due(meta: GameMetadata, now: datetime, systems: Collection[str] = ()) -> bool:
     if meta.igdb_id is None:
         return False
-    interval = INCOMPLETE_RETRY_AFTER if is_incomplete(meta) else STALE_AFTER
+    interval = INCOMPLETE_RETRY_AFTER if is_incomplete(meta, systems) else STALE_AFTER
     return now - meta.refreshed_at >= interval
 
 
-def _due_rows(rows: list[GameMetadata], now: datetime) -> list[GameMetadata]:
+def _due_rows(
+    rows: list[GameMetadata], now: datetime, systems: dict[int, set[str]]
+) -> list[GameMetadata]:
     """The rows worth refreshing, worst first, capped.
 
     Two queues rather than one sorted list: permanently-incomplete rows come due
@@ -86,9 +97,15 @@ def _due_rows(rows: list[GameMetadata], now: datetime) -> list[GameMetadata]:
     Oldest first within a queue, so a library that is behind rotates through its
     rows instead of re-picking the same one.
     """
-    due = sorted((r for r in rows if is_due(r, now)), key=lambda meta: meta.refreshed_at)
-    incomplete = [meta for meta in due if is_incomplete(meta)]
-    stale = [meta for meta in due if not is_incomplete(meta)]
+
+    def recorded(meta: GameMetadata) -> set[str]:
+        return systems.get(meta.id, set())
+
+    due = sorted(
+        (r for r in rows if is_due(r, now, recorded(r))), key=lambda meta: meta.refreshed_at
+    )
+    incomplete = [meta for meta in due if is_incomplete(meta, recorded(meta))]
+    stale = [meta for meta in due if not is_incomplete(meta, recorded(meta))]
     reserved = MAX_ROWS_PER_READ // 2
     picked = incomplete[:reserved] + stale[:reserved]
     # Whatever the reservation left unused, filled from either queue. Incomplete
@@ -209,8 +226,11 @@ def _refresh_row(work: Session, meta: GameMetadata, deadline: float) -> bool:
     )
 
 
-def refresh_stale_rows(db: Session, rows: list[GameMetadata]) -> None:
+def refresh_stale_rows(db: Session, entries: Iterable[tuple[GameMetadata, str | None]]) -> None:
     """Re-source the most out-of-date rows among the ones this read loaded.
+
+    ``entries`` pairs each loaded row with the console its entry records, so an
+    undated port counts as incomplete (see is_incomplete).
 
     ``db`` is the request's session, borrowed for one thing: expiring the rows
     this changed, so the response reads the new values rather than showing them
@@ -224,7 +244,13 @@ def refresh_stale_rows(db: Session, rows: list[GameMetadata]) -> None:
     the response into an N+1. It also keeps a failure here from poisoning the
     request's session.
     """
-    due = _due_rows(rows, datetime.now(UTC))
+    rows: dict[int, GameMetadata] = {}
+    systems: dict[int, set[str]] = {}
+    for meta, system in entries:
+        rows[meta.id] = meta
+        if system:
+            systems.setdefault(meta.id, set()).add(system)
+    due = _due_rows(list(rows.values()), datetime.now(UTC), systems)
     if not due:
         # The overwhelming majority of reads. Nothing above this line has
         # touched the network or the database.
