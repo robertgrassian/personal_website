@@ -201,6 +201,20 @@ game in progress (the tallest case):
   where the scroller takes over. At 390x430 the face and the unsaved-changes
   prompt together still fit without scrolling.
 
+## The page owns the safe areas
+
+`layout.tsx` exports `viewport: { viewportFit: "cover" }`, so iOS stops insetting the page out
+of the notch and home-indicator strips: page content reaches the screen edges, which is what
+`ModalBackdrop` relies on to dim them. A `fixed` overlay does not, whatever its insets say:
+WebKit clips fixed layers to a layout viewport that goes stale when the URL bar shrinks, which
+is why the backdrop is document-positioned.
+
+The cost is that anything pinned to a viewport edge must pad itself back out, via the four
+`--safe-*` tokens in `globals.css` (all four: covering un-insets left and right too, which
+matters in landscape). Today that is `Nav`, `StatsPanel`, `ModalShell` and the homepage tiles.
+`FilterSheet` predates the change and pads its action row with a raw
+`max(1rem, env(safe-area-inset-bottom))`, so it must not be padded again.
+
 ## Not everything is fixable
 
 Firefox visibly slides the whole page as the keyboard opens, and **nothing in

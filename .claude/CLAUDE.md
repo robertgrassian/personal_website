@@ -2,202 +2,70 @@
 
 ## Project Purpose
 
-Personal website built with **Next.js 15, React 19, TypeScript, and Tailwind CSS v4**, with a **FastAPI (Python) backend** in `api/` and Postgres (Supabase) behind it. The primary goal of this project is **learning frontend development**. A polished website is a welcome side effect, but teaching comes first.
+Personal website: Next.js 15 / React 19 / TypeScript / Tailwind v4, with a FastAPI backend in `api/` over Postgres (Supabase). The primary goal is **learning frontend development**; a polished site is a side effect.
 
 ## How to Work With Me
 
-### Teaching Mode
-
-- **Explain all generated code.** Every code snippet should include an explanation of what it does and why. Don't just produce code — teach the concepts behind it.
-- **Implement, don't hand back exercises.** Write the code yourself and teach through it. Don't offer to let me write it instead, and don't hold back an implementation waiting for me to try first. The teaching happens in how you explain what you built, not in making me build it. (This replaced an earlier "prefer guiding over doing" rule, retired 2026-07-29 once the basics were no longer the bottleneck.)
-- **Use my backend knowledge as a bridge.** I'm a staff backend engineer experienced with Java, Spring, SQL, Clickhouse, and MongoDB. When a frontend concept maps well to something from that world, use the comparison to accelerate understanding — but only when it genuinely clarifies things, not for every concept.
-
-### When Generating Code
-
-- Add inline comments for non-obvious patterns, especially React-specific idioms (hooks, component lifecycle, state management, JSX patterns).
-- Call out when something is a Next.js convention vs a React convention vs a general web/JS/TS pattern, so I build the right mental model of where concepts live.
-- If there are multiple valid approaches, briefly explain the tradeoffs so I learn to evaluate options.
-- **Do not include analogies in code comments.** Keep comments descriptive and technical. Analogies belong in chat explanations, not in source files.
-- **Keep comments as short as the point allows.** Say the non-obvious "why" and stop. Prefer one or two lines to a paragraph, and cut any sentence restating what the code already says. Length is earned, not assumed: a longer comment is right only when the reasoning genuinely needs it, such as a subtle constraint or a rejected alternative that will otherwise be re-proposed. The teaching happens in chat, where it costs nothing to read past.
+- **Explain all generated code**: what it does and why. Teach the concepts, don't just produce code.
+- **Implement, don't hand back exercises.** Write the code yourself and teach through how you explain it.
+- **Use my backend knowledge as a bridge** (staff backend engineer: Java, Spring, SQL, Clickhouse, MongoDB), but only when the comparison genuinely clarifies.
+- Call out whether something is a Next.js, React, or general web/JS/TS convention, and briefly give tradeoffs when there are multiple valid approaches.
+- **Code comments:** short and technical. Comment non-obvious patterns (especially React idioms), state the "why" and stop, never restate the code. No analogies in comments; those belong in chat. Length is earned only by a subtle constraint or a rejected alternative that would otherwise be re-proposed.
 
 ## Architecture
 
-**The diagram is [`docs/architecture.md`](../docs/architecture.md)** — read it before changing how data moves. The two paths in one line each:
+**Read [`docs/architecture.md`](../docs/architecture.md) before changing how data moves.** In one line each:
 
-- **Read** (public, cached): Server Component `LibraryPage.tsx` → `src/lib/libraryApi.ts` (this file imports `server-only` and is the server boundary; there is no `gamesServer.ts`) → `GET /api/library/users/{username}/*` → routers → services → repositories → Postgres.
-- **Write** (owner-only, BFF): browser → Server Action `src/app/video-games/actions.ts` → `src/lib/meApi.ts` (session cookie → Bearer JWT) → `/api/library/me/*` → same layers → on success `revalidateTag(libraryCacheTag(...))`.
+- **Read** (public, cached): Server Component `LibraryPage.tsx` → `src/lib/libraryApi.ts` (the `server-only` boundary) → `GET /api/library/users/{username}/*` → routers → services → repositories → Postgres.
+- **Write** (owner-only, BFF): browser → Server Action `src/app/video-games/actions.ts` → `src/lib/meApi.ts` (session cookie → Bearer JWT) → `/api/library/me/*` → on success `revalidateTag(libraryCacheTag(...))`.
 
-**Every library read happens in that one `Promise.all`** — games, wishlist, sessions, followers,
-following. Nothing the library shows is fetched from the browser afterwards, so no display
-component has a loading state and a write's `revalidateTag` reaches every surface at once. The play
-history was the last exception and stopped being one 2026-09-06: it was lazy on the theory that it
-would bloat the prerendered payload, which measured at 405 bytes against games' 54KB.
+**Every library read happens in `LibraryPage`'s one `Promise.all`.** Nothing the library shows is fetched from the browser afterwards, so display components have no loading state and one `revalidateTag` reaches every surface. Filter, group and sort are client-side pure functions in `pipeline.ts`.
 
-Filter, group and sort are **client-side**, in `pipeline.ts` — pure functions over the fetched array, no React. The API returns a whole library; the browser narrows it.
-
-Docs ownership, so the same fact does not drift across four files: **`api/README.md`** owns the backend layer map and the data model, **`docs/architecture.md`** owns the request flow, **`README.md`** owns what the project is and how to run it, and this file owns conventions and the map below. Link, don't restate.
+Docs ownership, so facts don't drift: `api/README.md` owns the backend layers and data model, `docs/architecture.md` the request flow, `README.md` what the project is and how to run it, this file conventions. Link, don't restate.
 
 ### Where things live
 
-| Task                                       | File                                                                                                                                                                                                                                                                                                  |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Library read fetches, cache tags           | `src/lib/libraryApi.ts`                                                                                                                                                                                                                                                                               |
-| Stale/missing catalog data refresh         | `api/app/services/catalog_refresh.py`                                                                                                                                                                                                                                                                 |
-| New catalog row values (add, preview)      | `api/app/services/catalog_sourcing.py`                                                                                                                                                                                                                                                                |
-| Owner writes (client-callable)             | `src/app/video-games/actions.ts` → `src/lib/meApi.ts`                                                                                                                                                                                                                                                 |
-| Filter / group / sort logic                | `src/components/video_games/pipeline.ts`                                                                                                                                                                                                                                                              |
-| Filter/group/sort option lists             | `src/components/video_games/libraryConfig.ts`, `useFilterOptions.ts`                                                                                                                                                                                                                                  |
-| Stats panel: the ad hoc SQL tab            | `SqlQueryPanel.tsx` is the UI; the tables, columns and examples are `queryTables.ts`, which `queryTables.test.ts` executes                                                                                                                                                                            |
-| Shared types, `RATINGS`, `systemLabel`     | `src/lib/games.ts` (library), `wishlist.ts`, `profile.ts`, `follows.ts`, `notes.ts`                                                                                                                                                                                                                   |
-| Shelf UI                                   | `GameShelves.tsx` → the active theme's group in `shelves/` → `GameCase.tsx`                                                                                                                                                                                                                           |
-| Which shelf design is worn                 | `src/lib/shelfTheme.ts` (the switch), `shelves/index.ts` (name → component)                                                                                                                                                                                                                           |
-| Game detail card (click a case or the CRT) | `GameDetailCard.tsx`, which flies the case out and renders `GameCaseBackSurface.tsx` + `GameCaseSpine.tsx`. From the CRT it grows out of the screen instead (`useScreenReveal.ts`), requested through `GameCardOpenerProvider` in `LibraryCardContext.tsx` because the CRT sits outside `GameLibrary` |
-| Library page shell (both routes)           | `src/components/video_games/LibraryPage.tsx`                                                                                                                                                                                                                                                          |
-| Produce page (`/produce/[state]`)          | `src/app/produce/` (routes, `produce.css`, the state-cookie Server Action) → `src/components/produce/ProduceBrowser.tsx`. State redirect in `src/middleware.ts` via `resolveState.ts`                                                                                                                 |
-| Produce data, seasons, rough.js chrome     | `src/lib/produce/`: `catalog.ts`, `regions/`, `states.ts`, `season.ts`; `sketch.ts` is server-only and the one place rough.js is imported                                                                                                                                                             |
-| Owner edit surfaces                        | On the detail card: `GameEditFields.tsx`, `WishlistEditFields.tsx`, `GamePlayHistory.tsx`. Two dialogs left: `AddGameModal.tsx` and `CurrentlyPlayingPanel.tsx`                                                                                                                                       |
-| Dialog chrome                              | `ModalFrame.tsx` (backdrop, scroll lock, focus, Escape) → `ModalShell.tsx` (the conventional panel), `ModalBackdrop.tsx`                                                                                                                                                                              |
-| "Currently playing" CRT                    | `src/components/crt/CrtTv.tsx` + `crt.css`, wrapped by `CurrentlyPlayingSection.tsx`, which owns the owner-only manage panel. A tap on the screen opens the game's detail card; swipes, arrow keys and the dots change channel                                                                        |
-| Can this viewer edit?                      | `FollowControls.tsx` (two hooks), `useViewerRelationship.ts`, `ownedLibrary.ts`                                                                                                                                                                                                                       |
-| Auth (browser/server/middleware)           | `src/lib/supabase/`, `src/app/auth/*`, `src/app/sign-in/` + `src/components/auth/SignInPanel.tsx`, `src/lib/nextPath.ts` (the `next` guard), `src/app/account/`, `src/app/onboarding/`                                                                                                                |
-| Shelf wood grain (re-theming)              | `scripts/wood-grain/tiles/*.mjs` (source) → `npm run grain` → `public/shelf/*.webp` (committed). Noise in `wood-grain/turbulence.mjs`, rings in `wood-grain/rings.mjs`                                                                                                                                |
-| Library styles                             | `video-games.css` (shared chrome), `shelf-themes.css` (per-theme surfaces), both in `src/app/video-games/`; site tokens in `src/app/globals.css`                                                                                                                                                      |
-| Mobile keyboard / viewport behavior        | [`docs/mobile-viewport.md`](../docs/mobile-viewport.md); `keyboardBand.ts`, `useModalChrome.ts`                                                                                                                                                                                                       |
-| API endpoints                              | `api/app/routers/` → `services/` → `repositories/` (see `api/README.md`)                                                                                                                                                                                                                              |
-| API endpoint reference, runnable           | `api/bruno/` (Bruno collection; `test_bruno_collection.py` keeps it in sync)                                                                                                                                                                                                                          |
-| Migrations                                 | `api/alembic/versions/`                                                                                                                                                                                                                                                                               |
-| Production deploys, migrations in CD       | [`docs/deployment.md`](../docs/deployment.md); `.github/workflows/deploy.yml`                                                                                                                                                                                                                         |
-| Tests                                      | `api/tests/` (pytest); `src/**/*.test.ts` and `scripts/**/*.test.mjs` (`npm test`, node --test, no runner installed)                                                                                                                                                                                  |
-
-Gone, so do not go looking: `EditGameModal.tsx` and `EditWishlistModal.tsx` were deleted 2026-08-20 when the detail card absorbed them. Their bodies are the `*EditFields` components above, and the one-Save model they established is what any new owner form should adopt. `ShelfSection.tsx` became `shelves/PlainGroup.tsx` when the shelf themes landed, and `CurrentlyPlaying.tsx` (the old stylized CRT, imported by nothing) went with it, because the wood-grain CSS it depended on was deleted in the same change. The live CRT is `crt/CrtTv.tsx`.
-
-## Routes
-
-| Route                           | What it is                                                                                                                   |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `/`                             | Hero photo + frosted-glass tile grid. No nav bar; the tiles are the nav                                                      |
-| `/about`, `/resume`, `/privacy` | Bio and photo grid; work history + PDF; privacy policy                                                                       |
-| `/video-games`                  | Robert's library at its stable URL, and the logged-out demo                                                                  |
-| `/video-games/u/[username]`     | Anyone's library. Same `LibraryPage` shell, different username                                                               |
-| `/video-games/start`            | The game library's pitch page and Google's OAuth "App homepage". Signs in with `next=/onboarding`; do not move or retitle it |
-| `/sign-in`                      | The site's sign-in page, `noindex`. Returns to `?next=` (guarded by `safeNextPath`), default `/library`                      |
-| `/account`                      | Account settings (today: delete account), on site tokens. `/video-games/account` redirects here                              |
-| `/currently-playing`            | Standalone CRT, no shelves                                                                                                   |
-| `/produce`                      | Sends you to your state (cookie, then IP) in middleware; otherwise a static state picker                                     |
-| `/produce/[state]`              | What is in season there. Static, revalidated hourly; uncovered states say so                                                 |
-| `/library`                      | Redirect-only resolver: onboarded → their library; logged out or no profile → `/video-games`                                 |
-| `/onboarding`, `/auth/*`        | Create a game library profile (username picker); OAuth callback + magic-link confirm route handlers                          |
+- Library read fetches, cache tags: `src/lib/libraryApi.ts`
+- Owner writes: `src/app/video-games/actions.ts` → `src/lib/meApi.ts`
+- Catalog refresh / new catalog rows: `api/app/services/catalog_refresh.py` / `catalog_sourcing.py`
+- Filter/group/sort: `src/components/video_games/pipeline.ts`; option lists in `libraryConfig.ts`, `useFilterOptions.ts`
+- Stats SQL tab: `SqlQueryPanel.tsx` (UI), `queryTables.ts` (tables, columns, examples; executed by `queryTables.test.ts`)
+- Shared types: `src/lib/games.ts` (incl. `RATINGS`, `systemLabel`), `wishlist.ts`, `profile.ts`, `follows.ts`, `notes.ts`
+- Shelf UI: `GameShelves.tsx` → active theme's group in `shelves/` → `GameCase.tsx`. Theme switch: `src/lib/shelfTheme.ts`, `shelves/index.ts`
+- Game detail card: `GameDetailCard.tsx` (+ `GameCaseBackSurface.tsx`, `GameCaseSpine.tsx`). Opened from the CRT via `useScreenReveal.ts` and `GameCardOpenerProvider` in `LibraryCardContext.tsx`
+- Owner edit surfaces: `GameEditFields.tsx`, `WishlistEditFields.tsx`, `GamePlayHistory.tsx` on the detail card; dialogs `AddGameModal.tsx`, `CurrentlyPlayingPanel.tsx`. New owner forms adopt the detail card's one-Save model
+- Dialog chrome: `ModalFrame.tsx` (backdrop, scroll lock, focus, Escape) → `ModalShell.tsx`, `ModalBackdrop.tsx`
+- CRT: `src/components/crt/CrtTv.tsx` + `crt.css`, wrapped by `CurrentlyPlayingSection.tsx`
+- Can this viewer edit?: `FollowControls.tsx`, `useViewerRelationship.ts`, `ownedLibrary.ts`
+- Produce page: `src/app/produce/` (routes, `produce.css`, state-cookie Server Action) → `src/components/produce/ProduceBrowser.tsx`; state redirect in `src/middleware.ts` via `resolveState.ts`
+- Produce data: `src/lib/produce/` (`catalog.ts`, `regions/`, `states.ts`, `season.ts`). `sketch.ts` is server-only and the one place rough.js is imported
+- Auth: `src/lib/supabase/`, `src/app/auth/*`, `src/app/sign-in/` + `src/components/auth/SignInPanel.tsx`, `src/lib/nextPath.ts` (the `next` guard), `src/app/account/`, `src/app/onboarding/`
+- Styles: `video-games.css` (shared), `shelf-themes.css` (per theme), both in `src/app/video-games/`; site tokens in `src/app/globals.css`
+- API endpoint reference: `api/bruno/` (kept in sync by `test_bruno_collection.py`)
+- Deploys and migrations in CD: [`docs/deployment.md`](../docs/deployment.md)
 
 ## Conventions
 
-- **Never read or write `TODO.md` or `docs/todo/` without invoking the `proj-todo` skill.** It owns the backlog: `TODO.md` is the index and `docs/todo/<slug>.md` holds one item's detail. Adding, removing, completing, reordering, rewording, answering "what's next", and any direct edit — including when you only need its contents to answer something. Conversational phrasings count as much as a typed command. Reads through the skill never modify the file. The structure rules live in the skill and are deliberately not repeated here: when they were duplicated into this always-loaded file, having them already in context is what made the skill feel redundant and got it skipped for a whole session.
-- **Never add "Co-Authored-By: Claude" (or any Claude/Anthropic attribution) to git commit messages.**
-- **Use `ggp` instead of `git push` when pushing branches.**
-- **Never use em dashes (—) in user-facing text.** This covers anything a visitor can read or hear: JSX text, button and heading copy, `aria-label`s, `alt` text, `metadata` titles and descriptions, error messages, placeholder copy. Use a colon when the second half explains the first, a comma for an aside, or split into two sentences. Code comments are exempt, and so is the `—` used as a "no value" placeholder in table-like output. Applies to Markdown that ships as a page (`/privacy`), not to `TODO.md` or docs.
-- **Routes use kebab-case, never snake_case** (`/video-games`, `/currently-playing`, `/video-games/start`). Renamed from underscores 2026-07-28; the old URLs are kept alive by permanent redirects in `next.config.ts`, which must stay. Note this is a _URL_ convention — `src/components/video_games/` and snake_case SQL column names (`currently_playing`) are deliberately untouched.
-- **The game library owns the `/video-games` prefix.** Everything belonging to it nests there, including per-user libraries at `/video-games/u/[username]` (moved off a top-level `/u/` 2026-07-29, redirect in `next.config.ts`). New library surfaces go under that prefix rather than at the top level. Auth is the deliberate exception: `/sign-in`, `/account`, `/onboarding` and `/auth/*` stay top-level because identity is site-wide, not the library's.
-- **One login, many apps.** Signing in creates a site account and nothing else, and never forces
-  onboarding: a signed-in visitor with no game library profile is a complete state (`/library`
-  sends them to `/video-games`, which offers Create a profile). An app's per-user data is made
-  when the visitor asks for it. New per-user tables key on the auth user, not on `profiles`.
-- **The shelf is a theme, not a layout.** `ACTIVE_SHELF_THEME` in `src/lib/shelfTheme.ts` picks
-  between the groups in `src/components/video_games/shelves/`, and `LibraryPage` stamps
-  `data-shelf-theme` beside `shelf-theme`. A theme owns exactly two things: how ONE group of
-  games is laid out, and the surface tokens in `shelf-themes.css`. Everything else — the
-  pipeline, the sticky chrome, `GameCase`, the detail card and its flight — is shared and must
-  stay that way, or the second theme stops being cheap. Same shape as the accent switch below,
-  and for the same reason: per-user library styling swaps the constant for a value read per
-  request and nothing else moves. **Adding a theme means all three: a name, a component, a
-  token block.** The library's OG image (`video-games/opengraph-image.tsx`) draws the built-in
-  case whatever the switch says; Satori cannot read the theme's CSS.
-- **The shelf's wood grain is baked, not inlined, and both halves of that are load-bearing.**
-  The profiles in `scripts/wood-grain/tiles/` are the source of truth; `npm run grain` renders them
-  to `public/shelf/*.webp`, plus PNG copies in `public/shelf/og/` for the library's OG image
-  (Satori cannot decode WebP), all committed. **To tweak the grain, edit a profile and re-run it**
-  (~2s for all three; `npm run grain -- grain-h` bakes just one). Every layer paints one
-  colour at `gain × field + offset` alpha; the validator rejects an unknown or missing field rather
-  than defaulting it, so a typo is loud. Three things were tried and are wrong, so do not re-propose
-  any of them. Putting the noise back in CSS as a data URI: it is generated per pixel and the browser
-  regenerates it whenever the raster target size changes, which blanked the whole library for about a
-  second on every desktop zoom step. Rasterising with sharp/librsvg: librsvg ignores `stitchTiles`,
-  so its tiles do not wrap and show a hard line at every repeat — hence the port of the spec's
-  `feTurbulence` in `turbulence.mjs`, which stitches and matches what Chrome draws. Drawing wood with
-  noise alone: wood is periodic and fractal noise is not, so it can only ever produce a smear, which
-  is why `rings.mjs` exists. A ring layer can break the tiling in two independent ways, and
-  `profiles.test.mjs` checks both axes of every shipped tile against the median interior gap:
-  **its drift and jitter must come from a stitched turbulence** (they run along the grain), and
-  **`across` must stay measured from the tile's mid-line** (it runs the other way and is a bare
-  linear ramp, saved only by entering squared and symmetric). `grain-back` shipped once measured
-  from 0.42 of its width and seamed 82x worse than an interior column, which is why there is no
-  `center` parameter any more.
-- **The grain sources were SVG until 2026-09-05 and are not coming back.** They bought one thing:
-  a browser could preview them. The ring primitive is not a filter any browser implements, so that
-  stopped being true, and what was left was regex-parsed XML plus a 20-number `feColorMatrix` whose
-  alpha gain lived at index 15. Every layer only ever painted one colour at a varying alpha, so the
-  named fields lost no expressiveness.
-- **The accent color is a switch, not a literal.** `ACTIVE_ACCENT` in `src/lib/accent.ts` picks
-  between the palettes defined on `[data-accent]` in `globals.css`; `layout.tsx` stamps the
-  attribute. Use `--link` / `text-link` for accent color, `--accent-on-dark` for surfaces that are
-  dark in BOTH schemes (the detail card), and `--accent-glow` for the low-alpha version. Never
-  write an accent literal: the hardcoded `amber-*` classes that bypassed the token are exactly
-  what made the last accent change a hunt rather than an edit. The one JS copy of the hexes is
-  `accent.ts` itself, because Satori renders the OG images with no `var()` resolution.
-- **Always support both light and dark mode.** The site uses `@media (prefers-color-scheme: dark)` CSS variables in `globals.css` and Tailwind `dark:` variants in components — both must be addressed for any new UI. Never add color classes that only work in one mode.
-- **Nav height is one variable.** `--nav-height` in `globals.css` (`:root`) is the bar itself, consumed as `h-[var(--nav-height)]` in `Nav.tsx`. `--nav-offset` is that plus `--safe-top`, which is where the bar actually ends, consumed as `top-[var(--nav-offset)]` in `GameShelves.tsx` (the sticky library header, which holds the view tabs and `FilterBar`) and `StatsPanel.tsx`. Change the height in one place and all three follow.
-- **Anything touching a software keyboard, a scroll lock, or a dialog's position
-  starts at [`docs/mobile-viewport.md`](../docs/mobile-viewport.md).** It carries what
-  device captures established, including several fixes that were tried, shipped and
-  wrong: the same family of bugs was fixed six times from theory before anything was
-  measured. Two of its conclusions are easy to re-break — the browsers on one phone
-  use opposite viewport models, and every viewport reading must be believed as it
-  arrives rather than held for a settle.
-- **The page owns the device safe areas.** `layout.tsx` exports `viewport: { viewportFit: "cover" }`, so iOS stops insetting the page out of the notch and home-indicator strips: page content reaches the screen edges, which is what `ModalBackdrop` relies on to dim them. A `fixed` overlay does not, whatever its insets say: WebKit clips fixed layers to a layout viewport that goes stale when the URL bar shrinks, which is why the backdrop is document-positioned. The cost is that anything pinned to a viewport edge must pad itself back out, via the four `--safe-*` tokens in `globals.css` (all four: covering un-insets left and right too, which matters in landscape). Today that is `Nav`, `StatsPanel`, `ModalShell` and the homepage tiles. `FilterSheet` predates the change and pads its action row with a raw `max(1rem, env(safe-area-inset-bottom))`, so it must not be padded again.
-- **Owner affordances that CREATE a row use `useIsConfirmedOwner`, never `useIsLikelyOwner`.** The
-  latter includes a cached guess that can be wrong for one round trip, which is fine where the
-  server can still refuse (`PATCH`/`DELETE` 404 on another user's row) and unsafe where it cannot
-  (`POST /me/games` always writes to the caller's own library). Both live in `FollowControls.tsx`.
-- **A public read carries public fields only; an owner's private ones live on `/me`.** The
-  library reads are cached and SHARED between viewers (`libraryApi.ts`), so a field that means
-  something different depending on who is asking cannot go on them at all: whoever primes the
-  cache decides what everyone else gets. Today there are two such fields, both notes.
-  `wishlist_games.notes` is why `WishlistGameRead` omits it, `MyWishlistGameRead` adds it, and the
-  owner's edit form fetches it per entry from `GET /me/wishlist/{id}`. Two separate DTO builders in
-  `services/users.py` rather than one with a flag, so widening the public shape has to be a
-  deliberate edit. `test_public_wishlist_never_carries_notes` fails if it stops being true. A
-  library game's notes go further: their own `game_notes` table with no public route at all, read
-  per game from `GET /me/games/{id}/note`. Every OTHER wishlist and library field is already on
-  screen for any visitor, so this is a short list on purpose: check before adding to it.
-- **Adding a read means adding its cache tag.** Tags are defined in `libraryApi.ts` and must be paired with every write that can change them, in `video-games/actions.ts`. Too narrow a tag serves a stale page. The owner-only `/me` reads above are the exception: they are never cached, so they have no tag, and a notes-only Save revalidates nothing.
-
-## Repository
-
-- GitHub: https://github.com/robertgrassian/personal_website
-
-## Tech Stack
-
-- **Framework:** Next.js 15 (App Router), React 19
-- **Language:** TypeScript (strict), Python 3.12 for the API
-- **Styling:** Tailwind CSS v4
-- **Backend:** FastAPI + SQLAlchemy 2.0 + Alembic, Postgres via Supabase
-- **Deployment:** Vercel (Next.js app and the Python function together)
+- **Never read or write `TODO.md` or `docs/todo/` without invoking the `proj-todo` skill**, including reads and conversational requests. Its rules live in the skill on purpose.
+- **Never add "Co-Authored-By: Claude" (or any Claude/Anthropic attribution) to commit messages.**
+- **No em dashes (—) in user-facing text**: JSX copy, `aria-label`, `alt`, metadata, error messages, placeholders, shipped Markdown like `/privacy`. Use a colon, a comma, or two sentences. Code comments and docs are exempt.
+- **Routes are kebab-case.** The permanent redirects from the old snake_case URLs in `next.config.ts` must stay. Folder names and SQL columns stay snake_case.
+- **The library owns `/video-games`.** New library surfaces nest under it (per-user libraries are `/video-games/u/[username]`). Identity is site-wide, so `/sign-in`, `/account`, `/onboarding` and `/auth/*` stay top-level. **Do not move or retitle `/video-games/start`**: it is Google's OAuth "App homepage".
+- **One login, many apps.** Signing in creates a site account and nothing else, and never forces onboarding: a signed-in visitor with no game library profile is a complete state. An app's per-user data is made when the visitor asks for it, and new per-user tables key on the auth user, not on `profiles`.
+- **The shelf is a theme, not a layout.** A theme owns only how one group of games is laid out and its surface tokens in `shelf-themes.css`; the pipeline, chrome, `GameCase` and detail card are shared. Adding a theme means a name, a component and a token block. The OG image always draws the built-in case.
+- **The wood grain is baked, not inlined.** Edit a profile in `scripts/wood-grain/tiles/`, run `npm run grain`, commit the output. Read [`scripts/wood-grain/README.md`](../scripts/wood-grain/README.md) before changing how it works: it lists approaches that were tried and are wrong.
+- **The accent color is a switch, not a literal.** `ACTIVE_ACCENT` in `src/lib/accent.ts` picks a `[data-accent]` palette in `globals.css`. Use `--link`/`text-link`, `--accent-on-dark` (surfaces dark in both schemes), `--accent-glow`. Never write an accent literal (no `amber-*`).
+- **Always support light and dark mode**, via the CSS variables in `globals.css` and Tailwind `dark:` variants.
+- **Nav height is one variable**: `--nav-height`; `--nav-offset` adds `--safe-top` and is what sticky elements use.
+- **Keyboards, scroll locks, dialog positioning and safe areas start at [`docs/mobile-viewport.md`](../docs/mobile-viewport.md).** Several fixes there were shipped from theory and were wrong. Anything pinned to a viewport edge pads itself with the `--safe-*` tokens.
+- **Owner affordances that CREATE a row use `useIsConfirmedOwner`, never `useIsLikelyOwner`.** The latter can be wrong for one round trip, which only matters where the server can't refuse (`POST /me/games` always writes to the caller's library).
+- **Public reads carry public fields only.** Library reads are cached and shared between viewers, so a per-viewer field cannot go on them. Today: wishlist notes (`MyWishlistGameRead` via `GET /me/wishlist/{id}`, guarded by `test_public_wishlist_never_carries_notes`) and game notes (`game_notes`, `GET /me/games/{id}/note`).
+- **Adding a read means adding its cache tag** in `libraryApi.ts`, paired with every write in `actions.ts` that can change it. Uncached owner-only `/me` reads have no tag.
 
 ## Commands
 
-- `npm run dev` — Start dev server (Turbopack)
-- `npm run dev:api` — Start the FastAPI backend (uvicorn, port 8000)
-- `npm run dev:full` — Both of the above at once
-- `npm run build` — Production build. **Requires the library API to be running** (`npm run dev:api`):
-  `/video-games` and its OG image prerender from it, and an unreachable origin fails the build by
-  design rather than shipping an empty library
-- `npm run lint` — Run ESLint
-- `npm run grain` — Re-bake the shelf's wood-grain tiles after editing a profile in
-  `scripts/wood-grain/tiles/`. Writes `public/shelf/*.webp` and `public/shelf/og/*.png`, which
-  are committed; no build step runs this. ~2s for all three; pass a name
-  (`npm run grain -- grain-h`) to bake one.
-  See the wood-grain convention above before changing how it works
-- `npm test` — Frontend tests (`node --test`, runs TypeScript directly; no test runner dependency)
-- `cd api && uv run pytest` — Python test suite (DB tests skip without `DATABASE_URL`)
-- `cd api && uv run ruff check .` — Python lint
-- `cd api && uv run alembic upgrade head` — Apply migrations
+See `README.md` for the full list and [`docs/dev-setup.md`](../docs/dev-setup.md) for setup. Non-obvious:
 
-Local setup start to finish is [`docs/dev-setup.md`](../docs/dev-setup.md).
+- `npm run build` **requires the API running** (`npm run dev:api`): `/video-games` prerenders from it and an unreachable origin fails the build by design.
+- `npm test` is `node --test` running TypeScript directly; no runner installed.
+- `cd api && uv run pytest` silently skips DB tests without `DATABASE_URL`. Lint with `uv run ruff check .`.
