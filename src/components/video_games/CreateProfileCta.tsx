@@ -55,7 +55,7 @@ export function CreateProfileCta() {
   return (
     <aside
       // Dropped by CSS if the session goes away while the banner is up
-      // (AuthButton keeps the flag current).
+      // (AuthFlagSync keeps the flag current).
       data-hide-anon=""
       // Same shelf-token surface as SignupCta, so the two read as one slot.
       className="mt-6 rounded-lg border border-shelf-input-border bg-shelf-input px-5 py-4 sm:px-6 sm:py-5"

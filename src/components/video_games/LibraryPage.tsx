@@ -23,6 +23,7 @@ import { GameCardOpenerProvider } from "./LibraryCardContext";
 import { currentlyPlayingGames } from "./playingPicker";
 import { LibraryCount, LibraryCountFallback } from "@/components/video_games/LibraryCount";
 import { AuthButton } from "@/components/AuthButton";
+import { AuthFlagSync } from "@/components/auth/AuthFlagSync";
 import {
   FollowStateProvider,
   FollowButton,
@@ -162,6 +163,8 @@ export async function LibraryPage({
           the child elements. */}
       {/* Local always, preview only on the owner's own shelf, production never.
           See debugOwnerAllowed above for why the check cannot live client-side. */}
+      {/* Outside the header menu on purpose: the menu unmounts its children when closed. */}
+      <AuthFlagSync />
       <FollowStateProvider
         ownerUsername={profile.username}
         allowDebug={debugOwnerAllowed(profile.username)}
