@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ModalShell } from "@/components/video_games/ModalShell";
@@ -25,6 +26,21 @@ function TastingControl({
   const pathname = usePathname();
   const eatenOn = tracking.tastings.get(slug);
   const busy = tracking.pending.has(slug);
+  const tried = eatenOn !== undefined;
+
+  // Stamping swaps "I ate this" for "Undo" (and back), which unmounts the button that was just
+  // pressed. Focus would fall to <body>, behind the open dialog, so it is handed to the button
+  // that took its place. Only after a press here: stamps arriving from the read must not steal
+  // focus.
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const pressed = useRef(false);
+  useEffect(() => {
+    if (pressed.current) buttonRef.current?.focus();
+  }, [tried]);
+  const press = (act: (slug: string) => void) => {
+    pressed.current = true;
+    act(slug);
+  };
 
   if (tracking.status === "signed-out") {
     return (
@@ -40,16 +56,20 @@ function TastingControl({
       </p>
     );
   }
-  if (eatenOn !== undefined) {
+  if (tried) {
     return (
       <div className="produce-tried">
         <TriedStamp ring={ring} />
         <p className="text-sm">This year, on {formatEatenOn(eatenOn)}.</p>
+        {/* aria-disabled, not disabled, on both buttons: a disabled button cannot hold focus, and
+            each is focused the moment its own write starts. The hook ignores a press while one
+            is in flight. */}
         <button
+          ref={buttonRef}
           type="button"
           className="produce-back"
-          disabled={busy}
-          onClick={() => tracking.unmark(slug)}
+          aria-disabled={busy}
+          onClick={() => press(tracking.unmark)}
         >
           Undo
         </button>
@@ -58,11 +78,14 @@ function TastingControl({
   }
   return (
     <button
+      ref={buttonRef}
       type="button"
       className="produce-ate"
-      // Disabled while the read is out: a tap now would write over a row not yet seen.
-      disabled={tracking.status === "loading" || busy}
-      onClick={() => tracking.mark(slug)}
+      // Inert while the read is out: a tap now would write over a row not yet seen.
+      aria-disabled={tracking.status === "loading" || busy}
+      onClick={() => {
+        if (tracking.status === "ready") press(tracking.mark);
+      }}
     >
       I ate this
     </button>

@@ -45,18 +45,18 @@ export function useTastings(timeZone: string): Tastings {
   const tastingsRef = useRef(tastings);
   tastingsRef.current = tastings;
   const pendingRef = useRef(new Set<string>());
-  // Bumped whenever the signed-in user changes. A response or rollback that started under an
-  // earlier value belongs to someone else's session and is dropped.
+  // Bumped whenever the signed-in user changes, and on unmount. A response or rollback that
+  // started under an earlier value belongs to another session and is dropped.
   const generation = useRef(0);
+  // The latest access token, kept fresh across token refreshes, for reads made after a write.
+  const tokenRef = useRef<string | null>(null);
+  // The year the map on screen was loaded for.
+  const loadedYear = useRef<number | null>(null);
 
-  useEffect(() => {
-    const supabase = createClient();
-    // undefined until the first event, so the first answer always registers as a change.
-    let userId: string | null | undefined;
-    let unmounted = false;
-    const stale = (mine: number) => unmounted || mine !== generation.current;
-
-    async function load(token: string, mine: number) {
+  const load = useCallback(
+    async (mine: number) => {
+      const token = tokenRef.current;
+      if (token === null) return;
       try {
         const year = yearOf(todayIn(timeZone));
         // Relative URL: the API prefix is same-origin in dev and prod, so no CORS.
@@ -67,13 +67,23 @@ export function useTastings(timeZone: string): Tastings {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const rows = (await res.json()) as Tasting[];
-        if (stale(mine)) return;
+        if (mine !== generation.current) return;
+        loadedYear.current = year;
         setTastings(tastingsBySlug(rows));
         setStatus("ready");
       } catch {
-        if (!stale(mine)) setStatus("error");
+        if (mine === generation.current) setStatus("error");
       }
-    }
+    },
+    [timeZone]
+  );
+
+  useEffect(() => {
+    const supabase = createClient();
+    // undefined until the first event, so the first answer always registers as a change.
+    let userId: string | null | undefined;
+    // The ref object itself is stable; the local keeps the cleanup from reading a changed ref.
+    const gen = generation;
 
     // Fires once on subscribe (INITIAL_SESSION) with the cookie session, then on every sign-in,
     // sign-out and token refresh, including ones made in another tab.
@@ -82,11 +92,12 @@ export function useTastings(timeZone: string): Tastings {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      tokenRef.current = session?.access_token ?? null;
       const nextId = session?.user.id ?? null;
       // A token refresh re-announces the same user. Refetching would blank the stamps hourly.
       if (nextId === userId) return;
       userId = nextId;
-      const mine = ++generation.current;
+      const mine = ++gen.current;
 
       pendingRef.current.clear();
       setPending(NOT_PENDING);
@@ -97,20 +108,26 @@ export function useTastings(timeZone: string): Tastings {
         return;
       }
       setStatus("loading");
-      void load(session.access_token, mine);
+      void load(mine);
     });
 
     return () => {
       subscription.unsubscribe();
-      unmounted = true;
+      gen.current++;
     };
-  }, [timeZone]);
+  }, [load]);
 
   // Optimistic: the stamp changes at once and is put back if the server refuses. Done by hand
   // rather than with React's useOptimistic, which reverts to server-rendered state when its
   // transition ends; this state lives only in the browser, so there is nothing to revert to.
   const write = useCallback(
-    async (slug: string, next: string | undefined, call: () => Promise<MutateResult>) => {
+    async (
+      slug: string,
+      next: string | undefined,
+      call: () => Promise<MutateResult>,
+      // Re-read after a success too, when the optimistic map would no longer be the whole truth.
+      rereadOnSuccess = false
+    ) => {
       // One write per item at a time, so a rollback cannot undo a later tap.
       if (pendingRef.current.has(slug)) return;
       const mine = generation.current;
@@ -129,30 +146,41 @@ export function useTastings(timeZone: string): Tastings {
       setError(null);
       put(next);
 
-      // A Server Action rejects, rather than resolving to a result, when the request itself fails.
+      // A Server Action rejects, rather than resolving to a result, when the browser's own
+      // request to Next fails. The action may or may not have run.
       const result = await call().catch(
         (): MutateResult => ({
           ok: false,
+          unreachable: true,
           message: "Couldn't reach the server. Check your connection and try again.",
         })
       );
       if (mine !== generation.current) return;
 
       if (!result.ok) {
-        put(previous);
         setError(result.message);
+        // No answer is not a refusal: the write may have committed. Rolling back would then show
+        // the opposite of what is stored, so ask the server instead of guessing.
+        if (result.unreachable) await load(mine);
+        else put(previous);
+      } else if (rereadOnSuccess) {
+        await load(mine);
       }
+      if (mine !== generation.current) return;
       pendingRef.current.delete(slug);
       setPending(new Set(pendingRef.current));
     },
-    []
+    [load]
   );
 
   const mark = useCallback(
     (slug: string) => {
       // The date is the browser's reading of the region's calendar. The server cannot supply it.
       const eatenOn = todayIn(timeZone);
-      void write(slug, eatenOn, () => markTasting(slug, eatenOn));
+      // A tab left open over New Year still shows last year's stamps. The first stamp of the new
+      // year re-reads, so the map does not end up holding rows from both.
+      const yearTurned = loadedYear.current !== null && loadedYear.current !== yearOf(eatenOn);
+      void write(slug, eatenOn, () => markTasting(slug, eatenOn), yearTurned);
     },
     [timeZone, write]
   );

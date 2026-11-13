@@ -7,6 +7,7 @@ so there is deliberately no OnboardingRequiredError on any path.
 from datetime import UTC, date, datetime, timedelta
 
 from fastapi import status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.auth import AuthenticatedUser
@@ -30,6 +31,24 @@ class TastingLimitError(DomainError):
             f"You have reached the limit of {MAX_TASTINGS_PER_USER} tastings. "
             "Remove one before adding another."
         )
+
+
+class AccountGoneError(DomainError):
+    """The token is valid but its account has been deleted.
+
+    Access tokens are verified by signature, so one outlives its user until it
+    expires. Every other /me write meets a missing profile first; this is the
+    one insert that reaches the auth.users FK directly.
+    """
+
+    status_code = status.HTTP_401_UNAUTHORIZED
+
+    def __init__(self) -> None:
+        super().__init__("This account no longer exists. Sign in again.")
+
+
+# Named in the migration, not on the model, so there is no constant to import.
+_USER_FK = "fk_produce_tastings_user_id_users"
 
 
 def _to_read(row) -> TastingRead:
@@ -68,7 +87,14 @@ def set_my_tasting(
     ):
         raise TastingLimitError()
 
-    return _to_read(produce_repo.upsert_tasting(db, user.id, slug, year, payload.eaten_on))
+    try:
+        row = produce_repo.upsert_tasting(db, user.id, slug, year, payload.eaten_on)
+    except IntegrityError as exc:
+        db.rollback()
+        if _USER_FK in str(exc.orig):
+            raise AccountGoneError() from exc
+        raise
+    return _to_read(row)
 
 
 def delete_my_tasting(db: Session, user: AuthenticatedUser, year: int, slug: str) -> None:

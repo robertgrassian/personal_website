@@ -36,6 +36,7 @@ docs {
   the limit.
 
   - 200 the row `{ slug, year, eatenOn }`
+  - 401 no or invalid token, or a valid token whose account has since been deleted
   - 409 at the 1,000 tasting limit
   - 422 malformed slug, a date outside the path's year, before 2020, or in the future
   - 429 over the write budget

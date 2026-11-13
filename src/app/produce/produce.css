@@ -638,12 +638,12 @@
   text-decoration: none;
 }
 
-.produce-ate:hover:not(:disabled) {
+.produce-ate:hover:not([aria-disabled="true"]) {
   background: color-mix(in srgb, var(--p-ink) 85%, var(--link));
 }
 
-.produce-ate:disabled,
-.produce-back:disabled {
+.produce-ate[aria-disabled="true"],
+.produce-back[aria-disabled="true"] {
   opacity: 0.55;
   cursor: default;
 }

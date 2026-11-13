@@ -320,7 +320,10 @@ export async function deleteMyAccount(): Promise<MutateResult> {
 // Simple ok/error result for /me mutations — no reason discrimination yet
 // because the callers only show a message; add reasons when one actually
 // branches on them.
-export type MutateResult = { ok: true } | { ok: false; message: string };
+//
+// `unreachable` is callMeApi's flag, passed through: no response came back, so the write may or
+// may not have committed. A caller that rolls back optimistic state must not treat it as a refusal.
+export type MutateResult = { ok: true } | { ok: false; message: string; unreachable?: true };
 
 /** Shared mechanics for every /me mutation (games, sessions, wishlist, follows):
  *  token, JSON body, and the ok/message mapping. `what` names the operation in
@@ -335,7 +338,8 @@ async function mutate(
   timeoutMs?: number
 ): Promise<MutateResult> {
   const res = await callMeApi<void>(path, { method, body, what, timeoutMs });
-  return res.ok ? { ok: true } : { ok: false, message: res.message };
+  if (res.ok) return { ok: true };
+  return { ok: false, message: res.message, ...(res.unreachable && { unreachable: true }) };
 }
 
 /** Add a game to the caller's library, returning the id of the row it created.

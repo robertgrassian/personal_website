@@ -30,10 +30,10 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 ## Backlog / Ideas
 
-- [ ] **Produce tracker at `/produce`: per-item art, then more regions.** Phases 1 to 4 of
-      `docs/specs/produce.md` are built. Left: Phase 5 art (source undecided, never AI), Phase 6
-      regions, D10 the consent-screen rename. Guest tracking is deliberately unbuilt. Settles
-      **Decide the routing/namespace strategy**.
+- [ ] **Produce tracker at `/produce`: season view, art, more regions.** Phases 1 to 4 of
+      `docs/specs/produce.md` are built. Left: Phase 5 season-first view, then art (source
+      undecided, never AI), Phase 6 regions, D10 the consent-screen rename. Guest tracking is
+      deliberately unbuilt. Settles **Decide the routing/namespace strategy**.
 
 - [ ] **A wine library at `/wine`: a log of bottles I've had, a label lookup for the wine shop, and
       stats on what I like.** First step is a phased tech spec in `docs/specs/`. The shelf machinery

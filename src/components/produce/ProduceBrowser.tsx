@@ -166,9 +166,7 @@ export function ProduceBrowser({
           the data-hide-* rules in globals.css drop the one that does not apply, so neither
           flashes. */}
       <section aria-label="Your basket" className="produce-basket">
-        <p data-hide-anon="" aria-live="polite">
-          {basketLine(tracking, items, month, nowMonth)}
-        </p>
+        <p data-hide-anon="">{basketLine(tracking, items, month, nowMonth)}</p>
         <p data-hide-authed="">Sign in to keep track of what you&apos;ve eaten this year.</p>
         <div className="produce-account">
           <MenuItem href="/account" data-hide-anon="">

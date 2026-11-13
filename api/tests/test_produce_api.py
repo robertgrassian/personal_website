@@ -62,6 +62,11 @@ def user():
         yield user_id
     finally:
         _delete_auth_user(user_id)
+        # rate_limits has no FK, so the cascade above does not collect what the
+        # write guard charged.
+        with get_sessionmaker()() as session:
+            session.execute(text("DELETE FROM rate_limits WHERE user_id = :id"), {"id": user_id})
+            session.commit()
 
 
 def _count_tastings(user_id: uuid.UUID) -> int:
@@ -160,9 +165,32 @@ def test_tomorrow_utc_is_accepted_and_the_day_after_is_not(user) -> None:
 
 
 @requires_db
-@pytest.mark.parametrize("year,eaten_on", [(2019, "2019-06-01"), (99999, "2026-06-01")])
-def test_year_out_of_range_is_refused(user, year: int, eaten_on: str) -> None:
-    assert _put(user, year, "apple", eaten_on).status_code == 422
+def test_date_before_the_floor_is_refused(user) -> None:
+    assert _put(user, 2019, "apple", "2019-06-01").status_code == 422
+
+
+@requires_db
+@pytest.mark.parametrize("year", [2019, 10000, 99999])
+def test_year_out_of_range_is_refused_before_the_database(user, year: int) -> None:
+    # DELETE and GET carry no date, so only the bound on the year itself can
+    # refuse these. Without it 99999 overflows the smallint column as a 500.
+    assert client_as(user).delete(f"{BASE}/{year}/apple").status_code == 422
+    assert client_as(user).get(f"{BASE}?year={year}").status_code == 422
+
+
+@requires_db
+def test_write_for_a_deleted_account_is_401_not_500() -> None:
+    # A token outlives its account until it expires; the insert then meets the
+    # auth.users FK. No auth.users row is made for this id.
+    ghost = uuid.uuid4()
+    try:
+        response = _put(ghost, 2026, "apple", "2026-06-01")
+        assert response.status_code == 401
+        assert client_as(ghost).get(f"{BASE}?year=2026").json() == []
+    finally:
+        with get_sessionmaker()() as session:
+            session.execute(text("DELETE FROM rate_limits WHERE user_id = :id"), {"id": ghost})
+            session.commit()
 
 
 @requires_db
