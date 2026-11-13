@@ -320,7 +320,10 @@ export async function deleteMyAccount(): Promise<MutateResult> {
 // Simple ok/error result for /me mutations — no reason discrimination yet
 // because the callers only show a message; add reasons when one actually
 // branches on them.
-export type MutateResult = { ok: true } | { ok: false; message: string };
+//
+// `unreachable` is callMeApi's flag, passed through: no response came back, so the write may or
+// may not have committed. A caller that rolls back optimistic state must not treat it as a refusal.
+export type MutateResult = { ok: true } | { ok: false; message: string; unreachable?: true };
 
 /** Shared mechanics for every /me mutation (games, sessions, wishlist, follows):
  *  token, JSON body, and the ok/message mapping. `what` names the operation in
@@ -335,7 +338,8 @@ async function mutate(
   timeoutMs?: number
 ): Promise<MutateResult> {
   const res = await callMeApi<void>(path, { method, body, what, timeoutMs });
-  return res.ok ? { ok: true } : { ok: false, message: res.message };
+  if (res.ok) return { ok: true };
+  return { ok: false, message: res.message, ...(res.unreachable && { unreachable: true }) };
 }
 
 /** Add a game to the caller's library, returning the id of the row it created.
@@ -572,5 +576,26 @@ export function unfollowUser(username: string): Promise<MutateResult> {
     "DELETE",
     null,
     "unfollow this user"
+  );
+}
+
+/** Mark a produce item eaten on `eatenOn` (YYYY-MM-DD, in the region's zone).
+ *  The year in the path is the date's own, so the two cannot disagree. */
+export function markMyTasting(slug: string, eatenOn: string): Promise<MutateResult> {
+  return mutate(
+    `${API_PREFIX}/me/produce/tastings/${eatenOn.slice(0, 4)}/${encodeURIComponent(slug)}`,
+    "PUT",
+    { eatenOn },
+    "save that"
+  );
+}
+
+/** Unmark a produce item for one year. The API answers 204 even if it was not marked. */
+export function unmarkMyTasting(year: number, slug: string): Promise<MutateResult> {
+  return mutate(
+    `${API_PREFIX}/me/produce/tastings/${year}/${encodeURIComponent(slug)}`,
+    "DELETE",
+    null,
+    "undo that"
   );
 }

@@ -1,0 +1,19 @@
+meta {
+  name: Unmark a tasting
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}{{apiPrefix}}/me/produce/tastings/{{year}}/{{produceSlug}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Idempotent: 204 whether or not the item was marked.
+
+  - 204 not marked
+  - 422 malformed slug or year
+  - 429 over the write budget
+}

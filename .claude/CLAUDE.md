@@ -38,6 +38,7 @@ Docs ownership, so facts don't drift: `api/README.md` owns the backend layers an
 - CRT: `src/components/crt/CrtTv.tsx` + `crt.css`, wrapped by `CurrentlyPlayingSection.tsx`
 - Can this viewer edit?: `FollowControls.tsx`, `useViewerRelationship.ts`, `ownedLibrary.ts`
 - Produce page: `src/app/produce/` (routes, `produce.css`, state-cookie Server Action) → `src/components/produce/ProduceBrowser.tsx`; state redirect in `src/middleware.ts` via `resolveState.ts`
+- Produce tracking (private, per account, no profile needed): `useTastings.ts` (browser read with the session JWT, optimistic writes) → `src/app/produce/actions.ts` → `meApi.ts` → `/me/produce/tastings` (`api/app/routers/produce.py`). Pure helpers in `src/lib/produce/tastings.ts`
 - Produce data: `src/lib/produce/` (`catalog.ts`, `regions/`, `states.ts`, `season.ts`). `sketch.ts` is server-only and the one place rough.js is imported
 - Auth: `src/lib/supabase/`, `src/app/auth/*`, `src/app/sign-in/` + `src/components/auth/SignInPanel.tsx`, `src/lib/nextPath.ts` (the `next` guard), `src/app/account/`, `src/app/onboarding/`
 - Styles: `video-games.css` (shared), `shelf-themes.css` (per theme), both in `src/app/video-games/`; site tokens in `src/app/globals.css`

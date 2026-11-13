@@ -34,8 +34,9 @@ the verified `AuthenticatedUser` (id from the `sub` claim). See `routers/me.py`.
 
 ## Data model
 
-Nine tables in the `public` schema: `profiles`, `game_metadata`, `played_games`,
-`play_sessions`, `game_notes`, `wishlist_games`, `follows`, `igdb_tokens`, `rate_limits`. The SQLAlchemy models in
+Ten tables in the `public` schema: `profiles`, `game_metadata`, `played_games`,
+`play_sessions`, `game_notes`, `wishlist_games`, `follows`, `igdb_tokens`, `rate_limits`,
+`produce_tastings`. The SQLAlchemy models in
 `app/models/` are the source of truth for their columns — the notes here are the
 reasoning behind the shape, which the models themselves don't record.
 
@@ -44,6 +45,15 @@ reasoning behind the shape, which the models themselves don't record.
   and follow edges with it. `rate_limits` is the exception: it has no FK to `profiles`,
   so those rows must be deleted explicitly. `game_metadata` is deliberately not in the
   cascade either — see below.
+- **`produce_tastings` hangs off `auth.users`, not `profiles`.** It is the produce
+  tracker's only table and the one per-user table outside the profile cascade: its
+  `user_id` references `auth.users` directly (in the migration only, like `profiles.id`),
+  so an account with no game-library profile can have rows, and deleting the account
+  removes them with no extra code. One row per (user, slug, year): `year` duplicates
+  `eaten_on`'s year so that "once per calendar year" is the primary key, and a CHECK
+  keeps the two in step. `eaten_on` comes from the client because the server's "today"
+  is UTC and the caller's is not. Slugs are the frontend catalog's and are not validated
+  against it, which is why the service caps a user at `MAX_TASTINGS_PER_USER` rows.
 - **A shared catalog plus per-user link tables.** `game_metadata` holds the game (name,
   cover, genres, release date, the platforms it released on); `played_games` and
   `wishlist_games` hold only what differs between users (which console _they_ played it

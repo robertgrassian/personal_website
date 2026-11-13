@@ -32,6 +32,7 @@
   --shelf-input: color-mix(in srgb, var(--p-ink) 10%, transparent);
   --shelf-input-ring: var(--link);
   --shelf-danger: #a3271b;
+  --p-stamp: #9c2a1c; /* stamp-pad red, 6.1:1 on packet */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -51,6 +52,7 @@
       radial-gradient(ellipse at 78% 55%, rgba(255, 255, 255, 0.04), transparent 45%),
       radial-gradient(ellipse at 35% 98%, rgba(255, 255, 255, 0.05), transparent 40%);
     --shelf-danger: #f08a7a;
+    --p-stamp: #f2a08f; /* chalk pink, 6.6:1 on the dark packet */
   }
 }
 
@@ -549,6 +551,101 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--p-ink-soft);
+}
+
+/* ── Tracking: basket, stamp, stamp button ──────────────────────────────── */
+
+.produce-basket {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin-top: 1.5rem;
+  padding-top: 0.75rem;
+  border-top: 1.5px dashed color-mix(in srgb, var(--p-ink) 35%, transparent);
+  font-size: 0.9375rem;
+}
+
+/* MenuItem is a full-width menu row by default; here the rows sit side by side. */
+.produce-account {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: -0.75rem;
+}
+
+.produce-account > * {
+  width: auto;
+  color: var(--p-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--link);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.produce-stamp {
+  position: relative;
+  display: inline-block;
+  padding: 0.15em 0.7em 0.2em;
+  font-size: 1.5rem;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--p-stamp);
+  transform: rotate(-9deg);
+}
+
+.produce-stamp .produce-rough path {
+  stroke-width: 2;
+}
+
+/* Over the corner of the packet's window. The packet colour behind it keeps the word legible on
+   any tint or, later, any art. */
+.produce-stamp--card {
+  position: absolute;
+  top: 2.1rem;
+  right: 0.35rem;
+  font-size: 1.15rem;
+  background: color-mix(in srgb, var(--p-packet) 82%, transparent);
+  border-radius: 50%;
+}
+
+.produce-tracking {
+  display: flex;
+  align-items: center;
+  min-height: 3.25rem;
+  margin-top: 1rem;
+}
+
+.produce-tried {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.produce-ate {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 1.25rem;
+  font-size: 0.9375rem;
+  color: var(--p-paper);
+  background: var(--p-ink);
+  border: 1.5px solid var(--p-ink);
+  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.produce-ate:hover:not([aria-disabled="true"]) {
+  background: color-mix(in srgb, var(--p-ink) 85%, var(--link));
+}
+
+.produce-ate[aria-disabled="true"],
+.produce-back[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: default;
 }
 
 /* ── Picker and uncovered page ──────────────────────────────────────────── */

@@ -30,6 +30,8 @@ _PLACEHOLDERS = {
     "{{sessionId}}": "{session_id}",
     "{{username}}": "{username}",
     "{{otherUsername}}": "{username}",
+    "{{year}}": "{year}",
+    "{{produceSlug}}": "{slug}",
 }
 
 

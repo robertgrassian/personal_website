@@ -1,6 +1,7 @@
 # Tech spec: in-season produce tracker
 
-Status: **agreed**, 2026-11-10. Every decision below is settled except D10 (a name, which blocks
+Status: **agreed**, 2026-11-10. Phases 1 to 4 are built (Phase 4 on 2026-11-13); see
+[Phase 4 as built](#phase-4-as-built) for where the code differs from the text below. Every decision below is settled except D10 (a name, which blocks
 nothing). The spec was checked against the code on 2026-11-10 and corrected where the code
 disagreed; those corrections are marked **Checked** so they are not undone. Build order, branches
 and who builds what are in [Phases](#phases).
@@ -348,6 +349,37 @@ Ruled out: **AI art** in any form. **Emoji sets** (Twemoji, Noto, OpenMoji) as t
 because they cover maybe 30 of the items (no ramps, kohlrabi, fennel or garlic scapes) and read
 as UI, not whimsy.
 
+### Season-first view (Phase 5)
+
+Wanted by Robert, 2026-11-13: **the first thing a visitor sees is broken down by season, not by
+month.** The page opens on the current season (spring, summer, fall, winter) and shows what is in
+season across it. Months stay as the finer grain underneath: they are what says an item is at its
+peak within the season, and what a visitor drills into.
+
+What is settled, so Phase 5 does not reopen it:
+
+- **No data change.** A season is three months of the existing 12-character strings, so "in
+  season this fall" and "peaks in October" are both derived. D4 stands: regions are still curated
+  by month, and nothing is re-curated.
+- **No tracking change.** The basket stays **per calendar year** (D6, reconfirmed 2026-11-13).
+  `produce_tastings` is untouched. A season view shows this year's stamps.
+
+What Phase 5 has to decide, with a recommendation for each:
+
+- **Which months make a season.** Recommended: meteorological (March to May is spring, and so
+  on), the same for every region, as a pure function in `season.ts` beside `currentMonth`.
+- **What happens to the four groups.** "Just arrived" and "Last chance" are month-based and are
+  how the page says ramps are about to vanish; a bare "spring" hides that. Recommended: keep the
+  month as a drill-down inside the season rather than deleting it, and keep some form of the
+  leaving signal on the season view.
+- **Winter crosses the year end** (December to February). The view is fine; the basket resets on
+  January 1 in the middle of it, which is already accepted under D6 for citrus.
+- **The scrubber.** Four seasons replace twelve months as the top-level control; whether the
+  months remain as a second row or only inside a season is a design call for that phase.
+
+The ISR and hydration rules in ["This month" on a static page](#this-month-on-a-static-page)
+apply unchanged: the server passes the current season as a prop, and one effect corrects it.
+
 ## Tracking
 
 **Login-only, on the site's one login (D5, agreed 2026-11-07).** A signed-out visitor who taps
@@ -623,9 +655,10 @@ before a PR opens, and does not merge anything: merging is Robert's.
    1,000 cap; signed out, tapping the stamp and signing in lands back on `/produce/{state}` with
    no onboarding; a stamp made on the phone shows on desktop. Verified locally and in production,
    not on a preview (writes are refused there).
-5. **Art.** Starts by choosing the source ([Per-item art](#per-item-art-decoupled-source-decided-later)),
-   then fills items in one by one. Can land in many small PRs; the fallback
-   means any subset ships.
+5. **Look: season-first view, then art.** First make the opening view per season
+   ([Season-first view](#season-first-view-phase-5)): one PR, no data or API change. Then art:
+   choose the source ([Per-item art](#per-item-art-decoupled-source-decided-later)) and fill
+   items in one by one. Art can land in many small PRs; the fallback means any subset ships.
 6. **More regions.** One region per PR, by the curation process. Parallelizable across agents.
 7. **Optional: guest tracking on the device.** Only if signed-out visitors bounce off the sign-in
    prompt. A device backend behind `useTastings` (`localStorage` key `produce:v1:tastings`, read
@@ -633,6 +666,23 @@ before a PR opens, and does not merge anything: merging is Robert's.
    "Saved on this device. Sign in to keep it for good." copy, and on first signed-in load a
    **prompt** (not auto-import: a shared computer's checks may be someone else's) to import via
    `POST /me/produce/tastings/import` (≤ 500 rows, union, earlier `eaten_on` wins).
+
+### Phase 4 as built
+
+Differences from the sections above, so they read as decisions and not drift:
+
+- **`useTastings(timeZone)`, not `useTastings(year)`.** The year has to come from the browser's
+  clock in the region's zone, and `mark` needs the same zone for today's date, so the hook takes
+  the zone and derives both.
+- **A fourth status, `error`.** A failed read disables **I ate this** instead of showing an empty
+  basket: `PUT` replaces the date, so stamping over a row the page could not load would lose the
+  original day.
+- **The hook subscribes to auth changes** (`onAuthStateChange`) rather than reading the session
+  once, so signing out on the page, or in another tab, clears the stamps without a reload.
+- **The cap exempts rows that already exist**, so a user at 1,000 can still correct a date.
+- **The basket counts the month on show**, not always the real month, and ignores the category
+  chip. Scrubbed to June it reads "in season in June".
+- **The stamp reuses the month scrubber's rough circle** as its ring. No new rough.js path.
 
 ### Manual steps, Robert's
 

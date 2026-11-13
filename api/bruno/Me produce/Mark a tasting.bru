@@ -1,0 +1,43 @@
+meta {
+  name: Mark a tasting
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}{{apiPrefix}}/me/produce/tastings/{{year}}/{{produceSlug}}
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "eatenOn": "{{year}}-06-14"
+  }
+}
+
+docs {
+  Record that the caller ate one produce item in one calendar year. One row per
+  (user, slug, year), so this is an idempotent upsert: a repeat moves the date.
+
+  eatenOn is required and comes from the client, in the caller's region's time
+  zone. The server cannot default it, because its own "today" is UTC: at 8pm on
+  December 31 in New York that is already January 1, the wrong year. The server
+  checks it instead: it must fall in the path's year, be 2020-01-01 or later, and
+  be no later than tomorrow in UTC (which admits every time zone).
+
+  The slug must be kebab-case and at most 64 characters, and is not checked against
+  the catalog. Because it is free text, each user is capped at 1,000 tastings in
+  total; only a new row counts against the cap, so a date can still be corrected at
+  the limit.
+
+  - 200 the row `{ slug, year, eatenOn }`
+  - 401 no or invalid token, or a valid token whose account has since been deleted
+  - 409 at the 1,000 tasting limit
+  - 422 malformed slug, a date outside the path's year, before 2020, or in the future
+  - 429 over the write budget
+}
