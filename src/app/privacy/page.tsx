@@ -10,11 +10,11 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "How rgrassian.com collects, uses, and protects your data when you sign in and build a game library.",
+    "How rgrassian.com collects, uses, and protects your data when you sign in, build a game library, or track produce.",
 };
 
 // Last substantive change to this policy. Bump when the content changes.
-const LAST_UPDATED = "November 10, 2026";
+const LAST_UPDATED = "November 13, 2026";
 
 // Inline prose-link styling: muted by default, accent + underline on hover.
 // Consistent with the link treatment elsewhere on the site, and theme-aware
@@ -30,8 +30,8 @@ export default function PrivacyPolicy() {
       <div className="mt-8 space-y-6 text-body leading-relaxed">
         <p>
           This policy covers <span className="text-foreground">rgrassian.com</span>, a personal
-          project. It explains what data the site collects when you sign in and build a game
-          library, and who processes it.
+          project. It explains what data the site collects when you sign in, build a game library,
+          or track what produce you have eaten, and who processes it.
         </p>
 
         <section>
@@ -47,6 +47,11 @@ export default function PrivacyPolicy() {
               name, plus the games, play sessions, ratings, and wishlist entries you add.
             </li>
             <li>
+              <span className="text-foreground">What you mark as eaten, on the produce page.</span>{" "}
+              If you sign in and tap &ldquo;I ate this&rdquo;, the site stores which item it was and
+              the date. This list is private: only you can see it.
+            </li>
+            <li>
               <span className="text-foreground">Approximate location, on the produce page.</span> To
               pick which state&apos;s produce to show, the page reads the approximate location your
               request comes from. It is used for that one redirect and never stored.
@@ -58,9 +63,9 @@ export default function PrivacyPolicy() {
           <h2 className="text-xl font-semibold text-foreground">How I use it</h2>
           <p className="mt-3">
             Only to run the service: signing you in, identifying your library by username, and
-            storing and displaying what you create. All libraries are currently public, so anyone
-            who visits your library page can see your games, ratings, and profile details. I do not
-            sell your data or use it for advertising.
+            storing and displaying what you create. All game libraries are currently public, so
+            anyone who visits your library page can see your games, ratings, and profile details.
+            Your produce list is not public. I do not sell your data or use it for advertising.
           </p>
         </section>
 
@@ -115,9 +120,9 @@ export default function PrivacyPolicy() {
               account page
             </Link>
             . Deletion is immediate: it removes your profile, your sign-in record, and all library
-            data, meaning games, play sessions, wishlist, and follows. It cannot be undone or
-            restored through the site. If you would rather not do it yourself, email me at the
-            address below.
+            data, meaning games, play sessions, wishlist, and follows, along with your produce list.
+            It cannot be undone or restored through the site. If you would rather not do it
+            yourself, email me at the address below.
           </p>
         </section>
 

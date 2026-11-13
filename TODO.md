@@ -30,9 +30,9 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 ## Backlog / Ideas
 
-- [ ] **An in-season produce tracker at `/produce`: what's in season in your state this month, and
-      checking off what you've eaten.** Spec agreed 2026-11-10: `docs/specs/produce.md`, which also
-      holds the phase plan. Tracking keys on the account, not a game-library profile; settles
+- [ ] **Produce tracker at `/produce`: per-item art, then more regions.** Phases 1 to 4 of
+      `docs/specs/produce.md` are built. Left: Phase 5 art (source undecided, never AI), Phase 6
+      regions, D10 the consent-screen rename. Guest tracking is deliberately unbuilt. Settles
       **Decide the routing/namespace strategy**.
 
 - [ ] **A wine library at `/wine`: a log of bottles I've had, a label lookup for the wine shop, and

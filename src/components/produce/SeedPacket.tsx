@@ -4,7 +4,7 @@ import { caveat } from "@/lib/fonts";
 import type { ProduceItem } from "@/lib/produce/browse";
 import { CATEGORY_LABELS } from "@/lib/produce/categories";
 import type { ProduceSketch } from "@/lib/produce/sketch";
-import { BORDER_VIEWBOX } from "@/lib/produce/sketchBoxes";
+import { BORDER_VIEWBOX, CIRCLE_VIEWBOX } from "@/lib/produce/sketchBoxes";
 import { RoughFrame, RoughGlyph } from "./RoughFrame";
 import { SeasonStrip } from "./SeasonStrip";
 
@@ -39,14 +39,27 @@ export function PacketWindow({
   );
 }
 
+// The ink stamp on something already eaten this year. Reuses the month scrubber's rough circle as
+// its ring, so it costs no new path. The word is real text: it is what a screen reader hears.
+export function TriedStamp({ ring, className = "" }: { ring: string; className?: string }) {
+  return (
+    <span className={`produce-stamp ${caveat.className} ${className}`}>
+      <RoughFrame d={ring} viewBox={CIRCLE_VIEWBOX} />
+      Tried
+    </span>
+  );
+}
+
 export function SeedPacket({
   item,
   month,
   sketch,
+  tried,
   onOpen,
 }: {
   item: ProduceItem;
   month: number;
+  tried: boolean;
   // Type-only import: erased at compile time, so the server-only module never reaches the client.
   sketch: ProduceSketch;
   onOpen: (slug: string) => void;
@@ -65,6 +78,7 @@ export function SeedPacket({
         {CATEGORY_LABELS[item.category]}
       </span>
       <PacketWindow item={item} glyph={sketch.glyphs[item.category]} />
+      {tried && <TriedStamp ring={sketch.circle} className="produce-stamp--card" />}
       <span className={`produce-packet-name ${caveat.className}`}>{item.name}</span>
       <SeasonStrip season={item.season} month={month} />
     </button>

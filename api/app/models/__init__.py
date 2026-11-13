@@ -11,6 +11,7 @@ from app.models.game import PlayedGame, PlaySession
 from app.models.game_metadata import GameMetadata
 from app.models.game_note import GameNote
 from app.models.igdb import IgdbToken, RateLimit
+from app.models.produce_tasting import ProduceTasting
 from app.models.profile import Profile
 from app.models.wishlist_game import WishlistGame
 
@@ -22,6 +23,7 @@ __all__ = [
     "IgdbToken",
     "PlaySession",
     "PlayedGame",
+    "ProduceTasting",
     "Profile",
     "RateLimit",
     "WishlistGame",

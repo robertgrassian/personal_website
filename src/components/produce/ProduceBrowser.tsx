@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AuthButton } from "@/components/AuthButton";
+import { MenuItem } from "@/components/ui/MenuItem";
 import { caveat } from "@/lib/fonts";
 import type { ProduceItem } from "@/lib/produce/browse";
 import { CATEGORY_LABELS } from "@/lib/produce/categories";
@@ -15,10 +17,12 @@ import {
 } from "@/lib/produce/season";
 import type { ProduceSketch } from "@/lib/produce/sketch";
 import { CIRCLE_VIEWBOX, UNDERLINE_VIEWBOX } from "@/lib/produce/sketchBoxes";
+import { basketCount } from "@/lib/produce/tastings";
 import { RoughFrame } from "./RoughFrame";
 import { SeedPacket } from "./SeedPacket";
 import { SeasonKey } from "./SeasonStrip";
 import { ProduceDetail } from "./ProduceDetail";
+import { useTastings, type Tastings } from "./useTastings";
 
 type Filter = "all" | ProduceCategory;
 
@@ -31,6 +35,26 @@ type Props = {
   regionName: string;
   sketch: ProduceSketch;
 };
+
+// "You've tried 7 of the 31 things in season this month." Counts the whole region for the month
+// on show, ignoring the category chip, and always against this year's tastings.
+function basketLine(
+  tracking: Tastings,
+  items: readonly ProduceItem[],
+  month: number,
+  nowMonth: number
+): string {
+  if (tracking.status === "error") {
+    return "Couldn't load what you've tried. Refresh the page to try again.";
+  }
+  // A non-breaking space holds the line's height while the read is out, so the groups below do
+  // not jump when the sentence arrives.
+  if (tracking.status !== "ready") return "\u00a0";
+  const { tried, total } = basketCount(items, month, tracking.tastings);
+  if (total === 0) return "\u00a0";
+  const when = month === nowMonth ? "this month" : `in ${MONTH_NAMES[month]}`;
+  return `You've tried ${tried} of the ${total} ${total === 1 ? "thing" : "things"} in season ${when}.`;
+}
 
 export function ProduceBrowser({
   items,
@@ -49,6 +73,8 @@ export function ProduceBrowser({
   // A ref, not state: whether the visitor has scrubbed never affects what renders, only whether
   // the effect may move the scrubber, so changing it should not re-render.
   const touched = useRef(false);
+  // Called once, here, and handed down: one read and one optimistic state for cards and dialog.
+  const tracking = useTastings(timeZone);
 
   // ISR serves a stale page to the first visitor after it expires, so a page last built on the
   // 30th can arrive on the 1st showing last month. Effects run only after hydration, so
@@ -136,6 +162,22 @@ export function ProduceBrowser({
 
       <SeasonKey />
 
+      {/* Both halves are in the static HTML for every visitor. The pre-paint data-authed flag and
+          the data-hide-* rules in globals.css drop the one that does not apply, so neither
+          flashes. */}
+      <section aria-label="Your basket" className="produce-basket">
+        <p data-hide-anon="" aria-live="polite">
+          {basketLine(tracking, items, month, nowMonth)}
+        </p>
+        <p data-hide-authed="">Sign in to keep track of what you&apos;ve eaten this year.</p>
+        <div className="produce-account">
+          <MenuItem href="/account" data-hide-anon="">
+            Account
+          </MenuItem>
+          <AuthButton />
+        </div>
+      </section>
+
       {groups.length === 0 ? (
         <p className="produce-empty">
           {filterLabel ? `No ${filterLabel.toLowerCase()}` : "Nothing"} in season in{" "}
@@ -156,7 +198,13 @@ export function ProduceBrowser({
             <ul className="produce-grid">
               {group.items.map((item) => (
                 <li key={item.slug}>
-                  <SeedPacket item={item} month={month} sketch={sketch} onOpen={setOpenSlug} />
+                  <SeedPacket
+                    item={item}
+                    month={month}
+                    sketch={sketch}
+                    tried={tracking.tastings.has(item.slug)}
+                    onOpen={setOpenSlug}
+                  />
                 </li>
               ))}
             </ul>
@@ -171,7 +219,13 @@ export function ProduceBrowser({
           month={month}
           regionName={regionName}
           glyph={sketch.glyphs[open.category]}
-          onClose={() => setOpenSlug(null)}
+          ring={sketch.circle}
+          tracking={tracking}
+          onClose={() => {
+            // A failed write's message belongs to the dialog it happened in.
+            tracking.clearError();
+            setOpenSlug(null);
+          }}
         />
       )}
     </>

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from app.core.config import API_PREFIX, get_settings
 from app.core.errors import register_error_handlers
-from app.routers import catalog, health, me, users
+from app.routers import catalog, health, me, produce, users
 
 
 def create_app() -> FastAPI:
@@ -27,6 +27,6 @@ def create_app() -> FastAPI:
     # Routers declare their paths WITHOUT the prefix and it is applied here, so
     # the one place that decides where this API lives is API_PREFIX rather than
     # four APIRouter() calls that have to agree.
-    for router in (health.router, users.router, me.router, catalog.router):
+    for router in (health.router, users.router, me.router, produce.router, catalog.router):
         app.include_router(router, prefix=API_PREFIX)
     return app

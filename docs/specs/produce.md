@@ -1,6 +1,7 @@
 # Tech spec: in-season produce tracker
 
-Status: **agreed**, 2026-11-10. Every decision below is settled except D10 (a name, which blocks
+Status: **agreed**, 2026-11-10. Phases 1 to 4 are built (Phase 4 on 2026-11-13); see
+[Phase 4 as built](#phase-4-as-built) for where the code differs from the text below. Every decision below is settled except D10 (a name, which blocks
 nothing). The spec was checked against the code on 2026-11-10 and corrected where the code
 disagreed; those corrections are marked **Checked** so they are not undone. Build order, branches
 and who builds what are in [Phases](#phases).
@@ -633,6 +634,23 @@ before a PR opens, and does not merge anything: merging is Robert's.
    "Saved on this device. Sign in to keep it for good." copy, and on first signed-in load a
    **prompt** (not auto-import: a shared computer's checks may be someone else's) to import via
    `POST /me/produce/tastings/import` (≤ 500 rows, union, earlier `eaten_on` wins).
+
+### Phase 4 as built
+
+Differences from the sections above, so they read as decisions and not drift:
+
+- **`useTastings(timeZone)`, not `useTastings(year)`.** The year has to come from the browser's
+  clock in the region's zone, and `mark` needs the same zone for today's date, so the hook takes
+  the zone and derives both.
+- **A fourth status, `error`.** A failed read disables **I ate this** instead of showing an empty
+  basket: `PUT` replaces the date, so stamping over a row the page could not load would lose the
+  original day.
+- **The hook subscribes to auth changes** (`onAuthStateChange`) rather than reading the session
+  once, so signing out on the page, or in another tab, clears the stamps without a reload.
+- **The cap exempts rows that already exist**, so a user at 1,000 can still correct a date.
+- **The basket counts the month on show**, not always the real month, and ignores the category
+  chip. Scrubbed to June it reads "in season in June".
+- **The stamp reuses the month scrubber's rough circle** as its ring. No new rough.js path.
 
 ### Manual steps, Robert's
 

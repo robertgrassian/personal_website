@@ -1,0 +1,31 @@
+meta {
+  name: List my tastings
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}{{apiPrefix}}/me/produce/tastings?year={{year}}
+  body: none
+  auth: inherit
+}
+
+params:query {
+  year: {{year}}
+}
+
+docs {
+  What the caller has eaten in one calendar year, for the produce tracker.
+
+  Owner-only, with no public mirror: the log is private. Never cached, so there is
+  no cache tag to pair with the writes. Needs an account and nothing else: a caller
+  with no game library profile gets 200, not 403.
+
+  Slugs are the produce catalog's (src/lib/produce/catalog.ts) but are not checked
+  against it, so a retired slug can still come back here. The client ignores slugs
+  it does not know.
+
+  - 200 `[{ slug, year, eatenOn }]`, eatenOn as YYYY-MM-DD, ordered by slug
+  - 401 no or invalid token
+  - 422 year missing or before 2020
+}

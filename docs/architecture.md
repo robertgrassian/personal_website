@@ -112,6 +112,27 @@ Action from `/me` (`getWishlistNotes`, `getGameNote`) rather than from the
 cached library read. They are never cached, so there is no tag to pair, and a
 Save that only changes a game's notes revalidates nothing.
 
+## Static page, per-viewer read (the produce tracker)
+
+A third flow, for a page with no server data at all. `/produce/[state]` is built
+from TypeScript modules in `src/lib/produce/` and prerendered for every state,
+so there is no cached API read and no cache tag. The only per-viewer data is the
+visitor's own tastings, and it can never be in that HTML.
+
+- **Read:** `useTastings` (a client hook) waits for the Supabase session in the
+  browser, then calls `GET /api/library/me/produce/tastings?year=` directly with
+  the session's JWT, the same pattern as `useViewerRelationship`. Signed-out
+  visitors make no request.
+- **Write:** unchanged from the write path above: Server Action
+  (`app/produce/actions.ts`) → `meApi.ts` → `PUT` / `DELETE
+/api/library/me/produce/tastings/{year}/{slug}`. The hook updates its own
+  state optimistically and rolls back on a refusal. **No `revalidateTag`**,
+  because nothing about tastings is cached.
+
+These endpoints take the authenticated account and nothing else. A visitor with
+no game-library profile can use them, which is the one place `/me/*` does not
+imply a profile.
+
 ## Cross-cutting notes
 
 - **Play state is derived, never stored.** An open `play_sessions` row (NULL
