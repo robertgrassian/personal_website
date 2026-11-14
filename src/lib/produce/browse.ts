@@ -1,3 +1,4 @@
+import { artFor, type Art } from "./art/index.ts";
 import { produceBySlug } from "./catalog.ts";
 import { CATEGORY_ORDER } from "./categories.ts";
 import type { Produce, ProduceCategory, Region } from "./types.ts";
@@ -8,6 +9,8 @@ export type ProduceItem = Produce & {
   season: string;
   // Which of the hand-drawn borders this card wears.
   variant: number;
+  // The item's picture from the first art source that has one. Absent: the card shows its drawing.
+  art?: Art;
 };
 
 // FNV-1a: stable across runtimes and releases, so a card keeps its border between deploys.
@@ -26,7 +29,7 @@ export function regionItems(region: Region, variants: number): ProduceItem[] {
       const produce = produceBySlug(slug);
       // The validator makes this unreachable; skipping beats crashing a page over it.
       if (!produce) return [];
-      return [{ ...produce, season, variant: slugHash(slug) % variants }];
+      return [{ ...produce, season, variant: slugHash(slug) % variants, art: artFor(slug) }];
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 }

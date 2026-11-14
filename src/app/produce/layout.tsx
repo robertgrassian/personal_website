@@ -1,4 +1,5 @@
 import { AuthFlagSync } from "@/components/auth/AuthFlagSync";
+import { ArtCredit } from "@/components/produce/ArtCredit";
 import "./produce.css";
 
 // A Next layout wraps every page under /produce. It owns the surface: produce.css scopes its
@@ -10,6 +11,9 @@ export default function ProduceLayout({ children }: { children: React.ReactNode 
           layout because it must never unmount. */}
       <AuthFlagSync />
       {children}
+      <footer className="produce-footer">
+        <ArtCredit />
+      </footer>
     </div>
   );
 }

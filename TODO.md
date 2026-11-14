@@ -35,10 +35,10 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       component logic; its sprite art needs a ruling against the spec's no-AI-art line.
       [Details](docs/todo/produce-pixel-theme.md)
 
-- [ ] **Produce tracker at `/produce`: art, more regions.** Phases 1 to 4 are built; the Phase 5
-      season view is on `produce/phase-5-season-view`. Left: the art registry with USDA plates and a
-      credit line, vegetable art sources (never AI), Phase 6 regions, D10. Settles **Decide the
-      routing/namespace strategy**.
+- [ ] **Produce tracker at `/produce`: more art, more regions.** Phases 1 to 4 are built; Phase 5
+      (season view, art for 113 of 125 items) is on `produce/phase-5-*` branches. Left: art for
+      the last 12 (listed in the spec, never AI), Phase 6 regions, D10.
+      Settles **Decide the routing/namespace strategy**.
 
 - [ ] **A wine library at `/wine`: a log of bottles I've had, a label lookup for the wine shop, and
       stats on what I like.** First step is a phased tech spec in `docs/specs/`. The shelf machinery
