@@ -210,27 +210,110 @@
   color: var(--p-ink-soft);
 }
 
-/* ── Month scrubber ─────────────────────────────────────────────────────── */
+/* ── Season picker and month row ────────────────────────────────────────── */
 
-/* Six by two on a phone, one row from sm: twelve in a row would be 26px targets at 320px. */
-.produce-months {
+/* Two by two on a phone, four across from sm: four across at 320px leaves the names no room. */
+.produce-seasons {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 0.25rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
   max-width: 48rem;
   list-style: none;
 }
 
 @media (width >= 40rem) {
-  .produce-months {
-    grid-template-columns: repeat(12, minmax(0, 1fr));
+  .produce-seasons {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+}
+
+.produce-season {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 4rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0.5rem 0.25rem;
+  color: var(--p-ink-soft);
+  background: none;
+  border: 0;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 150ms;
+}
+
+.produce-season:hover {
+  background: var(--accent-glow);
+}
+
+.produce-season[aria-pressed="true"] {
+  color: var(--p-ink);
+}
+
+/* The real season: a dot after the name, so it sits inside the loop and is not only a colour. */
+.produce-season[aria-current="date"] .produce-season-name::after {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: var(--link);
+}
+
+.produce-season-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* RoughGlyph is absolutely placed to fill its parent, so the parent sets the size. */
+.produce-season-icon {
+  position: relative;
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+.produce-season-icon .produce-glyph {
+  height: 100%;
+}
+
+.produce-season-name {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.produce-season-range {
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+}
+
+/* Reaches a little past the button, enough to clear the range line at the bottom of the ellipse
+   without touching the month row below. */
+.produce-circle.produce-circle--season {
+  inset: -0.4rem -0.7rem;
+  width: calc(100% + 1.4rem);
+  height: calc(100% + 0.8rem);
+}
+
+/* The month row: the whole season, then its three months. */
+.produce-months {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+  list-style: none;
 }
 
 .produce-month {
   position: relative;
-  width: 100%;
+  min-width: 4rem;
   min-height: 2.75rem;
+  padding: 0 0.9rem;
   font-size: 1.5rem;
   line-height: 1;
   color: var(--p-ink-soft);
@@ -249,7 +332,7 @@
   color: var(--p-ink);
 }
 
-/* The real month, while another is being viewed: a dot, so it is not only a colour. */
+/* The real month: a dot, so it is not only a colour. */
 .produce-month[aria-current="date"]::after {
   content: "";
   position: absolute;
@@ -262,10 +345,12 @@
   transform: translateX(-50%);
 }
 
+/* An SVG with width and height auto ignores its insets and takes a size from its viewBox ratio, so
+   the box is spelled out: the button's size plus what the loop overhangs on each side. */
 .produce-circle {
   inset: 0.05rem -0.15rem;
-  width: auto;
-  height: auto;
+  width: calc(100% + 0.3rem);
+  height: calc(100% - 0.1rem);
 }
 
 .produce-count {
@@ -427,6 +512,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .produce-packet,
+  .produce-season,
   .produce-month,
   .produce-state-links a {
     transition: none;
@@ -471,6 +557,14 @@
   margin: 0.5rem 0.1rem 0.6rem;
   font-size: 1.5rem;
   line-height: 1.05;
+}
+
+/* The end of a run, on a season view where a peak group would otherwise hide it. It sits between
+   the name and the strip, so it takes the name's bottom margin back. */
+.produce-packet-ends {
+  margin: -0.35rem 0.1rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--p-stamp);
 }
 
 /* ── Season strip ───────────────────────────────────────────────────────── */

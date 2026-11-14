@@ -58,13 +58,28 @@ test("basketCount counts only what is in season that month", () => {
     { slug: "ramps", year: 2026, eatenOn: "2026-04-20" },
   ]);
   // June: only strawberries are in. Ramps were tried but are out, so they do not count.
-  assert.deepEqual(basketCount(items, JUN, tastings), { tried: 1, total: 1 });
+  assert.deepEqual(basketCount(items, [JUN], tastings), { tried: 1, total: 1 });
   // December: only apples (from storage), not yet tried.
-  assert.deepEqual(basketCount(items, DEC, tastings), { tried: 0, total: 1 });
+  assert.deepEqual(basketCount(items, [DEC], tastings), { tried: 0, total: 1 });
+});
+
+test("basketCount over a season counts what is in any of its months", () => {
+  const items = [
+    { slug: "strawberry", season: ".....PPa...." },
+    { slug: "apple", season: "ssss...aPPPs" },
+    { slug: "ramps", season: "...aP......." },
+  ];
+  const tastings = tastingsBySlug([{ slug: "ramps", year: 2026, eatenOn: "2026-04-20" }]);
+  const SPRING = [2, 3, 4];
+  const SUMMER = [5, 6, 7];
+  // Spring: ramps are in; apples are in from storage in March and April; strawberries are not.
+  assert.deepEqual(basketCount(items, SPRING, tastings), { tried: 1, total: 2 });
+  // Summer: strawberries and apples (August), not ramps.
+  assert.deepEqual(basketCount(items, SUMMER, tastings), { tried: 0, total: 2 });
 });
 
 test("a tasting for a slug the catalog has dropped is ignored", () => {
   const items = [{ slug: "strawberry", season: ".....PPa...." }];
   const tastings = tastingsBySlug([{ slug: "retired-item", year: 2026, eatenOn: "2026-06-01" }]);
-  assert.deepEqual(basketCount(items, JUN, tastings), { tried: 0, total: 1 });
+  assert.deepEqual(basketCount(items, [JUN], tastings), { tried: 0, total: 1 });
 });

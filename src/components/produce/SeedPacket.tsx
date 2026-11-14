@@ -3,6 +3,7 @@ import Image from "next/image";
 import { caveat } from "@/lib/fonts";
 import type { ProduceItem } from "@/lib/produce/browse";
 import { CATEGORY_LABELS } from "@/lib/produce/categories";
+import type { Period } from "@/lib/produce/season";
 import type { ProduceSketch } from "@/lib/produce/sketch";
 import { BORDER_VIEWBOX, CIRCLE_VIEWBOX } from "@/lib/produce/sketchBoxes";
 import { RoughFrame, RoughGlyph } from "./RoughFrame";
@@ -52,13 +53,16 @@ export function TriedStamp({ ring, className = "" }: { ring: string; className?:
 
 export function SeedPacket({
   item,
-  month,
+  period,
+  note,
   sketch,
   tried,
   onOpen,
 }: {
   item: ProduceItem;
-  month: number;
+  period: Period;
+  // "Ends in October" and the like on a season view, else null.
+  note: string | null;
   tried: boolean;
   // Type-only import: erased at compile time, so the server-only module never reaches the client.
   sketch: ProduceSketch;
@@ -80,7 +84,8 @@ export function SeedPacket({
       <PacketWindow item={item} glyph={sketch.glyphs[item.category]} />
       {tried && <TriedStamp ring={sketch.circle} className="produce-stamp--card" />}
       <span className={`produce-packet-name ${caveat.className}`}>{item.name}</span>
-      <SeasonStrip season={item.season} month={month} />
+      {note !== null && <span className="produce-packet-ends">{note}</span>}
+      <SeasonStrip season={item.season} period={period} />
     </button>
   );
 }

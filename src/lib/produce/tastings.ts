@@ -1,4 +1,4 @@
-import { MONTH_NAMES, groupFor } from "./season.ts";
+import { MONTH_NAMES, groupForPeriod, type Period } from "./season.ts";
 
 // One row of GET /me/produce/tastings (api/app/schemas/produce.py).
 export type Tasting = { slug: string; year: number; eatenOn: string };
@@ -43,17 +43,17 @@ export function tastingsBySlug(rows: readonly Tasting[]): Map<string, string> {
   return new Map(rows.map((r) => [r.slug, r.eatenOn]));
 }
 
-// How many of a month's in-season items have been tried. Counts the whole region, whatever
+// How many of a period's in-season items have been tried. Counts the whole region, whatever
 // category chip is selected.
 export function basketCount(
   items: readonly { slug: string; season: string }[],
-  month: number,
+  period: Period,
   tastings: ReadonlyMap<string, string>
 ): { tried: number; total: number } {
   let tried = 0;
   let total = 0;
   for (const item of items) {
-    if (groupFor(item.season, month) === null) continue;
+    if (groupForPeriod(item.season, period) === null) continue;
     total++;
     if (tastings.has(item.slug)) tried++;
   }
