@@ -231,7 +231,7 @@
   position: relative;
   display: flex;
   width: 100%;
-  min-height: 4.5rem;
+  min-height: 4rem;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -253,23 +253,30 @@
   color: var(--p-ink);
 }
 
-/* The real season, while another is being viewed: a dot, so it is not only a colour. */
-.produce-season[aria-current="date"]::after {
+/* The real season, while another is being viewed: a dot after the name, so it sits inside the
+   loop and is not only a colour. */
+.produce-season[aria-current="date"] .produce-season-name::after {
   content: "";
-  position: absolute;
-  top: 0.3rem;
-  right: 0.9rem;
+  display: inline-block;
   width: 5px;
   height: 5px;
+  margin-left: 0.35rem;
+  vertical-align: middle;
   border-radius: 50%;
   background: var(--link);
+}
+
+.produce-season-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 /* RoughGlyph is absolutely placed to fill its parent, so the parent sets the size. */
 .produce-season-icon {
   position: relative;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 1.6rem;
+  height: 1.6rem;
 }
 
 .produce-season-icon .produce-glyph {
@@ -286,9 +293,12 @@
   letter-spacing: 0.04em;
 }
 
-/* A season is a bigger target than a month, so its loop sits wider. */
+/* Reaches a little past the button, enough to clear the range line at the bottom of the ellipse
+   without touching the month row below. */
 .produce-circle--season {
-  inset: 0.1rem 0.15rem;
+  inset: -0.4rem -0.7rem;
+  width: calc(100% + 1.4rem);
+  height: calc(100% + 0.8rem);
 }
 
 /* The month row: the whole season, then its three months. */
@@ -336,10 +346,12 @@
   transform: translateX(-50%);
 }
 
+/* An SVG with width and height auto ignores its insets and takes a size from its viewBox ratio, so
+   the box is spelled out: the button's size plus what the loop overhangs on each side. */
 .produce-circle {
   inset: 0.05rem -0.15rem;
-  width: auto;
-  height: auto;
+  width: calc(100% + 0.3rem);
+  height: calc(100% - 0.1rem);
 }
 
 .produce-count {
