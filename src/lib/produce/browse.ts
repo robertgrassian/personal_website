@@ -1,4 +1,4 @@
-import { artFor } from "./art/index.ts";
+import { artFor, type Art } from "./art/index.ts";
 import { produceBySlug } from "./catalog.ts";
 import { CATEGORY_ORDER } from "./categories.ts";
 import type { Produce, ProduceCategory, Region } from "./types.ts";
@@ -9,8 +9,8 @@ export type ProduceItem = Produce & {
   season: string;
   // Which of the hand-drawn borders this card wears.
   variant: number;
-  // The item's picture from the first art source that has one, absent for a seed-packet glyph.
-  art?: string;
+  // The item's picture from the first art source that has one. Absent: the card shows its drawing.
+  art?: Art;
 };
 
 // FNV-1a: stable across runtimes and releases, so a card keeps its border between deploys.

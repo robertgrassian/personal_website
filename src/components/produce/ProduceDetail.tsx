@@ -99,7 +99,6 @@ export function ProduceDetail({
   item,
   period,
   regionName,
-  glyph,
   ring,
   tracking,
   onClose,
@@ -107,7 +106,6 @@ export function ProduceDetail({
   item: ProduceItem;
   period: Period;
   regionName: string;
-  glyph: string;
   ring: string;
   tracking: Tastings;
   onClose: () => void;
@@ -120,8 +118,8 @@ export function ProduceDetail({
       onClose={onClose}
       error={tracking.error}
     >
-      <div className="produce-detail" data-category={item.category}>
-        <PacketWindow item={item} glyph={glyph} large />
+      <div className="produce-detail">
+        <PacketWindow item={item} large />
         <div className="produce-tracking">
           <TastingControl slug={item.slug} tracking={tracking} ring={ring} />
         </div>

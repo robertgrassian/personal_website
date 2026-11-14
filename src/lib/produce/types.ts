@@ -40,9 +40,14 @@ export type ArtSource = {
   // The one line shown at the bottom of the page. Every registered source is listed there.
   credit: { name: string; url: string };
   license: string;
+  // How the pictures sit on a packet. A plate is colour on its own paper; an engraving is black
+  // ink on white, which needs paper put behind it in the dark scheme.
+  kind: ArtKind;
   // slug → picture. A source need only cover the items it has.
   images: Readonly<Record<string, ArtImage>>;
 };
+
+export type ArtKind = "plate" | "engraving";
 
 export type ArtImage = {
   // Path under public/.

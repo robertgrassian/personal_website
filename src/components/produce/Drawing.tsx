@@ -1,8 +1,7 @@
 import { DRAWINGS, SHAPES } from "@/lib/produce/drawings";
 
-// The drawn fallback for an item with no real picture. A faint offset copy of the body reads as the
-// watercolor bleeding past the line; the ink goes on top in the page's ink colour, so the same
-// drawing is pencil on kraft by day and chalk on slate by night.
+// The drawn fallback for an item with no real picture: the colour fill twice (once offset and
+// faint, so the wash overruns the outline), then the outline in --p-ink so it follows the scheme.
 // No "use client": it has no state, so it renders on either side of the boundary.
 export function Drawing({ slug }: { slug: string }) {
   const drawn = DRAWINGS[slug];

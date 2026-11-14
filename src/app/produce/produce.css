@@ -12,10 +12,6 @@
   --p-ink-soft: #5b4934; /* 5.0:1 on paper */
   --p-packet: #f3e9d2;
   --p-shadow: rgba(74, 52, 26, 0.18);
-  --p-tint-fruit: #eab7a3;
-  --p-tint-vegetable: #c3d6a0;
-  --p-tint-herb: #aed2c3;
-  --p-tint-mushroom: #d6c09c;
   --accent-glow: color-mix(in srgb, var(--link) 28%, transparent);
   --p-texture:
     radial-gradient(ellipse at 12% 0%, rgba(255, 255, 255, 0.28), transparent 55%),
@@ -43,10 +39,7 @@
     --p-ink-soft: #b5b0a2; /* 6.8:1 */
     --p-packet: #28352f;
     --p-shadow: rgba(0, 0, 0, 0.35);
-    --p-tint-fruit: rgba(236, 140, 120, 0.24);
-    --p-tint-vegetable: rgba(170, 210, 120, 0.2);
-    --p-tint-herb: rgba(120, 205, 180, 0.2);
-    --p-tint-mushroom: rgba(214, 180, 136, 0.22);
+    --p-clipping: #d6cab0; /* aged paper behind an engraving */
     /* Chalk dust: wiped smudges, not paper fibre. */
     --p-texture:
       radial-gradient(ellipse at 18% 8%, rgba(255, 255, 255, 0.07), transparent 50%),
@@ -478,19 +471,6 @@
   display: flex;
 }
 
-[data-category="fruit"] {
-  --tint: var(--p-tint-fruit);
-}
-[data-category="vegetable"] {
-  --tint: var(--p-tint-vegetable);
-}
-[data-category="herb"] {
-  --tint: var(--p-tint-herb);
-}
-[data-category="mushroom"] {
-  --tint: var(--p-tint-mushroom);
-}
-
 .produce-packet {
   position: relative;
   display: flex;
@@ -540,10 +520,8 @@
 
 .produce-window {
   position: relative;
-  display: grid;
-  place-items: center;
-  aspect-ratio: 2 / 1;
-  background: var(--tint);
+  display: block;
+  aspect-ratio: 3 / 2;
   border-radius: 2px;
 }
 
@@ -551,42 +529,36 @@
   aspect-ratio: 16 / 9;
 }
 
-/* A plate keeps its own paper as the colour, so no category tint sits behind it (the tint stays
-   behind the glyph fallback). Multiply sinks the paper into the packet in the light scheme, and
-   the overlay fades the sheet's edges into the packet so no rectangle shows. */
-.produce-window--art {
-  background: transparent;
-}
-
-.produce-window--art::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(circle closest-side, transparent 72%, var(--p-packet) 100%);
-}
-
+/* Multiply sinks a picture's own paper into the packet: a plate keeps its colour and loses its
+   sheet, an engraving's white drops out and leaves the ink. */
 .produce-art {
   mix-blend-mode: multiply;
 }
 
-/* A drawing is also its own colour, so no category tint sits behind it either. Absolutely placed
-   like the glyph, so the SVG's intrinsic size cannot stretch the window. */
-.produce-window--drawn {
-  background: transparent;
+/* Fades a plate's sheet edges into the packet so no rectangle shows. An ellipse, so a wide plate
+   in a wide window is not cut off at half the window's height. */
+.produce-window--plate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse closest-side, transparent 72%, var(--p-packet) 100%);
 }
 
-/* A picture needs more room than the glyph did. */
-.produce-window--art,
-.produce-window--drawn {
-  aspect-ratio: 3 / 2;
+/* Multiply onto slate would leave nothing. A plate shows its own paper instead. An engraving has
+   no paper of its own, so the window becomes a paper clipping for the ink to sit on; inverting
+   the ink to chalk was tried and rejected. */
+@media (prefers-color-scheme: dark) {
+  .produce-window--plate .produce-art {
+    mix-blend-mode: normal;
+  }
+
+  .produce-window--engraving {
+    background: var(--p-clipping);
+  }
 }
 
-.produce-window--large.produce-window--art,
-.produce-window--large.produce-window--drawn {
-  aspect-ratio: 16 / 9;
-}
-
+/* Absolutely placed so the SVG's intrinsic size cannot stretch the window. */
 .produce-drawing {
   position: absolute;
   inset: 0;
@@ -606,17 +578,6 @@
   stroke-width: 1.4;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-/* Multiply would darken a plate on slate, so the dark scheme shows the paper as it is. */
-@media (prefers-color-scheme: dark) {
-  .produce-art {
-    mix-blend-mode: normal;
-  }
-}
-
-.produce-window--large .produce-glyph {
-  height: 60%;
 }
 
 .produce-packet-name {
@@ -760,7 +721,7 @@
 }
 
 /* Over the corner of the packet's window. The packet colour behind it keeps the word legible on
-   any tint or, later, any art. */
+   any picture. */
 .produce-stamp--card {
   position: absolute;
   top: 2.1rem;

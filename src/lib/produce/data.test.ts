@@ -61,6 +61,7 @@ function fixture(): ProduceData {
       id: "test-source",
       credit: { name: "A source", url: "https://example.org/source" },
       license: "Public domain",
+      kind: "plate",
       images: {
         avocado: { file: "produce/avocado.svg", sourceUrl: "https://example.org/avocado" },
       },
@@ -248,10 +249,11 @@ test("a draft is still held to every other rule", () => {
 });
 
 test("artFor takes the first source that has the item, and nothing when none does", () => {
-  const source = (id: string, slugs: string[]): ArtSource => ({
+  const source = (id: string, kind: ArtSource["kind"], slugs: string[]): ArtSource => ({
     id,
     credit: { name: id, url: "https://example.org" },
     license: "Public domain",
+    kind,
     images: Object.fromEntries(
       slugs.map((slug) => [
         slug,
@@ -259,16 +261,25 @@ test("artFor takes the first source that has the item, and nothing when none doe
       ])
     ),
   });
-  const first = source("first", ["apple"]);
-  const second = source("second", ["apple", "pear"]);
-  assert.equal(artFor("apple", [first, second]), "/produce/art/first/apple.jpg");
-  assert.equal(artFor("pear", [first, second]), "/produce/art/second/pear.jpg");
+  const first = source("first", "plate", ["apple"]);
+  const second = source("second", "engraving", ["apple", "pear"]);
+  assert.deepEqual(artFor("apple", [first, second]), {
+    src: "/produce/art/first/apple.jpg",
+    kind: "plate",
+  });
+  assert.deepEqual(artFor("pear", [first, second]), {
+    src: "/produce/art/second/pear.jpg",
+    kind: "engraving",
+  });
   assert.equal(artFor("kale", [first, second]), undefined);
   // Reordering is how one item's picture is switched.
-  assert.equal(artFor("apple", [second, first]), "/produce/art/second/apple.jpg");
+  assert.equal(artFor("apple", [second, first])?.kind, "engraving");
 });
 
-test("the shipped art covers the three plates and resolves to a public path", () => {
-  assert.equal(artFor("apple"), "/produce/art/usda-pomological/apple.jpg");
-  assert.ok(ART_SOURCES.length > 0);
+test("the shipped sources resolve to public paths, a plate before an engraving", () => {
+  assert.deepEqual(artFor("apple"), {
+    src: "/produce/art/usda-pomological/apple.jpg",
+    kind: "plate",
+  });
+  assert.equal(artFor("carrot")?.kind, "engraving");
 });

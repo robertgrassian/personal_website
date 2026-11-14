@@ -19,6 +19,7 @@ export const USDA_POMOLOGICAL: ArtSource = {
     url: "https://commons.wikimedia.org/wiki/Category:USDA_Pomological_Watercolors",
   },
   license: "Public domain",
+  kind: "plate",
   images: {
     // Buckskin
     apple: { file: "produce/art/usda-pomological/apple.jpg", sourceUrl: `${FILE}POM00001721.jpg` },

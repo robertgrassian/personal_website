@@ -258,7 +258,7 @@ const BEET = "#8c2a55";
 
 const d = (shape: ShapeId, body: string, accent?: string): DrawnItem => ({ shape, body, accent });
 
-// One entry per catalog slug: data.test.ts fails on a missing or unknown one.
+// One entry per catalog slug: drawings.test.ts fails on a missing or unknown one.
 export const DRAWINGS: Readonly<Record<string, DrawnItem>> = {
   // Fruit
   apple: d("round", RED, GREEN),

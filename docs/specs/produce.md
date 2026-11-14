@@ -1,7 +1,7 @@
 # Tech spec: in-season produce tracker
 
-Status: **agreed**, 2026-11-10. Phases 1 to 4 are built (Phase 4 on 2026-11-13) and Phase 5's
-season-first view is under way; see [Phase 4 as built](#phase-4-as-built) and
+Status: **agreed**, 2026-11-10. Phases 1 to 4 are built (Phase 4 on 2026-11-13) and Phase 5
+(season-first view, art registry, drawings, two art sources) is built and in review; see [Phase 4 as built](#phase-4-as-built) and
 [Phase 5 as built](#phase-5-as-built) for where the code differs from the text below. Every decision below is settled except D10 (a name, which blocks
 nothing). The spec was checked against the code on 2026-11-10 and corrected where the code
 disagreed; those corrections are marked **Checked** so they are not undone. Build order, branches
@@ -77,8 +77,10 @@ All static, all in the repo, no database. The browse page needs no backend at al
 
 ```
 src/lib/produce/
-  catalog.ts          every item: slug, name, category, art, blurb
-  types.ts            Produce, Region, UsState
+  catalog.ts          every item: slug, name, category, blurb
+  types.ts            Produce, Region, UsState, ArtSource
+  art/                one manifest per picture source, and index.ts with their priority order
+  drawings.ts         the drawn fallback: a shape and colours per item
   states.ts           all 50 states + DC: code, name, region id or null
   regions/
     northeast.ts      ONE region, whole: name, time zone, sources, slug → season string
@@ -323,9 +325,10 @@ live in a new `src/app/produce/produce.css` under `[data-app="produce"]`, define
 two-ink print look) and a trial of real plates on the Field guide packet.** The page must not wait
 on 127 images, and the picture for one item must not depend on where another item's came from. So:
 
-- **Every item renders the best picture it has, in this order:** a real plate from the registry,
-  then a **drawn shape** for the item, then (only for an item the drawings do not cover, which a
-  test forbids) the category glyph. Any subset of real plates ships. A packet with a plate beside a
+- **Every item renders the best picture it has:** a real picture from the registry, else a
+  **drawn shape** for the item. There is no third tier: a test requires a drawing for every
+  catalog item, so the old category glyph was unreachable and was removed (it survives only in
+  the share image). Any subset of real pictures ships. A packet with a plate beside a
   packet with a drawing is intended, not a gap to close.
 - **The drawn fallback is about two dozen hand-inked, watercolor-washed shapes** (round fruit,
   pear, berries, citrus, melon, leafy green, root, squash, stalk, pod, sprig, cap and so on) in
@@ -346,21 +349,28 @@ on 127 images, and the picture for one item must not depend on where another ite
   credits itself. No per-page filtering and no sources route: Robert asked not to over-build what
   is shown. The collection is public domain and needs no credit; it is given because the source
   deserves it.
-- **No tint behind a plate or a drawing.** The plate's own paper is the colour. On the packet it is multiplied
-  into the packet colour with its edges feathered, so it reads as painted on the packet. The
-  category tint stays behind the glyph fallback only. A soft blue and the old pink were both tried
-  and rejected. In dark mode multiply cannot work on slate, so the plate keeps its cream paper.
+- **No tint behind a picture or a drawing.** The plate's own paper is the colour. On the packet
+  it is multiplied into the packet colour with its edges feathered, so it reads as painted on the
+  packet. A soft blue and the old pink were both tried and rejected, and the category tints are
+  gone with the glyph. In dark mode multiply cannot work on slate, so the plate keeps its cream
+  paper.
+- **A source declares its `kind`, and the kind picks the treatment.** A `plate` is colour on its
+  own paper, as above. An `engraving` is black ink on white: in light it multiplies, so the white
+  drops out and the ink sits on the packet. In dark the window becomes an aged-paper clipping
+  (`--p-clipping`) with the ink on it. **Inverting the engraving to chalk-on-slate was tried and
+  Robert rejected it** (2026-11-14): do not re-propose it.
 - **Plates are cropped to the specimen.** A plate is a full sheet with a cut section and the
   collector's handwriting; the card wants the whole fruit and nothing else.
 
 #### Sources, and what was verified
 
-| Source                                                                          | Verdict                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **USDA Pomological Watercolor Collection** (Commons)                            | **In use.** Files marked Public domain on Wikimedia Commons, named `Pomological Watercolor POMnnnnnnnn.jpg`. Strong for fruit: roughly 3,900 apple hits, 460 pear, 14 cranberry. **Nothing for vegetables, herbs or mushrooms.** **30 of the 43 fruit items have a plate.** Fruit with no usable plate keeps its drawing |
-| Public-domain botanical archives (BHL, NYPL, Smithsonian Open Access, Rawpixel) | **Not yet checked.** Recalled, not verified: confirm each licence and its vegetable coverage before relying on it. Looked at after the build, through the registry above                                                                                                                                                 |
-| Shutterstock, Adobe Stock                                                       | Paid libraries. The only listed route to a matching set of hand-drawn vegetables, at a cost and under licence terms that need reading for web use. Previews are watermarked, so none were tried. If used, buy one set by one artist                                                                                      |
-| Pinterest                                                                       | An aggregator: every pin belongs to whoever made it. A way to find artists, not a licence, so not a source                                                                                                                                                                                                               |
+| Source                                                         | Verdict                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **USDA Pomological Watercolor Collection** (Commons)           | **In use.** Files marked Public domain on Wikimedia Commons, named `Pomological Watercolor POMnnnnnnnn.jpg`. Strong for fruit: roughly 3,900 apple hits, 460 pear, 14 cranberry. **Nothing for vegetables, herbs or mushrooms.** **30 of the 43 fruit items have a plate.** Fruit with no usable plate keeps its drawing                                                                                                                                                                                                                                                                                                                                 |
+| **Vilmorin-Andrieux, _Les plantes potagères_, 1883** (Commons) | **In use.** About 600 black-and-white engravings of kitchen-garden plants, public domain, named in French by variety (`Carotte rouge demi-longue obtuse Vilmorin-Andrieux 1883.png`). **70 items**: 59 of the 66 vegetables, 9 of the 12 herbs, plus cantaloupe and honeydew. It has no modern American cultivars, so a few entries are the nearest thing in the book; they are listed in `vilmorin-andrieux.ts` with what it lacks                                                                                                                                                                                                                      |
+| Other public-domain plates on Commons                          | **Candidates, found by search on 2026-11-14, none downloaded or judged by eye.** Köhler's _Medizinal-Pflanzen_ (1887, colour): cilantro, mint, olive, quince, sour cherry. Thomé's _Flora von Deutschland_ and Sturm: dill, currant, apricot. Mushrooms: Taylor's USDA _Twelve edible mushrooms of the United States_ and _Flora Batava_ (chanterelle, maitake), Bresadola (oyster; check the publication year for US public domain). _Seikei Zusetsu_ (1804, Japanese, colour): Asian brassicas and alliums, no fruit. Wellcome Collection images are CC BY, not public domain. Nothing found for blood orange, mandarin, lime, kiwifruit, fig or pluot |
+| Shutterstock, Adobe Stock                                      | Paid libraries. The only listed route to a matching set of hand-drawn vegetables, at a cost and under licence terms that need reading for web use. Previews are watermarked, so none were tried. If used, buy one set by one artist                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Pinterest                                                      | An aggregator: every pin belongs to whoever made it. A way to find artists, not a licence, so not a source                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 **Verified traps, so they are not hit again:**
 
@@ -372,10 +382,14 @@ on 127 images, and the picture for one item must not depend on where another ite
 - **Some plates are the right fruit and still unusable**: halved melons showing seeds, bare
   branches and twigs, pencil or pen fragments, a cross-section of an olive, a blemished satsuma.
   Apricot's only plate is a Japanese apricot, and the "Montmorency" plate is labelled as a sweet
-  cherry. Twelve fruit items stay drawings for these reasons, and pluot was never searched.
+  cherry. Eleven fruit items stay drawings (cantaloupe and honeydew since took engravings), and pluot was never searched.
 - **Hit counts are text matches, not distinct items**: an apple's thousands are varieties and
   repeated plates.
 - Commons throttles bursts of API calls. Space them out when sweeping.
+- **Commons rate-limits original files hard (HTTP 429) but not its standard thumbnail widths**
+  (250, 330, 500, 960, 1280). Ask for the largest standard width below the original's, and when
+  the original is smaller than 500px that means 330, not the original. Build the thumbnail URL
+  from the file URL without its query string.
 
 Ruled out: **AI-generated art** in any form. **Emoji sets** (Twemoji, Noto, OpenMoji) as the shipped
 art, because they cover maybe 30 of the items (no ramps, kohlrabi, fennel or garlic scapes) and read
@@ -692,7 +706,7 @@ before a PR opens, and does not merge anything: merging is Robert's.
    not on a preview (writes are refused there).
 5. **Look: season-first view, then art.** First make the opening view per season
    ([Season-first view](#season-first-view-phase-5)): one PR, no data or API change. Then art:
-   build the [pluggable source registry](#per-item-art-pluggable-sources-per-item) with the three
+   build the [pluggable source registry](#per-item-art-pluggable-sources-per-item) with the first
    USDA plates and the bottom-of-page credit, then fill items in one by one. Art can land in many
    small PRs; the fallback means any subset ships. Searching other libraries for vegetables comes
    after the registry exists. The look was decided 2026-11-13 (see D8).
@@ -748,19 +762,26 @@ The season-first view, differences and decisions so they read as decisions and n
   summer June to August, fall September to November, winter December to February, listed in
   calendar order so winter reads December, January, February.
 - **The basket counts the period on show**: "in season this fall", "in season in October".
-- **The season icons are rough.js glyphs drawn server-side** with the category glyphs, so rough.js
-  stays out of the browser bundle.
-- **The category tint is dropped behind plates and drawings.** It remains only behind the glyph,
-  which no catalog item reaches. See [Per-item art](#per-item-art-pluggable-sources-per-item).
+- **The season icons are rough.js glyphs drawn server-side**, so rough.js stays out of the
+  browser bundle.
+- **The category glyph and its tints are gone from the page.** Every item has a drawing, so
+  nothing reached them. See [Per-item art](#per-item-art-pluggable-sources-per-item).
 
 The art registry, as built:
 
 - **`art` is gone from the catalog type.** Pictures live in `src/lib/produce/art/`: one manifest
-  per source (`usda-pomological.ts`: id, credit, license, and a slug to `{ file, sourceUrl }` map)
-  and `index.ts`, which holds `ART_SOURCES` in priority order and `artFor(slug)`. `regionItems`
-  joins the result onto each item as `art`, so components still just read `item.art`.
+  per source (`usda-pomological.ts`, `vilmorin-andrieux.ts`: id, credit, license, kind, and a slug
+  to `{ file, sourceUrl }` map) and `index.ts`, which holds `ART_SOURCES` in priority order and
+  `artFor(slug)`, returning `{ src, kind }`. `regionItems` joins the result onto each item as
+  `art`, so components still just read `item.art`.
+- **100 of the 125 items have a real picture**: 30 USDA plates and 70 Vilmorin engravings. The
+  other 25 show their drawing: 11 fruit, 7 vegetables, 3 herbs and the 4 mushrooms.
 - **Files sit in `public/produce/art/<source id>/<slug>.jpg`**, cropped to the specimen and
-  resized to 520px on the long side (about 1.2MB for 30). 30 of the 43 fruit items have a plate:
+  at most 520px on the long side (about 1.2MB for the 30 plates, 2.2MB for the 70 engravings).
+  Four plates are well under that (gooseberry, plum, strawberry, date: the specimen is small on
+  its sheet) and are soft in the detail dialog on a retina screen; re-cropping them from a
+  larger thumbnail is open. Engravings are trimmed to the ink and their scanned paper pushed to
+  white. 30 of the 43 fruit items have a plate:
   the rest show their drawing, and the reasons are listed in `usda-pomological.ts`.
 - **Plates were found by a filtered Commons search, then cropped by a small connected-component
   script and checked by eye on a contact sheet.** The script is not in the repo: the committed
@@ -771,7 +792,8 @@ The art registry, as built:
   per-page logic.
 - **Checked in headless Chrome over the debugging protocol**, light and dark, at 1100 and 390
   wide, including the detail dialog: the plate blends into the packet in light, shows as a soft
-  vignette on slate in dark, and the drawings take the page's ink colour. Not checked on a real
+  vignette on slate in dark, an engraving is ink on the packet in light and on a paper clipping
+  in dark, and the drawings take the page's ink colour. Not checked on a real
   phone.
 
 ### Manual steps, Robert's

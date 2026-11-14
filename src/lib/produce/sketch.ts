@@ -43,7 +43,7 @@ export function underline(): string {
   return pathOf(gen.line(4, 6, 196, 4, { ...BASE, roughness: 1.6, bowing: 3, seed: 8 }));
 }
 
-// Category glyphs: a round fruit with a leaf, a carrot, a sprig, a mushroom.
+// Category glyphs for the share image: a round fruit with a leaf, a carrot, a sprig, a mushroom.
 export function categoryGlyphs(): Record<ProduceCategory, string> {
   const g = { ...BASE, roughness: 0.9, bowing: 0.8 };
   return {
@@ -149,7 +149,6 @@ export type ProduceSketch = {
   borders: string[];
   circle: string;
   underline: string;
-  glyphs: Record<ProduceCategory, string>;
   seasons: Record<SeasonId, string>;
 };
 
@@ -160,7 +159,6 @@ export function produceSketch(): ProduceSketch {
     borders: cardBorders(),
     circle: monthCircle(),
     underline: underline(),
-    glyphs: categoryGlyphs(),
     seasons: seasonGlyphs(),
   };
   return cached;
