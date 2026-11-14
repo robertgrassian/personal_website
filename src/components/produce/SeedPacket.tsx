@@ -24,14 +24,16 @@ export function PacketWindow({
   large?: boolean;
 }) {
   return (
-    <span className={`produce-window ${large ? "produce-window--large" : ""}`}>
+    <span
+      className={`produce-window ${large ? "produce-window--large" : ""} ${item.art ? "produce-window--art" : ""}`}
+    >
       {item.art ? (
         <Image
           src={item.art}
           alt=""
           fill
           sizes={large ? "20rem" : "10rem"}
-          className="object-contain p-2"
+          className="produce-art object-contain p-2"
         />
       ) : (
         <RoughGlyph d={glyph} />

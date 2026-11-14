@@ -1,9 +1,10 @@
-import type { Produce, Region, UsState } from "./types.ts";
+import type { ArtSource, Produce, Region, UsState } from "./types.ts";
 
 export type ProduceData = {
   catalog: readonly Produce[];
   regions: readonly Region[];
   states: readonly UsState[];
+  artSources: readonly ArtSource[];
   // Injected so this module stays free of `fs` and the test can stub it.
   artExists: (path: string) => boolean;
 };
@@ -36,6 +37,7 @@ export function validateProduceData({
   catalog,
   regions,
   states,
+  artSources,
   artExists,
 }: ProduceData): string[] {
   const problems: string[] = [];
@@ -48,8 +50,26 @@ export function validateProduceData({
     }
     if (catalogSlugs.has(item.slug)) problems.push(`catalog slug "${item.slug}" is duplicated`);
     catalogSlugs.add(item.slug);
-    if (item.art !== undefined && !artExists(item.art)) {
-      problems.push(`catalog item "${item.slug}" has art "${item.art}" missing under public/`);
+  }
+
+  const sourceIds = new Set<string>();
+  for (const source of artSources) {
+    const where = `art source "${source.id}"`;
+    if (sourceIds.has(source.id)) problems.push(`${where} is duplicated`);
+    sourceIds.add(source.id);
+    if (!source.license.trim()) problems.push(`${where} has no license`);
+    if (!source.credit.name.trim()) problems.push(`${where} has no credit name`);
+    if (!source.credit.url.startsWith("https://")) {
+      problems.push(`${where} credit url "${source.credit.url}" is not https`);
+    }
+    for (const [slug, image] of Object.entries(source.images)) {
+      if (!catalogSlugs.has(slug)) problems.push(`${where} has art for unknown slug "${slug}"`);
+      if (!artExists(image.file)) {
+        problems.push(`${where} has "${image.file}" for "${slug}", missing under public/`);
+      }
+      if (!image.sourceUrl.startsWith("https://")) {
+        problems.push(`${where} image for "${slug}" has no https sourceUrl`);
+      }
     }
   }
 

@@ -70,8 +70,8 @@
 .produce-main {
   max-width: 72rem;
   margin: 0 auto;
-  padding: 2rem calc(1rem + var(--safe-right)) calc(4rem + var(--safe-bottom))
-    calc(1rem + var(--safe-left));
+  /* No bottom inset: the footer below it is the last element and carries the safe area. */
+  padding: 2rem calc(1rem + var(--safe-right)) 2.5rem calc(1rem + var(--safe-left));
 }
 
 @media (width >= 40rem) {
@@ -538,6 +538,32 @@
   aspect-ratio: 16 / 9;
 }
 
+/* A plate keeps its own paper as the colour, so no category tint sits behind it (the tint stays
+   behind the glyph fallback). Multiply sinks the paper into the packet in the light scheme, and
+   the overlay fades the sheet's edges into the packet so no rectangle shows. */
+.produce-window--art {
+  background: transparent;
+}
+
+.produce-window--art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle closest-side, transparent 72%, var(--p-packet) 100%);
+}
+
+.produce-art {
+  mix-blend-mode: multiply;
+}
+
+/* Multiply would darken a plate on slate, so the dark scheme shows the paper as it is. */
+@media (prefers-color-scheme: dark) {
+  .produce-art {
+    mix-blend-mode: normal;
+  }
+}
+
 .produce-window--large .produce-glyph {
   height: 60%;
 }
@@ -797,4 +823,33 @@
   margin-top: 2.5rem;
   font-size: 1.1rem;
   color: var(--p-ink-soft);
+}
+
+/* ── Art credit ─────────────────────────────────────────────────────────── */
+
+.produce-footer {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 calc(1rem + var(--safe-right)) calc(1.5rem + var(--safe-bottom))
+    calc(1rem + var(--safe-left));
+}
+
+@media (width >= 40rem) {
+  .produce-footer {
+    padding-left: calc(1.5rem + var(--safe-left));
+    padding-right: calc(1.5rem + var(--safe-right));
+  }
+}
+
+.produce-credit {
+  font-size: 0.8125rem;
+  color: var(--p-ink-soft);
+}
+
+.produce-credit a {
+  color: var(--p-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--link);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
 }

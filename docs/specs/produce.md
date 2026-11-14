@@ -103,7 +103,6 @@ export type Produce = {
   name: string; // "Ramps"
   aka?: string[]; // "Wild leeks". Display only
   category: ProduceCategory;
-  art?: string; // path under public/produce/, absent until drawn
   blurb?: string; // Robert's words, optional (D9)
 };
 ```
@@ -179,7 +178,8 @@ Fails the test run if:
 - the state list isn't exactly the 50 states + DC;
 - a region has fewer than two sources, a source URL that isn't `https://`, or a time zone
   `Intl.DateTimeFormat` rejects;
-- an `art` path doesn't exist under `public/`.
+- an art source has no license, a credit URL that isn't `https://`, an image for a slug not in the
+  catalog, an image file missing under `public/`, or an image with no `https://` source URL.
 
 ### Season logic (`season.ts`)
 
@@ -731,6 +731,22 @@ The season-first view, differences and decisions so they read as decisions and n
   stays out of the browser bundle.
 - **The category tint stays behind the glyph fallback** and is dropped behind art. See
   [Per-item art](#per-item-art-pluggable-sources-per-item).
+
+The art registry, as built:
+
+- **`art` is gone from the catalog type.** Pictures live in `src/lib/produce/art/`: one manifest
+  per source (`usda-pomological.ts`: id, credit, license, and a slug to `{ file, sourceUrl }` map)
+  and `index.ts`, which holds `ART_SOURCES` in priority order and `artFor(slug)`. `regionItems`
+  joins the result onto each item as `art`, so components still just read `item.art`.
+- **Files sit in `public/produce/art/<source id>/<slug>.jpg`**, cropped to the specimen. The first
+  three are apple (Buckskin), pear (Coles Winter) and cranberry (Howes).
+- **The validator checks every source**, as in the data model section, and `data.test.ts` pins
+  that `artFor` takes the first source that has an item, so reordering switches one item's picture.
+- **The credit is a plain map over `ART_SOURCES`** in the produce layout footer, so it needs no
+  per-page logic.
+- **Not seen in a browser yet.** The plate-on-packet blend (multiply in the light scheme, an overlay
+  that fades the sheet's edges) and the dark scheme's plain cream plate were written without a
+  visual check. Look at both on a phone before merging.
 
 ### Manual steps, Robert's
 

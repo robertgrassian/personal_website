@@ -7,8 +7,6 @@ export type Produce = {
   // Other names, for display only.
   aka?: string[];
   category: ProduceCategory;
-  // Path under public/, absent until drawn.
-  art?: string;
   // Robert's own words. Nothing renders when absent.
   blurb?: string;
 };
@@ -33,4 +31,22 @@ export type UsState = {
   name: string;
   // Region id, or null for a state with no curated region yet.
   region: string | null;
+};
+
+// One place item pictures come from. The registry (art/index.ts) lists sources in priority order.
+export type ArtSource = {
+  // Names the folder under public/produce/art/.
+  id: string;
+  // The one line shown at the bottom of the page. Every registered source is listed there.
+  credit: { name: string; url: string };
+  license: string;
+  // slug → picture. A source need only cover the items it has.
+  images: Readonly<Record<string, ArtImage>>;
+};
+
+export type ArtImage = {
+  // Path under public/.
+  file: string;
+  // Where this exact picture came from, so it can be found again. https.
+  sourceUrl: string;
 };

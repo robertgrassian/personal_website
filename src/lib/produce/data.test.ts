@@ -2,10 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { ART_SOURCES, artFor } from "./art/index.ts";
 import { CATALOG } from "./catalog.ts";
 import { REGIONS } from "./regions/index.ts";
 import { STATES } from "./states.ts";
-import type { Produce, Region, UsState } from "./types.ts";
+import type { ArtImage, ArtSource, Produce, Region, UsState } from "./types.ts";
 import { type ProduceData, validateProduceData } from "./validate.ts";
 
 const PUBLIC_DIR = fileURLToPath(new URL("../../../public/", import.meta.url));
@@ -22,6 +23,7 @@ test("the shipped produce data is valid", () => {
     catalog: CATALOG,
     regions: REGIONS,
     states: STATES,
+    artSources: ART_SOURCES,
     artExists: (path) => existsSync(PUBLIC_DIR + path),
   });
   assert.deepEqual(problems, []);
@@ -31,7 +33,7 @@ test("the shipped produce data is valid", () => {
 function fixture(): ProduceData {
   const catalog: Produce[] = [
     { slug: "apple", name: "Apples", category: "fruit" },
-    { slug: "avocado", name: "Avocados", category: "fruit", art: "produce/avocado.svg" },
+    { slug: "avocado", name: "Avocados", category: "fruit" },
   ];
   const sources = [
     { title: "One", url: "https://example.org/one" },
@@ -54,7 +56,23 @@ function fixture(): ProduceData {
     },
   ];
   const states: UsState[] = STATES.map((s) => ({ ...s }));
-  return { catalog, regions, states, artExists: (path) => path === "produce/avocado.svg" };
+  const artSources: ArtSource[] = [
+    {
+      id: "test-source",
+      credit: { name: "A source", url: "https://example.org/source" },
+      license: "Public domain",
+      images: {
+        avocado: { file: "produce/avocado.svg", sourceUrl: "https://example.org/avocado" },
+      },
+    },
+  ];
+  return {
+    catalog,
+    regions,
+    states,
+    artSources,
+    artExists: (path) => path === "produce/avocado.svg",
+  };
 }
 
 function problemsWith(mutate: (data: ProduceData) => void): string[] {
@@ -73,6 +91,8 @@ function assertFires(mutate: (data: ProduceData) => void, expected: RegExp) {
 
 const region = (data: ProduceData, id: string) => data.regions.find((r) => r.id === id)!;
 const catalog = (data: ProduceData) => data.catalog as Produce[];
+const artSources = (data: ProduceData) => data.artSources as ArtSource[];
+const artImages = (data: ProduceData) => data.artSources[0].images as Record<string, ArtImage>;
 const states = (data: ProduceData) => data.states as UsState[];
 
 test("the fixture itself is valid", () => {
@@ -166,8 +186,30 @@ test("a time zone Intl rejects fails", () => {
   assertFires((d) => (region(d, "northeast").timeZone = "America/Gotham"), /unknown time zone/);
 });
 
-test("an art path missing under public/ fails", () => {
-  assertFires((d) => (catalog(d)[0].art = "produce/apple.svg"), /missing under public/);
+test("an art file missing under public/ fails", () => {
+  assertFires((d) => (artImages(d).avocado.file = "produce/gone.svg"), /missing under public/);
+});
+
+test("art for a slug the catalog does not have fails", () => {
+  assertFires((d) => (artImages(d).mango = { ...artImages(d).avocado }), /unknown slug "mango"/);
+});
+
+test("an art source with no license fails", () => {
+  assertFires((d) => (artSources(d)[0] = { ...d.artSources[0], license: " " }), /has no license/);
+});
+
+test("an art image without an https source url fails", () => {
+  assertFires(
+    (d) => (artImages(d).avocado.sourceUrl = "http://example.org/avocado"),
+    /no https sourceUrl/
+  );
+});
+
+test("an art source credit that is not https fails", () => {
+  assertFires(
+    (d) => (artSources(d)[0] = { ...d.artSources[0], credit: { name: "A", url: "http://x.org" } }),
+    /credit url .* is not https/
+  );
 });
 
 test("a non-draft region with no seasons fails", () => {
@@ -203,4 +245,30 @@ test("a draft is still held to every other rule", () => {
       `${expected} in ${JSON.stringify(problems)}`
     );
   }
+});
+
+test("artFor takes the first source that has the item, and nothing when none does", () => {
+  const source = (id: string, slugs: string[]): ArtSource => ({
+    id,
+    credit: { name: id, url: "https://example.org" },
+    license: "Public domain",
+    images: Object.fromEntries(
+      slugs.map((slug) => [
+        slug,
+        { file: `produce/art/${id}/${slug}.jpg`, sourceUrl: "https://example.org" },
+      ])
+    ),
+  });
+  const first = source("first", ["apple"]);
+  const second = source("second", ["apple", "pear"]);
+  assert.equal(artFor("apple", [first, second]), "/produce/art/first/apple.jpg");
+  assert.equal(artFor("pear", [first, second]), "/produce/art/second/pear.jpg");
+  assert.equal(artFor("kale", [first, second]), undefined);
+  // Reordering is how one item's picture is switched.
+  assert.equal(artFor("apple", [second, first]), "/produce/art/second/apple.jpg");
+});
+
+test("the shipped art covers the three plates and resolves to a public path", () => {
+  assert.equal(artFor("apple"), "/produce/art/usda-pomological/apple.jpg");
+  assert.ok(ART_SOURCES.length > 0);
 });
