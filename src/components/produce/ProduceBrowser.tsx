@@ -11,13 +11,21 @@ import {
   GROUP_IDS,
   GROUP_LABELS,
   MONTH_NAMES,
+  SEASONS,
   currentMonth,
-  groupFor,
+  endsWithin,
+  groupForPeriod,
+  periodOf,
+  seasonOf,
   type GroupId,
+  type Period,
+  type SeasonId,
+  type View,
 } from "@/lib/produce/season";
 import type { ProduceSketch } from "@/lib/produce/sketch";
-import { CIRCLE_VIEWBOX, UNDERLINE_VIEWBOX } from "@/lib/produce/sketchBoxes";
+import { UNDERLINE_VIEWBOX } from "@/lib/produce/sketchBoxes";
 import { basketCount } from "@/lib/produce/tastings";
+import { PeriodPicker } from "./PeriodPicker";
 import { RoughFrame } from "./RoughFrame";
 import { SeedPacket } from "./SeedPacket";
 import { SeasonKey } from "./SeasonStrip";
@@ -36,13 +44,22 @@ type Props = {
   sketch: ProduceSketch;
 };
 
-// "You've tried 7 of the 31 things in season this month." Counts the whole region for the month
+// "this fall", "this month", "in spring", "in October": the real season or month reads as "this".
+function whenLabel(view: View, nowMonth: number): string {
+  if (view.month !== null) {
+    return view.month === nowMonth ? "this month" : `in ${MONTH_NAMES[view.month]}`;
+  }
+  const label = SEASONS[view.season].label.toLowerCase();
+  return view.season === seasonOf(nowMonth) ? `this ${label}` : `in ${label}`;
+}
+
+// "You've tried 7 of the 31 things in season this fall." Counts the whole region for the period
 // on show, ignoring the category chip, and always against this year's tastings.
 function basketLine(
   tracking: Tastings,
   items: readonly ProduceItem[],
-  month: number,
-  nowMonth: number
+  period: Period,
+  when: string
 ): string {
   if (tracking.status === "error") {
     return "Couldn't load what you've tried. Refresh the page to try again.";
@@ -50,9 +67,8 @@ function basketLine(
   // A non-breaking space holds the line's height while the read is out, so the groups below do
   // not jump when the sentence arrives.
   if (tracking.status !== "ready") return "\u00a0";
-  const { tried, total } = basketCount(items, month, tracking.tastings);
+  const { tried, total } = basketCount(items, period, tracking.tastings);
   if (total === 0) return "\u00a0";
-  const when = month === nowMonth ? "this month" : `in ${MONTH_NAMES[month]}`;
   return `You've tried ${tried} of the ${total} ${total === 1 ? "thing" : "things"} in season ${when}.`;
 }
 
@@ -66,7 +82,8 @@ export function ProduceBrowser({
 }: Props) {
   // Initialised from the server's prop, never from the browser clock: the first client render has
   // to produce the same HTML the server did, or React reports a hydration mismatch.
-  const [month, setMonth] = useState(initialMonth);
+  // Opens on the whole current season: the month is the drill-down underneath it.
+  const [view, setView] = useState<View>({ season: seasonOf(initialMonth), month: null });
   const [nowMonth, setNowMonth] = useState(initialMonth);
   const [filter, setFilter] = useState<Filter>("all");
   const [openSlug, setOpenSlug] = useState<string | null>(null);
@@ -83,25 +100,34 @@ export function ProduceBrowser({
     const now = currentMonth(timeZone, new Date());
     if (now === initialMonth) return;
     setNowMonth(now);
-    if (!touched.current) setMonth(now);
+    if (!touched.current) setView({ season: seasonOf(now), month: null });
   }, [timeZone, initialMonth]);
 
-  const pick = (m: number) => {
+  const pickSeason = (season: SeasonId) => {
     touched.current = true;
-    setMonth(m);
+    setView({ season, month: null });
   };
+  const pickMonth = (month: number | null) => {
+    touched.current = true;
+    setView((v) => ({ season: v.season, month }));
+  };
+  const backToNow = () => pickSeason(seasonOf(nowMonth));
 
-  // Group once per month/filter change rather than on every render (opening the dialog
+  const period = useMemo(() => periodOf(view), [view]);
+  const when = whenLabel(view, nowMonth);
+  const showingNow = view.season === seasonOf(nowMonth) && view.month === null;
+
+  // Group once per period/filter change rather than on every render (opening the dialog
   // re-renders this component too).
   const groups = useMemo(() => {
     const byGroup = new Map<GroupId, ProduceItem[]>(GROUP_IDS.map((g) => [g, []]));
     for (const item of items) {
       if (filter !== "all" && item.category !== filter) continue;
-      const group = groupFor(item.season, month);
+      const group = groupForPeriod(item.season, period);
       if (group) byGroup.get(group)!.push(item);
     }
     return GROUP_IDS.map((id) => ({ id, items: byGroup.get(id)! })).filter((g) => g.items.length);
-  }, [items, filter, month]);
+  }, [items, filter, period]);
 
   const total = groups.reduce((n, g) => n + g.items.length, 0);
   const open = openSlug ? items.find((i) => i.slug === openSlug) : undefined;
@@ -109,38 +135,21 @@ export function ProduceBrowser({
 
   return (
     <>
-      <section aria-label="Month" className="mt-8">
-        <ol className="produce-months">
-          {MONTH_NAMES.map((name, m) => (
-            <li key={name}>
-              <button
-                type="button"
-                className={`produce-month ${caveat.className}`}
-                aria-pressed={m === month}
-                aria-label={name}
-                // aria-current marks the real month even while another is being viewed.
-                aria-current={m === nowMonth ? "date" : undefined}
-                onClick={() => pick(m)}
-              >
-                {m === month && (
-                  <RoughFrame
-                    d={sketch.circle}
-                    viewBox={CIRCLE_VIEWBOX}
-                    className="produce-circle"
-                  />
-                )}
-                {name.slice(0, 3)}
-              </button>
-            </li>
-          ))}
-        </ol>
+      <section aria-label="Season and month" className="mt-8">
+        <PeriodPicker
+          view={view}
+          nowMonth={nowMonth}
+          sketch={sketch}
+          onSeason={pickSeason}
+          onMonth={pickMonth}
+        />
         <p className="produce-count" aria-live="polite">
           <span>
-            {filterLabel ?? "Everything"} in season in {MONTH_NAMES[month]}: {total}
+            {filterLabel ?? "Everything"} in season {when}: {total}
           </span>
-          {month !== nowMonth && (
-            <button type="button" className="produce-back" onClick={() => pick(nowMonth)}>
-              Back to {MONTH_NAMES[nowMonth]}
+          {!showingNow && (
+            <button type="button" className="produce-back" onClick={backToNow}>
+              Back to {SEASONS[seasonOf(nowMonth)].label.toLowerCase()}
             </button>
           )}
         </p>
@@ -166,7 +175,7 @@ export function ProduceBrowser({
           the data-hide-* rules in globals.css drop the one that does not apply, so neither
           flashes. */}
       <section aria-label="Your basket" className="produce-basket">
-        <p data-hide-anon="">{basketLine(tracking, items, month, nowMonth)}</p>
+        <p data-hide-anon="">{basketLine(tracking, items, period, when)}</p>
         <p data-hide-authed="">Sign in to keep track of what you&apos;ve eaten this year.</p>
         <div className="produce-account">
           <MenuItem href="/account" data-hide-anon="">
@@ -178,8 +187,8 @@ export function ProduceBrowser({
 
       {groups.length === 0 ? (
         <p className="produce-empty">
-          {filterLabel ? `No ${filterLabel.toLowerCase()}` : "Nothing"} in season in{" "}
-          {MONTH_NAMES[month]}. Try another month.
+          {filterLabel ? `No ${filterLabel.toLowerCase()}` : "Nothing"} in season {when}. Try
+          another season or month.
         </p>
       ) : (
         groups.map((group) => (
@@ -198,7 +207,10 @@ export function ProduceBrowser({
                 <li key={item.slug}>
                   <SeedPacket
                     item={item}
-                    month={month}
+                    period={period}
+                    // A peak group hides that a run is ending, so a season says so on the card. A
+                    // single month has no need: its groups already say it.
+                    endsIn={period.length > 1 ? endsWithin(item.season, period) : null}
                     sketch={sketch}
                     tried={tracking.tastings.has(item.slug)}
                     onOpen={setOpenSlug}
@@ -214,7 +226,7 @@ export function ProduceBrowser({
       {open && (
         <ProduceDetail
           item={open}
-          month={month}
+          period={period}
           regionName={regionName}
           glyph={sketch.glyphs[open.category]}
           ring={sketch.circle}

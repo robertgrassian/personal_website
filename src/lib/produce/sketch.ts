@@ -4,6 +4,7 @@
 import "server-only";
 import rough from "roughjs";
 import type { Options } from "roughjs/bin/core";
+import type { SeasonId } from "./season";
 import type { ProduceCategory } from "./types";
 
 // The generator draws no DOM, just geometry. Every shape gets a fixed seed: unseeded, rough.js is
@@ -89,11 +90,67 @@ export function categoryGlyphs(): Record<ProduceCategory, string> {
   };
 }
 
+// One icon per season, in the same 24 box as the category glyphs: a blossom, a sun, a leaf and a
+// snowflake.
+export function seasonGlyphs(): Record<SeasonId, string> {
+  const g = { ...BASE, roughness: 0.9, bowing: 0.8 };
+  // Five petals round a centre, then the stem.
+  const petals = [0, 1, 2, 3, 4].map((i) => {
+    const angle = ((-90 + i * 72) * Math.PI) / 180;
+    return pathOf(
+      gen.circle(12 + 4.2 * Math.cos(angle), 9 + 4.2 * Math.sin(angle), 6, { ...g, seed: 20 + i })
+    );
+  });
+  // Eight rays round the disc, at 45 degrees apart.
+  const rays = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
+    const angle = (i * 45 * Math.PI) / 180;
+    const [c, s] = [Math.cos(angle), Math.sin(angle)];
+    return pathOf(
+      gen.line(12 + 7 * c, 12 + 7 * s, 12 + 10.5 * c, 12 + 10.5 * s, { ...g, seed: 40 + i })
+    );
+  });
+  // Three lines through the centre make six arms.
+  const arms = [90, 30, -30].map((deg, i) => {
+    const angle = (deg * Math.PI) / 180;
+    const [c, s] = [Math.cos(angle), Math.sin(angle)];
+    return pathOf(
+      gen.line(12 - 10.5 * c, 12 - 10.5 * s, 12 + 10.5 * c, 12 + 10.5 * s, { ...g, seed: 60 + i })
+    );
+  });
+  return {
+    spring: [
+      ...petals,
+      pathOf(gen.circle(12, 9, 3.5, { ...g, seed: 25 })),
+      pathOf(gen.line(12, 15, 12, 23, { ...g, seed: 26 })),
+    ].join(" "),
+    summer: [pathOf(gen.circle(12, 12, 9, { ...g, seed: 30 })), ...rays].join(" "),
+    fall: [
+      pathOf(
+        gen.curve(
+          [
+            [3, 21],
+            [4, 11],
+            [11, 4],
+            [21, 3],
+            [20, 13],
+            [13, 20],
+            [3, 21],
+          ],
+          { ...g, seed: 50 }
+        )
+      ),
+      pathOf(gen.line(3, 21, 15, 9, { ...g, seed: 51 })),
+    ].join(" "),
+    winter: arms.join(" "),
+  };
+}
+
 export type ProduceSketch = {
   borders: string[];
   circle: string;
   underline: string;
   glyphs: Record<ProduceCategory, string>;
+  seasons: Record<SeasonId, string>;
 };
 
 // Computed once per server process: the seeds are fixed, so the output never changes.
@@ -104,6 +161,7 @@ export function produceSketch(): ProduceSketch {
     circle: monthCircle(),
     underline: underline(),
     glyphs: categoryGlyphs(),
+    seasons: seasonGlyphs(),
   };
   return cached;
 }

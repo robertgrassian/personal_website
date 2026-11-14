@@ -55,15 +55,60 @@ export const GROUP_LABELS: Readonly<Record<GroupId, string>> = {
   around: "Also around",
 };
 
-// First match wins, which is what keeps every item in exactly one group: a one-month season is
-// both arriving and leaving, and lands in "arriving" (or "peak" if it peaks).
-export function groupFor(season: string, month: number): GroupId | null {
-  const status = statusIn(season, month);
-  if (status === "out") return null;
-  if (status === "peak") return "peak";
-  if (isArriving(season, month)) return "arriving";
-  if (isLeaving(season, month)) return "leaving";
+export const SEASON_IDS = ["spring", "summer", "fall", "winter"] as const;
+export type SeasonId = (typeof SEASON_IDS)[number];
+
+// Meteorological seasons: whole calendar months, the same in every region. Months are in calendar
+// order from the season's start, so winter reads December, January, February across the year end.
+export const SEASONS: Readonly<Record<SeasonId, { label: string; months: readonly number[] }>> = {
+  spring: { label: "Spring", months: [2, 3, 4] },
+  summer: { label: "Summer", months: [5, 6, 7] },
+  fall: { label: "Fall", months: [8, 9, 10] },
+  winter: { label: "Winter", months: [11, 0, 1] },
+};
+
+export function seasonOf(month: number): SeasonId {
+  const id = SEASON_IDS.find((s) => SEASONS[s].months.includes(month));
+  if (id === undefined) throw new RangeError(`month must be an integer 0..11, got ${month}`);
+  return id;
+}
+
+// A stretch of months in calendar order, which is what the page groups by: a whole season (three
+// months) or one month of it.
+export type Period = readonly number[];
+
+// A whole season, or one of its months.
+export type View = { season: SeasonId; month: number | null };
+
+export function periodOf(view: View): Period {
+  return view.month === null ? SEASONS[view.season].months : [view.month];
+}
+
+// First match wins, which is what keeps every item in exactly one group. Over a single month this
+// is the original rule. Over a season, "arriving" means the item's run starts inside the period
+// and "leaving" that it ends inside it. A run that does both lands in "arriving", and anything
+// that peaks at any point stays in "peak": see `endsWithin` for how the end of a run stays
+// visible there.
+export function groupForPeriod(season: string, period: Period): GroupId | null {
+  const present = period.filter((m) => isIn(season, m));
+  if (present.length === 0) return null;
+  if (period.some((m) => statusIn(season, m) === "peak")) return "peak";
+  if (!isIn(season, prev(present[0]))) return "arriving";
+  if (!isIn(season, next(present[present.length - 1]))) return "leaving";
   return "around";
+}
+
+export function groupFor(season: string, month: number): GroupId | null {
+  return groupForPeriod(season, [month]);
+}
+
+// The last month of an item's run when it falls inside the period, else null. A peak group hides
+// that an item is about to vanish, so the season view says it on the card instead.
+export function endsWithin(season: string, period: Period): number | null {
+  const present = period.filter((m) => isIn(season, m));
+  if (present.length === 0) return null;
+  const last = present[present.length - 1];
+  return isIn(season, next(last)) ? null : last;
 }
 
 export const MONTH_NAMES = [
@@ -80,6 +125,13 @@ export const MONTH_NAMES = [
   "November",
   "December",
 ] as const;
+
+// "September to November" for a season, "October" for one month.
+export function periodRange(period: Period): string {
+  const first = MONTH_NAMES[period[0]];
+  const last = MONTH_NAMES[period[period.length - 1]];
+  return first === last ? first : `${first} to ${last}`;
+}
 
 // Contiguous runs of the months in `set`, treating December → January as adjacent. Runs are
 // ordered by start month, and a run crossing the year end starts at its true first month.
