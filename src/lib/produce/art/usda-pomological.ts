@@ -16,7 +16,7 @@ export const USDA_POMOLOGICAL: ArtSource = {
   id: "usda-pomological",
   credit: {
     name: "USDA Pomological Watercolor Collection",
-    url: "https://commons.wikimedia.org/wiki/Category:USDA_Pomological_Watercolor_Collection",
+    url: "https://commons.wikimedia.org/wiki/Category:USDA_Pomological_Watercolors",
   },
   license: "Public domain",
   images: {
