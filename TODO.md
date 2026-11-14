@@ -36,9 +36,9 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
       [Details](docs/todo/produce-pixel-theme.md)
 
 - [ ] **Produce tracker at `/produce`: art, more regions.** Phases 1 to 4 are built; the Phase 5
-      season-first view is on `produce/phase-5-season-view`. Left: the art registry with USDA plates
-      and a credit line, vegetable art sources (never AI), Phase 6 regions, D10. Guest tracking is
-      unbuilt. Settles **Decide the routing/namespace strategy**.
+      season view is on `produce/phase-5-season-view`. Left: the art registry with USDA plates and a
+      credit line, vegetable art sources (never AI), Phase 6 regions, D10. Settles **Decide the
+      routing/namespace strategy**.
 
 - [ ] **A wine library at `/wine`: a log of bottles I've had, a label lookup for the wine shop, and
       stats on what I like.** First step is a phased tech spec in `docs/specs/`. The shelf machinery
