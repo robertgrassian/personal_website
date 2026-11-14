@@ -205,8 +205,8 @@ Edge cases the tests pin down, because each has two defensible answers:
 - **A one-month season** (`....P.......`) is both arriving and leaving. The order above decides:
   peak wins, then arriving.
 - **A year-round item** (no `.`) is never arriving or leaving.
-- `groupFor(season, month)` is the one exported function the page calls, returning the group or
-  `null` for out of season. The three predicates stay exported for the tests.
+- `groupForPeriod(season, months)` is what the page calls, returning the group or `null` for out
+  of season; `groupFor(season, month)` is its one-month case, kept for the tests.
 
 ### Curation process (per region)
 
@@ -719,7 +719,14 @@ The season-first view, differences and decisions so they read as decisions and n
 - **The leaving signal is a card tag, not a group.** An item that peaks stays in "At its peak"
   even if its run ends in October, which would hide that it is about to vanish. On a season view
   a card whose run ends inside the period says **"Ends in October"**. A single month does not
-  show it: its groups already say so. `endsWithin` computes it.
+  show it: its groups already say so. `runNote` computes it.
+- **The note knows today.** On the current season, a run already over reads **"Ended in
+  September"** and one not yet begun **"Starts in November"**, so in mid-November a September
+  peach is not presented as still to come. The groups themselves stay season-wide: "At its peak"
+  on a season view means "peaks this season". Regrouping the current season around today was
+  considered and left for a real complaint.
+- **An item that leaves and returns inside one season is "arriving"** (California artichokes in
+  winter), since any run starting in the period counts.
 - **The page opens on the whole current season, not the current month.** Selecting a season
   resets to the whole season; selecting a month drills in. "Back to fall" returns to the current
   season. The real season and the real month are marked with a dot as well as colour.

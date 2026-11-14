@@ -4,16 +4,17 @@ import { REGIONS } from "./regions/index.ts";
 import {
   GROUP_IDS,
   GROUP_LABELS,
+  MONTH_ABBR,
   SEASONS,
   SEASON_IDS,
   currentMonth,
-  endsWithin,
   groupFor,
   groupForPeriod,
   isArriving,
   isLeaving,
   periodOf,
   periodRange,
+  runNote,
   seasonLabel,
   seasonOf,
   statusIn,
@@ -225,21 +226,35 @@ test("winter crosses the year end: citrus is peak, apples are around, strawberri
   assert.equal(groupForPeriod("...........a", WINTER), "arriving");
 });
 
-test("endsWithin names the last month of a run that stops inside the period", () => {
+test("runNote names the last month of a run that stops inside the period", () => {
   const SPRING = SEASONS.spring.months;
   // Ramps: April and May, gone in June. A peak, but it ends inside spring.
-  assert.equal(endsWithin("...aP.......", SPRING), MAY);
+  assert.equal(runNote("...aP.......", SPRING, null), "Ends in May");
   assert.equal(groupForPeriod("...aP.......", SPRING), "peak");
   // Apples carry on past spring's end from storage.
-  assert.equal(endsWithin(APPLE, SEASONS.fall.months), null);
+  assert.equal(runNote(APPLE, SEASONS.fall.months, null), null);
   // Out of season for the whole period: nothing to say.
-  assert.equal(endsWithin(STRAWBERRY, SPRING), null);
-  // Over one month it agrees with isLeaving.
-  assert.equal(endsWithin(STRAWBERRY, [AUG]), AUG);
-  assert.equal(endsWithin(STRAWBERRY, [JUN]), null);
+  assert.equal(runNote(STRAWBERRY, SPRING, null), null);
 });
 
-test("periodRange reads a season or a single month", () => {
+test("runNote knows today: a run already over has ended, one not yet begun starts", () => {
+  const FALL = SEASONS.fall.months;
+  const PEACH = "......aPP...";
+  assert.equal(runNote(PEACH, FALL, NOV), "Ended in September");
+  assert.equal(runNote(PEACH, FALL, 8), "Ends in September", "still here in September");
+  assert.equal(runNote("..........aa", FALL, 8), "Starts in November");
+  assert.equal(runNote("..........aa", FALL, NOV), null, "arrived, and carries on");
+  // Winter's months are not in numeric order: January is after December.
+  assert.equal(runNote("a.........aa", SEASONS.winter.months, FEB), "Ended in January");
+});
+
+test("an item that leaves and comes back inside one season is arriving", () => {
+  // In for December and February, out for January.
+  assert.equal(groupForPeriod(".aaaaa..aaaa", SEASONS.winter.months), "arriving");
+});
+
+test("periodRange reads a season or a single month, in full or short names", () => {
+  assert.equal(periodRange(SEASONS.fall.months, MONTH_ABBR), "Sep to Nov");
   assert.equal(periodRange(SEASONS.fall.months), "September to November");
   assert.equal(periodRange(SEASONS.winter.months), "December to February");
   assert.equal(periodRange([MAY]), "May");

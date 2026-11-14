@@ -253,8 +253,7 @@
   color: var(--p-ink);
 }
 
-/* The real season, while another is being viewed: a dot after the name, so it sits inside the
-   loop and is not only a colour. */
+/* The real season: a dot after the name, so it sits inside the loop and is not only a colour. */
 .produce-season[aria-current="date"] .produce-season-name::after {
   content: "";
   display: inline-block;
@@ -295,7 +294,7 @@
 
 /* Reaches a little past the button, enough to clear the range line at the bottom of the ellipse
    without touching the month row below. */
-.produce-circle--season {
+.produce-circle.produce-circle--season {
   inset: -0.4rem -0.7rem;
   width: calc(100% + 1.4rem);
   height: calc(100% + 0.8rem);
@@ -333,7 +332,7 @@
   color: var(--p-ink);
 }
 
-/* The real month, while another is being viewed: a dot, so it is not only a colour. */
+/* The real month: a dot, so it is not only a colour. */
 .produce-month[aria-current="date"]::after {
   content: "";
   position: absolute;

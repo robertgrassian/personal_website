@@ -13,7 +13,7 @@ import {
   MONTH_NAMES,
   SEASONS,
   currentMonth,
-  endsWithin,
+  runNote,
   groupForPeriod,
   periodOf,
   seasonOf,
@@ -111,11 +111,12 @@ export function ProduceBrowser({
     touched.current = true;
     setView((v) => ({ season: v.season, month }));
   };
-  const backToNow = () => pickSeason(seasonOf(nowMonth));
+  const nowSeason = seasonOf(nowMonth);
+  const backToNow = () => pickSeason(nowSeason);
 
   const period = useMemo(() => periodOf(view), [view]);
   const when = whenLabel(view, nowMonth);
-  const showingNow = view.season === seasonOf(nowMonth) && view.month === null;
+  const showingNow = view.season === nowSeason && view.month === null;
 
   // Group once per period/filter change rather than on every render (opening the dialog
   // re-renders this component too).
@@ -149,7 +150,7 @@ export function ProduceBrowser({
           </span>
           {!showingNow && (
             <button type="button" className="produce-back" onClick={backToNow}>
-              Back to {SEASONS[seasonOf(nowMonth)].label.toLowerCase()}
+              Back to {SEASONS[nowSeason].label.toLowerCase()}
             </button>
           )}
         </p>
@@ -208,9 +209,12 @@ export function ProduceBrowser({
                   <SeedPacket
                     item={item}
                     period={period}
-                    // A peak group hides that a run is ending, so a season says so on the card. A
-                    // single month has no need: its groups already say it.
-                    endsIn={period.length > 1 ? endsWithin(item.season, period) : null}
+                    // A single month has no need of the note: its groups already say it.
+                    note={
+                      period.length > 1
+                        ? runNote(item.season, period, showingNow ? nowMonth : null)
+                        : null
+                    }
                     sketch={sketch}
                     tried={tracking.tastings.has(item.slug)}
                     onOpen={setOpenSlug}
