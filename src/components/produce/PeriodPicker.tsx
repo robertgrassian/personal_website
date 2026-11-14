@@ -3,7 +3,6 @@ import {
   MONTH_NAMES,
   SEASONS,
   SEASON_IDS,
-  periodRange,
   seasonOf,
   type SeasonId,
   type View,
@@ -11,6 +10,12 @@ import {
 import type { ProduceSketch } from "@/lib/produce/sketch";
 import { CIRCLE_VIEWBOX } from "@/lib/produce/sketchBoxes";
 import { RoughFrame, RoughGlyph } from "./RoughFrame";
+
+// "Sep to Nov": short enough to sit inside the loop round the selected season.
+function shortRange(months: readonly number[]): string {
+  const abbr = (m: number) => MONTH_NAMES[m].slice(0, 3);
+  return `${abbr(months[0])} to ${abbr(months[months.length - 1])}`;
+}
 
 // The page opens on a season; a month is the finer grain underneath it. Stateless: the view lives
 // in ProduceBrowser, which also decides what "now" is.
@@ -53,13 +58,16 @@ export function PeriodPicker({
                     className="produce-circle produce-circle--season"
                   />
                 )}
-                <span className="produce-season-icon">
-                  <RoughGlyph d={sketch.seasons[id]} />
+                {/* Icon and name share a line so the content fits the loop's ellipse. */}
+                <span className="produce-season-head">
+                  <span className="produce-season-icon">
+                    <RoughGlyph d={sketch.seasons[id]} />
+                  </span>
+                  <span className={`produce-season-name ${caveat.className}`}>
+                    {SEASONS[id].label}
+                  </span>
                 </span>
-                <span className={`produce-season-name ${caveat.className}`}>
-                  {SEASONS[id].label}
-                </span>
-                <span className="produce-season-range">{periodRange(SEASONS[id].months)}</span>
+                <span className="produce-season-range">{shortRange(SEASONS[id].months)}</span>
               </button>
             </li>
           );
