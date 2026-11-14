@@ -355,18 +355,24 @@ on 127 images, and the picture for one item must not depend on where another ite
 
 #### Sources, and what was verified
 
-| Source                                                                          | Verdict                                                                                                                                                                                                                                                                                                        |
-| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **USDA Pomological Watercolor Collection** (Commons)                            | **In use.** Files marked Public domain on Wikimedia Commons, named `Pomological Watercolor POMnnnnnnnn.jpg`. Strong for fruit: roughly 3,900 apple hits, 460 pear, 14 cranberry. **Nothing for vegetables, herbs or mushrooms.** The first three plates are Buckskin apple, Coles Winter pear, Howes cranberry |
-| Public-domain botanical archives (BHL, NYPL, Smithsonian Open Access, Rawpixel) | **Not yet checked.** Recalled, not verified: confirm each licence and its vegetable coverage before relying on it. Looked at after the build, through the registry above                                                                                                                                       |
-| Shutterstock, Adobe Stock                                                       | Paid libraries. The only listed route to a matching set of hand-drawn vegetables, at a cost and under licence terms that need reading for web use. Previews are watermarked, so none were tried. If used, buy one set by one artist                                                                            |
-| Pinterest                                                                       | An aggregator: every pin belongs to whoever made it. A way to find artists, not a licence, so not a source                                                                                                                                                                                                     |
+| Source                                                                          | Verdict                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **USDA Pomological Watercolor Collection** (Commons)                            | **In use.** Files marked Public domain on Wikimedia Commons, named `Pomological Watercolor POMnnnnnnnn.jpg`. Strong for fruit: roughly 3,900 apple hits, 460 pear, 14 cranberry. **Nothing for vegetables, herbs or mushrooms.** **30 of the 43 fruit items have a plate.** Fruit with no usable plate keeps its drawing |
+| Public-domain botanical archives (BHL, NYPL, Smithsonian Open Access, Rawpixel) | **Not yet checked.** Recalled, not verified: confirm each licence and its vegetable coverage before relying on it. Looked at after the build, through the registry above                                                                                                                                                 |
+| Shutterstock, Adobe Stock                                                       | Paid libraries. The only listed route to a matching set of hand-drawn vegetables, at a cost and under licence terms that need reading for web use. Previews are watermarked, so none were tried. If used, buy one set by one artist                                                                                      |
+| Pinterest                                                                       | An aggregator: every pin belongs to whoever made it. A way to find artists, not a licence, so not a source                                                                                                                                                                                                               |
 
 **Verified traps, so they are not hit again:**
 
 - **A search for "pumpkin" in the USDA collection returns the _Pumpkin Sweet_ apple, not a
-  pumpkin.** Three hits, none a pumpkin. Squash, beet and kale return nothing. Check what a plate
+  pumpkin.** The same happened for olive, raspberry and watermelon (apples named _Olive_, _Liveland
+  Raspberry_ and _Watermelon_). Match the fruit in the "variety of X" phrase, not the whole
+  description. Three hits, none a pumpkin. Squash, beet and kale return nothing. Check what a plate
   depicts before assigning it by name.
+- **Some plates are the right fruit and still unusable**: halved melons showing seeds, bare
+  branches and twigs, pencil or pen fragments, a cross-section of an olive, a blemished satsuma.
+  Apricot's only plate is a Japanese apricot, and the "Montmorency" plate is labelled as a sweet
+  cherry. Twelve fruit items stay drawings for these reasons, and pluot was never searched.
 - **Hit counts are text matches, not distinct items**: an apple's thousands are varieties and
   repeated plates.
 - Commons throttles bursts of API calls. Space them out when sweeping.
@@ -746,8 +752,12 @@ The art registry, as built:
   per source (`usda-pomological.ts`: id, credit, license, and a slug to `{ file, sourceUrl }` map)
   and `index.ts`, which holds `ART_SOURCES` in priority order and `artFor(slug)`. `regionItems`
   joins the result onto each item as `art`, so components still just read `item.art`.
-- **Files sit in `public/produce/art/<source id>/<slug>.jpg`**, cropped to the specimen. The first
-  three are apple (Buckskin), pear (Coles Winter) and cranberry (Howes).
+- **Files sit in `public/produce/art/<source id>/<slug>.jpg`**, cropped to the specimen and
+  resized to 520px on the long side (about 1.2MB for 30). 30 of the 43 fruit items have a plate:
+  the rest show their drawing, and the reasons are listed in `usda-pomological.ts`.
+- **Plates were found by a filtered Commons search, then cropped by a small connected-component
+  script and checked by eye on a contact sheet.** The script is not in the repo: the committed
+  images and the manifest are the record. A new plate is worth the same eyeball.
 - **The validator checks every source**, as in the data model section, and `data.test.ts` pins
   that `artFor` takes the first source that has an item, so reordering switches one item's picture.
 - **The credit is a plain map over `ART_SOURCES`** in the produce layout footer, so it needs no
