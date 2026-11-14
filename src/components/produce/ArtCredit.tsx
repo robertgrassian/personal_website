@@ -14,6 +14,8 @@ export function ArtCredit() {
           <a href={source.credit.url} target="_blank" rel="noopener noreferrer">
             {source.credit.name}
           </a>
+          {/* A licence that asks for credit is named with it. */}
+          {source.license !== "Public domain" && ` (${source.license})`}
         </Fragment>
       ))}
       .

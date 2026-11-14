@@ -1,4 +1,12 @@
 import type { ArtKind, ArtSource } from "../types.ts";
+import {
+  FABRE,
+  FLORA_BATAVA,
+  KOHLER,
+  NORTH_AMERICAN_SYLVA,
+  SEIKEI_ZUSETSU,
+  THOME,
+} from "./botanical.ts";
 import { USDA_POMOLOGICAL } from "./usda-pomological.ts";
 import { VILMORIN_ANDRIEUX } from "./vilmorin-andrieux.ts";
 
@@ -6,7 +14,16 @@ import { VILMORIN_ANDRIEUX } from "./vilmorin-andrieux.ts";
 // shows its drawing (drawings.ts) when none does. To add a dataset: write one manifest beside
 // these and add it here. To prefer a different picture for one item, put the source that has it
 // earlier, or delete the entry from the source that should lose.
-export const ART_SOURCES: readonly ArtSource[] = [USDA_POMOLOGICAL, VILMORIN_ANDRIEUX];
+export const ART_SOURCES: readonly ArtSource[] = [
+  USDA_POMOLOGICAL,
+  VILMORIN_ANDRIEUX,
+  KOHLER,
+  THOME,
+  NORTH_AMERICAN_SYLVA,
+  FABRE,
+  FLORA_BATAVA,
+  SEIKEI_ZUSETSU,
+];
 
 export type Art = { src: string; kind: ArtKind };
 
