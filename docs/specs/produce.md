@@ -323,9 +323,17 @@ live in a new `src/app/produce/produce.css` under `[data-app="produce"]`, define
 two-ink print look) and a trial of real plates on the Field guide packet.** The page must not wait
 on 127 images, and the picture for one item must not depend on where another item's came from. So:
 
-- **Every item renders its art if it has some, otherwise the lettered seed packet** (name in
-  Caveat, a category glyph, a rough.js border). Any subset ships. A packet with a plate beside a
-  packet with a drawn glyph is intended, not a gap to close.
+- **Every item renders the best picture it has, in this order:** a real plate from the registry,
+  then a **drawn shape** for the item, then (only for an item the drawings do not cover, which a
+  test forbids) the category glyph. Any subset of real plates ships. A packet with a plate beside a
+  packet with a drawing is intended, not a gap to close.
+- **The drawn fallback is about two dozen hand-inked, watercolor-washed shapes** (round fruit,
+  pear, berries, citrus, melon, leafy green, root, squash, stalk, pod, sprig, cap and so on) in
+  `src/lib/produce/drawings.ts`. An item is a shape plus its own colours, so every leafy green is
+  the same leaf in a different green. This is the look Robert chose from the Field guide mockup.
+  The shapes are SVG paths written in code, not generated images; Robert approved them as the
+  fallback on 2026-11-13, so they sit alongside the no-AI-art rule below rather than against it.
+  `drawings.test.ts` fails on a catalog item with no drawing.
 - **Art is a registry of sources, not a field on the catalog.** Each source is a manifest mapping
   slugs to an image and its provenance; a priority order across sources picks one per item. Adding
   a dataset later, or building one, is one new manifest and one line in the order, with no change
@@ -338,7 +346,7 @@ on 127 images, and the picture for one item must not depend on where another ite
   credits itself. No per-page filtering and no sources route: Robert asked not to over-build what
   is shown. The collection is public domain and needs no credit; it is given because the source
   deserves it.
-- **No tint behind a plate.** The plate's own paper is the colour. On the packet it is multiplied
+- **No tint behind a plate or a drawing.** The plate's own paper is the colour. On the packet it is multiplied
   into the packet colour with its edges feathered, so it reads as painted on the packet. The
   category tint stays behind the glyph fallback only. A soft blue and the old pink were both tried
   and rejected. In dark mode multiply cannot work on slate, so the plate keeps its cream paper.
@@ -729,8 +737,8 @@ The season-first view, differences and decisions so they read as decisions and n
 - **The basket counts the period on show**: "in season this fall", "in season in October".
 - **The season icons are rough.js glyphs drawn server-side** with the category glyphs, so rough.js
   stays out of the browser bundle.
-- **The category tint stays behind the glyph fallback** and is dropped behind art. See
-  [Per-item art](#per-item-art-pluggable-sources-per-item).
+- **The category tint is dropped behind plates and drawings.** It remains only behind the glyph,
+  which no catalog item reaches. See [Per-item art](#per-item-art-pluggable-sources-per-item).
 
 The art registry, as built:
 
@@ -744,9 +752,10 @@ The art registry, as built:
   that `artFor` takes the first source that has an item, so reordering switches one item's picture.
 - **The credit is a plain map over `ART_SOURCES`** in the produce layout footer, so it needs no
   per-page logic.
-- **Not seen in a browser yet.** The plate-on-packet blend (multiply in the light scheme, an overlay
-  that fades the sheet's edges) and the dark scheme's plain cream plate were written without a
-  visual check. Look at both on a phone before merging.
+- **Checked in headless Chrome over the debugging protocol**, light and dark, at 1100 and 390
+  wide, including the detail dialog: the plate blends into the packet in light, shows as a soft
+  vignette on slate in dark, and the drawings take the page's ink colour. Not checked on a real
+  phone.
 
 ### Manual steps, Robert's
 

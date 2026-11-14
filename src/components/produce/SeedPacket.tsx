@@ -6,6 +6,8 @@ import { CATEGORY_LABELS } from "@/lib/produce/categories";
 import { MONTH_NAMES, type Period } from "@/lib/produce/season";
 import type { ProduceSketch } from "@/lib/produce/sketch";
 import { BORDER_VIEWBOX, CIRCLE_VIEWBOX } from "@/lib/produce/sketchBoxes";
+import { DRAWINGS } from "@/lib/produce/drawings";
+import { Drawing } from "./Drawing";
 import { RoughFrame, RoughGlyph } from "./RoughFrame";
 import { SeasonStrip } from "./SeasonStrip";
 
@@ -13,7 +15,8 @@ import { SeasonStrip } from "./SeasonStrip";
 // same hash as the border, so a card's tilt and outline always travel together.
 const TILTS = [-1.4, 0.9, -0.6, 1.3, -1, 0.5];
 
-// The packet's picture: the item's art when it has some, otherwise its category glyph on a tint.
+// The packet's picture, best first: a real plate, then the drawn shape for the item, then (only for
+// an item the drawings do not cover) its category glyph on a tint.
 export function PacketWindow({
   item,
   glyph,
@@ -23,10 +26,10 @@ export function PacketWindow({
   glyph: string;
   large?: boolean;
 }) {
+  const drawn = !item.art && item.slug in DRAWINGS;
+  const modifier = item.art ? "produce-window--art" : drawn ? "produce-window--drawn" : "";
   return (
-    <span
-      className={`produce-window ${large ? "produce-window--large" : ""} ${item.art ? "produce-window--art" : ""}`}
-    >
+    <span className={`produce-window ${large ? "produce-window--large" : ""} ${modifier}`}>
       {item.art ? (
         <Image
           src={item.art}
@@ -35,6 +38,8 @@ export function PacketWindow({
           sizes={large ? "20rem" : "10rem"}
           className="produce-art object-contain p-2"
         />
+      ) : drawn ? (
+        <Drawing slug={item.slug} />
       ) : (
         <RoughGlyph d={glyph} />
       )}

@@ -33,6 +33,7 @@
   --shelf-input-ring: var(--link);
   --shelf-danger: #a3271b;
   --p-stamp: #9c2a1c; /* stamp-pad red, 6.1:1 on packet */
+  --p-fillop: 0.8; /* how opaque a drawing's colour is over the paper */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -53,6 +54,7 @@
       radial-gradient(ellipse at 35% 98%, rgba(255, 255, 255, 0.05), transparent 40%);
     --shelf-danger: #f08a7a;
     --p-stamp: #f2a08f; /* chalk pink, 6.6:1 on the dark packet */
+    --p-fillop: 0.6;
   }
 }
 
@@ -567,6 +569,44 @@
 
 .produce-art {
   mix-blend-mode: multiply;
+}
+
+/* A drawing is also its own colour, so no category tint sits behind it either. Absolutely placed
+   like the glyph, so the SVG's intrinsic size cannot stretch the window. */
+.produce-window--drawn {
+  background: transparent;
+}
+
+/* A picture needs more room than the glyph did. */
+.produce-window--art,
+.produce-window--drawn {
+  aspect-ratio: 3 / 2;
+}
+
+.produce-window--large.produce-window--art,
+.produce-window--large.produce-window--drawn {
+  aspect-ratio: 16 / 9;
+}
+
+.produce-drawing {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  height: 90%;
+  width: auto;
+  overflow: visible;
+}
+
+.produce-drawing-body {
+  fill-opacity: var(--p-fillop);
+}
+
+.produce-drawing-ink {
+  fill: none;
+  stroke: var(--p-ink);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* Multiply would darken a plate on slate, so the dark scheme shows the paper as it is. */
