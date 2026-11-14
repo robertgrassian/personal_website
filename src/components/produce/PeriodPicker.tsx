@@ -1,8 +1,10 @@
 import { caveat } from "@/lib/fonts";
 import {
+  MONTH_ABBR,
   MONTH_NAMES,
   SEASONS,
   SEASON_IDS,
+  periodRange,
   seasonOf,
   type SeasonId,
   type View,
@@ -10,12 +12,6 @@ import {
 import type { ProduceSketch } from "@/lib/produce/sketch";
 import { CIRCLE_VIEWBOX } from "@/lib/produce/sketchBoxes";
 import { RoughFrame, RoughGlyph } from "./RoughFrame";
-
-// "Sep to Nov": short enough to sit inside the loop round the selected season.
-function shortRange(months: readonly number[]): string {
-  const abbr = (m: number) => MONTH_NAMES[m].slice(0, 3);
-  return `${abbr(months[0])} to ${abbr(months[months.length - 1])}`;
-}
 
 // The page opens on a season; a month is the finer grain underneath it. Stateless: the view lives
 // in ProduceBrowser, which also decides what "now" is.
@@ -67,7 +63,10 @@ export function PeriodPicker({
                     {SEASONS[id].label}
                   </span>
                 </span>
-                <span className="produce-season-range">{shortRange(SEASONS[id].months)}</span>
+                {/* "Sep to Nov": short enough to sit inside the loop. */}
+                <span className="produce-season-range">
+                  {periodRange(SEASONS[id].months, MONTH_ABBR)}
+                </span>
               </button>
             </li>
           );
@@ -78,7 +77,7 @@ export function PeriodPicker({
         <li>
           <button
             type="button"
-            className={`produce-month produce-month--all ${caveat.className}`}
+            className={`produce-month ${caveat.className}`}
             aria-pressed={view.month === null}
             onClick={() => onMonth(null)}
           >
@@ -101,7 +100,7 @@ export function PeriodPicker({
               {m === view.month && (
                 <RoughFrame d={sketch.circle} viewBox={CIRCLE_VIEWBOX} className="produce-circle" />
               )}
-              {MONTH_NAMES[m].slice(0, 3)}
+              {MONTH_ABBR[m]}
             </button>
           </li>
         ))}
