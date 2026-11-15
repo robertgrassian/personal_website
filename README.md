@@ -170,10 +170,9 @@ One-time setup (two GitHub environments, their secrets, and the read-only databa
 reasoning behind the gate, and the operating notes are in
 [`docs/deployment.md`](docs/deployment.md).
 
-## Claude Skills
+## Claude Code
 
-Skills in `.claude/skills/` for use with [Claude Code](https://claude.com/claude-code):
-`proj-todo` (owns the backlog and bug list: `TODO.md` as the index, with
-per-item detail in `docs/todo/`), `explain` (walk through
-code step by step), and `teach` (the concepts behind it). Project instructions
-live in [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
+Project instructions for [Claude Code](https://claude.com/claude-code) live in
+[`.claude/CLAUDE.md`](.claude/CLAUDE.md). One skill, `proj-todo`, holds the
+rules for the backlog and bug list: `TODO.md` as the index, with per-item detail
+in `docs/todo/`.
