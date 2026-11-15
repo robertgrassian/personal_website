@@ -28,7 +28,7 @@ Docs ownership, so facts don't drift: `api/README.md` owns the backend layers an
 ## Conventions
 
 - **Before building or fixing something, check `TODO.md` for an existing entry**: it may carry a corrected premise or a rejected approach, and its `[Details]` doc is worth reading first. When the work lands, delete the entry and its doc. Any other backlog write follows the `proj-todo` skill.
-- **No em dashes (—) in user-facing text**: JSX copy, `aria-label`, `alt`, metadata, error messages, placeholders, shipped Markdown like `/privacy`. Use a colon, a comma, or two sentences. Code comments and docs are exempt.
+- **Never write an em dash**, anywhere others can read it: UI copy, code comments, docs, commit messages, PR and issue text. Use a colon, a comma, or two sentences. Existing ones can stay; don't clean them up.
 - **Routes are kebab-case.** The permanent redirects from the old snake_case URLs in `next.config.ts` must stay. Folder names and SQL columns stay snake_case.
 - **The library owns `/video-games`.** New library surfaces nest under it (per-user libraries are `/video-games/u/[username]`). Identity is site-wide, so `/sign-in`, `/account`, `/onboarding` and `/auth/*` stay top-level. **Do not move or retitle `/video-games/start`**: it is Google's OAuth "App homepage".
 - **One login, many apps.** Signing in creates a site account and nothing else, and never forces onboarding: a signed-in visitor with no game library profile is a complete state. An app's per-user data is made when the visitor asks for it, and new per-user tables key on the auth user, not on `profiles`.

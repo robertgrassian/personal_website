@@ -35,7 +35,7 @@ while read -r line; do
 	[ -n "$line" ] && report "$line"
 done < <(awk -v cap="$CAP" '
 	function flush() { if (n && c > cap) printf "OVER CAP (%d): %s\n", c, substr(t, 1, 60) }
-	/^- \[/ { flush(); t = $0; n = 1; c = length($0); next }
+	/^- / { flush(); t = $0; n = 1; c = length($0); next }
 	/^## /  { flush(); n = 0; next }
 	n && NF { c += length($0) }
 	END     { flush() }

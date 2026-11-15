@@ -12,159 +12,159 @@ before that happens.
 
 _Confirmed defects that are not urgent enough for Up Next. Roughly severity-ordered, worst first._
 
-- [ ] **A dropdown change mid-search can put back a character you already typed past.** **Not
-      reproduced.** [Details](docs/todo/suggest-input-search-restore.md)
+- **A dropdown change mid-search can put back a character you already typed past.** **Not
+  reproduced.** [Details](docs/todo/suggest-input-search-restore.md)
 
-- [ ] **The add form's info popover can promise genres the add then fails to store.** Letting the
-      client send the previewed genres stays declined: since 2026-09-23 a new IGDB row trusts
-      nothing from the payload but the id. [Details](docs/todo/info-popover-genre-promise.md)
+- **The add form's info popover can promise genres the add then fails to store.** Letting the
+  client send the previewed genres stays declined: since 2026-09-23 a new IGDB row trusts
+  nothing from the payload but the id. [Details](docs/todo/info-popover-genre-promise.md)
 
-- [ ] **Owner edit affordances still pop in, now at hydration rather than a round trip later.** The
-      localStorage cache landed 2026-08-19; closing the last gap means reaching first paint, which is
-      a decision, not a tweak. [Details](docs/todo/owner-affordance-hydration-pop.md)
+- **Owner edit affordances still pop in, now at hydration rather than a round trip later.** The
+  localStorage cache landed 2026-08-19; closing the last gap means reaching first paint, which is
+  a decision, not a tweak. [Details](docs/todo/owner-affordance-hydration-pop.md)
 
-- [ ] **Intermittent hydration mismatch in the sticky library header at very short viewports.** The
-      server sends the Stats button where the client renders "+ Add game", so React discards the
-      subtree. Reproduced only under `?debug`; logged out is clean. Distinct from the item above.
-      [Details](docs/todo/header-hydration-mismatch.md)
+- **Intermittent hydration mismatch in the sticky library header at very short viewports.** The
+  server sends the Stats button where the client renders "+ Add game", so React discards the
+  subtree. Reproduced only under `?debug`; logged out is clean. Distinct from the item above.
+  [Details](docs/todo/header-hydration-mismatch.md)
 
 ## Backlog / Ideas
 
-- [ ] **Produce tracker at `/produce`: season view, art, more regions.** Phases 1 to 4 of
-      `docs/specs/produce.md` are built. Left: Phase 5 season-first view, then art (source
-      undecided, never AI), Phase 6 regions, D10 the consent-screen rename. Guest tracking is
-      deliberately unbuilt. Settles **Decide the routing/namespace strategy**.
+- **Produce tracker at `/produce`: season view, art, more regions.** Phases 1 to 4 of
+  `docs/specs/produce.md` are built. Left: Phase 5 season-first view, then art (source
+  undecided, never AI), Phase 6 regions, D10 the consent-screen rename. Guest tracking is
+  deliberately unbuilt. Settles **Decide the routing/namespace strategy**.
 
-- [ ] **A wine library at `/wine`: a log of bottles I've had, a label lookup for the wine shop, and
-      stats on what I like.** First step is a phased tech spec in `docs/specs/`. The shelf machinery
-      is game-typed; touches **Decide the routing/namespace strategy**.
-      [Details](docs/todo/wine-library.md)
+- **A wine library at `/wine`: a log of bottles I've had, a label lookup for the wine shop, and
+  stats on what I like.** First step is a phased tech spec in `docs/specs/`. The shelf machinery
+  is game-typed; touches **Decide the routing/namespace strategy**.
+  [Details](docs/todo/wine-library.md)
 
-- [ ] **A Recommendations tab beside Played and Wishlist: an Upcoming row and a Released section.**
-      Content-based, not collaborative (too few users); candidates from IGDB; computed by a nightly
-      batch job, never in the API function. Spec: `docs/specs/recommendations.md`.
-      [Details](docs/todo/game-recommendations.md)
+- **A Recommendations tab beside Played and Wishlist: an Upcoming row and a Released section.**
+  Content-based, not collaborative (too few users); candidates from IGDB; computed by a nightly
+  batch job, never in the API function. Spec: `docs/specs/recommendations.md`.
+  [Details](docs/todo/game-recommendations.md)
 
-- [ ] **A music app at `/music`: a decade's albums as a wall of sleeves, walked genre by genre
-      along an authored path, played through Spotify.** Stateless, no accounts.<br>The game
-      library's shelf machinery is game-typed, so this first tests **Decide the routing/namespace
-      strategy**. [Details](docs/todo/music-decades-wall.md)
+- **A music app at `/music`: a decade's albums as a wall of sleeves, walked genre by genre
+  along an authored path, played through Spotify.** Stateless, no accounts.<br>The game
+  library's shelf machinery is game-typed, so this first tests **Decide the routing/namespace
+  strategy**. [Details](docs/todo/music-decades-wall.md)
 
-- [ ] **The built-in shelf remounts part of every group's game cases on load**, because the first
-      render puts the whole group in one bay and a layout effect re-cuts it into rows. ~35 of ~155
-      cases. **Promote to Bugs if the doc's focus-loss path reproduces.**
-      [Details](docs/todo/shelf-recut-remount.md)
+- **The built-in shelf remounts part of every group's game cases on load**, because the first
+  render puts the whole group in one bay and a layout effect re-cuts it into rows. ~35 of ~155
+  cases. **Promote to Bugs if the doc's focus-loss path reproduces.**
+  [Details](docs/todo/shelf-recut-remount.md)
 
-- [ ] **A site email address for feedback, so people without a GitHub account can report bugs and
-      ideas.** `/privacy` already publishes `rgrassian@gmail.com` twice, so an address exists: what
-      is missing is one that is not a personal inbox, and any link to it from the library.
-      [Details](docs/todo/feedback-email-address.md)
+- **A site email address for feedback, so people without a GitHub account can report bugs and
+  ideas.** `/privacy` already publishes `rgrassian@gmail.com` twice, so an address exists: what
+  is missing is one that is not a personal inbox, and any link to it from the library.
+  [Details](docs/todo/feedback-email-address.md)
 
-- [ ] **Add "owned" as a field to wishlist games**: a boolean, or a general `labels` array built
-      for later uses. Decide it against **promote**, which today _moves_ the game and deletes the
-      wishlist row. Wanted by **Show whether a wishlist game is on sale**.
-      [Details](docs/todo/wishlist-owned-flag.md)
+- **Add "owned" as a field to wishlist games**: a boolean, or a general `labels` array built
+  for later uses. Decide it against **promote**, which today _moves_ the game and deletes the
+  wishlist row. Wanted by **Show whether a wishlist game is on sale**.
+  [Details](docs/todo/wishlist-owned-flag.md)
 
-- [ ] **Show whether a wishlist game is on sale**, per entry's system, via a hardcoded system to
-      shop map, rechecked at most daily. Wants **Add "owned" as a field to wishlist games** first,
-      and `wishlist_games.system` is nullable free text, so many entries have no shop to check.
-      [Details](docs/todo/wishlist-sale-check.md)
+- **Show whether a wishlist game is on sale**, per entry's system, via a hardcoded system to
+  shop map, rechecked at most daily. Wants **Add "owned" as a field to wishlist games** first,
+  and `wishlist_games.system` is nullable free text, so many entries have no shop to check.
+  [Details](docs/todo/wishlist-sale-check.md)
 
-- [ ] **`AddGameModal` is the last dialog left. Decide whether adding a game moves onto the detail
-      card too.** No longer a merge of two: the other dialogs were deleted 2026-08-20, and the add
-      form has since taken the card's one-Save model and its play-history fields.
-      [Details](docs/todo/merge-game-modals.md)
+- **`AddGameModal` is the last dialog left. Decide whether adding a game moves onto the detail
+  card too.** No longer a merge of two: the other dialogs were deleted 2026-08-20, and the add
+  form has since taken the card's one-Save model and its play-history fields.
+  [Details](docs/todo/merge-game-modals.md)
 
-- [ ] **Audit the genre vocabulary, fix the wrong values in the database with a script, and stop
-      them coming back.** Premise **confirmed 2026-08-28**: `Shooter` is one row, and the backfill
-      re-proposes it, so no Wikipedia sweep fixes it. What is left is the hand-typed add path.
-      [Details](docs/todo/genre-vocabulary-audit.md)
+- **Audit the genre vocabulary, fix the wrong values in the database with a script, and stop
+  them coming back.** Premise **confirmed 2026-08-28**: `Shooter` is one row, and the backfill
+  re-proposes it, so no Wikipedia sweep fixes it. What is left is the hand-typed add path.
+  [Details](docs/todo/genre-vocabulary-audit.md)
 
-- [ ] **Detect where the title sits on a game cover, and crop the CRT picture so it is not cut
-      off.** [Details](docs/todo/cover-title-crop-crt.md)
+- **Detect where the title sits on a game cover, and crop the CRT picture so it is not cut
+  off.** [Details](docs/todo/cover-title-crop-crt.md)
 
-- [ ] **An audit log of important library actions, primarily so a change can be undone.** Wants
-      **Show a confirmation toast after logging a session** built first.
-      [Details](docs/todo/library-audit-log.md)
+- **An audit log of important library actions, primarily so a change can be undone.** Wants
+  **Show a confirmation toast after logging a session** built first.
+  [Details](docs/todo/library-audit-log.md)
 
-- [ ] **The four _backend_ structural refactors left over from the game-library simplification
-      review.** [Details](docs/todo/backend-structural-refactors.md)
+- **The four _backend_ structural refactors left over from the game-library simplification
+  review.** [Details](docs/todo/backend-structural-refactors.md)
 
-- [ ] **Move the Following/Followers tabs to their own route.**
-      [Details](docs/todo/followers-own-route.md)
+- **Move the Following/Followers tabs to their own route.**
+  [Details](docs/todo/followers-own-route.md)
 
-- [ ] **Show a confirmation toast after logging a session, so you know it worked.** A site-wide
-      primitive decision, not a local one. Wanted first by **An audit log of important library
-      actions**; possibly with a link, per **Editing and deleting past sessions**.
-      [Details](docs/todo/session-log-confirmation-toast.md)
+- **Show a confirmation toast after logging a session, so you know it worked.** A site-wide
+  primitive decision, not a local one. Wanted first by **An audit log of important library
+  actions**; possibly with a link, per **Editing and deleting past sessions**.
+  [Details](docs/todo/session-log-confirmation-toast.md)
 
-- [ ] **Editing and deleting past sessions.** Viewing them shipped 2026-08-22, in both places it
-      was wanted. What is left is backend: `PATCH /me/sessions/{id}` only closes, so a real
-      `SessionUpdate` and a `DELETE` do not exist. [Details](docs/todo/view-and-edit-sessions.md)
+- **Editing and deleting past sessions.** Viewing them shipped 2026-08-22, in both places it
+  was wanted. What is left is backend: `PATCH /me/sessions/{id}` only closes, so a real
+  `SessionUpdate` and a `DELETE` do not exist. [Details](docs/todo/view-and-edit-sessions.md)
 
-- [ ] **Logging a past session should pick the whole range in one calendar popup.**
-      [Details](docs/todo/past-session-date-range-picker.md)
+- **Logging a past session should pick the whole range in one calendar popup.**
+  [Details](docs/todo/past-session-date-range-picker.md)
 
-- [ ] **Set up monitoring / alerting, specifically to get notified when a new user signs up for the
-      game library.** Decide together with **Analytics on signups**.
-      [Details](docs/todo/signup-monitoring-alerts.md)
+- **Set up monitoring / alerting, specifically to get notified when a new user signs up for the
+  game library.** Decide together with **Analytics on signups**.
+  [Details](docs/todo/signup-monitoring-alerts.md)
 
-- [ ] **Document the database restore procedure.** Backups exist; the written "the data is gone, now
-      what" does not. [Details](docs/todo/db-restore-procedure.md)
+- **Document the database restore procedure.** Backups exist; the written "the data is gone, now
+  what" does not. [Details](docs/todo/db-restore-procedure.md)
 
-- [ ] **Add public libraries to `sitemap.ts`.** Wants a decision on whether users can opt out of
-      indexing. [Details](docs/todo/sitemap-public-libraries.md)
+- **Add public libraries to `sitemap.ts`.** Wants a decision on whether users can opt out of
+  indexing. [Details](docs/todo/sitemap-public-libraries.md)
 
-- [ ] **Analytics on signups.** Decide together with **Set up monitoring / alerting**.
-      [Details](docs/todo/signup-analytics.md)
+- **Analytics on signups.** Decide together with **Set up monitoring / alerting**.
+  [Details](docs/todo/signup-analytics.md)
 
-- [ ] **User search, so you can find people to follow without knowing their username.**
-      [Details](docs/todo/user-search.md)
+- **User search, so you can find people to follow without knowing their username.**
+  [Details](docs/todo/user-search.md)
 
-- [ ] **Give WISHLIST notes the editor library games now have, and render notes as Markdown.**
-      Library notes shipped as a third face of the detail card, plain text. Journal entries were
-      decided against; Markdown is gated on the writing experience, not the rendering.
-      [Details](docs/todo/game-notes-notes-markdown.md)
+- **Give WISHLIST notes the editor library games now have, and render notes as Markdown.**
+  Library notes shipped as a third face of the detail card, plain text. Journal entries were
+  decided against; Markdown is gated on the writing experience, not the rendering.
+  [Details](docs/todo/game-notes-notes-markdown.md)
 
-- [ ] **Make library and wishlist entries fully editable.** Now just the shared `game_metadata`
-      question: name, genres, release date, cover art. The per-entry fields all landed by
-      2026-08-20. Would unblock **Audit the genre vocabulary**.
-      [Details](docs/todo/fully-editable-entries.md)
+- **Make library and wishlist entries fully editable.** Now just the shared `game_metadata`
+  question: name, genres, release date, cover art. The per-entry fields all landed by
+  2026-08-20. Would unblock **Audit the genre vocabulary**.
+  [Details](docs/todo/fully-editable-entries.md)
 
-- [ ] **Fold "+ Add to wishlist" into a single "+ Add game" that picks its destination.** The
-      switcher has to show and hide the add form's play-history section, which is library-only.
-      [Details](docs/todo/merge-add-buttons.md)
+- **Fold "+ Add to wishlist" into a single "+ Add game" that picks its destination.** The
+  switcher has to show and hide the add form's play-history section, which is library-only.
+  [Details](docs/todo/merge-add-buttons.md)
 
-- [ ] **A username rename feature must delete `usernameByUserId` (`src/lib/meApi.ts`).**
-      [Details](docs/todo/username-rename-cache-delete.md)
+- **A username rename feature must delete `usernameByUserId` (`src/lib/meApi.ts`).**
+  [Details](docs/todo/username-rename-cache-delete.md)
 
-- [ ] Profile pictures for user accounts (post-v1: likely Supabase Storage plus an upload/crop flow,
-      shown in the profile header and follower lists)
+- Profile pictures for user accounts (post-v1: likely Supabase Storage plus an upload/crop flow,
+  shown in the profile header and follower lists)
 
-- [ ] **Per-user library customization, starting with letting someone pick their own shelf theme.**
-      The shelf half stopped being a design problem when shelf themes shipped: what is left is a
-      column, an API field and a picker. [Details](docs/todo/library-customization.md)
+- **Per-user library customization, starting with letting someone pick their own shelf theme.**
+  The shelf half stopped being a design problem when shelf themes shipped: what is left is a
+  column, an API field and a picker. [Details](docs/todo/library-customization.md)
 
-- [ ] Staging environment: previews are read-only against prod, so writes first run for real in
-      prod. [Details](docs/todo/staging-environment.md)
+- Staging environment: previews are read-only against prod, so writes first run for real in
+  prod. [Details](docs/todo/staging-environment.md)
 
-- [ ] Decide the routing/namespace strategy as the site grows into multiple apps. **Half-settled
-      2026-07-29** toward per-app route prefixes on one domain.
-      [Details](docs/todo/routing-namespace-strategy.md)
+- Decide the routing/namespace strategy as the site grows into multiple apps. **Half-settled
+  2026-07-29** toward per-app route prefixes on one domain.
+  [Details](docs/todo/routing-namespace-strategy.md)
 
-- [ ] "Current Hobbies" section on `/about`, starting with currently-playing games.
-      [Details](docs/todo/current-hobbies-about.md)
+- "Current Hobbies" section on `/about`, starting with currently-playing games.
+  [Details](docs/todo/current-hobbies-about.md)
 
-- [ ] Alternate "currently playing" display: a full-width Marquee Banner as a sibling of the CRT.
-      [Details](docs/todo/marquee-banner-display.md)
+- Alternate "currently playing" display: a full-width Marquee Banner as a sibling of the CRT.
+  [Details](docs/todo/marquee-banner-display.md)
 
-- [ ] Fun interactive game/toy page, for fun and for learning TypeScript.
-      [Details](docs/todo/interactive-toy-page.md)
+- Fun interactive game/toy page, for fun and for learning TypeScript.
+  [Details](docs/todo/interactive-toy-page.md)
 
-- [ ] Dark mode toggle
+- Dark mode toggle
 
-- [ ] Movie library want to watch list, maybe a whole movie's seen section too...
+- Movie library want to watch list, maybe a whole movie's seen section too...
 
-- [ ] Book library, similar to the movie library idea. Raises whether the route becomes `/library`
-      with games, movies and books as sub-routes, so it touches **Decide the routing/namespace
-      strategy**. [Details](docs/todo/book-library.md)
+- Book library, similar to the movie library idea. Raises whether the route becomes `/library`
+  with games, movies and books as sub-routes, so it touches **Decide the routing/namespace
+  strategy**. [Details](docs/todo/book-library.md)
