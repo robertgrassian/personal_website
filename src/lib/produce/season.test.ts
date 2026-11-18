@@ -4,11 +4,19 @@ import { REGIONS } from "./regions/index.ts";
 import {
   GROUP_IDS,
   GROUP_LABELS,
+  MONTH_ABBR,
+  SEASONS,
+  SEASON_IDS,
   currentMonth,
   groupFor,
+  groupForPeriod,
   isArriving,
   isLeaving,
+  periodOf,
+  periodRange,
+  runNote,
   seasonLabel,
+  seasonOf,
   statusIn,
 } from "./season.ts";
 
@@ -146,4 +154,108 @@ test("seasonLabel never uses an em dash", () => {
   for (const s of [STRAWBERRY, APPLE, CITRUS, "P.P.P.P.P.P.", ...shipped]) {
     assert.ok(!seasonLabel(s).includes("\u2014"), s);
   }
+});
+
+test("the four seasons cover every month exactly once, winter crossing the year end", () => {
+  const months = SEASON_IDS.flatMap((id) => [...SEASONS[id].months]);
+  assert.deepEqual(
+    [...months].sort((a, b) => a - b),
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+  );
+  assert.deepEqual(SEASONS.winter.months, [DEC, JAN, FEB]);
+  assert.equal(seasonOf(DEC), "winter");
+  assert.equal(seasonOf(JAN), "winter");
+  assert.equal(seasonOf(MAR), "spring");
+  assert.equal(seasonOf(NOV), "fall");
+});
+
+test("seasonOf refuses a month outside 0..11", () => {
+  assert.throws(() => seasonOf(12), RangeError);
+  assert.throws(() => seasonOf(-1), RangeError);
+});
+
+test("periodOf is the season's months, or the one month picked", () => {
+  assert.deepEqual(periodOf({ season: "fall", month: null }), [8, 9, 10]);
+  assert.deepEqual(periodOf({ season: "fall", month: 9 }), [9]);
+});
+
+test("a one-month period is exactly groupFor, for every shipped item in every month", () => {
+  for (const region of REGIONS) {
+    for (const season of Object.values(region.seasons)) {
+      for (let m = 0; m < 12; m++) {
+        assert.equal(groupForPeriod(season, [m]), groupFor(season, m), `${season} month ${m}`);
+      }
+    }
+  }
+});
+
+test("every item in a season is in exactly one group, or none when it is out all season", () => {
+  for (const region of REGIONS) {
+    for (const season of Object.values(region.seasons)) {
+      for (const id of SEASON_IDS) {
+        const group = groupForPeriod(season, SEASONS[id].months);
+        const anyIn = SEASONS[id].months.some((m) => statusIn(season, m) !== "out");
+        assert.equal(group === null, !anyIn, `${season} in ${id}`);
+      }
+    }
+  }
+});
+
+test("season groups: arriving, peak, leaving and around", () => {
+  const FALL = SEASONS.fall.months;
+  // Starts in October: its run begins inside fall.
+  assert.equal(groupForPeriod("..........aa", FALL), "arriving");
+  // Peaks in October: peak wins whatever else is true.
+  assert.equal(groupForPeriod("aaaaaaaaaPaa", FALL), "peak");
+  // Runs August to September and stops: the run ends inside fall.
+  assert.equal(groupForPeriod(".......aa...", FALL), "leaving");
+  // In all of fall and on both sides of it.
+  assert.equal(groupForPeriod("aaaaaaaaaaaa", FALL), "around");
+  // Out of fall entirely.
+  assert.equal(groupForPeriod("..aaaa......", FALL), null);
+});
+
+test("winter crosses the year end: citrus is peak, apples are around, strawberries are null", () => {
+  const WINTER = SEASONS.winter.months;
+  assert.equal(groupForPeriod(CITRUS, WINTER), "peak");
+  assert.equal(groupForPeriod(APPLE, WINTER), "around");
+  assert.equal(groupForPeriod(STRAWBERRY, WINTER), null);
+  // November to January: the run began before winter and stops inside it, across the year end.
+  assert.equal(groupForPeriod("a.........aa", WINTER), "leaving");
+  // December only: the run starts inside winter.
+  assert.equal(groupForPeriod("...........a", WINTER), "arriving");
+});
+
+test("runNote names the last month of a run that stops inside the period", () => {
+  const SPRING = SEASONS.spring.months;
+  // Ramps: April and May, gone in June. A peak, but it ends inside spring.
+  assert.equal(runNote("...aP.......", SPRING, null), "Ends in May");
+  assert.equal(groupForPeriod("...aP.......", SPRING), "peak");
+  // Apples carry on past spring's end from storage.
+  assert.equal(runNote(APPLE, SEASONS.fall.months, null), null);
+  // Out of season for the whole period: nothing to say.
+  assert.equal(runNote(STRAWBERRY, SPRING, null), null);
+});
+
+test("runNote knows today: a run already over has ended, one not yet begun starts", () => {
+  const FALL = SEASONS.fall.months;
+  const PEACH = "......aPP...";
+  assert.equal(runNote(PEACH, FALL, NOV), "Ended in September");
+  assert.equal(runNote(PEACH, FALL, 8), "Ends in September", "still here in September");
+  assert.equal(runNote("..........aa", FALL, 8), "Starts in November");
+  assert.equal(runNote("..........aa", FALL, NOV), null, "arrived, and carries on");
+  // Winter's months are not in numeric order: January is after December.
+  assert.equal(runNote("a.........aa", SEASONS.winter.months, FEB), "Ended in January");
+});
+
+test("an item that leaves and comes back inside one season is arriving", () => {
+  // In for December and February, out for January.
+  assert.equal(groupForPeriod(".aaaaa..aaaa", SEASONS.winter.months), "arriving");
+});
+
+test("periodRange reads a season or a single month, in full or short names", () => {
+  assert.equal(periodRange(SEASONS.fall.months, MONTH_ABBR), "Sep to Nov");
+  assert.equal(periodRange(SEASONS.fall.months), "September to November");
+  assert.equal(periodRange(SEASONS.winter.months), "December to February");
+  assert.equal(periodRange([MAY]), "May");
 });

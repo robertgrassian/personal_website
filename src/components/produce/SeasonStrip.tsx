@@ -1,16 +1,16 @@
-import { MONTH_NAMES, seasonLabel, statusIn } from "@/lib/produce/season";
+import { MONTH_ABBR, MONTH_NAMES, seasonLabel, statusIn, type Period } from "@/lib/produce/season";
 
 // Twelve cells, January first. Status is carried three ways so colour is never the only signal:
 // a fill pattern per status in produce.css (solid peak, tint available, hatched storage, empty
 // out), and the whole strip announced as one sentence via role="img".
 export function SeasonStrip({
   season,
-  month,
+  period,
   labelled = false,
 }: {
   season: string;
-  // The month being viewed, marked with a tick.
-  month: number;
+  // The months being viewed, each marked with a tick: one for a month, three for a season.
+  period: Period;
   // Month initials under the cells, for the detail dialog.
   labelled?: boolean;
 }) {
@@ -26,9 +26,9 @@ export function SeasonStrip({
           <span
             className="produce-cell"
             data-status={statusIn(season, m)}
-            data-viewing={m === month || undefined}
+            data-viewing={period.includes(m) || undefined}
           />
-          {labelled && <span className="produce-strip-label">{name.slice(0, 3)}</span>}
+          {labelled && <span className="produce-strip-label">{MONTH_ABBR[m]}</span>}
         </span>
       ))}
     </span>
