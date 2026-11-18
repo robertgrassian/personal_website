@@ -1,7 +1,7 @@
 # Tech spec: in-season produce tracker
 
-Status: **agreed**, 2026-11-10. Phases 1 to 4 are built (Phase 4 on 2026-11-13) and Phase 5
-(season-first view, art registry, drawings, two art sources) is built and in review; see [Phase 4 as built](#phase-4-as-built) and
+Status: **agreed**, 2026-11-10. Phases 1 to 5 are built (Phase 4 on 2026-11-13; Phase 5, the
+season-first view, art registry, drawings and eight art sources, merged 2026-11-18); see [Phase 4 as built](#phase-4-as-built) and
 [Phase 5 as built](#phase-5-as-built) for where the code differs from the text below. Every decision below is settled except D10 (a name, which blocks
 nothing). The spec was checked against the code on 2026-11-10 and corrected where the code
 disagreed; those corrections are marked **Checked** so they are not undone. Build order, branches
