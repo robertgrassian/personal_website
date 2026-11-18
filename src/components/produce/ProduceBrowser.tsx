@@ -232,7 +232,6 @@ export function ProduceBrowser({
           item={open}
           period={period}
           regionName={regionName}
-          glyph={sketch.glyphs[open.category]}
           ring={sketch.circle}
           tracking={tracking}
           onClose={() => {
