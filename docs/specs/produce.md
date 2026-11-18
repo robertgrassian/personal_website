@@ -180,7 +180,8 @@ Fails the test run if:
 - the state list isn't exactly the 50 states + DC;
 - a region has fewer than two sources, a source URL that isn't `https://`, or a time zone
   `Intl.DateTimeFormat` rejects;
-- an art source has no license, a credit URL that isn't `https://`, an image for a slug not in the
+- an art source has no license, a license other than public domain with no `https://`
+  `licenseUrl`, a credit URL that isn't `https://`, an image for a slug not in the
   catalog, an image file missing under `public/`, or an image with no `https://` source URL.
 
 ### Season logic (`season.ts`)
@@ -781,7 +782,9 @@ The art registry, as built:
   tomatillo. Nothing usable was found for those on Commons.
 - **A source whose pictures are all on Commons is built with `commonsSource`** (`art/commons.ts`)
   from slugs and Commons file names, which derives the credit and source URLs.
-- **A licence other than public domain is printed beside its credit.**
+- **A licence other than public domain is printed beside its credit**, linked to its terms
+  (`licenseUrl`, required by the validator) and marked "adapted", since every picture is cropped
+  and some are tinted. CC BY asks for both.
 - **Files sit in `public/produce/art/<source id>/<slug>.jpg`**, cropped to the specimen and
   at most 520px on the long side (about 1.2MB for the 30 plates, 2.2MB for the 70 engravings).
   Four plates are well under that (gooseberry, plum, strawberry, date: the specimen is small on

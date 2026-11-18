@@ -199,6 +199,25 @@ test("an art source with no license fails", () => {
   assertFires((d) => (artSources(d)[0] = { ...d.artSources[0], license: " " }), /has no license/);
 });
 
+test("an attribution license without an https license url fails", () => {
+  assertFires(
+    (d) => (artSources(d)[0] = { ...d.artSources[0], license: "CC BY 4.0" }),
+    /"CC BY 4.0" but has no https licenseUrl/
+  );
+});
+
+test("an attribution license with its license url passes", () => {
+  const problems = problemsWith(
+    (d) =>
+      (artSources(d)[0] = {
+        ...d.artSources[0],
+        license: "CC BY 4.0",
+        licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+      })
+  );
+  assert.deepEqual(problems, []);
+});
+
 test("an art image without an https source url fails", () => {
   assertFires(
     (d) => (artImages(d).avocado.sourceUrl = "http://example.org/avocado"),

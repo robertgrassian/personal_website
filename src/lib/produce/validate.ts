@@ -1,5 +1,8 @@
 import type { ArtSource, Produce, Region, UsState } from "./types.ts";
 
+// The one license that needs no link or change note in the credit line.
+export const PUBLIC_DOMAIN = "Public domain";
+
 export type ProduceData = {
   catalog: readonly Produce[];
   regions: readonly Region[];
@@ -58,6 +61,9 @@ export function validateProduceData({
     if (sourceIds.has(source.id)) problems.push(`${where} is duplicated`);
     sourceIds.add(source.id);
     if (!source.license.trim()) problems.push(`${where} has no license`);
+    if (source.license !== PUBLIC_DOMAIN && !source.licenseUrl?.startsWith("https://")) {
+      problems.push(`${where} is "${source.license}" but has no https licenseUrl`);
+    }
     if (!source.credit.name.trim()) problems.push(`${where} has no credit name`);
     if (!source.credit.url.startsWith("https://")) {
       problems.push(`${where} credit url "${source.credit.url}" is not https`);

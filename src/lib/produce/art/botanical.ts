@@ -71,6 +71,7 @@ export const SEIKEI_ZUSETSU = commonsSource({
   name: "Seikei Zusetsu, Leiden University Libraries",
   category: "Seikei Zusetsu",
   license: "CC BY 4.0",
+  licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
   kind: "plate",
   files: {
     fiddleheads:

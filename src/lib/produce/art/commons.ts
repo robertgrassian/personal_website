@@ -9,6 +9,7 @@ export function commonsSource(source: {
   name: string;
   category: string;
   license: string;
+  licenseUrl?: string;
   kind: ArtKind;
   // slug → the file's name on Commons.
   files: Readonly<Record<string, string>>;
@@ -20,6 +21,7 @@ export function commonsSource(source: {
       url: `${COMMONS}Category:${encodeURIComponent(source.category.replaceAll(" ", "_"))}`,
     },
     license: source.license,
+    licenseUrl: source.licenseUrl,
     kind: source.kind,
     images: Object.fromEntries(
       Object.entries(source.files).map(([slug, file]) => [
