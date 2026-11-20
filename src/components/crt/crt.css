@@ -576,7 +576,11 @@
 /* Channel pips — one clickable dot per game, active one filled. currentColor
    inherits the accent, so both themes are covered. */
 .pcrt-channel-pips {
+  flex-wrap: wrap;
   gap: 0.5rem;
+  /* Wrapped lines follow the meta block's alignment: centred under the
+     full-size set, left beside the compact one. */
+  justify-content: inherit;
 }
 .pcrt-channel-pip {
   position: relative;
@@ -603,17 +607,18 @@
   outline-offset: 2px;
 }
 /* A finger cannot hit a 10px dot. On touch screens the dots spread out and each
-   gets an invisible 30x44 target: half the gap to either side, so neighbours
-   never overlap, and extra height, which is free. Absolute, so the row does not
-   grow and push the compact TV down. */
+   gets an invisible 30x34 target: half the gap on every side, so neighbours
+   never overlap, including across wrapped lines. A taller target would reach
+   into the line above and steal its taps. Absolute, so the row does not grow
+   and push the compact TV down. */
 @media (pointer: coarse) {
   .pcrt-channel-pips {
-    gap: 1.25rem;
+    gap: 1.5rem 1.25rem;
   }
   .pcrt-channel-pip::before {
     content: "";
     position: absolute;
-    inset: -17px -10px;
+    inset: -12px -10px;
   }
 }
 
