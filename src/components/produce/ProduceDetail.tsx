@@ -5,7 +5,7 @@ import { ModalShell } from "@/components/video_games/ModalShell";
 import { caveat } from "@/lib/fonts";
 import { signInPath } from "@/lib/nextPath";
 import type { ProduceItem } from "@/lib/produce/browse";
-import { MONTH_NAMES, seasonLabel } from "@/lib/produce/season";
+import { periodRange, seasonLabel, type Period } from "@/lib/produce/season";
 import { formatEatenOn } from "@/lib/produce/tastings";
 import { PacketWindow, TriedStamp } from "./SeedPacket";
 import { SeasonKey, SeasonStrip } from "./SeasonStrip";
@@ -97,17 +97,15 @@ function TastingControl({
 // palette inside [data-app="produce"], so the shared component is reused untouched.
 export function ProduceDetail({
   item,
-  month,
+  period,
   regionName,
-  glyph,
   ring,
   tracking,
   onClose,
 }: {
   item: ProduceItem;
-  month: number;
+  period: Period;
   regionName: string;
-  glyph: string;
   ring: string;
   tracking: Tastings;
   onClose: () => void;
@@ -120,19 +118,21 @@ export function ProduceDetail({
       onClose={onClose}
       error={tracking.error}
     >
-      <div className="produce-detail" data-category={item.category}>
-        <PacketWindow item={item} glyph={glyph} large />
+      <div className="produce-detail">
+        <PacketWindow item={item} large />
         <div className="produce-tracking">
           <TastingControl slug={item.slug} tracking={tracking} ring={ring} />
         </div>
         {item.blurb && <p className="mt-4 text-sm leading-relaxed">{item.blurb}</p>}
         <h3 className="produce-detail-heading">Its year in {regionName}</h3>
-        <SeasonStrip season={item.season} month={month} labelled />
+        <SeasonStrip season={item.season} period={period} labelled />
         {/* The strip's own label is for screen readers; sighted readers get the same sentence. */}
         <p className="mt-3 text-sm leading-relaxed" aria-hidden="true">
           {seasonLabel(item.season)}.
         </p>
-        <p className="mt-1 text-xs produce-soft">The tick marks {MONTH_NAMES[month]}.</p>
+        <p className="mt-1 text-xs produce-soft">
+          {period.length === 1 ? "The tick marks" : "The ticks mark"} {periodRange(period)}.
+        </p>
         <SeasonKey />
       </div>
     </ModalShell>

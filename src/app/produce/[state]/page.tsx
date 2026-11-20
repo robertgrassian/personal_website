@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `In season in ${state.name}`,
     description: state.region
-      ? `The fruit, vegetables and herbs in season in ${state.name} this month, and when each one peaks.`
+      ? `The fruit, vegetables and herbs in season in ${state.name} right now, and when each one peaks.`
       : `Season data for ${state.name} is not here yet. See what is in season in the states that have it.`,
     alternates: { canonical: produceStatePath(state.code) },
   };

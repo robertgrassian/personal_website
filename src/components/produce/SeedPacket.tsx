@@ -3,37 +3,33 @@ import Image from "next/image";
 import { caveat } from "@/lib/fonts";
 import type { ProduceItem } from "@/lib/produce/browse";
 import { CATEGORY_LABELS } from "@/lib/produce/categories";
+import type { Period } from "@/lib/produce/season";
 import type { ProduceSketch } from "@/lib/produce/sketch";
 import { BORDER_VIEWBOX, CIRCLE_VIEWBOX } from "@/lib/produce/sketchBoxes";
-import { RoughFrame, RoughGlyph } from "./RoughFrame";
+import { Drawing } from "./Drawing";
+import { RoughFrame } from "./RoughFrame";
 import { SeasonStrip } from "./SeasonStrip";
 
 // A small tilt per border variant, so the grid reads as packets pinned up by hand. Keyed off the
 // same hash as the border, so a card's tilt and outline always travel together.
 const TILTS = [-1.4, 0.9, -0.6, 1.3, -1, 0.5];
 
-// The packet's picture: the item's art when it has some, otherwise its category glyph on a tint.
-export function PacketWindow({
-  item,
-  glyph,
-  large = false,
-}: {
-  item: ProduceItem;
-  glyph: string;
-  large?: boolean;
-}) {
+// The packet's picture: a real one from the art registry, else the item's drawing. Every catalog
+// item has a drawing (drawings.test.ts), so there is no third case.
+export function PacketWindow({ item, large = false }: { item: ProduceItem; large?: boolean }) {
+  const modifier = item.art ? `produce-window--${item.art.kind}` : "";
   return (
-    <span className={`produce-window ${large ? "produce-window--large" : ""}`}>
+    <span className={`produce-window ${large ? "produce-window--large" : ""} ${modifier}`}>
       {item.art ? (
         <Image
-          src={item.art}
+          src={item.art.src}
           alt=""
           fill
           sizes={large ? "20rem" : "10rem"}
-          className="object-contain p-2"
+          className="produce-art object-contain p-2"
         />
       ) : (
-        <RoughGlyph d={glyph} />
+        <Drawing slug={item.slug} />
       )}
     </span>
   );
@@ -52,13 +48,16 @@ export function TriedStamp({ ring, className = "" }: { ring: string; className?:
 
 export function SeedPacket({
   item,
-  month,
+  period,
+  note,
   sketch,
   tried,
   onOpen,
 }: {
   item: ProduceItem;
-  month: number;
+  period: Period;
+  // "Ends in October" and the like on a season view, else null.
+  note: string | null;
   tried: boolean;
   // Type-only import: erased at compile time, so the server-only module never reaches the client.
   sketch: ProduceSketch;
@@ -68,7 +67,6 @@ export function SeedPacket({
     <button
       type="button"
       className="produce-packet"
-      data-category={item.category}
       style={{ "--tilt": `${TILTS[item.variant % TILTS.length]}deg` } as CSSProperties}
       onClick={() => onOpen(item.slug)}
       aria-haspopup="dialog"
@@ -77,10 +75,11 @@ export function SeedPacket({
       <span className="produce-packet-flap" aria-hidden="true">
         {CATEGORY_LABELS[item.category]}
       </span>
-      <PacketWindow item={item} glyph={sketch.glyphs[item.category]} />
+      <PacketWindow item={item} />
       {tried && <TriedStamp ring={sketch.circle} className="produce-stamp--card" />}
       <span className={`produce-packet-name ${caveat.className}`}>{item.name}</span>
-      <SeasonStrip season={item.season} month={month} />
+      {note !== null && <span className="produce-packet-ends">{note}</span>}
+      <SeasonStrip season={item.season} period={period} />
     </button>
   );
 }

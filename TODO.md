@@ -30,10 +30,15 @@ _Confirmed defects that are not urgent enough for Up Next. Roughly severity-orde
 
 ## Backlog / Ideas
 
-- **Produce tracker at `/produce`: season view, art, more regions.** Phases 1 to 4 of
-  `docs/specs/produce.md` are built. Left: Phase 5 season-first view, then art (source
-  undecided, never AI), Phase 6 regions, D10 the consent-screen rename. Guest tracking is
-  deliberately unbuilt. Settles **Decide the routing/namespace strategy**.
+- **A Stardew-style "pixel farm" look for the produce page, as a toggle beside the Field guide
+  look.** Runner-up in the 2026-11-13 mockups. The look must live in `produce.css`, not in
+  component logic; its sprite art needs a ruling against the spec's no-AI-art line.
+  [Details](docs/todo/produce-pixel-theme.md)
+
+- **Produce tracker at `/produce`: more art, more regions.** Phases 1 to 5 are built (season
+  view, art for 113 of 125 items). Left: art for the last 12 (listed in the spec, never AI),
+  re-cropping four soft plates, Phase 6 regions, D10.
+  Settles **Decide the routing/namespace strategy**.
 
 - **A wine library at `/wine`: a log of bottles I've had, a label lookup for the wine shop, and
   stats on what I like.** First step is a phased tech spec in `docs/specs/`. The shelf machinery

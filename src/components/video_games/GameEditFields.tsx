@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { localToday, type Game, type Rating } from "@/lib/games";
 import { formatDayShort } from "@/lib/dates";
 import type { WishlistGame } from "@/lib/wishlist";
@@ -84,6 +84,18 @@ export function GameEditFields({
   onClose,
 }: GameEditFieldsProps) {
   const { isPending, error, run } = useServerAction();
+
+  // A successful Save closes the card, but not from onSuccess: that runs
+  // before the revalidated shelves commit, and the return flight measures its
+  // target case when it starts. A rating or system change can move the case,
+  // so the flight would land where the game used to be. isPending drops in
+  // the same commit as the new shelves, so closing here aims at the new spot.
+  const closeAfterSave = useRef(false);
+  useEffect(() => {
+    if (isPending || !closeAfterSave.current) return;
+    closeAfterSave.current = false;
+    onClose();
+  }, [isPending, onClose]);
 
   // Mirrors ConfirmStep's own step, because the sheet covers the form without
   // being able to retire it: this drives the inert region below and disables
@@ -203,13 +215,14 @@ export function GameEditFields({
           ? saveGameEdits(subject.game.id, edits)
           : saveGameEditsAndClearWishlist(subject.game.id, wishlistItemId, edits),
       {
-        // Stays open on either face: revalidated data flows back into
-        // `subject`, so the form shows what was just saved. Only the drafts
-        // with nowhere to flow back from need clearing.
+        // A Save is the end of the edit, so the card flies back from any face.
+        // The drafts are still cleared: the form stays mounted for the length
+        // of the return flight, and a live Save there could be pressed twice.
         onSuccess: () => {
           play.reset();
           setStopDate(null);
           if (noteDirty) note?.markSaved();
+          closeAfterSave.current = true;
         },
       }
     );
