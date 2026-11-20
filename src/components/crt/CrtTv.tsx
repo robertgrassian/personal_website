@@ -420,7 +420,10 @@ export function CrtTv({ games, compact = false, onManage, onOpen, paused = false
 
       {/* Metadata beside (compact) or below (full-size) the set. */}
       <div className={metaClass}>
-        <div className="flex items-center gap-3">
+        {/* Wraps so a long pip row drops under the label instead of running off
+            a phone screen. gap-y-3 clears the pips' enlarged touch targets
+            (see .pcrt-channel-pip::before) off the label button above them. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
           {/* The label is the manage panel's trigger for an owner and plain
               text for everyone else. Both branches carry the identical type
               classes, and the button adds p-0 and leading-[inherit] on top:
