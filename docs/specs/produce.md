@@ -632,8 +632,11 @@ Top to bottom, mobile first:
    change) and the quiet "season data for the Northeast" line.
 2. **Month scrubber**: twelve hand-lettered months, the current one circled by rough.js.
    Scrubbing changes the groups, not the URL.
-3. **Category chips**: All, then one per category **that this region actually has**. Client-side
+3. **Search box, then category chips**: All, then one per category **that this region actually has**. Client-side
    filter.
+   The search matches name, other names and slug, within the chip. It does not override the
+   season: in-season matches keep their groups, and out-of-season matches list under them in a
+   dimmed "Not in season" group that still opens.
 4. **The basket** (Phase 4+): "You've tried 7 of the 31 things in season this month."
 5. **Four groups**: At its peak, Just arrived, Last chance, Also around. Empty groups hide.
 6. **Cards** in a grid: art or seed packet, name, a tiny 12-cell season strip. Tried items get an

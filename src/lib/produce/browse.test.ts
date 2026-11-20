@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { categoriesIn, regionItems, slugHash } from "./browse.ts";
+import { categoriesIn, matchesQuery, regionItems, slugHash } from "./browse.ts";
 import { REGIONS } from "./regions/index.ts";
+import type { Produce } from "./types.ts";
 
 test("slugHash is stable", () => {
   // Pinned: a change reshuffles every card's border on the next deploy.
@@ -28,4 +29,22 @@ test("variants are spread rather than all one border", () => {
 test("categoriesIn keeps the fixed order and drops absent ones", () => {
   const items = regionItems(REGIONS[0], 6).filter((i) => i.category !== "fruit");
   assert.deepEqual(categoriesIn(items), ["vegetable", "herb", "mushroom"]);
+});
+
+test("matchesQuery finds names, other names and singular slugs", () => {
+  const cherry: Produce = {
+    slug: "cherry",
+    name: "Cherries",
+    aka: ["Sweet cherries"],
+    category: "fruit",
+  };
+  assert.ok(matchesQuery(cherry, "cherry"), "slug covers the singular");
+  assert.ok(matchesQuery(cherry, "  CHERR "), "trimmed and case-folded");
+  assert.ok(matchesQuery(cherry, "sweet"), "aka");
+  assert.ok(matchesQuery(cherry, ""), "blank matches all");
+  assert.ok(!matchesQuery(cherry, "plum"));
+  const asianPear: Produce = { slug: "asian-pear", name: "Asian pears", category: "fruit" };
+  assert.ok(matchesQuery(asianPear, "asian pear"));
+  const jalapeno: Produce = { slug: "jalapeno", name: "Jalapeños", category: "vegetable" };
+  assert.ok(matchesQuery(jalapeno, "jalapeno"), "accents fold");
 });
