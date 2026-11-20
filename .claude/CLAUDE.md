@@ -6,10 +6,7 @@ Personal website: Next.js 15 / React 19 / TypeScript / Tailwind v4, with a FastA
 
 ## How to Work With Me
 
-- **Explain all generated code**: what it does and why. Teach the concepts, don't just produce code.
-- **Implement, don't hand back exercises.** Write the code yourself and teach through how you explain it.
-- **Use my backend knowledge as a bridge** (staff backend engineer: Java, Spring, SQL, Clickhouse, MongoDB), but only when the comparison genuinely clarifies.
-- Call out whether something is a Next.js, React, or general web/JS/TS convention, and briefly give tradeoffs when there are multiple valid approaches.
+- **Teach as you go.** After a change, explain the frontend concepts and non-obvious choices in it: say whether each is a Next.js, React, or general web/JS/TS convention, give the tradeoff when there was a real alternative, and bridge from my backend background (staff backend engineer: Java, Spring, SQL, Clickhouse, MongoDB) when the comparison genuinely clarifies.
 - **Code comments:** short and technical. Comment non-obvious patterns (especially React idioms), state the "why" and stop, never restate the code. No analogies in comments; those belong in chat. Length is earned only by a subtle constraint or a rejected alternative that would otherwise be re-proposed.
 
 ## Architecture
@@ -22,28 +19,26 @@ Docs ownership, so facts don't drift: `api/README.md` owns the backend layers an
 
 ### Pointers that carry a constraint
 
-- Stats SQL tab: the examples in `queryTables.ts` are executed by `queryTables.test.ts`
 - Owner edit surfaces: new owner forms adopt the detail card's one-Save model (`GameDetailCard.tsx`)
 - Dialog chrome: `ModalFrame.tsx` owns backdrop, scroll lock, focus and Escape; don't reimplement them
 - Produce tracking is private, per account, and needs no profile: `useTastings.ts` reads from the browser with the session JWT and writes optimistically via `src/app/produce/actions.ts`
 - `src/lib/produce/sketch.ts` is server-only and the one place rough.js is imported
-- API endpoint reference: `api/bruno/` (kept in sync by `test_bruno_collection.py`)
 - Deploys and migrations in CD: [`docs/deployment.md`](../docs/deployment.md)
 
 ## Conventions
 
-- **Never read or write `TODO.md` or `docs/todo/` without invoking the `proj-todo` skill**, including reads and conversational requests. Its rules live in the skill on purpose.
-- **No em dashes (—) in user-facing text**: JSX copy, `aria-label`, `alt`, metadata, error messages, placeholders, shipped Markdown like `/privacy`. Use a colon, a comma, or two sentences. Code comments and docs are exempt.
+- **Before building or fixing something, check `TODO.md` for an existing entry**: it may carry a corrected premise or a rejected approach, and its `[Details]` doc is worth reading first. When the work lands, delete the entry and its doc. Any other backlog write follows the `proj-todo` skill.
+- **Never write an em dash**, anywhere others can read it: UI copy, code comments, docs, commit messages, PR and issue text. Use a colon, a comma, or two sentences. Existing ones can stay; don't clean them up.
 - **Routes are kebab-case.** The permanent redirects from the old snake_case URLs in `next.config.ts` must stay. Folder names and SQL columns stay snake_case.
 - **The library owns `/video-games`.** New library surfaces nest under it (per-user libraries are `/video-games/u/[username]`). Identity is site-wide, so `/sign-in`, `/account`, `/onboarding` and `/auth/*` stay top-level. **Do not move or retitle `/video-games/start`**: it is Google's OAuth "App homepage".
 - **One login, many apps.** Signing in creates a site account and nothing else, and never forces onboarding: a signed-in visitor with no game library profile is a complete state. An app's per-user data is made when the visitor asks for it, and new per-user tables key on the auth user, not on `profiles`.
-- **The shelf is a theme, not a layout.** A theme owns only how one group of games is laid out and its surface tokens in `shelf-themes.css`; the pipeline, chrome, `GameCase` and detail card are shared. Adding a theme means a name, a component and a token block. The OG image always draws the built-in case.
+- **The shelf is a theme, not a layout.** A theme owns only how one group of games is laid out and its surface tokens in `shelf-themes.css`; the pipeline, chrome, `GameCase` and detail card are shared. The OG image always draws the built-in case.
 - **The wood grain is baked, not inlined.** Edit a profile in `scripts/wood-grain/tiles/`, run `npm run grain`, commit the output. Read [`scripts/wood-grain/README.md`](../scripts/wood-grain/README.md) before changing how it works: it lists approaches that were tried and are wrong.
 - **The accent color is a switch, not a literal.** `ACTIVE_ACCENT` in `src/lib/accent.ts` picks a `[data-accent]` palette in `globals.css`. Use `--link`/`text-link`, `--accent-on-dark` (surfaces dark in both schemes), `--accent-glow`. Never write an accent literal (no `amber-*`).
 - **Always support light and dark mode**, via the CSS variables in `globals.css` and Tailwind `dark:` variants.
 - **Keyboards, scroll locks, dialog positioning and safe areas start at [`docs/mobile-viewport.md`](../docs/mobile-viewport.md).** Several fixes there were shipped from theory and were wrong. Anything pinned to a viewport edge pads itself with the `--safe-*` tokens.
 - **Owner affordances that CREATE a row use `useIsConfirmedOwner`, never `useIsLikelyOwner`.** The latter can be wrong for one round trip, which only matters where the server can't refuse (`POST /me/games` always writes to the caller's library).
-- **Public reads carry public fields only.** Library reads are cached and shared between viewers, so a per-viewer field cannot go on them. Today: wishlist notes (`MyWishlistGameRead` via `GET /me/wishlist/{id}`, guarded by `test_public_wishlist_never_carries_notes`) and game notes (`game_notes`, `GET /me/games/{id}/note`).
+- **Public reads carry public fields only.** Library reads are cached and shared between viewers, so a per-viewer field cannot go on them. Per-viewer data such as notes is served from uncached `/me` endpoints.
 - **Adding a read means adding its cache tag** in `libraryApi.ts`, paired with every write in `actions.ts` that can change it. Uncached owner-only `/me` reads have no tag.
 
 ## Commands
