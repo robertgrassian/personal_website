@@ -39,3 +39,20 @@ export function categoriesIn(items: readonly ProduceItem[]): ProduceCategory[] {
   const present = new Set(items.map((i) => i.category));
   return CATEGORY_ORDER.filter((c) => present.has(c));
 }
+
+// Lowercased with accents stripped, so "jalapeno" finds "Jalapeños".
+function fold(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+}
+
+// Substring match on the name, the other names and the slug. The slug is the singular ("cherry"),
+// which the plural display name ("Cherries") does not contain. A blank query matches everything.
+export function matchesQuery(item: Produce, query: string): boolean {
+  const q = fold(query.trim());
+  if (q === "") return true;
+  const haystack = [item.name, ...(item.aka ?? []), item.slug.replaceAll("-", " ")];
+  return haystack.some((text) => fold(text).includes(q));
+}

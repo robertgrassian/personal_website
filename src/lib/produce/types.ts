@@ -4,7 +4,7 @@ export type Produce = {
   // Kebab-case and permanent: tastings store it in Postgres. A rename changes `name`, never this.
   slug: string;
   name: string;
-  // Other names, for display only.
+  // Other names: shown in the detail dialog and matched by the search box.
   aka?: string[];
   category: ProduceCategory;
   // Robert's own words. Nothing renders when absent.
