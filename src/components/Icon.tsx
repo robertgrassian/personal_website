@@ -127,3 +127,16 @@ export function ArrowLeftIcon({ className, ...rest }: IconProps) {
     </svg>
   );
 }
+
+export function ListBulletIcon({ className, ...rest }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className} {...rest}>
+      <circle cx="4" cy="5" r="1.5" />
+      <circle cx="4" cy="10" r="1.5" />
+      <circle cx="4" cy="15" r="1.5" />
+      <rect x="8" y="4" width="10" height="2" rx="1" />
+      <rect x="8" y="9" width="10" height="2" rx="1" />
+      <rect x="8" y="14" width="10" height="2" rx="1" />
+    </svg>
+  );
+}

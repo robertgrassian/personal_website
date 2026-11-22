@@ -199,7 +199,8 @@ game in progress (the tallest case):
   `flex-1` down a `min-h-0` chain from the scroller, so it fills the case's 2:3
   minimum rather than growing it, and floors at `min-h-28` under a keyboard,
   where the scroller takes over. At 390x430 the face and the unsaved-changes
-  prompt together still fit without scrolling.
+  prompt together still fit without scrolling. That was measured before the
+  List/Clear toolbar row; the textarea absorbs its height, but re-measure.
 
 ## The page owns the safe areas
 
