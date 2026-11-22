@@ -24,6 +24,24 @@ Library games have notes. The decisions, since each closes off an approach:
 - **Read through a Server Action (`getGameNote`)**, the same path wishlist notes use, not
   browser to FastAPI.
 
+## The editing toolbar (shipped 2026-11-22)
+
+Asked for after real use: replacing a whole note was hard on iOS, and lists were tedious.
+
+- **A List toggle, Enter continuing a bullet, and Clear with "Undo clear".** The transforms are
+  pure functions in `src/lib/noteEditing.ts` (tested); `GameNotes.tsx` applies them with
+  `execCommand("insertText")` so each lands on the native undo stack. Setting `value` instead
+  would wipe that stack.
+- **iOS triple-tap selects a PARAGRAPH, not the field.** That is WebKit's native behavior in every
+  text field, Notes included, so in a note of short lines it selects one line. It is why
+  "select all" never worked reliably here, and why Clear is a button rather than a fix to the
+  field.
+- **Still a textarea, on purpose.** Rich editors were weighed: TipTap/Lexical give rendered bullets
+  as you type but cost 100+ KB, a Markdown round-trip, and contenteditable's own iOS selection
+  quirks. `@github/markdown-toolbar-element` is the same execCommand technique as a web component,
+  without list continuation or clear, so it would have covered only half of this. The tiers below
+  still apply.
+
 ## Decided against: timestamped journal entries
 
 **Ruled out 2026-08-24, by the person who would use it: no want and no plan for dated entries.**
