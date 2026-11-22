@@ -64,6 +64,12 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
+      // iOS falls back to probing these root paths when the page's <head> has
+      // no apple-touch-icon link. Dynamic routes (async generateMetadata)
+      // stream their metadata into <body>, so the link from src/app/apple-icon.png
+      // is not in <head> there. Rewrite, not a copy, so there is one PNG.
+      { source: "/apple-touch-icon.png", destination: "/apple-icon.png" },
+      { source: "/apple-touch-icon-precomposed.png", destination: "/apple-icon.png" },
       {
         // FastAPI backend (api/index.py), served under /api/library.
         // Dev: `next dev` proxies to the uvicorn process on :8000 (started by
