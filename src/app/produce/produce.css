@@ -377,7 +377,40 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* 1rem, not smaller: iOS Safari zooms the page into any input under 16px on focus. */
+.produce-search {
+  display: block;
+  width: 100%;
+  max-width: 22rem;
+  min-height: 2.5rem;
   margin-top: 1.25rem;
+  padding: 0 1rem;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--p-ink);
+  background: var(--p-packet);
+  border: 1.5px solid var(--p-ink);
+  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+}
+
+.produce-search::placeholder {
+  color: var(--p-ink-soft);
+}
+
+/* Out-of-season search matches: faded so the in-season groups above read first, but still
+   buttons. Hover and focus lift the fade so the card being picked is legible. */
+.produce-group--out .produce-packet {
+  opacity: 0.5;
+  filter: grayscale(0.7);
+}
+
+.produce-group--out .produce-packet:hover,
+.produce-group--out .produce-packet:focus-visible {
+  opacity: 1;
+  filter: none;
 }
 
 /* Unequal radii on each corner read as a hand-drawn oval rather than a pill. */

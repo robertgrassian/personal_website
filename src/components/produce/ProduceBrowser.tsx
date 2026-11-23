@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AuthButton } from "@/components/AuthButton";
 import { MenuItem } from "@/components/ui/MenuItem";
 import { caveat } from "@/lib/fonts";
-import type { ProduceItem } from "@/lib/produce/browse";
+import { matchesQuery, type ProduceItem } from "@/lib/produce/browse";
 import { CATEGORY_LABELS } from "@/lib/produce/categories";
 import type { ProduceCategory } from "@/lib/produce/types";
 import {
@@ -72,6 +72,28 @@ function basketLine(
   return `You've tried ${tried} of the ${total} ${total === 1 ? "thing" : "things"} in season ${when}.`;
 }
 
+function emptyMessage({
+  searching,
+  query,
+  filterLabel,
+  when,
+  outCount,
+}: {
+  searching: boolean;
+  query: string;
+  filterLabel: string | null;
+  when: string;
+  outCount: number;
+}): string {
+  const what = filterLabel ? filterLabel.toLowerCase() : null;
+  if (!searching) {
+    return `${what ? `No ${what}` : "Nothing"} in season ${when}. Try another season or month.`;
+  }
+  const q = `\u201c${query.trim()}\u201d`;
+  if (outCount > 0) return `No matches for ${q} in season ${when}.`;
+  return what ? `No ${what} match ${q}. Try All.` : `Nothing matches ${q}.`;
+}
+
 export function ProduceBrowser({
   items,
   categories,
@@ -86,6 +108,7 @@ export function ProduceBrowser({
   const [view, setView] = useState<View>({ season: seasonOf(initialMonth), month: null });
   const [nowMonth, setNowMonth] = useState(initialMonth);
   const [filter, setFilter] = useState<Filter>("all");
+  const [query, setQuery] = useState("");
   const [openSlug, setOpenSlug] = useState<string | null>(null);
   // A ref, not state: whether the visitor has scrubbed never affects what renders, only whether
   // the effect may move the scrubber, so changing it should not re-render.
@@ -118,17 +141,28 @@ export function ProduceBrowser({
   const when = whenLabel(view, nowMonth);
   const showingNow = view.season === nowSeason && view.month === null;
 
-  // Group once per period/filter change rather than on every render (opening the dialog
-  // re-renders this component too).
-  const groups = useMemo(() => {
+  const searching = query.trim() !== "";
+
+  // Group once per period/filter/query change rather than on every render (opening the dialog
+  // re-renders this component too). A search also collects its out-of-season matches, which
+  // without a search are never shown.
+  const { groups, outOfSeason } = useMemo(() => {
     const byGroup = new Map<GroupId, ProduceItem[]>(GROUP_IDS.map((g) => [g, []]));
+    const out: ProduceItem[] = [];
     for (const item of items) {
       if (filter !== "all" && item.category !== filter) continue;
+      if (!matchesQuery(item, query)) continue;
       const group = groupForPeriod(item.season, period);
       if (group) byGroup.get(group)!.push(item);
+      else if (searching) out.push(item);
     }
-    return GROUP_IDS.map((id) => ({ id, items: byGroup.get(id)! })).filter((g) => g.items.length);
-  }, [items, filter, period]);
+    return {
+      groups: GROUP_IDS.map((id) => ({ id, items: byGroup.get(id)! })).filter(
+        (g) => g.items.length
+      ),
+      outOfSeason: out,
+    };
+  }, [items, filter, query, searching, period]);
 
   const total = groups.reduce((n, g) => n + g.items.length, 0);
   const open = openSlug ? items.find((i) => i.slug === openSlug) : undefined;
@@ -146,7 +180,8 @@ export function ProduceBrowser({
         />
         <p className="produce-count" aria-live="polite">
           <span>
-            {filterLabel ?? "Everything"} in season {when}: {total}
+            {searching ? `Matches for \u201c${query.trim()}\u201d` : (filterLabel ?? "Everything")}{" "}
+            in season {when}: {total}
           </span>
           {!showingNow && (
             <button type="button" className="produce-back" onClick={backToNow}>
@@ -155,6 +190,17 @@ export function ProduceBrowser({
           )}
         </p>
       </section>
+
+      {/* Searches past the season: a match that is out of season for the period on show lists
+          under the groups, dimmed but still openable, rather than vanishing. */}
+      <input
+        type="search"
+        className="produce-search"
+        aria-label="Search produce"
+        placeholder="Search produce…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
 
       <div role="group" aria-label="Show" className="produce-chips">
         {(["all", ...categories] as Filter[]).map((c) => (
@@ -188,8 +234,7 @@ export function ProduceBrowser({
 
       {groups.length === 0 ? (
         <p className="produce-empty">
-          {filterLabel ? `No ${filterLabel.toLowerCase()}` : "Nothing"} in season {when}. Try
-          another season or month.
+          {emptyMessage({ searching, query, filterLabel, when, outCount: outOfSeason.length })}
         </p>
       ) : (
         groups.map((group) => (
@@ -224,6 +269,34 @@ export function ProduceBrowser({
             </ul>
           </section>
         ))
+      )}
+
+      {outOfSeason.length > 0 && (
+        <section aria-labelledby="group-out" className="produce-group--out mt-10">
+          <h2 id="group-out" className={`produce-group-heading ${caveat.className}`}>
+            Not in season {when}
+            <span className="produce-group-count">{outOfSeason.length}</span>
+            <RoughFrame
+              d={sketch.underline}
+              viewBox={UNDERLINE_VIEWBOX}
+              className="produce-underline"
+            />
+          </h2>
+          <ul className="produce-grid">
+            {outOfSeason.map((item) => (
+              <li key={item.slug}>
+                <SeedPacket
+                  item={item}
+                  period={period}
+                  note={null}
+                  sketch={sketch}
+                  tried={tracking.tastings.has(item.slug)}
+                  onOpen={setOpenSlug}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {/* Mounted only while open: ModalShell's chrome runs on mount and cleans up on unmount. */}
